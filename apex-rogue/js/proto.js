@@ -85,6 +85,8 @@ const Proto = {
       this.action(h.action, h.arg);
     });
     Input.init();
+    // The gloves are meshed once and shared by every gun; do it while the menus idle so the first race doesn't stall.
+    for (const [k, i] of [['pistol', 1], ['support', 2]]) setTimeout(() => Models._gloves[k] || (Models._gloves[k] = Models.gloveGeo(k)), 1200 * i);
     window.addEventListener('resize', () => this.resize());
     this.resize();
 
