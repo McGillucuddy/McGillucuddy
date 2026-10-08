@@ -80,6 +80,7 @@ const PSX = {
 
   // Pick a grime texture for a material from its look.
   kindFor(mat) {
+    if (mat.userData.psxKind) return mat.userData.psxKind;
     const col = mat.color ? mat.color.getHex() : 0;
     const known = { 0x1c2a3a: 'glass', 0x3b2a24: 'vinyl', 0x151515: 'rubber', 0x5a3d22: 'wood', 0x4a3320: 'wood', 0x6b4428: 'wood', 0x4a5a2a: 'wood', 0x3b4822: 'wood' };
     if (known[col]) return known[col];
@@ -92,30 +93,25 @@ const PSX = {
     return 'stone';
   },
 
-  // Box-projected UVs so every model gets the same texel density (8 texels per unit).
+  // Box-projected UVs so every model gets the same texel density (8 texels per unit). Projected per vertex along
+  // its normal, so the mesh keeps its own (smooth) shading instead of being split into flat facets.
   uvCache: new WeakMap(),
   boxUV(geo) {
     if (this.uvCache.has(geo)) return this.uvCache.get(geo);
-    const g = geo.index ? geo.toNonIndexed() : geo.clone();
-    const pos = g.attributes.position;
+    const g = geo.clone();
+    if (!g.attributes.normal) g.computeVertexNormals();
+    const pos = g.attributes.position, nrm = g.attributes.normal;
     const uv = new Float32Array(pos.count * 2);
-    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
     const sc = 1 / 8;
-    for (let i = 0; i + 2 < pos.count; i += 3) {
-      a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
-      n.subVectors(b, a).cross(c.clone().sub(a));
-      const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
-      for (let k = 0; k < 3; k++) {
-        const p = k === 0 ? a : k === 1 ? b : c;
-        let u, v;
-        if (ax >= ay && ax >= az) { u = p.z; v = p.y; } else if (ay >= az) { u = p.x; v = p.z; } else { u = p.x; v = p.y; }
-        uv[(i + k) * 2] = u * sc;
-        uv[(i + k) * 2 + 1] = v * sc;
-      }
+    for (let i = 0; i < pos.count; i++) {
+      const ax = Math.abs(nrm.getX(i)), ay = Math.abs(nrm.getY(i)), az = Math.abs(nrm.getZ(i));
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      let u, v;
+      if (ax >= ay && ax >= az) { u = z; v = y; } else if (ay >= az) { u = x; v = z; } else { u = x; v = y; }
+      uv[i * 2] = u * sc;
+      uv[i * 2 + 1] = v * sc;
     }
     g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-    g.deleteAttribute('normal');
-    g.computeVertexNormals();
     this.uvCache.set(geo, g);
     return g;
   },
