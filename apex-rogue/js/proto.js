@@ -37,6 +37,7 @@ const Proto = {
       this.view = 'top';
     }
     this.cos = loadCosmetics();
+    Settings.load();
     this.tab = 'car';
     this.previewCanvas = document.getElementById('preview3d');
     try { this.preview = new Garage3D(this.previewCanvas); } catch (e) { console.error(e); this.preview = null; }
@@ -92,8 +93,9 @@ const Proto = {
       this.mouse.y = e.clientY;
       if (this.locked && this.cockpit) {
         const l = this.cockpit.look;
-        l.yaw = wrapAngle(l.yaw + e.movementX * LOOK_SENS);
-        l.pitch = clamp(l.pitch - e.movementY * LOOK_SENS, -0.75, 0.6);
+        const sens = LOOK_SENS * Settings.data.sens;
+        l.yaw = wrapAngle(l.yaw + e.movementX * sens);
+        l.pitch = clamp(l.pitch - e.movementY * sens, -0.75, 0.6);
       }
     });
     this.c2d.addEventListener('mousedown', (e) => {
@@ -160,6 +162,7 @@ const Proto = {
     const buy = (cost) => { if (b.scrap < cost) return false; b.scrap -= cost; Sound.play({ type: 'buy' }); return true; };
     switch (a) {
       case 'start': this.startRace(); break;
+      case 'settings': this.showSettings(); break;
       case 'resume': this.resume(); break;
       case 'view-cockpit': this.setView('cockpit'); this.refresh(); break;
       case 'view-top': this.setView('top'); this.refresh(); break;
@@ -285,6 +288,7 @@ const Proto = {
         <div>Hull <b>${Math.ceil(b.hull)}</b>/${b.maxHull}</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
+        <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
       </div>
       <div class="route clipboard sheet">
         <div class="clip"></div>
@@ -617,8 +621,54 @@ const Proto = {
       <button class="btn primary big" data-action="resume">${this.view === 'cockpit' ? 'Click to resume aiming' : 'Resume'}</button>
       ${this.cockpit ? `<button class="btn" data-action="${this.view === 'cockpit' ? 'view-top' : 'view-cockpit'}">Switch to ${this.view === 'cockpit' ? 'top-down' : 'cockpit'} view</button>` : ''}
       ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'} (F)</button>` : ''}
+      <button class="btn" data-action="settings">Settings</button>
       <button class="btn ghost" data-action="abandon">Abandon run</button>
     </div>`);
+  },
+
+  // Settings sheet: a modal over whatever screen you are on.
+  showSettings() {
+    let el = document.getElementById('settings');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'settings';
+      document.body.appendChild(el);
+      el.addEventListener('click', (e) => {
+        const a = e.target.closest('[data-set]');
+        if (e.target === el || (a && a.dataset.set === 'close')) { el.remove(); return; }
+        if (!a) return;
+        const [k, v] = a.dataset.set.split(':');
+        if (k === 'sway') Settings.data.cabinSway = v;
+        if (k === 'retro') this.toggleRetro();
+        if (k === 'mute') Sound.toggleMute();
+        Settings.save();
+        Sound.play({ type: 'click' });
+        this.showSettings();
+      });
+      el.addEventListener('input', (e) => {
+        if (e.target.id === 'setSens') Settings.data.sens = +e.target.value;
+        if (e.target.id === 'setVol') Settings.data.volume = +e.target.value;
+        Settings.save();
+        const l = el.querySelector(`[data-val="${e.target.id}"]`);
+        if (l) l.textContent = e.target.id === 'setSens' ? Settings.data.sens.toFixed(2) + 'x' : Math.round(Settings.data.volume * 100) + '%';
+      });
+    }
+    const d = Settings.data, opt = (k, v, label) => `<button class="opt ${d.cabinSway === v ? 'on' : ''}" data-set="${k}:${v}">${label}</button>`;
+    el.innerHTML = `<div class="settings-card clipboard">
+      <div class="clip"></div>
+      <h2 class="g-title">Settings</h2>
+      <h3>Cabin sway</h3>
+      <p class="muted small">How much the cabin rolls and pitches with the car. Turn it down if it makes you queasy.</p>
+      <div class="opts">${opt('sway', 'off', 'Off')}${opt('sway', 'subtle', 'Subtle')}${opt('sway', 'full', 'Full')}</div>
+      <h3>Mouse sensitivity <small data-val="setSens">${d.sens.toFixed(2)}x</small></h3>
+      <input type="range" id="setSens" min="0.3" max="2.5" step="0.05" value="${d.sens}">
+      <h3>Volume <small data-val="setVol">${Math.round(d.volume * 100)}%</small></h3>
+      <input type="range" id="setVol" min="0" max="1" step="0.05" value="${d.volume}">
+      <div class="opts" style="margin-top:8px"><button class="opt ${Sound.muted ? 'on' : ''}" data-set="mute:1">${Sound.muted ? 'Sound muted (M)' : 'Mute (M)'}</button></div>
+      <h3>Look</h3>
+      <div class="opts"><button class="opt ${PSX.enabled ? 'on' : ''}" data-set="retro:1">Retro filter: ${PSX.enabled ? 'On' : 'Off'} (F)</button></div>
+      <button class="btn primary" data-set="close" style="margin-top:14px">Done</button>
+    </div>`;
   },
 
   showResults() {
@@ -696,6 +746,7 @@ const Proto = {
         <div class="cash">${b.scrap} scrap</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
+        <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
       </div>
       <nav class="g-nav">${nav}</nav>
       <div class="g-panel clipboard">

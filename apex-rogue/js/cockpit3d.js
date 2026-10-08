@@ -386,6 +386,7 @@ class CockpitView {
       I.add(m);
       return m;
     });
+    this.buildAmmoRack(I, b);
     this.hangers = [];
     this.bobNecks = [];
     const hang = [[3.2, 10.8, 0.9], [3.2, 10.8, 0.25], [3.2, 10.8, -0.45], [3.2, 10.8, -1.1], [3.2, 10.8, 1.55]];
@@ -408,6 +409,35 @@ class CockpitView {
       }
       I.add(m);
     }
+  }
+
+  // Webbing rack on the passenger door: your spare ammo as real objects, one row per rack weapon.
+  // Items vanish as the reserve drops and come back when you buy more.
+  buildAmmoRack(I, b) {
+    // A board bolted to the front of the passenger door on a bracket, angled to face your seat.
+    const R = new THREE.Group(), rows = b.rack.length, W = 3.9, rowH = 1.12;
+    const webbing = LP.mat('#3a3a2a', { roughness: 1 }), board = LP.mat('#6a6448', { roughness: 0.95 }), steel = LP.mat('#8a8f94', { metalness: 0.8 }); // olive canvas so dark mags stand out
+    const H = rows * rowH + 0.3;
+    R.add(LP.box(W + 0.4, H, 0.12, board, 0, 0, -0.06));
+    for (const x of [-W / 2 - 0.05, W / 2 + 0.05]) for (const y of [H / 2 - 0.15, -H / 2 + 0.15]) R.add(LP.cyl(0.07, 0.07, 0.06, 10, steel, x, y, 0.02).rotateX(Math.PI / 2));
+    R.add(LP.box(0.3, 0.3, 1.2, steel, W / 2 - 0.4, 0, -0.6)); // bracket back to the door
+    const PER = { smg: { n: 6, gap: 0.62 }, shotgun: { n: 12, gap: 0.31 }, rocket: { n: 4, gap: 0.92 }, flare: { n: 8, gap: 0.46 } };
+    this.ammoRack = b.rack.map((w, r) => {
+      const cfg = PER[w.id], yc = H / 2 - 0.15 - rowH / 2 - r * rowH;
+      const items = [];
+      for (let k = 0; k < cfg.n; k++) {
+        const it = Models.ammoItem(w.id);
+        it.position.set(-W / 2 + 0.3 + k * cfg.gap, yc, 0.2);
+        if (w.id === 'rocket') it.scale.setScalar(0.85);
+        R.add(it);
+        items.push(it);
+      }
+      R.add(LP.box(W + 0.1, 0.18, 0.08, webbing, 0, yc - 0.12, 0.38)); // elastic loop
+      return { items, wi: r, per: w.id === 'smg' ? weaponStats(w).mag : 1, shown: -1 };
+    });
+    R.position.set(2.6, 4.7, 7.5);
+    R.lookAt(EYE.x, EYE.y, EYE.z);
+    I.add(R);
   }
 
   buildViewmodels() {
@@ -622,8 +652,16 @@ class CockpitView {
     if (this.env) Env.update(this.env, dt, t, p.x, p.y, this.scene);
 
     // Cars
-    this.playerGroup.position.set(p.x, 0, p.y);
-    this.playerGroup.rotation.y = -p.heading;
+    // Your own car's body motion, scaled by the cabin-sway setting (rolls the whole cabin and your view).
+    const sway = Settings.sway, cm = this.cabinMo || (this.cabinMo = { roll: 0, vroll: 0, pitch: 0, vpitch: 0 });
+    if (dt > 0) {
+      const k = 120, d = 12;
+      cm.vroll += ((clamp(-this.acc.lat * 0.0001, -0.09, 0.09) - cm.roll) * k - cm.vroll * d) * dt; cm.roll += cm.vroll * dt;
+      cm.vpitch += ((clamp(this.acc.fwd * 0.00006, -0.05, 0.05) - cm.pitch) * k - cm.vpitch * d) * dt; cm.pitch += cm.vpitch * dt;
+    }
+    this.playerGroup.position.set(p.x, Math.sin(t * 13) * 0.05 * Math.min(1, p.speed / 300) * sway, p.y);
+    this.playerGroup.rotation.order = 'YXZ';
+    this.playerGroup.rotation.set(cm.roll * sway, -p.heading, cm.pitch * sway);
     this.playerGroup.updateMatrixWorld(true); // localToWorld below needs this frame's transform
     for (const [car, m] of this.carMeshes) {
       m.g.position.set(car.x, 0, car.y);
@@ -676,6 +714,10 @@ class CockpitView {
     // Interior props reflect combat state.
     const b = combat.build;
     for (let k = 0; k < 3; k++) this.nadeMeshes[k].visible = k < b.grenades;
+    for (const row of this.ammoRack) {
+      const w = b.rack[row.wi], n = Math.min(row.items.length, Math.ceil(w.reserve / row.per));
+      if (n !== row.shown) { row.items.forEach((it, k) => { it.visible = k < n; }); row.shown = n; }
+    }
     this.rackGuns.forEach((m, i) => {
       m.visible = i !== combat.wi;
       if (m.userData.tip) m.userData.tip.visible = b.rack[i].mag > 0;
@@ -694,11 +736,13 @@ class CockpitView {
     eye.y += (Math.random() - 0.5) * sh * 1.2;
     eye.z += (Math.random() - 0.5) * sh * 1.2;
     const wy = this.aimAngle(), pt = this.look.pitch;
-    const dir = new THREE.Vector3(Math.cos(wy) * Math.cos(pt), Math.sin(pt), Math.sin(wy) * Math.cos(pt));
+    // Look direction in the car's frame, so the view rolls and pitches with the cabin.
+    const yw = this.look.yaw;
+    const dir = new THREE.Vector3(Math.cos(yw) * Math.cos(pt), Math.sin(pt), Math.sin(yw) * Math.cos(pt)).applyQuaternion(this.playerGroup.quaternion);
     this.camera.position.copy(eye);
-    this.camera.up.set(0, 1, 0);
+    this.camera.up.set(0, 1, 0).applyQuaternion(this.playerGroup.quaternion);
     this.camera.lookAt(eye.clone().add(dir));
-    this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(this.look.yaw));
+    this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(yw) * sway);
   }
 
   // Body roll in corners, nose dive under braking, squat on launch, suspension jiggle, a jolt when hit,
@@ -846,7 +890,7 @@ class CockpitView {
     sw.vr += ((-dyaw * 4 - sw.r) * k - sw.vr * d) * dt; sw.r += sw.vr * dt;
     const spd = Math.min(1, p.speed / 500);
     const bob = Math.sin(t * 9) * spd * 0.05 + Math.sin(t * 1.7) * 0.03; // road vibration + breathing
-    const busyDip = combat.busy ? 4 : 0;
+    const busyDip = (combat.busy ? 4 : 0) + clamp((-this.look.pitch - 0.35) / 0.25, 0, 1) * 4.5; // looking down at your gear lowers the gun
     this.dip = lerp(this.dip || 0, busyDip, Math.min(1, dt * 10));
     const sw01 = A.switchT / 0.38, raise = sw01 * sw01 * 5;
     vm.guns.forEach((g, i) => {

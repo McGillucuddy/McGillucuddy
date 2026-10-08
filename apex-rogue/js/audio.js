@@ -4,6 +4,7 @@
 const Sound = {
   ctx: null,
   muted: false,
+  volume: 1,
 
   init() {
     if (this.ctx) return;
@@ -14,7 +15,7 @@ const Sound = {
     }
     const c = this.ctx;
     this.master = c.createGain();
-    this.master.gain.value = this.muted ? 0 : 0.5;
+    this.master.gain.value = this.muted ? 0 : 0.5 * this.volume;
     this.master.connect(c.destination);
 
     this.engFilter = c.createBiquadFilter();
@@ -49,7 +50,7 @@ const Sound = {
 
   toggleMute() {
     this.muted = !this.muted;
-    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5;
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.5 * this.volume;
     return this.muted;
   },
 

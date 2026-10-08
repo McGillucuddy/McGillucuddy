@@ -1420,6 +1420,29 @@ const Models = {
     return g;
   },
 
+  // One round of spare ammo for the door rack, standing upright (y up): an SMG mag, a 12-gauge shell,
+  // a rocket warhead or a flare cartridge.
+  ammoItem(id) {
+    const g = new THREE.Group();
+    if (id === 'smg') {
+      g.add(LP.rbox(0.32, 1.05, 0.2, 0.05, LP.mat('#2b2d30', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.4 }), 0, 0, 0));
+      g.add(LP.rbox(0.36, 0.14, 0.24, 0.04, LP.mat('#4a4d52', { metalness: 0.8, roughness: 0.3 }), 0, -0.55, 0)); // base plate
+      g.add(LP.cyl(0.05, 0.05, 0.12, 10, LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 }), 0, 0.56, 0)); // top round
+    } else if (id === 'shotgun') {
+      g.add(LP.cyl(0.13, 0.13, 0.55, 14, LP.mat('#a8221a', { roughness: 0.6 }), 0, 0.05, 0));
+      g.add(LP.cyl(0.14, 0.14, 0.14, 14, LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 }), 0, -0.27, 0));
+    } else if (id === 'rocket') {
+      const war = LP.lathe([[0.02, -0.75], [0.08, -0.7], [0.3, -0.35], [0.34, -0.1], [0.24, 0.12], [0.13, 0.25], [0.13, 0.6]], 16, LP.mat('#4b5a2e', { metalness: 0.3, roughness: 0.6 }));
+      war.rotation.x = -Math.PI / 2;
+      g.add(war);
+      g.add(LP.cyl(0.345, 0.345, 0.06, 16, LP.mat('#c9a227'), 0, -0.2, 0));
+    } else {
+      g.add(LP.cyl(0.17, 0.17, 0.62, 14, LP.mat('#d9601e', { roughness: 0.5 }), 0, 0.05, 0));
+      g.add(LP.cyl(0.19, 0.19, 0.12, 14, LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 }), 0, -0.3, 0));
+    }
+    return g;
+  },
+
   // Where the hands go on each gun: [kind, position, x-tilt, arm direction, mirrored].
   GRIPS: {
     smg: [['pistol', [0, -1.45, 0.15], -0.12, [2.2, -3.6, 6], false], ['support', [0, -0.78, -1.95], 0, [-2.4, -3.2, 6], false]],

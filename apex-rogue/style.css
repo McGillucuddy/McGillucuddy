@@ -431,3 +431,12 @@ body.proto #ui { z-index: 2; }
 .reward .up-card:nth-child(2) { animation-delay: .1s } .reward .up-card:nth-child(3) { animation-delay: .2s }
 .event-opt { animation: riseIn .3s ease both; } .event-opt:nth-child(2) { animation-delay: .08s } .event-opt:nth-child(3) { animation-delay: .16s }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Settings sheet */
+#settings { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; }
+.settings-card.clipboard { position: relative; top: auto; right: auto; bottom: auto; width: min(460px, calc(100% - 32px)); max-height: calc(100% - 40px); animation: riseIn .25s ease both; }
+.settings-card h3 { margin: 14px 0 4px; }
+.settings-card h3 small { font-weight: 400; color: #6a5e4a; margin-left: 6px; }
+.settings-card input[type=range] { width: 100%; accent-color: #a8322a; }
+.g-settings { font: inherit; cursor: pointer; margin-left: auto; color: #e8e0c8; background: transparent; border: 1px solid rgba(232,224,200,.4); border-radius: 4px; padding: 3px 10px; }
+.g-settings:hover { border-color: #e8e0c8; }
