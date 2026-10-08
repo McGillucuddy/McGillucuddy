@@ -51,7 +51,7 @@ code in `js/models.js`, so the game, the cockpit and the viewer share them. Open
 around each one and download it as a `.glb`. Pre-exported copies live in `models/`
 (see `models/contact_sheet.png`); `.glb` files open in Blender, Windows 3D Viewer, or any glTF viewer.
 
-- **Cars:** Comet, Brick, Wasp and Phantom each have their own body shape; rivals add a rocket pod or
+- **Cars:** real-world proportions and details (wheel arches, grille, lenses, plates, mirrors, door seams, rims, road grime). Comet is a 90s coupe, Brick a boxy estate, Wasp a hot hatch, Phantom a 70s fastback; rivals add a welded rocket pod or
   a mine dropper. Your own car is an open shell with the cockpit interior inside.
 - **Weapons:** SMG, rocket launcher, grenade, rocket, mine.
 - **Cabin and trinkets:** cockpit interior, fuzzy dice, bobblehead, grenade crate.

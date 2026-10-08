@@ -189,7 +189,9 @@ class CockpitView {
     const tr = this.race.track, bio = tr.biome, N = tr.N;
     const inner = tr.hw + tr.runoff;
     const pos = [], col = [], idx = [];
-    const cA = new THREE.Color(bio.wall), cB = new THREE.Color(bio.wallStripe);
+    // Weathered concrete barriers with faded paint, rather than cartoon stripes.
+    const concrete = new THREE.Color('#8c887d');
+    const cA = new THREE.Color(bio.wall).lerp(concrete, bio.night ? 0.2 : 0.6), cB = new THREE.Color(bio.wallStripe).lerp(concrete, bio.night ? 0.2 : 0.6);
     for (const s of [-1, 1]) {
       // Wall vertices; drop the ones the offset curve pushes back onto the road (tight hairpins).
       const verts = [];
@@ -284,7 +286,7 @@ class CockpitView {
       // Constant on-screen size so tags stay readable without filling the view up close.
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tag.tex, depthTest: false, transparent: true, sizeAttenuation: false }));
       sprite.scale.set(0.15, 0.0375, 1);
-      sprite.position.set(0, 30, 0);
+      sprite.position.set(0, 19, 0);
       g.add(sprite);
       this.scene.add(g);
       this.carMeshes.set(car, { g, bodyMat: model.userData.bodyMat, wheels: model.userData.wheels, tag, sprite, lastTag: '' });
@@ -422,7 +424,7 @@ class CockpitView {
   tags(W, H) {
     const out = [], v = new THREE.Vector3();
     for (const [car, m] of this.carMeshes) {
-      v.set(car.x, 30, car.y).project(this.camera);
+      v.set(car.x, 19, car.y).project(this.camera);
       if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) continue;
       const d = Math.hypot(car.x - this.race.player.x, car.y - this.race.player.y);
       if (d > 1100) continue;
