@@ -40,6 +40,9 @@ const Proto = {
     this.tab = 'car';
     this.previewCanvas = document.getElementById('preview3d');
     try { this.preview = new Garage3D(this.previewCanvas); } catch (e) { console.error(e); this.preview = null; }
+    this.fadeEl = document.createElement('div');
+    this.fadeEl.id = 'fade';
+    document.body.appendChild(this.fadeEl);
     this.tip = document.createElement('div');
     this.tip.className = 'garage-tip hidden';
     document.body.appendChild(this.tip);
@@ -138,6 +141,14 @@ const Proto = {
     if (this.c2d.requestPointerLock) this.c2d.requestPointerLock();
   },
 
+  // Fade to black, swap the screen, fade back in.
+  fadeThrough(fn) {
+    const f = this.fadeEl;
+    if (!f) { fn(); return; }
+    f.classList.add('on');
+    setTimeout(() => { fn(); requestAnimationFrame(() => f.classList.remove('on')); }, 230);
+  },
+
   setUI(html) {
     this.ui.innerHTML = html;
     this.ui.classList.toggle('hidden', !html);
@@ -156,7 +167,20 @@ const Proto = {
       case 'to-briefing': this.showMap(); break;
       case 'to-map': this.showMap(); break;
       case 'open-garage': this.toGarage(); break;
-      case 'pick-node': this.pickNode(+arg); break;
+      case 'pick-node': {
+        // Draw the marker to the stop, thump the stamp, fade to black, then go.
+        if (this.picking) break;
+        const id = +arg, cv = document.getElementById('routeCanvas');
+        if (!cv || !reachableNodes(this.run.map, this.run.cur).includes(id)) { this.pickNode(id); break; }
+        this.picking = true;
+        Sound.play({ type: 'click' });
+        RouteSheet.drawTo(cv, this.run.map, this.run.cur, id, () => {
+          const el = document.querySelector(`.stop[data-arg="${id}"]`);
+          if (el) el.classList.add('picked');
+          setTimeout(() => this.fadeThrough(() => { this.picking = false; this.pickNode(id); }), 260);
+        });
+        break;
+      }
       case 'event-choice': {
         const o = this.event.options[+arg];
         if (o.ok && !o.ok(b)) break;
@@ -249,7 +273,7 @@ const Proto = {
     const nodes = map.nodes.map((n) => {
       const t = NODE_TYPES_RUN[n.type], can = reach.includes(n.id), p = RouteSheet.pos(n);
       const info = n.type === 'boss' ? `<b>Qualifier: ${boss.name}</b>, ${boss.title}. ${boss.desc}` : `<b>${t.label}.</b> ${t.desc}`;
-      return `<button class="stop t-${n.type} ${n.done ? 'done' : ''} ${can ? 'can' : ''}" style="left:${p.x * 100}%;top:${p.y * 100}%"
+      return `<button class="stop t-${n.type} ${n.done ? 'done' : ''} ${can ? 'can' : ''}" style="left:${p.x * 100}%;top:${p.y * 100}%;--d:${(n.row * 0.05 + n.col * 0.02).toFixed(2)}s"
         ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} data-info="${info.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? 'Boss' : t.label}</small></button>`;
     }).join('');
     const here = run.cur != null ? RouteSheet.pos(mapNode(map, run.cur)) : null;

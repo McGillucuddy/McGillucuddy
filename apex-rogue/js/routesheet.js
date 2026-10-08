@@ -159,6 +159,28 @@ const RouteSheet = {
     g.setLineDash([]);
   },
 
+  // Animate the red marker drawing itself from where you are to the stop you picked, then call done().
+  drawTo(canvas, map, fromId, toId, done) {
+    const g = canvas.getContext('2d'), dpr = canvas.width / canvas.clientWidth, W = canvas.clientWidth, H = canvas.clientHeight;
+    const to = this.pos(mapNode(map, toId)), from = fromId != null ? this.pos(mapNode(map, fromId)) : { x: to.x, y: 1.02 };
+    const x0 = from.x * W, y0 = from.y * H, x1 = to.x * W, y1 = to.y * H;
+    const t0 = performance.now(), dur = 420;
+    let last = 0;
+    g.save();
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.strokeStyle = 'rgba(178,34,28,0.9)'; g.lineWidth = 4.5; g.lineCap = 'round';
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / dur), e = 1 - (1 - k) * (1 - k);
+      g.beginPath();
+      g.moveTo(x0 + (x1 - x0) * last, y0 + (y1 - y0) * last);
+      g.lineTo(x0 + (x1 - x0) * e + (Math.random() - 0.5), y0 + (y1 - y0) * e + (Math.random() - 0.5));
+      g.stroke();
+      last = e;
+      if (k < 1) requestAnimationFrame(step); else { g.restore(); done(); }
+    };
+    requestAnimationFrame(step);
+  },
+
   // Felt-tip marker: a wobbly double stroke.
   marker(g, [x0, y0], [x1, y1], rng, faint) {
     for (let k = 0; k < 2; k++) {

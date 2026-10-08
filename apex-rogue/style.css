@@ -404,3 +404,30 @@ body.proto #ui { z-index: 2; }
 .route.sheet .route-info { position: sticky; bottom: -14px; z-index: 2; background: #f3ebd3; box-shadow: 0 -6px 10px rgba(232,221,192,.9); }
 .stop.t-bounty { --c: #8a6a10; background: #f7efd2; }
 .stop.t-stash { --c: #5a4a3a; background: #efe6d8; }
+
+/* ---------- Transitions ---------- */
+#fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 50; transition: opacity .22s ease; }
+#fade.on { opacity: 1; pointer-events: auto; }
+@keyframes clipIn { from { transform: translateX(-50%) translateY(40px) rotate(-2deg); opacity: 0; } to { transform: translateX(-50%) translateY(0) rotate(0); opacity: 1; } }
+.route.clipboard { animation: clipIn .35s cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes stampIn { 0% { transform: translate(-50%, -50%) scale(1.7); opacity: 0; } 60% { transform: translate(-50%, -50%) scale(.92); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); } }
+.stop { animation: stampIn .3s ease-out backwards; animation-delay: calc(.15s + var(--d, 0s)); }
+@keyframes stampPick { 0% { transform: translate(-50%, -50%) scale(1); } 35% { transform: translate(-50%, -50%) scale(1.35); } 100% { transform: translate(-50%, -50%) scale(1.15); } }
+.stop.picked { animation: stampPick .25s ease-out both; box-shadow: 0 0 0 5px rgba(178,34,28,.35); }
+@keyframes pinDrop { from { transform: translate(-30%, -400%); opacity: 0; } to { transform: translate(-30%, -150%); opacity: 1; } }
+.pushpin { animation: pinDrop .35s cubic-bezier(.3,1.6,.5,1) .45s both; }
+@keyframes fromBlack { from { opacity: 0; } to { opacity: 1; } }
+@keyframes riseIn { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+.screen.results, .screen.briefing, .screen.reward, .screen.end { animation: fromBlack .4s ease both; }
+.screen.results h1 { animation: riseIn .4s ease .15s both; }
+.payout > div, .payout > p, .standings tr { animation: riseIn .3s ease both; }
+.standings tr:nth-child(1) { animation-delay: .25s } .standings tr:nth-child(2) { animation-delay: .3s } .standings tr:nth-child(3) { animation-delay: .35s }
+.standings tr:nth-child(4) { animation-delay: .4s } .standings tr:nth-child(5) { animation-delay: .45s } .standings tr:nth-child(6) { animation-delay: .5s } .standings tr:nth-child(7) { animation-delay: .55s }
+.payout > :nth-child(1) { animation-delay: .4s } .payout > :nth-child(2) { animation-delay: .46s } .payout > :nth-child(3) { animation-delay: .52s } .payout > :nth-child(4) { animation-delay: .58s }
+.payout > :nth-child(5) { animation-delay: .64s } .payout > :nth-child(6) { animation-delay: .7s } .payout > :nth-child(7) { animation-delay: .76s } .payout > :nth-child(8) { animation-delay: .82s }
+.payout > :nth-child(9) { animation-delay: .88s } .payout > :nth-child(10) { animation-delay: .94s } .payout > :nth-child(n+11) { animation-delay: 1s }
+@keyframes dealIn { from { transform: translateY(60px) rotate(-6deg) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+.reward .up-card { animation: dealIn .4s cubic-bezier(.2,.9,.3,1.15) both; }
+.reward .up-card:nth-child(2) { animation-delay: .1s } .reward .up-card:nth-child(3) { animation-delay: .2s }
+.event-opt { animation: riseIn .3s ease both; } .event-opt:nth-child(2) { animation-delay: .08s } .event-opt:nth-child(3) { animation-delay: .16s }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
