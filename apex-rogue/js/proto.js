@@ -85,8 +85,19 @@ const Proto = {
       this.action(h.action, h.arg);
     });
     Input.init();
-    // The gloves are meshed once and shared by every gun; do it while the menus idle so the first race doesn't stall.
-    for (const [k, i] of [['pistol', 1], ['support', 2]]) setTimeout(() => Models._gloves[k] || (Models._gloves[k] = Models.gloveGeo(k)), 1200 * i);
+    // Sculpted models (gloves, guns, car bodies, cabin) are meshed once and shared. Queue them all now and mesh
+    // them a few milliseconds per frame while the menus idle, so neither the menus nor the first race stall.
+    Sculpt.collect = true;
+    try {
+      for (const k of ['pistol', 'support']) Models.hand(k, [2, -3, 6]);
+      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.weapon(id);
+      for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
+      Models.car(Object.assign({}, carLook(this.cos), { shell: true })); // your own car, seen from inside
+      Models.interior('#888888', {});
+      Models.rocketPod(); Models.mineDropper(); Models.gunner(); Models.grenade();
+    } finally { Sculpt.collect = false; }
+    const pump = () => { if (Sculpt.runJobs(10)) requestAnimationFrame(pump); };
+    requestAnimationFrame(pump);
     window.addEventListener('resize', () => this.resize());
     this.resize();
 

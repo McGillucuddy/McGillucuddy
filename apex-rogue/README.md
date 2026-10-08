@@ -152,8 +152,13 @@ All the data lives in `js/build.js` (gameplay) and `js/cosmetics.js` (looks).
 
 ## Models (`models.html`, `models/`)
 
-All 3D models are low poly (flat-shaded, chamfered, mostly a few hundred triangles each) and built in
-code in `js/models.js`, so the game, the cockpit and the viewer share them. Open `models.html` to orbit
+All 3D models are built in code in `js/models.js`, so the game, the cockpit and the viewer share them.
+The main bodies are **sculpted** (`js/sculpt.js`): each part is a signed distance field (rounded boxes,
+cylinders, lathes, side outlines, rods), parts of one material melt together with a fillet, ports and grooves
+are carved out, and each material is meshed into one seamless smooth surface. That covers the guns, car
+bodies and their bolt-ons, the cockpit cabin and roll cage, the car-mounted weapons, grenades and the gloved
+first-person hands (one blended surface per hand with seams, stitching and a knuckle guard). Sculpted meshes
+are cached and built while the menus idle. Small hardware (screws, lenses, decals, plates) stays separate. Open `models.html` to orbit
 around each one and download it as a `.glb`. Pre-exported copies live in `models/`
 (see `models/contact_sheet.png`); `.glb` files open in Blender, Windows 3D Viewer, or any glTF viewer.
 
@@ -228,6 +233,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
 | `js/psx.js` | Retro PS1-style rendering: low-res dithered post pass, vertex snapping, grimy pixel textures |
-| `js/models.js`, `js/modelviewer.js` | Low-poly model library and the model viewer / `.glb` exporter |
+| `js/models.js`, `js/modelviewer.js` | Model library and the model viewer / `.glb` exporter |
+| `js/sculpt.js` | Sculpted models: signed distance parts blended per material and meshed into seamless surfaces |
 | `js/hud.js` | Race HUD shared by both pages |
 | `tools/sim.js` | Headless balance simulator: `node tools/sim.js [races] [botSkill]` |

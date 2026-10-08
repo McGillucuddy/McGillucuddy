@@ -165,85 +165,6 @@ const LP = {
     const h = Math.max(k - Math.abs(a - b), 0) / k;
     return Math.min(a, b) - h * h * k * 0.25;
   },
-  // Turn a signed distance function (negative inside) into one seamless, smooth-shaded mesh (surface nets).
-  // box = [minX, minY, minZ, maxX, maxY, maxZ]; color(x, y, z) returns a THREE.Color for vertex colours.
-  sdfMesh(sdf, box, cell, color) {
-    const [x0, y0, z0] = box;
-    const nx = Math.ceil((box[3] - x0) / cell), ny = Math.ceil((box[4] - y0) / cell), nz = Math.ceil((box[5] - z0) / cell);
-    const NX = nx + 1, NY = ny + 1, val = new Float32Array(NX * NY * (nz + 1));
-    const gid = (i, j, k) => i + NX * (j + NY * k);
-    // Blocks of cells well away from the surface take a single sample; only blocks near it are sampled in full.
-    const B = 4, reach = cell * (B * 0.87 + 1.5);
-    for (let bk = 0; bk <= nz; bk += B) for (let bj = 0; bj <= ny; bj += B) for (let bi = 0; bi <= nx; bi += B) {
-      const i1 = Math.min(bi + B, nx), j1 = Math.min(bj + B, ny), k1 = Math.min(bk + B, nz);
-      const d = sdf(x0 + (bi + i1) * 0.5 * cell, y0 + (bj + j1) * 0.5 * cell, z0 + (bk + k1) * 0.5 * cell), far = Math.abs(d) > reach;
-      for (let k = bk; k <= k1; k++) for (let j = bj; j <= j1; j++) for (let i = bi; i <= i1; i++) {
-        val[gid(i, j, k)] = far ? d : sdf(x0 + i * cell, y0 + j * cell, z0 + k * cell);
-      }
-    }
-    // One vertex per cell the surface passes through, at the mean of its edge crossings.
-    const vid = new Int32Array(nx * ny * nz).fill(-1), cid = (i, j, k) => i + nx * (j + ny * k);
-    const C = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]];
-    const E = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
-    const pos = [], cv = new Float32Array(8);
-    for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-      let inside = 0;
-      for (let c = 0; c < 8; c++) { cv[c] = val[gid(i + C[c][0], j + C[c][1], k + C[c][2])]; if (cv[c] < 0) inside++; }
-      if (inside === 0 || inside === 8) continue;
-      let sx = 0, sy = 0, sz = 0, n = 0;
-      for (const [a, b] of E) {
-        if ((cv[a] < 0) === (cv[b] < 0)) continue;
-        const t = cv[a] / (cv[a] - cv[b]);
-        sx += C[a][0] + (C[b][0] - C[a][0]) * t; sy += C[a][1] + (C[b][1] - C[a][1]) * t; sz += C[a][2] + (C[b][2] - C[a][2]) * t; n++;
-      }
-      vid[cid(i, j, k)] = pos.length / 3;
-      pos.push(x0 + (i + sx / n) * cell, y0 + (j + sy / n) * cell, z0 + (k + sz / n) * cell);
-    }
-    // Quads across every grid edge the surface crosses.
-    const idx = [];
-    const quad = (a, b, c, d, flip) => {
-      if (a < 0 || b < 0 || c < 0 || d < 0) return;
-      if (flip) idx.push(a, c, b, a, d, c); else idx.push(a, b, c, a, c, d);
-    };
-    for (let k = 0; k < nz; k++) for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) {
-      const v0 = val[gid(i, j, k)] < 0;
-      if (j > 0 && k > 0 && (val[gid(i + 1, j, k)] < 0) !== v0) quad(vid[cid(i, j - 1, k - 1)], vid[cid(i, j, k - 1)], vid[cid(i, j, k)], vid[cid(i, j - 1, k)], !v0);
-      if (i > 0 && k > 0 && (val[gid(i, j + 1, k)] < 0) !== v0) quad(vid[cid(i - 1, j, k - 1)], vid[cid(i - 1, j, k)], vid[cid(i, j, k)], vid[cid(i, j, k - 1)], !v0);
-      if (i > 0 && j > 0 && (val[gid(i, j, k + 1)] < 0) !== v0) quad(vid[cid(i - 1, j - 1, k)], vid[cid(i, j - 1, k)], vid[cid(i, j, k)], vid[cid(i - 1, j, k)], !v0);
-    }
-    // Pull each vertex onto the true surface and take its normal from the field, so shading is perfectly smooth.
-    const e = cell * 0.5, nrm = new Float32Array(pos.length), col = new Float32Array(pos.length);
-    const grad = (x, y, z) => { // tetrahedral differences: four samples
-      const a = sdf(x + e, y - e, z - e), b = sdf(x - e, y - e, z + e), c = sdf(x - e, y + e, z - e), d = sdf(x + e, y + e, z + e);
-      const gx = a - b - c + d, gy = -a - b + c + d, gz = -a + b - c + d, l = Math.hypot(gx, gy, gz) || 1;
-      return [gx / l, gy / l, gz / l];
-    };
-    for (let v = 0; v < pos.length; v += 3) {
-      let x = pos[v], y = pos[v + 1], z = pos[v + 2];
-      const d = sdf(x, y, z), g0 = grad(x, y, z);
-      x -= g0[0] * d; y -= g0[1] * d; z -= g0[2] * d;
-      pos[v] = x; pos[v + 1] = y; pos[v + 2] = z;
-      const gr = grad(x, y, z);
-      nrm[v] = gr[0]; nrm[v + 1] = gr[1]; nrm[v + 2] = gr[2];
-      if (color) { const c = color(x, y, z); col[v] = c.r; col[v + 1] = c.g; col[v + 2] = c.b; }
-    }
-    // Make every triangle face outward (its winding agrees with the field normal).
-    for (let t = 0; t < idx.length; t += 3) {
-      const a = idx[t] * 3, b = idx[t + 1] * 3, c = idx[t + 2] * 3;
-      const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2];
-      const wx = pos[c] - pos[a], wy = pos[c + 1] - pos[a + 1], wz = pos[c + 2] - pos[a + 2];
-      const fx = uy * wz - uz * wy, fy = uz * wx - ux * wz, fz = ux * wy - uy * wx;
-      if (fx * (nrm[a] + nrm[b] + nrm[c]) + fy * (nrm[a + 1] + nrm[b + 1] + nrm[c + 1]) + fz * (nrm[a + 2] + nrm[b + 2] + nrm[c + 2]) < 0) {
-        const s = idx[t + 1]; idx[t + 1] = idx[t + 2]; idx[t + 2] = s;
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
-    if (color) geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    geo.setIndex(idx);
-    return geo;
-  },
   // Rounded box (extruded rounded rectangle with rounded edges): fingers, grips, soft parts.
   rbox(w, h, d, r, mat, x, y, z) {
     r = Math.min(r, w / 2 - 0.01, h / 2 - 0.01, d / 2 - 0.01);
@@ -650,8 +571,8 @@ const CAR_STYLES = {
     lightY: 4, tailY: 5.4, frontPlateY: 2.4, rearPlateY: 3.8, mirrorX: 6.4, mirrorY: 7.3,
     bPillar: -2.4, seams: [5.6, -5.4], cPillar: [[-7.6, 6.9], [-9.2, 10.3], [-10.8, 10.3], [-13.9, 7]],
     kit: { bumper: 'none', roof: 'none', spoiler: 'roofspoiler' },
-    extras(g, m) {
-      g.add(LP.box(1.4, 0.4, 13, m.dark, 17.6, 1.6, 0)); // front lip
+    extras(sc, m) {
+      sc.add(m.dark, SDF.box([1.4, 0.4, 13], 0.18, [17.6, 1.6, 0]), 0.3); // front lip
     },
   },
   // Phantom: a 70s fastback muscle car.
@@ -662,8 +583,9 @@ const CAR_STYLES = {
     lightY: 4.4, tailY: 5.2, frontPlateY: 2.6, rearPlateY: 3.6, mirrorX: 4.4, mirrorY: 7.4,
     bPillar: -3.4, seams: [3.4, -6.2], cPillar: [[-6.4, 6.8], [-4.6, 10.3], [-16.4, 6.8]],
     kit: { bumper: 'none', roof: 'none', spoiler: 'ducktail' },
-    extras(g, m) {
-      g.add(LP.side([[13, 6.5], [7.5, 7], [7.2, 7.8], [10.5, 7.8]], 4, m.dark, 0.15)); // hood scoop
+    extras(sc, m) {
+      sc.add(m.body, SDF.inflate(SDF.sideX([[13, 6.3], [7.5, 6.8], [7.2, 7.8], [10.5, 7.8]], 4, 0), 0.15), 0.5); // hood scoop, moulded into the hood
+      sc.cut(SDF.box([1.2, 0.7, 3.2], 0.15, [7.4, 7.55, 0]), 0.1); // its intake
     },
   },
 };
@@ -761,61 +683,23 @@ const Models = {
     const W = opts.shell ? 18 : st.bodyW, hw = W / 2;
     const bev = 0.5;
 
-    if (opts.shell) {
-      const [front, rear] = shellProfiles(st, 8.5, -12.5);
-      g.add(LP.side(front, W, body, bev), LP.side(rear, W, body, bev));
-    } else {
-      const shell = LP.side(bodyOutline(st), W, body, bev, 8);
-      g.add(shell);
-      // Round the body off: corners pulled in towards the nose and tail, a softened shoulder along the top.
-      const [wf, wr] = st.wheels, ar = st.wheelR + 0.75, fX = st.top[0][0], rX = st.top[st.top.length - 1][0];
-      const belt = st.cabin[0][1];
-      LP.warp([shell], (v) => {
-        const tf = clamp((v.x - (wf + ar * 0.4)) / (fX - wf - ar * 0.4), 0, 1), tr = clamp(((wr - ar * 0.4) - v.x) / (wr - ar * 0.4 - rX), 0, 1);
-        let k = 1 - 0.11 * tf * tf - 0.08 * tr * tr;
-        k -= 0.035 * clamp((v.y - (belt - 0.6)) / 0.8, 0, 1); // shoulder
-        k -= 0.03 * clamp((2.2 - v.y) / 1.0, 0, 1); // sills tuck under
-        v.z *= k;
-        // Corners rounded in plan view: the outer edges of the nose and tail sweep back.
-        const e = Math.pow(Math.abs(v.z) / (W / 2 + bev), 3);
-        v.x -= 1.8 * e * clamp((v.x - (fX - 4)) / 4, 0, 1);
-        v.x += 1.4 * e * clamp(((rX + 4) - v.x) / 4, 0, 1);
-      });
-      // Glasshouse: tinted glass, roof skin, pillars, window trim; it leans in as it rises (tumblehome).
-      const cab = st.cabin, cw = st.cabinW;
+    const fx = st.top[0][0] + bev, rx = st.top[st.top.length - 1][0] - bev;
+    Models.carBody(g, st, opts, { body, body2, roofMat, dark, chrome }, W, bev, fx, rx);
+    if (!opts.shell) {
+      // Tinted glass sits inside the pillars; it leans in as it rises (tumblehome), like the roof around it.
+      const cab = st.cabin, cw = st.cabinW, belt = cab[0][1], roofY = cab[1][1];
       const house = [LP.side(cab, cw, glass, 0.25)];
-      const roofY = cab[1][1];
-      house.push(LP.side([[cab[1][0] - 0.2, roofY - 0.2], [cab[2][0] + 0.2, roofY - 0.2], [cab[2][0], roofY + 0.35], [cab[1][0] - 0.3, roofY + 0.35]], cw + 0.3, roofMat, 0.1));
       for (const s of [-1, 1]) {
-        const z = (cw / 2 + 0.1) * s;
-        house.push(LP.beam([cab[0][0], cab[0][1], z], [cab[1][0], cab[1][1], z], 0.55, roofMat)); // A-pillar
-        house.push(LP.box(0.9, roofY - cab[0][1] + 0.1, 0.4, roofMat, st.bPillar, (roofY + cab[0][1]) / 2, z)); // B-pillar
-        house.push(LP.side(st.cPillar, 0.45, roofMat, 0.05).translateZ(z)); // C-pillar
         house.push(LP.beam([cab[0][0] - 0.4, belt + 0.12, (cw / 2 + 0.12) * s], [cab[cab.length - 1][0] + 0.4, belt + 0.12, (cw / 2 + 0.12) * s], 0.22, chrome)); // belt trim
         house.push(LP.beam([cab[1][0] - 0.2, roofY - 0.05, (cw / 2 + 0.16) * s], [cab[2][0] + 0.3, roofY - 0.05, (cw / 2 + 0.16) * s], 0.2, dark)); // drip rail
       }
       LP.warp(house, (v) => { v.z *= 1 - 0.15 * clamp((v.y - belt) / (roofY - belt), 0, 1); });
       g.add(...house);
       // Wipers at the base of the windscreen.
-      for (const z of [-3.2, 1.6]) {
-        const wpr = LP.beam([cab[0][0] - 0.2, belt + 0.25, z], [cab[0][0] - 1.6, belt + 1.1, z + 3.4], 0.15, dark);
-        g.add(wpr);
-      }
+      for (const z of [-3.2, 1.6]) g.add(LP.beam([cab[0][0] - 0.2, belt + 0.25, z], [cab[0][0] - 1.6, belt + 1.1, z + 3.4], 0.15, dark));
     }
 
-    // Front: bumper, grille, headlights, plate. Rear: bumper, tail lights, plate, exhaust.
-    const fx = st.top[0][0] + bev, rx = st.top[st.top.length - 1][0] - bev;
-    // Bumpers follow the rounded corners in plan view: a slab with chamfered ends.
-    const bumperSlab = (x0, x1, y, h, half, mat) => {
-      const dir = Math.sign(x1 - x0), cut = 1.3;
-      const pts = [[x0, -half], [x1 - dir * 0.3, -(half - cut)], [x1, -(half - cut - 0.4)], [x1, half - cut - 0.4], [x1 - dir * 0.3, half - cut], [x0, half]];
-      const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
-      const geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: true, bevelThickness: 0.25, bevelSize: 0.25, bevelSegments: 3 });
-      geo.rotateX(-Math.PI / 2);
-      return LP.mesh(LP.smooth(geo), mat, 0, y, 0);
-    };
-    g.add(bumperSlab(fx - 0.6, fx + 0.85, 1.65, 1.3, (W / 2 - 0.3) * 0.9, dark));
-    g.add(bumperSlab(rx + 0.6, rx - 0.85, 1.75, 1.3, (W / 2 - 0.3) * 0.93, dark));
+    // Front: grille, headlights, plate. Rear: tail lights, plate, exhaust.
     const grille = LP.box(0.2, 1.3, 6, DECALS.mat('grille'), fx + 0.35, st.lightY - 0.2, 0);
     grille.userData.noGrime = true;
     g.add(grille);
@@ -831,7 +715,6 @@ const Models = {
       g.add(hl, ind, tl, wrap);
     }
     g.add(LP.box(0.6, 0.8, 7, DECALS.mat('grille'), fx + 0.55, 2.2, 0)); // lower intake
-    g.add(LP.box(0.5, 0.5, W - 2.4, dark, rx - 0.5, 1.4, 0)); // rear valance
     const plate = opts.plate || 'APX ' + (100 + Math.floor(paint.r * 899));
     g.add(LP.box(0.12, 1.0, 2.6, DECALS.mat('plate', {}, plate), fx + 0.85, st.frontPlateY, 0));
     g.add(LP.box(0.12, 1.0, 2.6, DECALS.mat('plate', {}, plate), rx - 0.85, st.rearPlateY, 0));
@@ -842,22 +725,11 @@ const Models = {
         const z = (hw + bev + 0.02) * s;
         for (const x of st.seams) g.add(LP.box(0.12, 5, 0.06, dark, x, 4.1, z));
         g.add(LP.box(0.9, 0.25, 0.12, chrome, st.seams[st.seams.length - 1] + 1.2, 6.0, z));
-        // Wheel-arch flares and a side skirt between them.
-        const ar = st.wheelR + 0.75, cy = st.wheelR - 0.2;
-        for (const wc of st.wheels) {
-          const band = [...archPts(wc, cy, ar + 0.55, 16), ...archPts(wc, cy, ar - 0.05, 16).reverse()];
-          g.add(LP.side(band, 0.5, body, 0.08).translateZ((hw * (wc > 0 ? 0.985 : 0.99) + bev - 0.12) * s));
-        }
-        const sx0 = st.wheels[1] + ar + 0.4, sx1 = st.wheels[0] - ar - 0.4;
-        g.add(LP.box(sx1 - sx0, 0.7, 0.5, dark, (sx0 + sx1) / 2, 1.75, (hw * 0.97 + bev - 0.05) * s));
-        if (s > 0) g.add(LP.mesh(new THREE.CircleGeometry(0.55, 8), chrome, st.wheels[1] + ar + 1.6, 5.4, z + 0.02)); // fuel cap
-        g.add(LP.box(0.8, 0.8, 1.2, body, st.mirrorX, st.mirrorY, (hw + 0.9) * s)); // mirror housing
-        g.add(LP.box(0.3, 0.3, 1, dark, st.mirrorX + 0.2, st.mirrorY - 0.3, (hw + 0.3) * s));
+        if (s > 0) g.add(LP.mesh(new THREE.CircleGeometry(0.55, 8), chrome, st.wheels[1] + st.wheelR + 2.35, 5.4, z + 0.02)); // fuel cap
+        g.add(LP.box(0.12, 0.65, 0.95, LP.mat('#3a4a5a', { metalness: 0.8, roughness: 0.15 }), st.mirrorX - 0.42, st.mirrorY, (hw + 1.05) * s)); // mirror glass
       }
       g.add(LP.cyl(0.06, 0.06, 4.5, 4, dark, rx + 3.5, st.top[st.top.length - 2][1] + 2.4, -hw + 2.5)); // antenna
     }
-    // Underbody so you never see daylight through the car.
-    g.add(LP.box(Math.abs(fx - rx) - 4, 0.6, W - 2, dark, (fx + rx) / 2, 1.5, 0));
 
     // Wheels: 12-sided tyres, spoked rims on the outer face.
     const tyre = LP.mat('#151515', { roughness: 1 });
@@ -880,8 +752,6 @@ const Models = {
         g.userData.wheels.push(w);
       }
     }
-    st.extras(g, { body, dark, chrome }, st);
-    Models.bodyKit(g, st, opts, { body, body2, dark, chrome }, W, bev, fx, rx);
     Models.livery(g, st, opts, W, bev);
 
     if (opts.weapon === 'rocket') {
@@ -890,10 +760,9 @@ const Models = {
       g.add(pod);
     } else if (opts.weapon === 'gun') {
       // Gunner: a passenger leaning out of the window with a rifle.
-      const z = W / 2 + 0.2, y = st.cabin[1][1] - 1.6, x = st.cabin[1][0] - 2;
-      g.add(LP.box(1.4, 1.6, 1.2, LP.mat('#d96a1e'), x, y, z)); // arm in a prison jumpsuit
-      g.add(LP.box(5.5, 0.5, 0.5, LP.mat('#1a1b1d', { metalness: 0.6 }), x + 2.6, y + 0.6, z + 0.5));
-      g.add(LP.box(1.2, 0.9, 0.5, LP.mat('#3a2a1a'), x - 0.4, y + 0.3, z + 0.5));
+      const gn = Models.gunner();
+      gn.position.set(st.cabin[1][0] - 2, st.cabin[1][1] - 1.6, W / 2 + 0.2);
+      g.add(gn);
     } else if (opts.weapon === 'mine') {
       const d = Models.mineDropper();
       d.position.set(rx - 0.6, 0, 0);
@@ -912,28 +781,96 @@ const Models = {
     return g;
   },
 
-  // Bolt-ons: bumpers, roof gear, spoilers, exhausts, two-tone panels, mud.
-  bodyKit(g, st, opts, m, W, bev, fx, rx) {
+  // The body as seamless sculpted panels: the shell with its rounded corners, flared arches, roof and pillars and
+  // mirrors all blend into one painted surface; the bumpers, valance, skirts and floor are one dark trim moulding.
+  carBody(g, st, opts, m, W, bev, fx, rx) {
+    const style = opts.style && CAR_STYLES[opts.style] ? opts.style : 'comet';
+    const kit = ['bumper', 'roof', 'spoiler'].map((k) => (opts[k] && opts[k] !== 'stock' ? opts[k] : st.kit[k]));
+    const sc = new Sculpt(['car', style, opts.shell ? 'shell' : 'full', m.roofMat !== m.body ? 'tt' : '', ...kit].join(':'), 0.2);
+    const hw = W / 2, [wf, wr] = st.wheels, ar = st.wheelR + 0.75, cy = st.wheelR - 0.2;
+    const fX = st.top[0][0], rX = st.top[st.top.length - 1][0], cab = st.cabin, cw = st.cabinW, belt = cab[0][1], roofY = cab[1][1];
+    if (opts.shell) {
+      const [front, rear] = shellProfiles(st, 8.5, -12.5);
+      for (const prof of [front, rear]) sc.add(m.body, SDF.inflate(SDF.sideX(prof, W, 0), bev), 0.1);
+    } else {
+      // Shell: the side profile extruded, then rounded off (undoing the same bend the old mesh used): corners
+      // pulled in towards the nose and tail, a softened shoulder, sills tucked under, plan-view corners swept back.
+      const shell = SDF.inflate(SDF.sideX(bodyOutline(st), W, 0), bev);
+      sc.add(m.body, SDF.warp(shell, (x, y, z) => {
+        const e = Math.pow(Math.min(1, Math.abs(z) / (hw + bev)), 3);
+        x += 1.8 * e * clamp((x - (fX - 4)) / 4, 0, 1) - 1.4 * e * clamp((rX + 4 - x) / 4, 0, 1);
+        const tf = clamp((x - (wf + ar * 0.4)) / (fX - wf - ar * 0.4), 0, 1), tr = clamp((wr - ar * 0.4 - x) / (wr - ar * 0.4 - rX), 0, 1);
+        let k = 1 - 0.11 * tf * tf - 0.08 * tr * tr;
+        k -= 0.035 * clamp((y - (belt - 0.6)) / 0.8, 0, 1);
+        k -= 0.03 * clamp((2.2 - y) / 1.0, 0, 1);
+        return [x, y, z / k];
+      }, 0.3), 0.1);
+      // Flared arches swelling out of the sides.
+      for (const s of [-1, 1]) for (const wc of st.wheels) {
+        const band = [...archPts(wc, cy, ar + 0.55, 16), ...archPts(wc, cy, ar - 0.05, 16).reverse()];
+        sc.add(m.body, SDF.sideX(band, 0.7, 0.3, [0, 0, (hw * (wc > 0 ? 0.985 : 0.99) + bev - 0.2) * s]), 0.6);
+      }
+      // Glasshouse frame: roof skin and pillars, leaning in as they rise, blended into the body and each other.
+      const lean = (y) => 1 - 0.15 * clamp((y - belt) / (roofY - belt), 0, 1);
+      const house = [SDF.inflate(SDF.sideX([[cab[1][0] - 0.2, roofY - 0.2], [cab[2][0] + 0.2, roofY - 0.2], [cab[2][0], roofY + 0.35], [cab[1][0] - 0.3, roofY + 0.35]], cw + 0.3, 0), 0.12)];
+      for (const s of [-1, 1]) {
+        const z = (cw / 2 + 0.1) * s;
+        house.push(SDF.cone([cab[0][0], cab[0][1], z], [cab[1][0], cab[1][1], z], 0.32, 0.28)); // A-pillar
+        house.push(SDF.box([0.9, roofY - cab[0][1] + 0.1, 0.45], 0.18, [st.bPillar, (roofY + cab[0][1]) / 2, z])); // B-pillar
+        house.push(SDF.inflate(SDF.sideX(st.cPillar, 0.3, 0, [0, 0, z]), 0.1)); // C-pillar
+      }
+      for (const h of house) sc.add(m.roofMat, SDF.warp(h, (x, y, z) => [x, y, z / lean(y)], 0.2), 0.35);
+      // Mirrors: a rounded housing on a stalk growing out of the door.
+      for (const s of [-1, 1]) {
+        sc.add(m.body, SDF.ellipsoid([0.5, 0.45, 0.7], [st.mirrorX, st.mirrorY, (hw + 0.95) * s]), 0.15);
+        sc.add(m.body, SDF.cone([st.mirrorX + 0.4, st.mirrorY - 0.55, (hw - 0.1) * s], [st.mirrorX + 0.1, st.mirrorY - 0.1, (hw + 0.7) * s], 0.22, 0.16), 0.25);
+      }
+    }
+    // Dark trim: bumpers that follow the rounded corners, the rear valance, skirts and the floor.
+    const bumper = (x0, x1, y, h, half) => {
+      const dir = Math.sign(x1 - x0), cut = 1.3;
+      const pts = [[x0, -half], [x1 - dir * 0.3, -(half - cut)], [x1, -(half - cut - 0.4)], [x1, half - cut - 0.4], [x1 - dir * 0.3, half - cut], [x0, half]];
+      return SDF.inflate(SDF.plan(dir > 0 ? pts : pts.slice().reverse(), y, y + h, 0), 0.28);
+    };
+    sc.add(m.dark, bumper(fx - 0.6, fx + 0.85, 1.65, 1.3, (W / 2 - 0.3) * 0.9), 0.3);
+    sc.add(m.dark, bumper(rx + 0.6, rx - 0.85, 1.75, 1.3, (W / 2 - 0.3) * 0.93), 0.3);
+    sc.add(m.dark, SDF.box([0.5, 0.5, W - 2.4], 0.2, [rx - 0.5, 1.4, 0]), 0.3);
+    sc.add(m.dark, SDF.box([Math.abs(fx - rx) - 4, 0.6, W - 2], 0.25, [(fx + rx) / 2, 1.5, 0]), 0.3);
+    if (!opts.shell) {
+      const sx0 = wr + ar + 0.4, sx1 = wf - ar - 0.4;
+      for (const s of [-1, 1]) sc.add(m.dark, SDF.box([sx1 - sx0, 0.7, 0.6], 0.25, [(sx0 + sx1) / 2, 1.75, (hw * 0.97 + bev - 0.1) * s]), 0.3);
+      st.extras(sc, m);
+    }
+    Models.bodyKit(g, st, opts, m, W, bev, fx, rx, sc);
+    sc.build(g);
+  },
+
+  // Bolt-ons: bumpers, roof gear, spoilers, exhausts, two-tone panels, mud. Bars, frames and spoilers are sculpted
+  // into sc (welded tubes, spoilers moulded into the bodywork); cargo, lamps and pipes are separate parts.
+  bodyKit(g, st, opts, m, W, bev, fx, rx, sc) {
     const hw = W / 2;
     const steel = LP.mat('#8a8f94', { metalness: 0.7, roughness: 0.4 });
     const rusty = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.75 });
+    const rubber = LP.mat('#111', { roughness: 1 });
     const pickKit = (k) => (opts[k] && opts[k] !== 'stock' ? opts[k] : st.kit[k]);
     const [xd, yd] = st.top[st.top.length - 3]; // rear deck
     const cab = st.cabin, cw = st.cabinW, roofTop = cab[1][1] + 0.35;
+    const rod = (mat, a, b, r, k) => sc.add(mat, SDF.cone(a, b, r, r), k == null ? 0.25 : k);
 
     // Bumper
     const bumper = pickKit('bumper');
     if (bumper === 'bullbar') {
-      for (const s of [-1, 1]) g.add(LP.box(0.7, 5.2, 0.7, steel, fx + 1.3, 3.8, 5 * s));
-      g.add(LP.box(0.7, 0.7, 12, steel, fx + 1.3, st.lightY + 1.4, 0));
-      g.add(LP.box(0.7, 0.7, 12, steel, fx + 1.3, 3.6, 0));
+      for (const s of [-1, 1]) rod(steel, [fx + 1.3, 1.3, 5 * s], [fx + 1.3, 6.3, 5 * s], 0.36);
+      rod(steel, [fx + 1.3, st.lightY + 1.4, -6], [fx + 1.3, st.lightY + 1.4, 6], 0.36);
+      rod(steel, [fx + 1.3, 3.6, -6], [fx + 1.3, 3.6, 6], 0.36);
+      for (const s of [-1, 1]) rod(steel, [fx + 1.3, 2.4, 3.5 * s], [fx - 0.2, 2.4, 3.5 * s], 0.28); // mounts into the bumper
     } else if (bumper === 'pushbar') {
-      for (const s of [-1, 1]) g.add(LP.box(0.6, 4.6, 0.6, m.dark, fx + 1.1, 3.4, 2.4 * s));
-      g.add(LP.box(0.9, 3, 6.2, LP.mat('#111', { roughness: 1 }), fx + 1.5, 3.4, 0));
-      g.add(LP.box(0.6, 0.6, 6.4, m.dark, fx + 1.1, 5.4, 0));
+      for (const s of [-1, 1]) sc.add(m.dark, SDF.box([0.6, 4.6, 0.6], 0.22, [fx + 1.1, 3.4, 2.4 * s]), 0.25);
+      sc.add(m.dark, SDF.box([0.6, 0.6, 6.4], 0.22, [fx + 1.1, 5.4, 0]), 0.25);
+      sc.add(rubber, SDF.box([0.9, 3, 6.2], 0.35, [fx + 1.5, 3.4, 0]), 0.2);
     } else if (bumper === 'plow') {
-      g.add(LP.side([[fx + 0.3, 0.6], [fx + 4.4, 0.6], [fx + 1.0, st.lightY + 0.6], [fx + 0.3, st.lightY + 0.6]], W + 1, rusty, 0.1));
-      for (const z of [-4, 0, 4]) g.add(LP.side([[fx + 0.5, 0.7], [fx + 4.6, 0.7], [fx + 1.2, st.lightY + 0.5]], 0.3, steel, 0).translateZ(z));
+      sc.add(rusty, SDF.inflate(SDF.sideX([[fx + 0.3, 0.6], [fx + 4.4, 0.6], [fx + 1.0, st.lightY + 0.6], [fx + 0.3, st.lightY + 0.6]], W + 0.8, 0), 0.1), 0.2);
+      for (const z of [-4, 0, 4]) sc.add(rusty, SDF.sideX([[fx + 0.5, 0.7], [fx + 4.6, 0.7], [fx + 1.2, st.lightY + 0.5]], 0.3, 0.08, [0, 0, z]), 0.25);
     }
 
     // Roof
@@ -941,49 +878,48 @@ const Models = {
     const rx0 = cab[2][0] + 0.6, rx1 = cab[1][0] - 0.6, rlen = rx1 - rx0, rmid = (rx0 + rx1) / 2;
     if (roof === 'rails' || roof === 'rack') {
       for (const s of [-1, 1]) {
-        g.add(LP.box(rlen, 0.4, 0.5, m.dark, rmid, roofTop + 0.55, (cw / 2 - 0.7) * s));
-        for (const x of [rx0 + 0.4, rx1 - 0.4]) g.add(LP.box(0.6, 0.6, 0.6, m.dark, x, roofTop + 0.25, (cw / 2 - 0.7) * s));
+        sc.add(m.dark, SDF.box([rlen, 0.4, 0.5], 0.18, [rmid, roofTop + 0.55, (cw / 2 - 0.7) * s]), 0.2);
+        for (const x of [rx0 + 0.4, rx1 - 0.4]) sc.add(m.dark, SDF.box([0.6, 0.7, 0.6], 0.2, [x, roofTop + 0.2, (cw / 2 - 0.7) * s]), 0.25);
       }
     }
     if (roof === 'rack') {
-      for (const x of [rx0 + 1.5, rmid, rx1 - 1.5]) g.add(LP.box(0.4, 0.35, cw - 1.2, m.dark, x, roofTop + 0.8, 0));
-      const spare = LP.cyl(2.3, 2.3, 1.2, 12, LP.mat('#151515', { roughness: 1 }), rmid - 2, roofTop + 1.6, -1.6);
-      g.add(spare);
-      g.add(LP.box(2.2, 1.4, 1.2, LP.mat('#4b5a2e'), rmid + 2.6, roofTop + 1.7, 2.4)); // jerrycan
-      g.add(LP.box(2.6, 1.1, 2.4, LP.mat('#5a4a32', { roughness: 1 }), rmid + 2.2, roofTop + 1.5, -0.6)); // tarp bundle
+      for (const x of [rx0 + 1.5, rmid, rx1 - 1.5]) sc.add(m.dark, SDF.box([0.4, 0.35, cw - 1.2], 0.15, [x, roofTop + 0.8, 0]), 0.2);
+      g.add(LP.cyl(2.3, 2.3, 1.2, 12, LP.mat('#151515', { roughness: 1 }), rmid - 2, roofTop + 1.6, -1.6)); // spare
+      g.add(LP.rbox(2.2, 1.4, 1.2, 0.2, LP.mat('#4b5a2e'), rmid + 2.6, roofTop + 1.7, 2.4)); // jerrycan
+      g.add(LP.rbox(2.6, 1.1, 2.4, 0.45, LP.mat('#5a4a32', { roughness: 1 }), rmid + 2.2, roofTop + 1.5, -0.6)); // tarp bundle
     } else if (roof === 'lightbar') {
-      g.add(LP.box(1.0, 0.7, cw - 1.5, m.dark, rx1 - 0.8, roofTop + 0.6, 0));
+      sc.add(m.dark, SDF.box([1.0, 0.7, cw - 1.5], 0.25, [rx1 - 0.8, roofTop + 0.6, 0]), 0.2);
+      for (const s of [-1, 1]) sc.add(m.dark, SDF.box([0.5, 0.6, 0.5], 0.18, [rx1 - 0.8, roofTop + 0.15, (cw / 2 - 1.5) * s]), 0.25);
       [-4.2, -1.4, 1.4, 4.2].forEach((z, i) => g.add(LP.box(0.35, 0.55, 1.6, LP.glow(i % 3 === 0 ? '#ffb000' : '#fff6d8', 0.9), rx1 - 0.25, roofTop + 0.62, z)));
-      for (const s of [-1, 1]) g.add(LP.box(0.5, 0.6, 0.5, m.dark, rx1 - 0.8, roofTop + 0.2, (cw / 2 - 1.5) * s));
     } else if (roof === 'cage') {
-      const r = 0.32;
+      const r = 0.32, top = roofTop + 1.1;
       for (const x of [rx1, rx0]) {
-        for (const s of [-1, 1]) g.add(LP.tube([x, 6.6, (hw + 0.5) * s], [x, roofTop + 1.1, (cw / 2 + 0.2) * s], r, rusty));
-        g.add(LP.tube([x, roofTop + 1.1, -cw / 2 - 0.2], [x, roofTop + 1.1, cw / 2 + 0.2], r, rusty));
+        for (const s of [-1, 1]) rod(rusty, [x, 6.6, (hw + 0.5) * s], [x, top, (cw / 2 + 0.2) * s], r);
+        rod(rusty, [x, top, -cw / 2 - 0.2], [x, top, cw / 2 + 0.2], r);
       }
       for (const s of [-1, 1]) {
-        g.add(LP.tube([rx0, roofTop + 1.1, (cw / 2 + 0.2) * s], [rx1, roofTop + 1.1, (cw / 2 + 0.2) * s], r, rusty));
-        g.add(LP.tube([rx1, roofTop + 1.1, (cw / 2 + 0.2) * s], [fx - 1.5, st.lightY + 1.2, (hw - 1.2) * s], r, rusty)); // down to the front
+        rod(rusty, [rx0, top, (cw / 2 + 0.2) * s], [rx1, top, (cw / 2 + 0.2) * s], r);
+        rod(rusty, [rx1, top, (cw / 2 + 0.2) * s], [fx - 1.5, st.lightY + 1.2, (hw - 1.2) * s], r); // down to the front
       }
     }
 
-    // Spoiler
+    // Spoiler: moulded spoilers blend into the bodywork; wings stand on posts.
     const spoiler = pickKit('spoiler');
     if (spoiler === 'lip') {
-      g.add(LP.side([[xd + 0.8, yd + 0.5], [xd + 3.7, yd + 0.7], [xd + 3.7, yd + 1.0], [xd + 0.4, yd + 0.9]], W - 2, m.body, 0.1));
+      sc.add(m.body, SDF.inflate(SDF.sideX([[xd + 0.8, yd + 0.3], [xd + 3.7, yd + 0.6], [xd + 3.7, yd + 1.0], [xd + 0.4, yd + 0.9]], W - 2.4, 0), 0.12), 0.5);
     } else if (spoiler === 'roofspoiler' && !opts.shell) {
       const [x2, y2] = cab[2];
-      g.add(LP.side([[x2 + 1.2, y2 + 0.3], [x2 - 3.6, y2 - 0.1], [x2 - 3.8, y2 - 0.7], [x2 + 0.4, y2 - 0.1]], cw - 0.6, m.body, 0.1));
+      sc.add(m.body, SDF.inflate(SDF.sideX([[x2 + 1.2, y2 + 0.3], [x2 - 3.6, y2 - 0.1], [x2 - 3.8, y2 - 0.7], [x2 + 0.4, y2 - 0.1]], cw - 0.8, 0), 0.12), 0.45);
     } else if (spoiler === 'ducktail') {
-      g.add(LP.side([[xd + 1.9, yd + 0.4], [xd - 0.2, yd + 0.6], [xd - 0.4, yd + 1.2], [xd + 1.4, yd + 1.0]], W - 1.5, m.body, 0.1));
+      sc.add(m.body, SDF.inflate(SDF.sideX([[xd + 1.9, yd + 0.2], [xd - 0.2, yd + 0.4], [xd - 0.4, yd + 1.2], [xd + 1.4, yd + 1.0]], W - 1.8, 0), 0.12), 0.6);
     } else if (spoiler === 'wing') {
-      g.add(LP.box(3.2, 0.5, W + 0.8, m.body, xd + 1.4, yd + 3.0, 0));
-      for (const s of [-1, 1]) g.add(LP.box(1, 2.6, 0.6, m.dark, xd + 1.8, yd + 1.6, (hw - 3) * s));
+      sc.add(m.body, SDF.box([3.2, 0.5, W + 0.8], 0.22, [xd + 1.4, yd + 3.0, 0]), 0.2);
+      for (const s of [-1, 1]) sc.add(m.dark, SDF.box([1, 2.8, 0.6], 0.25, [xd + 1.8, yd + 1.5, (hw - 3) * s]), 0.3);
     } else if (spoiler === 'bigwing') {
-      g.add(LP.side([[xd + 0.4, yd + 5.3], [xd + 5.4, yd + 5.7], [xd + 5.4, yd + 6.5], [xd + 0.4, yd + 6.3]], W + 2.5, m.dark, 0.15));
+      sc.add(m.dark, SDF.inflate(SDF.sideX([[xd + 0.4, yd + 5.3], [xd + 5.4, yd + 5.7], [xd + 5.4, yd + 6.5], [xd + 0.4, yd + 6.3]], W + 2.5, 0), 0.15), 0.25);
       for (const s of [-1, 1]) {
-        g.add(LP.box(1, 5.4, 0.7, m.dark, xd + 3, yd + 2.9, (hw - 2.5) * s));
-        g.add(LP.box(4.6, 2.2, 0.15, m.body, xd + 3, yd + 6.2, (hw + 1.3) * s)); // end plates
+        sc.add(m.dark, SDF.box([1, 5.6, 0.7], 0.3, [xd + 3, yd + 2.8, (hw - 2.5) * s]), 0.35);
+        sc.add(m.body, SDF.box([4.6, 2.2, 0.2], 0.08, [xd + 3, yd + 6.2, (hw + 1.3) * s]), 0.1); // end plates
       }
     }
 
@@ -1026,21 +962,19 @@ const Models = {
     }
   },
 
-  // Improvised roof-mounted rocket pod on welded brackets.
+  // Improvised roof-mounted rocket pod on welded brackets: one welded frame, a moulded pod with four open tubes.
   rocketPod() {
     const g = new THREE.Group();
     g.name = 'rocket pod';
-    const steel = LP.mat('#5a5d52', { metalness: 0.6, roughness: 0.6 });
-    for (const s of [-1, 1]) g.add(LP.box(6, 0.5, 0.6, steel, 0, 0.3, 4.5 * s));
-    for (const x of [-2, 2]) g.add(LP.box(0.6, 1.4, 9.6, steel, x, 0.9, 0));
-    g.add(LP.side([[-4.2, 1.6], [3.6, 1.6], [4.2, 2.6], [3.6, 4.4], [-4.2, 4.4]], 5.2, LP.mat('#4b5a2e', { metalness: 0.3 }), 0.15));
+    const steel = LP.mat('#5a5d52', { metalness: 0.6, roughness: 0.6 }), olive = LP.mat('#4b5a2e', { metalness: 0.3 });
+    const sc = new Sculpt('rocketPod', 0.1);
+    for (const s of [-1, 1]) sc.add(steel, SDF.box([6, 0.5, 0.6], 0.2, [0, 0.3, 4.5 * s]), 0.2);
+    for (const x of [-2, 2]) sc.add(steel, SDF.box([0.6, 1.4, 9.6], 0.22, [x, 0.9, 0]), 0.3);
+    sc.add(olive, SDF.inflate(SDF.sideX([[-4.2, 1.75], [3.6, 1.75], [4.2, 2.6], [3.6, 4.25], [-4.2, 4.25]], 4.9, 0), 0.15), 0.1);
+    for (const y of [2.4, 3.6]) for (const z of [-1.3, 1.3]) sc.cut(SDF.cyl(0.5, 3, 'x', 0.06, [4.6, y, z]), 0.06, [olive]); // launch tubes
+    sc.build(g);
     g.add(LP.box(0.2, 0.6, 5.2, DECALS.mat('hazard'), -1, 4.5, 0));
-    const tube = LP.mat('#111');
-    for (const y of [2.4, 3.6]) for (const z of [-1.3, 1.3]) {
-      const t = LP.cyl(0.55, 0.55, 0.5, 8, tube, 4.2, y, z);
-      t.rotation.z = Math.PI / 2;
-      g.add(t);
-    }
+    for (const y of [2.4, 3.6]) for (const z of [-1.3, 1.3]) g.add(LP.mesh(new THREE.CircleGeometry(0.48, 14), LP.mat('#0b0b0b'), 3.4, y, z).rotateY(Math.PI / 2)); // tube depths
     return g;
   },
 
@@ -1048,11 +982,32 @@ const Models = {
   mineDropper() {
     const g = new THREE.Group();
     g.name = 'mine dropper';
-    const steel = LP.mat('#4a4c48', { metalness: 0.6, roughness: 0.7 });
-    g.add(LP.side([[-4, 2.2], [0, 2.2], [0, 6.6], [-3.4, 6.6]], 8, steel, 0.15));
+    const steel = LP.mat('#4a4c48', { metalness: 0.6, roughness: 0.7 }), black = LP.mat('#1a1a1a');
+    const sc = new Sculpt('mineDropper', 0.1);
+    sc.add(steel, SDF.inflate(SDF.sideX([[-3.85, 2.35], [-0.15, 2.35], [-0.15, 6.45], [-3.25, 6.45]], 7.7, 0), 0.15), 0.1);
+    for (const s of [-1, 1]) sc.add(steel, SDF.box([1.6, 0.5, 0.5], 0.18, [0.4, 3.2, 3 * s]), 0.3); // brackets welded to the crate
+    sc.add(black, SDF.box([2, 1.0, 3], 0.3, [-3.2, 1.8, 0]), 0.1); // chute
+    sc.cut(SDF.box([1.4, 1.2, 2.4], 0.2, [-3.2, 1.2, 0]), 0.08, [black]);
+    sc.build(g);
     g.add(LP.box(0.15, 1.2, 7.6, DECALS.mat('hazard'), -4.1, 5.4, 0));
-    g.add(LP.box(2, 0.9, 3, LP.mat('#1a1a1a'), -3.2, 1.8, 0)); // chute
-    for (const s of [-1, 1]) g.add(LP.box(1.4, 0.5, 0.5, steel, 0.4, 3.2, 3 * s)); // brackets
+    return g;
+  },
+
+  // A gunner leaning out of a rival's window: orange sleeve, gloved hand and a rifle, each one seamless piece.
+  gunner() {
+    const g = new THREE.Group();
+    g.name = 'gunner';
+    const suit = LP.mat('#d96a1e', { roughness: 0.95 }), gun = LP.mat('#1a1b1d', { metalness: 0.6, roughness: 0.45 }), wood = LP.mat('#3a2a1a', { roughness: 0.7 });
+    const glove = LP.mat('#2c241f', { roughness: 0.6 });
+    const sc = new Sculpt('gunner', 0.06);
+    sc.add(suit, SDF.cone([-0.5, -0.8, -0.5], [0.4, 0.15, 0.2], 0.5, 0.38), 0.15); // shoulder and upper arm out of the window
+    sc.add(suit, SDF.cone([0.4, 0.15, 0.2], [1.2, 0.5, 0.45], 0.36, 0.3), 0.15); // forearm
+    sc.add(glove, SDF.ellipsoid([0.36, 0.28, 0.3], [1.45, 0.6, 0.5]), 0.1);
+    sc.add(gun, SDF.lathe([[0.2, 0.6], [0.2, 4.6], [0.24, 4.7], [0.24, 5.1]], [0, 0.6, 0.5], [0, Math.PI / 2, 0]), 0.1); // barrel forward along +X
+    sc.add(gun, SDF.box([1.8, 0.55, 0.45], 0.15, [0.9, 0.55, 0.5]), 0.2); // receiver
+    sc.add(gun, SDF.box([0.35, 0.8, 0.3], 0.12, [1.2, 0.05, 0.5], [0, 0, -0.3]), 0.12); // magazine
+    sc.add(wood, SDF.inflate(SDF.sideX([[0.2, 0.35], [-1.6, 0.25], [-1.7, -0.25], [-0.8, -0.05], [0.2, 0.05]], 0.3, 0, [0, 0.35, 0.5]), 0.1), 0.1); // stock
+    sc.build(g);
     return g;
   },
 
@@ -1154,21 +1109,19 @@ const Models = {
     return g;
   },
 
-  // Classic round fragmentation grenade with spoon and pin.
+  // Classic round fragmentation grenade: a segmented body that the fuse grows out of, a spoon and a pull ring.
   grenade() {
     const g = new THREE.Group();
     g.name = 'grenade';
-    const body = LP.mesh(new THREE.IcosahedronGeometry(1, 1), LP.mat('#3f4a2a', { roughness: 0.7 }));
-    body.scale.set(0.95, 1.05, 0.95);
-    g.add(body);
-    const metal = LP.mat('#8a8f94', { metalness: 0.7, roughness: 0.35 });
-    g.add(LP.cyl(0.4, 0.45, 0.5, 8, metal, 0, 1.15, 0)); // fuse
-    const spoon = LP.box(0.22, 1.7, 0.4, metal, 0.5, 0.5, 0);
-    spoon.rotation.z = -0.25;
-    g.add(spoon);
-    const ring = LP.mesh(new THREE.TorusGeometry(0.35, 0.06, 4, 10), metal, -0.4, 1.3, 0);
-    ring.rotation.y = Math.PI / 2;
-    g.add(ring);
+    const olive = LP.mat('#3f4a2a', { roughness: 0.7 }), metal = LP.mat('#8a8f94', { metalness: 0.7, roughness: 0.35 });
+    const sc = new Sculpt('grenade', 0.035);
+    sc.add(olive, SDF.ellipsoid([0.95, 1.05, 0.95], [0, 0, 0]), 0.1);
+    for (let k = 0; k < 3; k++) sc.cut(SDF.torus(0.95, 0.05, [0, -0.5 + k * 0.5, 0], [Math.PI / 2, 0, 0]), 0.03, [olive]); // segment grooves
+    for (let k = 0; k < 3; k++) sc.cut(SDF.torus(0.98, 0.05, [0, 0, 0], [0, (k / 3) * Math.PI, 0]), 0.03, [olive]); // and down the sides
+    sc.add(metal, SDF.cyl(0.42, 0.55, 'y', 0.1, [0, 1.12, 0]), 0.15); // fuse
+    sc.add(metal, SDF.box([0.22, 1.7, 0.4], 0.08, [0.5, 0.5, 0], [0, 0, -0.25]), 0.12); // spoon
+    sc.add(metal, SDF.torus(0.35, 0.06, [-0.4, 1.3, 0], [0, Math.PI / 2, 0]), 0.03); // pull ring
+    sc.build(g);
     return g;
   },
 
@@ -1506,13 +1459,12 @@ const Models = {
   // First-person hands: leather tactical gloves and orange prison-jumpsuit sleeves, posed on each gun's grips.
   // 'pistol' wraps a vertical grip (axis = local Y, right hand); 'support' cradles a tube or handguard from below
   // (axis = Z, left hand, palm up). Mirrored by scale.x = -1. Each glove is one seamless surface (see gloveGeo).
-  _gloves: {},
   hand(kind, arm) {
     const g = new THREE.Group();
-    const glove = Models._gloves[kind] || (Models._gloves[kind] = Models.gloveGeo(kind)); // one per kind, shared by every gun
     const leather = LP.mat('#ffffff', { vertexColors: true, roughness: 0.58, metalness: 0.06, side: THREE.DoubleSide });
     leather.userData.psxKind = 'vinyl'; // retro mode: a leathery grain, not stone
-    g.add(new THREE.Mesh(glove.geo, leather));
+    const glove = Models.gloveGeo(kind, leather); // meshed once per kind, shared by every gun
+    glove.sc.build(g);
     const opts = { side: THREE.DoubleSide };
     const buckle = LP.mat('#8a8a86', { metalness: 0.8, roughness: 0.35 });
     const suit = LP.mat('#d6631d', Object.assign({ roughness: 0.95 }, opts)), cuff = LP.mat('#b4521a', Object.assign({ roughness: 0.95 }, opts));
@@ -1530,7 +1482,7 @@ const Models = {
   // The glove as a single blended surface: every bone (phalanges, metacarpals, thumb, wrist) is a tapered round cone;
   // each finger blends into the palm with a soft web but stays creased against its neighbours. A moulded knuckle
   // guard and the wrist strap are blended in, and the panels, seams and stitching are painted into the vertex colours.
-  gloveGeo(kind) {
+  gloveGeo(kind, leather) {
     const arm = kind === 'pistol' ? [2.2, -3.4, 6] : [-2.5, -3.1, 6.2]; // typical forearm direction; the sleeve covers the rest
     const V = (a) => new THREE.Vector3(...a), lerp = (a, b, t) => V(a).lerp(V(b), t).toArray();
     const palm = [], fingers = [], guard = [];
@@ -1650,9 +1602,10 @@ const Models = {
       const m = Math.max(b.ra, b.rb) + 0.1;
       box[i] = Math.min(box[i], p[i] - m); box[i + 3] = Math.max(box[i + 3], p[i] + m);
     }
-    const geo = LP.sdfMesh(sdf, box, 0.028, color);
-    geo.userData.shared = true;
-    return { geo, wrist: V(w) };
+    // Full density: the seams and stitching live in the vertex colours.
+    const sc = new Sculpt('glove:' + kind, 0.028);
+    sc.add(leather, { d: sdf, box }, 0.0001).opt(leather, { decimate: false, color, uv: 0.4 });
+    return { sc, wrist: V(w) };
   },
 
   // One round of spare ammo for the door rack, standing upright (y up): an SMG mag, a 12-gauge shell,
@@ -1901,47 +1854,64 @@ const Models = {
       vinyl: () => m3('#3b2a24'), leather: () => m3('#161412', { roughness: 0.35 }), tartan: () => DECALS.mat('tartan', { roughness: 1 }),
       beaded: () => DECALS.mat('beads', { roughness: 0.6 }), leopard: () => DECALS.mat('leopard', { roughness: 1 }),
     }[cab.seats in { vinyl: 1, leather: 1, tartan: 1, beaded: 1, leopard: 1 } ? cab.seats : 'vinyl'](), body = m3(color, { metalness: 0.3, roughness: 0.5 });
-    I.add(box(34, 1, 17, m3('#15161a'), -1, 1, 0)); // floor
-    I.add(box(5, 2.6, 17.2, dark, 6.5, 5, 0)); // dashboard
-    I.add(box(3.5, 0.6, 17.2, trim, 5.6, 6.5, 0)); // dash top lip
+    // The cabin as sculpted pieces: the painted shell (pillars, roof, rear deck, cowl) is one surface; the dash with
+    // its lip, the sills, console and steering column are one moulding; each seat is one upholstered piece.
+    const sc = new Sculpt('interior' + (noRoof ? ':open' : ''), 0.15);
+    const floorM = m3('#15161a'), head = m3('#4a4740');
+    sc.add(floorM, SDF.box([34, 1, 17], 0.3, [-1, 1, 0]), 0.1);
+    sc.add(dark, SDF.box([5, 2.6, 17.2], 0.6, [6.5, 5, 0]), 0.3); // dashboard
+    sc.add(dark, SDF.box([3.5, 0.7, 17.2], 0.3, [5.6, 6.45, 0]), 0.5); // dash top lip, rolled into the dash
+    sc.add(dark, SDF.box([10, 3.6, 3], 0.6, [0.5, 3.7, 0]), 0.3); // centre console
+    sc.add(dark, SDF.cone([6, 5.6, -4.5], [3.6, 7.5, -4.5], 0.45, 0.38), 0.4); // steering column out of the dash
     for (const s of [-1, 1]) {
-      I.add(beam([8.4, 6.6, 8.6 * s], [2.5, 12.6, 8.2 * s], 1.1, body)); // A-pillars
-      I.add(beam([-4, 5.5, 8.6 * s], [-4, 12.6, 8.6 * s], 1.4, body)); // B-pillars
-      I.add(beam([-12, 12.6, 8.4 * s], [-16.5, 7, 8.6 * s], 1.3, body)); // C-pillars
-      I.add(box(22, 5.5, 0.8, trim, -3.5, 3.6, 8.9 * s)); // doors
-      I.add(box(22, 0.8, 1.6, dark, -3.5, 6.4, 8.4 * s)); // window sill
+      sc.add(body, SDF.cone([8.4, 6.6, 8.6 * s], [2.5, 12.6, 8.2 * s], 0.6, 0.55), 0.6); // A-pillars
+      sc.add(body, SDF.box([1.4, 7.4, 1.4], 0.5, [-4, 9.05, 8.6 * s]), 0.6); // B-pillars
+      sc.add(body, SDF.cone([-12, 12.6, 8.4 * s], [-16.5, 7, 8.6 * s], 0.7, 0.7), 0.6); // C-pillars
+      sc.add(trim, SDF.box([22, 5.5, 0.8], 0.3, [-3.5, 3.6, 8.9 * s]), 0.2); // door cards
+      sc.add(dark, SDF.box([22, 0.8, 1.6], 0.35, [-3.5, 6.4, 8.4 * s]), 0.4); // window sills
     }
     if (!noRoof) {
-      I.add(box(14.6, 0.8, 17.4, body, -4.75, 12.95, 0)); // roof
-      I.add(box(14.6, 0.3, 16, m3('#4a4740'), -4.75, 12.5, 0)); // headliner
+      sc.add(body, SDF.box([14.6, 0.8, 17.4], 0.35, [-4.75, 12.95, 0]), 0.6); // roof
+      sc.add(head, SDF.box([14.6, 0.3, 16], 0.12, [-4.75, 12.5, 0]), 0.1); // headliner
     }
-    I.add(box(2, 2, 17.2, body, -17.2, 6.5, 0)); // rear deck
-    I.add(box(4.5, 0.6, 17, body, 8.8, 6.6, 0)); // cowl under windshield
-    // Seats: rear bench, the empty driver's seat, your seat.
-    I.add(box(5, 4, 16, seat, -9.5, 4, 0));
-    I.add(box(1.5, 4.5, 16, seat, -12, 6.8, 0)); // low bench back keeps the rear window clear
+    sc.add(body, SDF.box([2, 2, 17.2], 0.7, [-17.2, 6.5, 0]), 0.6); // rear deck
+    sc.add(body, SDF.box([4.5, 0.6, 17], 0.25, [8.8, 6.6, 0]), 0.6); // cowl under the windshield
+    // Seats: rear bench, the empty driver's seat, your cushion (its back would fill the view when you turn round).
+    sc.add(seat, SDF.box([5, 4, 16], 1.0, [-9.5, 4, 0]), 0.5);
+    sc.add(seat, SDF.box([1.5, 4.5, 16], 0.6, [-12, 6.8, 0]), 0.6);
     for (const z of [-4.5, 4.5]) {
-      I.add(box(6, 1.6, 6, seat, -1.5, 3.6, z));
-      if (z > 0) continue; // you're sitting in this one; its back would fill the view when you turn around
-      const back = box(1.6, 8, 6, seat, -4.6, 8, z);
-      back.rotation.z = 0.12;
-      I.add(back);
-      I.add(box(1.4, 2.2, 4, seat, -5.2, 13, z).translateY(-1.8));
+      sc.add(seat, SDF.box([6, 1.6, 6], 0.7, [-1.5, 3.6, z]), 0.4);
+      if (z > 0) continue;
+      sc.add(seat, SDF.box([1.6, 8, 6], 0.7, [-4.6, 8, z], [0, 0, 0.12]), 0.8);
+      sc.add(seat, SDF.box([1.4, 2.2, 4], 0.6, [-5.2, 11.2, z]), 0.3); // headrest
     }
-    I.add(box(10, 3.6, 3, dark, 0.5, 3.7, 0)); // center console
-
-    // Steering wheel turning on its own.
-    const col = beam([6, 5.6, -4.5], [3.6, 7.5, -4.5], 0.8, dark);
-    I.add(col);
+    // Welded roll cage: A-pillar tubes, main hoop behind the seats, diagonal brace, door X-bars; welds are fillets.
+    const rusty = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.7 });
+    const tube = (a, b) => sc.add(rusty, SDF.cone(a, b, 0.32, 0.32), 0.35);
+    for (const s of [-1, 1]) {
+      tube([7.6, 6.8, 7.7 * s], [2.4, 12.1, 7.4 * s]); // along A-pillars
+      tube([-5.6, 1.6, 7.6 * s], [-5.6, 12.1, 7.4 * s]); // main hoop legs
+      tube([2.4, 12.1, 7.4 * s], [-5.6, 12.1, 7.4 * s]); // roof rails
+      tube([-5.6, 12.1, 7.4 * s], [-15.5, 7.4, 7.2 * s]); // rear stays
+    }
+    tube([-5.6, 12.1, -7.4], [-5.6, 12.1, 7.4]); // hoop top
+    tube([-5.8, 12.0, 7.2], [-5.8, 2.0, -7.2]); // diagonal brace behind the seats
+    tube([5.5, 6.2, -8.3], [-4.6, 3.2, -8.3]); // driver door X-bars (behind the gun rack)
+    tube([5.5, 3.2, -8.3], [-4.6, 6.2, -8.3]);
+    // Steering wheel: rim and spokes as one piece (it turns on its own).
+    const wheelM = m3('#141414', { roughness: 0.6 });
+    sc.add(wheelM, SDF.torus(2.6, 0.32, [0, 0, 0]), 0.2, 'wheel');
+    sc.add(wheelM, SDF.cone([-2.4, 0, 0], [2.4, 0, 0], 0.26, 0.26), 0.35, 'wheel');
+    sc.add(wheelM, SDF.cone([0, 0, 0], [0, -2.4, 0], 0.26, 0.26), 0.35, 'wheel');
+    sc.add(wheelM, SDF.cyl(0.7, 0.5, 'z', 0.2, [0, 0, 0]), 0.3, 'wheel'); // hub
+    const parts = sc.build(I);
     const wheelTilt = new THREE.Group();
     wheelTilt.position.set(3.4, 7.7, -4.5);
     wheelTilt.rotation.z = 0.45;
     const wheelFace = new THREE.Group();
     wheelFace.rotation.y = Math.PI / 2;
     const wheel = new THREE.Group();
-    wheel.add(new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.32, 4, 10), m3('#111')));
-    wheel.add(box(5, 0.5, 0.4, m3('#222')));
-    wheel.add(box(0.5, 2.6, 0.4, m3('#222'), 0, -1.3, 0));
+    for (const m of parts.wheel) { I.remove(m); wheel.add(m); }
     wheelFace.add(wheel);
     wheelTilt.add(wheelFace);
     I.add(wheelTilt);
@@ -2005,29 +1975,7 @@ const Models = {
     refs.windshield = ws;
     const u = new THREE.Vector3(0, 0, 1), v = new THREE.Vector3(-5.9, 6, 0).normalize(), n = new THREE.Vector3().crossVectors(u, v);
     // ---- Grit: this is a prisoner's death-race car ----
-    const rusty = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.7 });
     const tapeMat = DECALS.mat('tape', { roughness: 1 });
-    // Welded roll cage: A-pillar tubes, main hoop behind the seats, diagonal brace, door X-bars.
-    const tube = (a, b) => {
-      const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
-      const t = LP.cyl(0.32, 0.32, va.distanceTo(vb), 6, rusty);
-      t.position.copy(va).add(vb).multiplyScalar(0.5);
-      t.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize());
-      I.add(t);
-    };
-    for (const s of [-1, 1]) {
-      tube([7.6, 6.8, 7.7 * s], [2.4, 12.1, 7.4 * s]); // along A-pillars
-      tube([-5.6, 1.6, 7.6 * s], [-5.6, 12.1, 7.4 * s]); // main hoop legs
-      tube([2.4, 12.1, 7.4 * s], [-5.6, 12.1, 7.4 * s]); // roof rails
-      tube([-5.6, 12.1, 7.4 * s], [-15.5, 7.4, 7.2 * s]); // rear stays
-    }
-    tube([-5.6, 12.1, -7.4], [-5.6, 12.1, 7.4]); // hoop top
-    tube([-5.8, 12.0, 7.2], [-5.8, 2.0, -7.2]); // diagonal brace behind the seats
-    tube([5.5, 6.2, -8.3], [-4.6, 3.2, -8.3]); // driver door X-bars (behind the gun rack)
-    tube([5.5, 3.2, -8.3], [-4.6, 6.2, -8.3]);
-    // Weld blobs where tubes meet.
-    for (const p of [[-5.6, 12.1, 7.4], [-5.6, 12.1, -7.4], [2.4, 12.1, 7.4], [2.4, 12.1, -7.4]]) I.add(LP.mesh(new THREE.IcosahedronGeometry(0.5, 0), rusty, ...p));
-
     // Bolted steel plate over the passenger door card, with rivets.
     I.add(box(9, 2.8, 0.3, DECALS.mat('rust', { metalness: 0.5, roughness: 0.8 }), -0.6, 3.2, 8.25));
     for (const x of [-4.6, -1.8, 1, 3.6]) for (const y of [2.2, 4.2]) I.add(LP.mesh(new THREE.IcosahedronGeometry(0.16, 0), rusty, x, y, 8.05));
