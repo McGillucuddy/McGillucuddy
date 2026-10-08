@@ -51,6 +51,36 @@ One race, with a switchable first-person cockpit view and top-down view (press `
 
 The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor/` so it works offline.
 
+### Acts and environments (prototype)
+
+A run is four acts of three races. The last race is the Crown final: only a win sets you free.
+
+- **Act I, The Undercity:** racing under the plate the upper city is built on. Its underside hangs
+  overhead, and the only daylight leaks in round its edge. You race on oily, cracked tarmac between
+  shacks, fire barrels, wrecks and support pillars, with guard towers sweeping searchlights over the track.
+- **Act II, The Stacks:** smog sunset over tenements, smokestacks and cooling towers.
+- **Act III, The Gilded Terraces:** above the smog, racing for the rich: glass towers, palms, villas,
+  fountains, grandstands full of spectators and sponsor boards on the walls.
+- **Act IV, The Crown:** golden hour at the top of the Spire, with marble colonnades and fireworks.
+
+The distant megastructures follow the camera, so they always sit on the horizon. They are one merged mesh
+with a haze shader. All of it lives in `js/env.js`.
+
+### The garage (prototype)
+
+Between races you're in a 3D garage. The camera moves between stations, and your options sit on a
+clipboard beside it. You can click things in the room as well:
+
+- **Workshop:** your car on a lift (parts, tuning, repairs).
+- **Armory:** your rack and stash guns on a pegboard, with loose mods, ammo cans and the grenade crate on the bench.
+- **Commissary:** a caged hatch with a trader. The goods sit on the counter with price tags; click one to buy it.
+- **Paint booth:** orbits the car. The cabin tab puts you in your seat, and the guns tab goes to the pegboard.
+- **The roll-up door:** takes you out to the next race.
+
+Trinkets sit on a shelf. A chalkboard shows the act, race, scrap, strikes and a tally of races
+survived. In the upper-city acts the sponsors have smartened the garage up, and the commissary becomes a
+concierge. See `js/garage3d.js`.
+
 ### Build system (prototype)
 
 A run is a string of races with **the garage** in between. Finish outside the top 3 and you get a

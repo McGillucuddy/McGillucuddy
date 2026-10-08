@@ -13,6 +13,7 @@ const ACTS = [
 ];
 const RACES_PER_ACT = 3;
 const RUN_RACES = ACTS.length * RACES_PER_ACT;
+const ACT_LUXURY = (race) => Math.floor(race / RACES_PER_ACT) >= 2;
 const actOf = (race) => ACTS[Math.min(ACTS.length - 1, Math.floor(race / RACES_PER_ACT))];
 
 const Proto = {
@@ -37,7 +38,28 @@ const Proto = {
     this.cos = loadCosmetics();
     this.tab = 'car';
     this.previewCanvas = document.getElementById('preview3d');
-    try { this.preview = new CarPreview(this.previewCanvas); } catch (e) { this.preview = null; }
+    try { this.preview = new Garage3D(this.previewCanvas); } catch (e) { console.error(e); this.preview = null; }
+    this.tip = document.createElement('div');
+    this.tip.className = 'garage-tip hidden';
+    document.body.appendChild(this.tip);
+    // The garage is clickable: stations, goods on the counter, the door out.
+    this.previewCanvas.addEventListener('mousemove', (e) => {
+      if (!this.preview || this.state !== 'garage') return;
+      const r = this.previewCanvas.getBoundingClientRect();
+      const hot = this.preview.pick(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      this.previewCanvas.style.cursor = hot ? 'pointer' : 'default';
+      this.tip.classList.toggle('hidden', !hot);
+      if (hot) { this.tip.textContent = hot.label; this.tip.style.left = e.clientX + 14 + 'px'; this.tip.style.top = e.clientY + 14 + 'px'; }
+    });
+    this.previewCanvas.addEventListener('mouseleave', () => this.tip.classList.add('hidden'));
+    this.previewCanvas.addEventListener('click', () => {
+      if (!this.preview || this.state !== 'garage' || !this.preview.hover) return;
+      const h = this.preview.hover.userData.hot;
+      Sound.resume();
+      Sound.play({ type: 'click' });
+      this.tip.classList.add('hidden');
+      this.action(h.action, h.arg);
+    });
     Input.init();
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -98,6 +120,7 @@ const Proto = {
   setUI(html) {
     this.ui.innerHTML = html;
     this.ui.classList.toggle('hidden', !html);
+    this.ui.classList.toggle('g3d-mode', html.includes('g3d'));
   },
 
   action(a, arg) {
@@ -407,27 +430,42 @@ const Proto = {
   // ---------- Garage / shop / rewards ----------
 
   showGarage() {
-    const b = this.build;
+    const b = this.build, act = actOf(b.race);
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
-    const tabs = [['car', 'Car'], ['weapons', 'Weapons'], ['market', 'Black market'], ['paint', 'Paint shop']]
-      .map(([id, label]) => `<button class="btn tab ${this.tab === id ? 'primary' : ''}" data-action="tab" data-arg="${id}">${label}</button>`).join('');
+    const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(b.race) ? 'Concierge' : 'Commissary', 'Black market'], ['paint', 'Paint booth', 'Looks, kept between runs']];
+    const nav = stations.map(([id, label, sub]) => `<button class="g-station ${this.tab === id ? 'on' : ''}" data-action="tab" data-arg="${id}"><b>${label}</b><small>${sub}</small></button>`).join('');
     const trinkets = b.trinkets.length ? b.trinkets.map((t) => `<span class="perk rarity-epic" title="${TRINKETS[t].desc}">${TRINKETS[t].name}</span>`).join('') : '<span class="muted small">No trinkets yet. They are the only things you keep for the whole run.</span>';
     const body = { car: () => this.garageCar(bar), weapons: () => this.garageWeapons(), market: () => this.garageMarket(), paint: () => this.garagePaint() }[this.tab]();
-    this.setUI(`<div class="screen garage proto-garage">
-      <div class="topbar">
-        <div><b>THE GARAGE</b></div>
-        <div>${actOf(b.race).name} · <b>${actOf(b.race).title}</b></div>
+    const title = stations.find((st) => st[0] === this.tab);
+    this.setUI(`<div class="screen garage proto-garage g3d">
+      <div class="g-top">
+        <div><b>${act.name}</b> · ${act.title}</div>
         <div>Race <b>${b.race + 1}</b>/${RUN_RACES}</div>
         <div class="cash">${b.scrap} scrap</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
       </div>
-      <div class="perks trinket-row">${trinkets}</div>
-      <div class="tabs">${tabs}</div>
-      ${body}
-      <button class="btn primary big" data-action="to-briefing">Next race ▶</button>
-      <p class="small"><a class="muted" href="models.html">Model viewer</a> · <a class="muted" href="index.html">Top-down game</a></p>
+      <nav class="g-nav">${nav}</nav>
+      <div class="g-panel clipboard">
+        <div class="clip"></div>
+        <h2 class="g-title">${title[1]}</h2>
+        <div class="perks trinket-row">${trinkets}</div>
+        ${body}
+        <p class="small muted g-links"><a href="models.html">Model viewer</a> · <a href="index.html">Top-down game</a></p>
+      </div>
+      <button class="btn primary big g-go" data-action="to-briefing">Roll out ▶</button>
     </div>`);
+    this.syncGarage();
+  },
+
+  syncGarage() {
+    if (!this.preview) return;
+    const b = this.build, act = actOf(b.race);
+    this.preview.sync({
+      build: b, shop: this.shop, cos: this.cos,
+      act: { luxury: ACT_LUXURY(b.race), label: `${act.name}: ${act.title}`, of: RUN_RACES, maxStrikes: STRIKES_TO_LOSE },
+    });
+    this.preview.setStation(this.tab);
   },
 
   garageCar(bar) {
@@ -545,11 +583,9 @@ const Proto = {
     };
     const tabs = [['body', 'Body'], ['kit', 'Kit'], ['cabin', 'Cabin'], ['guns', 'Guns'], ['presets', 'Presets']]
       .map(([id, n]) => `<button class="opt ${sub === id ? 'on' : ''}" data-action="paint-tab" data-arg="${id}">${n}</button>`).join('');
-    return `<div class="garage-grid">
-      <div class="panel"><div id="previewSlot" class="preview-slot"></div>
-        <p class="muted small">Your look is kept between runs. Reputation: <b>${c.rep}</b>${next ? ` · next unlock: ${next.name} at ${next.rep}` : ' · everything unlocked'}</p></div>
-      <div class="panel paint-opts"><div class="opts subtabs">${tabs}</div>${pages[sub]()}</div>
-    </div>`;
+    return `<div class="paint-opts">
+      <p class="muted small">Your look is kept between runs. Reputation: <b>${c.rep}</b>${next ? ` · next unlock: ${next.name} at ${next.rep}` : ' · everything unlocked'}</p>
+      <div class="opts subtabs">${tabs}</div>${pages[sub]()}</div>`;
   },
 
   showReward() {
@@ -634,18 +670,15 @@ const Proto = {
     }
   },
 
-  // The paint shop's spinning car, drawn on its own canvas over the panel's placeholder.
+  // The 3D garage fills the screen behind the clipboard (and behind the reward pick).
   renderPreview(dt) {
-    const slot = this.state === 'garage' && this.tab === 'paint' && document.getElementById('previewSlot');
     const cv = this.previewCanvas;
-    if (!slot || !this.preview) { cv.style.display = 'none'; return; }
-    const r = slot.getBoundingClientRect();
+    const show = this.preview && (this.state === 'garage' || this.state === 'reward');
+    if (!show) { cv.style.display = 'none'; if (this.tip) this.tip.classList.add('hidden'); return; }
     cv.style.display = 'block';
-    cv.style.left = r.left + 'px';
-    cv.style.top = r.top + 'px';
-    cv.style.width = r.width + 'px';
-    cv.style.height = r.height + 'px';
-    this.preview.render(r.width, r.height, dt, this.time);
+    if (this.state === 'reward') this.preview.setStation('overview');
+    const panel = this.state === 'garage' && this.W > 900 ? 500 : 0;
+    this.preview.render(this.W, this.H, dt, this.time, panel);
   },
 
   render(dt) {
@@ -678,106 +711,6 @@ const Proto = {
 };
 
 const SHORT_WEAPON = { smg: 'SMG', shotgun: 'Shotgun', rocket: 'Launcher', flare: 'Flare' };
-
-// ---------- Paint shop preview ----------
-
-class CarPreview {
-  constructor(canvas) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#141310');
-    this.scene.fog = new THREE.Fog('#141310', 80, 160);
-    this.camera = new THREE.PerspectiveCamera(32, 1, 0.5, 500);
-    this.scene.add(new THREE.HemisphereLight(0xfff2dd, 0x2a2620, 1.1));
-    const sun = new THREE.DirectionalLight(0xffe2b8, 1.3);
-    sun.position.set(30, 50, 20);
-    this.scene.add(sun);
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 24).rotateX(-Math.PI / 2), LP.mat('#3a362e', { roughness: 1 }));
-    PSX.apply(floor);
-    this.scene.add(floor);
-    this.post = new PSXPost(this.renderer);
-    this.yaw = 0.7;
-    this.size = [0, 0];
-  }
-
-  setMode(mode) {
-    if (mode === this.mode) return;
-    this.mode = mode;
-    if (this.look) this.setLook(this.look);
-  }
-
-  // Exterior: the car on a turntable. Interior: your seat, looking round the cabin. Guns: your rack, laid out.
-  setLook(look) {
-    this.look = look;
-    if (this.model) this.scene.remove(this.model);
-    if (this.bulbLight) { this.scene.remove(this.bulbLight); this.bulbLight = null; }
-    const mode = this.mode || 'car';
-    const g = new THREE.Group();
-    if (mode === 'interior') {
-      g.add(Models.car(Object.assign({}, look, { shell: true })));
-      g.add(Models.interior(look.color, { cabin: look.cabin }).group);
-      this.bulbLight = new THREE.PointLight(look.cabin.bulb, 2.4, 60, 1.1);
-      this.bulbLight.position.set(-7.5, 10, -1.5);
-      this.scene.add(this.bulbLight);
-    } else if (mode === 'guns') {
-      const rack = (typeof Proto !== 'undefined' && Proto.build) ? Proto.build.rack : [];
-      ['smg', 'shotgun', 'rocket', 'flare'].forEach((id, i) => {
-        const owned = rack.find((w) => w.id === id);
-        const gun = Models.gunFinish(Models.modVisuals(Models.weapon(id), id, owned ? owned.mods : [], false), (look.gunFinish || {})[id]);
-        const holder = new THREE.Group();
-        holder.position.set(0, 7 + (1.5 - i) * 3.4, 0);
-        holder.add(gun);
-        gun.rotation.y = Math.PI / 2;
-        if (id === 'rocket') gun.scale.setScalar(0.75);
-        holder.userData.spin = i * 0.4;
-        g.add(holder);
-      });
-      this.bulbLight = new THREE.PointLight('#fff2dd', 2.2, 80, 1);
-      this.bulbLight.position.set(4, 14, 22);
-      this.scene.add(this.bulbLight);
-    } else {
-      g.add(Models.car(Object.assign({}, look)));
-    }
-    this.model = g;
-    PSX.apply(g);
-    PSX.setTextures(g, PSX.enabled);
-    this.scene.add(g);
-  }
-
-  render(w, h, dt, t) {
-    w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
-    if (w !== this.size[0] || h !== this.size[1]) {
-      this.size = [w, h];
-      this.renderer.setSize(w, h, false);
-      this.post.setSize(w, h);
-      this.camera.aspect = w / h;
-      this.camera.updateProjectionMatrix();
-    }
-    this.yaw += dt * 0.5;
-    const mode = this.mode || 'car';
-    if (mode === 'interior') {
-      // Sitting in your seat, glancing from the dash round to the driver and the rack.
-      const a = -0.35 + Math.sin(t * 0.35) * 0.75;
-      this.camera.fov = 70;
-      this.camera.position.set(EYE.x, EYE.y, EYE.z);
-      this.camera.lookAt(EYE.x + Math.cos(a) * 10, EYE.y - 2.2, EYE.z + Math.sin(a) * 10 - 1);
-    } else if (mode === 'guns') {
-      this.camera.fov = 32;
-      this.camera.position.set(0, 8, 34);
-      this.camera.lookAt(0, 7, 0);
-      for (const h of this.model.children) h.rotation.y = Math.sin(t * 0.6 + h.userData.spin) * 0.5;
-    } else {
-      this.camera.fov = 32;
-      this.camera.position.set(Math.cos(this.yaw) * 58, 20, Math.sin(this.yaw) * 58);
-      this.camera.lookAt(0, 4, 0);
-    }
-    this.camera.updateProjectionMatrix();
-    if (PSX.enabled) { this.post.begin(); this.renderer.render(this.scene, this.camera); this.post.end(t); }
-    else this.renderer.render(this.scene, this.camera);
-  }
-}
 
 // ---------- HUD pieces ----------
 
