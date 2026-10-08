@@ -30,7 +30,7 @@ const PSX = {
     // Base noise
     for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
       const base = { metal: 0.86, paint: 0.9, vinyl: 0.8, plastic: 0.85, rubber: 0.75, wood: 0.8, foliage: 0.8, stone: 0.8, glass: 0.9 }[kind] || 0.85;
-      px(x, y, shade(base + (rng() - 0.5) * 0.18));
+      px(x, y, shade(base + (rng() - 0.5) * 0.07));
     }
     if (kind === 'paint' || kind === 'metal') {
       // Scratches, dirt streaks running down, rust spots.
@@ -56,7 +56,7 @@ const PSX = {
       for (let k = 0; k < 5; k++) blotch(Math.floor(rng() * S), Math.floor(rng() * S), 2 + Math.floor(rng() * 3), 'rgba(0,0,0,0.18)');
     } else if (kind === 'plastic') {
       for (let k = 0; k < 6; k++) blotch(Math.floor(rng() * S), Math.floor(rng() * S), 2 + Math.floor(rng() * 4), 'rgba(0,0,0,0.12)');
-      for (let k = 0; k < 40; k++) px(Math.floor(rng() * S), Math.floor(rng() * S), 'rgba(255,255,255,0.35)');
+      for (let k = 0; k < 15; k++) px(Math.floor(rng() * S), Math.floor(rng() * S), 'rgba(255,255,255,0.2)');
     } else if (kind === 'rubber') {
       g.fillStyle = 'rgba(0,0,0,0.4)';
       for (let x = 0; x < S; x += 6) g.fillRect(x, 0, 2, S); // tread
@@ -65,7 +65,7 @@ const PSX = {
       g.globalAlpha = 1;
     } else if (kind === 'foliage' || kind === 'stone') {
       for (let k = 0; k < 30; k++) blotch(Math.floor(rng() * S), Math.floor(rng() * S), 1 + Math.floor(rng() * 3), `rgba(0,0,0,${0.1 + rng() * 0.15})`);
-      for (let k = 0; k < 30; k++) px(Math.floor(rng() * S), Math.floor(rng() * S), 'rgba(255,255,230,0.3)');
+      for (let k = 0; k < 12; k++) px(Math.floor(rng() * S), Math.floor(rng() * S), 'rgba(255,255,230,0.2)');
     }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -183,13 +183,13 @@ const PSX = {
     g.imageSmoothingEnabled = false;
     g.drawImage(src, 0, 0, c.width, c.height);
     const rng = mulberry32(seed || 1);
-    const n = (c.width * c.height) / 40;
+    const n = (c.width * c.height) / 220;
     for (let k = 0; k < n; k++) {
       const v = rng();
-      g.fillStyle = v < 0.5 ? `rgba(0,0,0,${0.05 + rng() * 0.12})` : `rgba(255,240,200,${rng() * 0.06})`;
+      g.fillStyle = v < 0.5 ? `rgba(0,0,0,${0.04 + rng() * 0.07})` : `rgba(255,240,200,${rng() * 0.04})`;
       g.fillRect(Math.floor(rng() * c.width), Math.floor(rng() * c.height), 1 + Math.floor(rng() * 2), 1 + Math.floor(rng() * 2));
     }
-    for (let k = 0; k < n / 400; k++) {
+    for (let k = 0; k < n / 60; k++) {
       g.fillStyle = `rgba(20,15,10,${0.08 + rng() * 0.1})`;
       g.beginPath();
       g.arc(rng() * c.width, rng() * c.height, 2 + rng() * 10, 0, TAU);
@@ -222,11 +222,11 @@ class PSXPost {
           c = mix(vec3(l), c, 0.72);                              // desaturate
           c *= vec3(1.0, 0.98, 0.86);                             // grimy yellow-green cast
           c = (c - 0.5) * 1.08 + 0.53;                            // contrast, lifted shadows
-          c += (bayer4(px) - 0.5) / 31.0;                         // ordered dither
+          c += (bayer4(px) - 0.5) / 62.0;                         // light ordered dither
           c = floor(c * 31.0 + 0.5) / 31.0;                       // 15-bit colour
           vec2 q = vUv - 0.5;
           c *= 1.0 - dot(q, q) * 0.8;                             // vignette
-          c += (fract(sin(dot(px + floor(time * 24.0), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.05;
+          c += (fract(sin(dot(px + floor(time * 24.0), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.012;
           gl_FragColor = vec4(c, 1.0);
         }`,
       depthTest: false,
