@@ -105,6 +105,7 @@ const Sound = {
       case 'finish': [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.25, 'triangle', 0.18), i * 110)); break;
       case 'shoot': this.noiseBurst(0.06, 2200, 0.12, 900); break;
       case 'rocket': this.noiseBurst(0.4, 1200, 0.3, 200); break;
+      case 'enemyShot': this.noiseBurst(0.05, 1600, 0.07, 700); break;
       case 'enemyRocket': this.noiseBurst(0.35, 900, 0.18, 200); break;
       case 'explode': this.noiseBurst(ev.big ? 0.7 : 0.4, 160, ev.big ? 0.6 : 0.35, 50); break;
       case 'lock': this.tone(1200, 0.08, 'square', 0.1); setTimeout(() => this.tone(1200, 0.08, 'square', 0.1), 140); break;

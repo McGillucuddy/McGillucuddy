@@ -33,7 +33,9 @@ class Combat {
     this.fitT = 0;
     this.footUsed = false;
     this.lastFire = 9;
-    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1);
+    // Suppressed guns keep you off the rivals' radar: they take longer to lock on.
+    this.quiet = b.rack.some((w) => weaponStats(w).quiet);
+    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1);
     this.stats = { dealt: 0, parries: 0, shotDown: 0, taken: 0, wrecked: 0, scrapBonus: 0 };
 
     // The player's car runs every hit through the build (armour, parts, trinkets).
@@ -48,6 +50,7 @@ class Combat {
     rivals.forEach((c, i) => {
       if (i < 2) c.weapon = 'rocket';
       else if (i === 2) c.weapon = 'mine';
+      else if (i === 3) c.weapon = 'gun';
       if (c.weapon) c.wpn = { cd: randRange(this.rng, 3, 7), lock: 0 };
     });
   }
@@ -160,9 +163,9 @@ class Combat {
     if (info.kind === 'wall' && b.chip === 'cautious') amount *= 0.3;
     const arm = b.parts.armour;
     if (arm.dur > 0) {
-      const a = info.kind === 'blast' && s.blastAbsorb ? s.blastAbsorb : s.absorb;
+      const a = info.kind === 'blast' && s.blastAbsorb ? s.blastAbsorb : info.kind === 'bullet' && s.bulletAbsorb ? s.bulletAbsorb : s.absorb;
       const absorbed = amount * a;
-      arm.dur -= absorbed;
+      arm.dur -= absorbed * (s.armourWear || 1);
       amount -= absorbed;
       if (arm.dur <= 0) this.breakPart('armour');
     }
@@ -200,6 +203,15 @@ class Combat {
     this.lastFire += dt;
     if (this.driver) this.driver.shaky = b.chip === 'gun_nut' && this.lastFire < 0.4;
     if (p.finished || this.race.state !== 'racing' || this.busy) return;
+    // Remote detonator: pulling the trigger again blows your rocket mid-air.
+    if (def.remote && ctl.pressed) {
+      const live = this.projectiles.filter((o) => o.owner === p && o.type === 'rocket' && !o.dead && o.t > 0.15);
+      if (live.length) {
+        for (const o of live) { o.dead = true; this.explode(o.x, o.y, o.radius * 1.15, o.dmg, p, o); }
+        this.race.message('Detonated!', '#ffcf3a');
+        return;
+      }
+    }
     const trigger = def.auto ? ctl.firing : ctl.pressed;
     if (!trigger || st.cd > 0 || st.reloadT > 0) return;
     if (w.mag <= 0) {
@@ -213,7 +225,7 @@ class Combat {
     if (def.kind === 'bullet') {
       for (let k = 0; k < def.pellets; k++) {
         const a = ctl.aim + randRange(this.rng, -def.spread, def.spread);
-        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0 });
+        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0, tracer: !!def.tracer });
       }
       this.events.push({ type: def.pellets > 1 ? 'shotgun' : 'shoot' });
     } else if (def.kind === 'rocket') {
@@ -228,7 +240,12 @@ class Combat {
           if (d < 950 && off < best) { best = off; target = c; }
         }
       }
-      this.spawn('rocket', p, ctl.aim, def.speed, 1, { dmg: def.dmg, radius: def.radius, life: def.life, target, turn: target ? 1.6 : 0 });
+      const opts = { dmg: def.dmg, radius: def.radius, life: def.life, target, turn: target ? 1.6 : 0 };
+      if (def.twin) {
+        // Twin tube: a second rocket alongside, if there's a round for it.
+        this.spawn('rocket', p, ctl.aim - 0.05, def.speed, 1, Object.assign({}, opts));
+        if (w.mag > 0) { w.mag--; this.spawn('rocket', p, ctl.aim + 0.05, def.speed, 1, Object.assign({}, opts)); }
+      } else this.spawn('rocket', p, ctl.aim, def.speed, 1, opts);
       this.events.push({ type: 'rocket' });
     } else if (def.kind === 'flare') {
       this.spawn('flare', p, ctl.aim, def.speed, 1, { dmg: def.dmg, life: def.life, blind: def.blind, cluster: !!def.cluster });
@@ -285,6 +302,7 @@ class Combat {
     for (const c of race.cars) {
       if (c.empT > 0) c.empT -= dt;
       if (c.blindT > 0) c.blindT -= dt;
+      if (c.markT > 0) c.markT -= dt;
       if (c.burnT > 0) {
         c.burnT -= dt;
         const before = c.hp;
@@ -347,6 +365,26 @@ class Combat {
             this.events.push({ type: 'enemyRocket', x: c.x, y: c.y });
           }
         } else if (!disabled && w.cd <= 0 && d > 150 && d < 650) {
+          w.lock = 1e-4;
+          this.events.push({ type: 'lock', car: c });
+        }
+      } else if (c.weapon === 'gun') {
+        // Gunner: winds up (shown like a lock), then rakes you with a burst.
+        if (w.burst > 0) {
+          w.bt -= dt;
+          if (disabled) { w.burst = 0; continue; }
+          if (w.bt <= 0) {
+            w.burst--;
+            w.bt = 0.09;
+            const a = Math.atan2(dy + p.vy * d / 1500, dx + p.vx * d / 1500) + randRange(this.rng, -0.07, 0.07);
+            this.spawn('bullet', c, a, 1500, 1, { dmg: 2.5, life: 0.45 });
+            this.events.push({ type: 'enemyShot' });
+          }
+        } else if (w.lock > 0) {
+          if (disabled || d > 520 || c.spinT > 0) { w.lock = 0; w.cd = 2; continue; }
+          w.lock += dt * 2; // half a rocket lock
+          if (w.lock >= this.lockTime) { w.lock = 0; w.burst = 6; w.bt = 0; w.cd = randRange(this.rng, 4, 6); }
+        } else if (!disabled && w.cd <= 0 && d > 60 && d < 450) {
           w.lock = 1e-4;
           this.events.push({ type: 'lock', car: c });
         }
@@ -433,6 +471,7 @@ class Combat {
             c.vy += Math.sin(a) * pr.knock;
           }
           if (pr.burn) { c.burnT = 3; c.burnDps = pr.burn; c.burnBy = pr.owner; }
+          if (pr.tracer && c !== p) c.markT = 3;
           if (pr.type === 'flare') {
             c.blindT = pr.blind;
             if (c.wpn) c.wpn.lock = 0;
@@ -543,6 +582,7 @@ class Combat {
   // ang: world angle from the victim toward the damage source.
   hitCar(c, dmg, owner, ang, slow, kind) {
     const p = this.player;
+    if (c !== p && c.markT > 0) dmg *= 1.2; // tracer-marked
     const before = c.hp;
     this.race.damage(c, dmg, { kind: kind || 'bullet', ang });
     c.vx *= slow;

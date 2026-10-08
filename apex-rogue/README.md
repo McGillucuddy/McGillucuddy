@@ -56,8 +56,7 @@ The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor
 A run is a string of races with **the garage** in between. Finish outside the top 3 and you get a
 strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 
-- **Parts** (engine, tyres, armour, nitro) set your stats and each has trade-offs. They can't be swapped
-  freely: a new part replaces the old one for good. Every hit is absorbed partly by armour, then hits
+- **Parts** (engine, tyres, armour, nitro) set your stats and each has trade-offs. Every hit is absorbed partly by armour, then hits
   the hull, and also **wears the part facing the hit** (front: engine, sides: tyres, rear: nitro).
   Broken parts cripple the car until repaired in the garage.
 - **One spare part:** carry a spare of one fitted part; if that part breaks mid-race press `B` to fit
@@ -75,16 +74,35 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **Loadout is swappable in the garage; only trinkets are permanent.** Everything you buy or win goes
   into your **stash** (or straight into a free slot), and in the garage you can refit parts, swap rack
   weapons, change abilities and driver chips. Mid-race your only option is the spare part.
-- **Weapon mods** (2 slots per weapon, swappable): Extended Mag, Speed Loader, Incendiary Rounds
-  (sets rivals on fire), Armour-Piercing Rounds, Laser Sight (with a visible beam), Full Choke, Homing
-  Fins, Cluster Flare. Fitted mods show up on the gun in your hands and on the rack.
+- **Weapon mods** (2 slots per weapon, swappable, common/rare/epic):
+  - SMG / shotgun: Extended Mag, Speed Loader, Laser Sight (with a visible beam), Full Choke, Hair
+    Trigger, Sawn-Off, Incendiary Rounds (sets rivals on fire), Armour-Piercing Rounds, Suppressor
+    (rivals take 40% longer to lock on to you), Tracer Rounds (marked rivals take +20% damage, shown as
+    ◎), Slugs.
+  - Launcher: Homing Fins, Bunker Buster, Twin Tube (two rockets per shot), Remote Detonator (fire again
+    to blow your rocket mid-air).
+  - Flare gun: Cluster Flare, Long Burn, White Phosphor.
+  Every mod is visible on the gun in your hands and on the rack.
+- **Parts:** six per slot, e.g. Supercharger, Electric Motor, Run-Flats, Snow Chains, Ablative Plates,
+  Window Cage (stops gunfire), Twin Bottles, Methanol.
+- **Rivals** come armed: rocket gunners, a mine layer and a **gunner** who leans out of the window and
+  rakes you with bursts (the lock warning shows before each burst).
 - **Part tuning:** one trade-off slider per part (engine reliable↔boosted, tyres hard↔soft, armour
   light↔heavy, nitro capacity↔power), free to change in the garage.
-- **Paint shop** (cosmetic, kept between runs): body style, paint, finish (gloss, matte, rusted out,
-  primer patches), livery (spray stencil, racing roundel, twin stripes, flames, skull), race number and
-  number plate, with a spinning 3D preview. Races earn **reputation**, which unlocks more options.
+- **Paint shop** (cosmetic, kept between runs; races earn **reputation**, which unlocks options). The
+  3D preview switches between exterior, interior and gun-rack views.
+  - **Body:** style, paint, two-tone (roof / lower / hood) with a second colour, finish, grime (washed
+    to caked in mud), livery, race number, number plate.
+  - **Kit:** rims, front bumper (push bar, bull bar, ram plow), roof (rack, light bar, outer cage),
+    spoiler, exhaust (single, twin, side pipes), underglow.
+  - **Cabin:** seat covers (vinyl, leather, tartan, bead covers, leopard), steering wheel wrap (tape,
+    leather, fuzzy, chain), dash colour, cabin bulb colour (lights the whole cockpit), dash ornament
+    (hula girl, nodding dog, saint, skull; they sway with the car), and your inmate number stencilled on
+    the glovebox.
+  - **Guns:** a finish per weapon (rusted, duct-taped, camo, chrome, gold).
+  - **Presets:** save three complete looks and swap between them.
 
-All the data lives in `js/build.js`.
+All the data lives in `js/build.js` (gameplay) and `js/cosmetics.js` (looks).
 
 ## Models (`models.html`, `models/`)
 

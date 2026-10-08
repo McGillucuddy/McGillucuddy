@@ -302,7 +302,8 @@ class CockpitView {
   // ---------- Interior ----------
 
   buildInterior() {
-    const { group: I, refs } = Models.interior(this.race.player.color);
+    const { group: I, refs } = Models.interior(this.race.player.color, { cabin: this.look3d.cabin });
+    this.ornament = refs.ornament ? refs.ornament.userData.sway : null;
     this.wheel = refs.wheel;
     this.nadeMeshes = refs.nades;
     this.buildLoadout(I);
@@ -335,7 +336,7 @@ class CockpitView {
     I.add(this.dust);
 
     // The dangling cabin bulb flickers (see update()).
-    const cabinLight = (this.cabinLight = new THREE.PointLight(0xffd9a0, 0.7, 60, 1.2));
+    const cabinLight = (this.cabinLight = new THREE.PointLight((this.look3d.cabin && this.look3d.cabin.bulb) || 0xffd9a0, 0.7, 60, 1.2));
     cabinLight.position.copy(refs.bulb.position);
     I.add(cabinLight);
     this.bulb = refs.bulb;
@@ -349,7 +350,7 @@ class CockpitView {
     const b = this.combat.build;
     const hooks = [7.3, 6.1, 4.9];
     this.rackGuns = b.rack.map((w, i) => {
-      const m = Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false);
+      const m = Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (this.look3d.gunFinish || {})[w.id]);
       if (w.id === 'rocket') m.scale.setScalar(0.8);
       m.position.set(-1.2, hooks[i] || 4.9, -7.4);
       m.rotation.y = -Math.PI / 2;
@@ -386,7 +387,7 @@ class CockpitView {
     // One held model per weapon on your rack; the active one is shown.
     const HOLD = { smg: [2.1, -2.2, -6, 1], shotgun: [2.0, -2.2, -4.6, 0.9], rocket: [3.0, -2.3, -5.5, 0.75], flare: [2.0, -2.0, -5.2, 1] };
     const guns = this.combat.build.rack.map((w) => {
-      const m = Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true);
+      const m = Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]);
       const [x, y, z, sc] = HOLD[w.id];
       m.position.set(x, y, z);
       m.scale.setScalar(sc);
@@ -528,7 +529,7 @@ class CockpitView {
       if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) continue;
       const d = Math.hypot(car.x - this.race.player.x, car.y - this.race.player.y);
       if (d > 1100) continue;
-      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${car.place}. ${car.name.split(' ')[0]}${car.hp <= 0 ? ' ✖' : ''}`, armed: !!car.weapon, d });
+      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${car.place}. ${car.name.split(' ')[0]}${car.hp <= 0 ? ' ✖' : ''}${car.markT > 0 ? ' ◎' : ''}`, armed: !!car.weapon, d });
     }
     return out;
   }
@@ -553,6 +554,11 @@ class CockpitView {
     spring(this.bob, -this.acc.lat * 0.0016, this.acc.fwd * 0.0016, 90, 3);
     for (const h of this.hangers) h.rotation.set(clamp(this.dice.a * h.userData.swing, -1, 1), 0, clamp(this.dice.b * h.userData.swing, -1, 1));
     for (const n of this.bobNecks) n.rotation.set(clamp(this.bob.a, -0.8, 0.8), 0, clamp(this.bob.b, -0.8, 0.8));
+    if (this.ornament) {
+      const o = this.ornament, k = o.userData.stiff ? 0.25 : 0.8;
+      if (o.userData.axis === 'nod') o.rotation.set(0, 0, clamp(-this.bob.b * 1.2 + Math.sin(performance.now() * 0.009) * 0.04, -0.7, 0.7));
+      else o.rotation.set(clamp(this.bob.a * k, -0.6, 0.6), 0, clamp(this.bob.b * k, -0.6, 0.6));
+    }
 
     // Cars
     this.playerGroup.position.set(p.x, 0, p.y);

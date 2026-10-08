@@ -10,21 +10,29 @@ const PARTS = {
   turbo_v6: { slot: 'engine', name: 'Turbo V6', desc: '+8% top speed, +15% acceleration. Fragile.', price: 260, dur: 70, mods: { top: 1.08, accel: 1.15 } },
   diesel: { slot: 'engine', name: 'Diesel Block', desc: '+12% acceleration and very tough, but -4% top speed.', price: 200, dur: 170, mods: { top: 0.96, accel: 1.12 } },
   racing_v8: { slot: 'engine', name: 'Racing V8', desc: '+15% top speed. Breaks easily.', price: 340, dur: 55, mods: { top: 1.15, accel: 1.05 } },
+  supercharger: { slot: 'engine', name: 'Supercharged V8', desc: '+12% top speed and acceleration, but wears 50% faster.', price: 320, dur: 90, mods: { top: 1.12, accel: 1.12, wear: 1.5 } },
+  electric: { slot: 'engine', name: 'Salvaged Electric', desc: '+25% acceleration (instant torque), -8% top speed. Tough.', price: 280, dur: 140, mods: { top: 0.92, accel: 1.25 } },
 
   stock_tyres: { slot: 'tyres', name: 'Bald Tyres', desc: 'Round, mostly.', price: 0, dur: 100, mods: {} },
   slicks: { slot: 'tyres', name: 'Racing Slicks', desc: '+20% grip on tarmac. Terrible off-road.', price: 220, dur: 70, mods: { grip: 1.2, offroad: 1.6 } },
   all_terrain: { slot: 'tyres', name: 'All-Terrain Tyres', desc: 'Off-road slowdown -60%, but -5% grip.', price: 180, dur: 130, mods: { grip: 0.95, offroad: 0.4 } },
   studded: { slot: 'tyres', name: 'Studded Tyres', desc: '+40% grip on ice and snow. -4% top speed.', price: 180, dur: 110, mods: { iceGrip: 1.4, top: 0.96 } },
+  run_flats: { slot: 'tyres', name: 'Run-Flats', desc: '-5% grip, but when they break you keep 85% grip.', price: 200, dur: 90, mods: { grip: 0.95, runFlat: true } },
+  chains: { slot: 'tyres', name: 'Snow Chains', desc: '+60% grip on ice, rams deal +30% damage, -8% top speed.', price: 170, dur: 120, mods: { iceGrip: 1.6, ram: 1.3, top: 0.92 } },
 
   scrap_plating: { slot: 'armour', name: 'Scrap Plating', desc: 'Absorbs 20% of incoming damage.', price: 0, dur: 60, mods: { absorb: 0.2 } },
   riot_plates: { slot: 'armour', name: 'Riot Plates', desc: 'Absorbs 40% of damage. Heavy: -5% speed and acceleration.', price: 260, dur: 130, mods: { absorb: 0.4, top: 0.95, accel: 0.95, mass: 1.3 } },
   reactive: { slot: 'armour', name: 'Reactive Armour', desc: 'Absorbs 70% of explosion damage, 15% of everything else.', price: 240, dur: 80, mods: { absorb: 0.15, blastAbsorb: 0.7 } },
   spiked_cage: { slot: 'armour', name: 'Spiked Cage', desc: 'Absorbs 15%. Your rams deal double damage.', price: 220, dur: 100, mods: { absorb: 0.15, ram: 2 } },
+  ablative: { slot: 'armour', name: 'Ablative Plates', desc: 'Absorbs 50% of damage, but the plates wear away twice as fast.', price: 240, dur: 90, mods: { absorb: 0.5, armourWear: 2 } },
+  window_cage: { slot: 'armour', name: 'Window Cage', desc: 'Stops 60% of gunfire, but nothing against blasts or rams.', price: 200, dur: 110, mods: { absorb: 0, bulletAbsorb: 0.6 } },
 
   stock_nitro: { slot: 'nitro', name: 'Rusty Bottle', desc: 'A standard nitrous bottle.', price: 0, dur: 100, mods: {} },
   big_bottle: { slot: 'nitro', name: 'Big Bottle', desc: '+80% nitro capacity, -10% power.', price: 180, dur: 100, mods: { nitroCap: 1.8, nitroPower: 0.9 } },
   hot_mix: { slot: 'nitro', name: 'Hot Mix', desc: '+50% nitro power. Wears out fast.', price: 220, dur: 60, mods: { nitroPower: 1.5 } },
   recycler: { slot: 'nitro', name: 'Recycler', desc: 'Nitro refills 3x faster, -20% capacity.', price: 240, dur: 90, mods: { nitroCap: 0.8, nitroRegen: 3 } },
+  twin_bottles: { slot: 'nitro', name: 'Twin Bottles', desc: '+40% capacity and +40% refill speed.', price: 260, dur: 110, mods: { nitroCap: 1.4, nitroRegen: 1.4 } },
+  methanol: { slot: 'nitro', name: 'Methanol Mix', desc: '+25% nitro power and refill speed. Wears faster.', price: 200, dur: 70, mods: { nitroPower: 1.25, nitroRegen: 1.25 } },
 };
 const BROKEN_TEXT = {
   engine: 'Engine broken: top speed and acceleration crippled',
@@ -70,14 +78,27 @@ const CHIPS = {
 
 // Weapon mods: two slots per weapon, swappable in the garage.
 const MODS = {
-  ext_mag: { name: 'Extended Mag', desc: '+50% magazine size, but reloads 25% slower.', fits: ['smg', 'shotgun', 'rocket', 'flare'], price: 120 },
-  quick_mag: { name: 'Speed Loader', desc: 'Reloads 40% faster, but -25% magazine size.', fits: ['smg', 'shotgun', 'rocket', 'flare'], price: 120 },
-  incendiary: { name: 'Incendiary Rounds', desc: 'Hits set rivals on fire (3 dmg/s for 3s). Ammo costs 50% more.', fits: ['smg', 'shotgun'], price: 160 },
-  ap_rounds: { name: 'Armour-Piercing Rounds', desc: '+35% damage, but -15% fire rate.', fits: ['smg', 'shotgun'], price: 150 },
-  laser: { name: 'Laser Sight', desc: '-60% spread. Paints a red dot on your target.', fits: ['smg', 'shotgun'], price: 100 },
-  choke: { name: 'Full Choke', desc: 'Shotgun spread halved and range +50%.', fits: ['shotgun'], price: 110 },
-  homing: { name: 'Homing Fins', desc: 'Rockets curve toward the rival nearest your aim.', fits: ['rocket'], price: 200 },
-  cluster: { name: 'Cluster Flare', desc: 'Flares burst on impact, blinding every driver within 120.', fits: ['flare'], price: 170 },
+  // Common
+  ext_mag: { name: 'Extended Mag', rarity: 'common', desc: '+50% magazine size, but reloads 25% slower.', fits: ['smg', 'shotgun', 'rocket', 'flare'], price: 120 },
+  quick_mag: { name: 'Speed Loader', rarity: 'common', desc: 'Reloads 40% faster, but -25% magazine size.', fits: ['smg', 'shotgun', 'rocket', 'flare'], price: 120 },
+  laser: { name: 'Laser Sight', rarity: 'common', desc: '-60% spread. Paints a red line to your target.', fits: ['smg', 'shotgun'], price: 100 },
+  choke: { name: 'Full Choke', rarity: 'common', desc: 'Shotgun spread halved and range +50%.', fits: ['shotgun'], price: 110 },
+  hair_trigger: { name: 'Hair Trigger', rarity: 'common', desc: '+30% fire rate, but +40% spread.', fits: ['smg', 'shotgun', 'flare'], price: 110 },
+  sawn_off: { name: 'Sawn-Off Barrel', rarity: 'common', desc: '+3 pellets and 30% faster reload, but much wider spread and shorter range.', fits: ['shotgun'], price: 100 },
+  // Rare
+  incendiary: { name: 'Incendiary Rounds', rarity: 'rare', desc: 'Hits set rivals on fire (3 dmg/s for 3s). Ammo costs 50% more.', fits: ['smg', 'shotgun'], price: 160 },
+  ap_rounds: { name: 'Armour-Piercing Rounds', rarity: 'rare', desc: '+35% damage, but -15% fire rate.', fits: ['smg', 'shotgun'], price: 150 },
+  suppressor: { name: 'Suppressor', rarity: 'rare', desc: '-15% damage, but rival gunners take 40% longer to lock on to you.', fits: ['smg', 'shotgun'], price: 150 },
+  tracer: { name: 'Tracer Rounds', rarity: 'rare', desc: 'Hits mark a rival for 3s: they take +20% damage from everything.', fits: ['smg'], price: 160 },
+  slugs: { name: 'Slug Rounds', rarity: 'rare', desc: 'One heavy, accurate slug instead of buckshot. Long range, big knockback.', fits: ['shotgun'], price: 150 },
+  bunker_buster: { name: 'Bunker Buster', rarity: 'rare', desc: '+60% blast radius and +20% damage, but slower rockets.', fits: ['rocket'], price: 190 },
+  long_burn: { name: 'Long-Burn Flares', rarity: 'rare', desc: 'Blinded drivers stay blind 70% longer.', fits: ['flare'], price: 140 },
+  // Epic
+  homing: { name: 'Homing Fins', rarity: 'epic', desc: 'Rockets curve toward the rival nearest your aim.', fits: ['rocket'], price: 200 },
+  twin_tube: { name: 'Twin Tube', rarity: 'epic', desc: 'Fires two rockets per shot (uses two rounds). Double magazine.', fits: ['rocket'], price: 240 },
+  remote_det: { name: 'Remote Detonator', rarity: 'epic', desc: 'Fire again while your rocket is in the air to detonate it.', fits: ['rocket'], price: 220 },
+  cluster: { name: 'Cluster Flare', rarity: 'epic', desc: 'Flares burst on impact, blinding every driver within 120.', fits: ['flare'], price: 170 },
+  phosphor: { name: 'White Phosphor', rarity: 'epic', desc: 'Flares also set the driver on fire (4 dmg/s).', fits: ['flare'], price: 190 },
 };
 const modFits = (modId, weaponId) => MODS[modId].fits.includes(weaponId);
 
@@ -140,6 +161,16 @@ function weaponStats(w) {
   if (m.has('ap_rounds')) { d.dmg *= 1.35; d.rate *= 1.15; }
   if (m.has('laser')) { d.spread *= 0.4; d.laser = true; }
   if (m.has('choke')) { d.spread *= 0.5; d.life *= 1.5; }
+  if (m.has('hair_trigger')) { d.rate *= 0.77; d.spread *= 1.4; }
+  if (m.has('sawn_off')) { d.pellets += 3; d.spread *= 1.6; d.reload *= 0.7; d.life *= 0.6; }
+  if (m.has('slugs')) { d.pellets = 1; d.dmg *= 4.5; d.spread = 0.012; d.life *= 2.2; d.knock = (d.knock || 0) * 1.5; }
+  if (m.has('suppressor')) { d.dmg *= 0.85; d.quiet = true; }
+  if (m.has('tracer')) d.tracer = true;
+  if (m.has('bunker_buster')) { d.radius *= 1.6; d.dmg *= 1.2; d.speed *= 0.75; }
+  if (m.has('twin_tube')) { d.mag *= 2; d.twin = true; }
+  if (m.has('remote_det')) d.remote = true;
+  if (m.has('long_burn')) d.blind *= 1.7;
+  if (m.has('phosphor')) d.burn = 4;
   if (m.has('homing')) d.homing = true;
   if (m.has('cluster')) d.cluster = true;
   return d;
@@ -153,15 +184,15 @@ function fitMag(w) {
 
 // How fast each fitted part wears, from its tuning.
 function wearMul(b, slot) {
-  const t = b.parts[slot].tune || 0;
-  return { engine: 1 + 0.6 * t, tyres: 1 + 0.7 * t, armour: 1, nitro: 1 }[slot];
+  const t = b.parts[slot].tune || 0, m = PARTS[b.parts[slot].id].mods;
+  return ({ engine: 1 + 0.6 * t, tyres: 1 + 0.7 * t, armour: 1, nitro: 1 }[slot]) * (m.wear || 1);
 }
 
 // Car stats from the base car + installed parts and their tuning (broken parts cripple their stat).
 function buildStats(b) {
   const s = computeStats(newRun('comet', 1));
   s.maxHp = b.maxHull;
-  s.absorb = 0; s.blastAbsorb = 0; s.ram = 1; s.iceGrip = 1;
+  s.absorb = 0; s.blastAbsorb = 0; s.bulletAbsorb = 0; s.armourWear = 1; s.ram = 1; s.iceGrip = 1;
   for (const slot of PART_SLOTS) {
     const part = b.parts[slot], m = PARTS[part.id].mods;
     if (part.dur <= 0) continue;
@@ -173,6 +204,8 @@ function buildStats(b) {
     if (m.mass) s.mass *= m.mass;
     if (m.absorb) s.absorb = m.absorb;
     if (m.blastAbsorb) s.blastAbsorb = m.blastAbsorb;
+    if (m.bulletAbsorb) s.bulletAbsorb = m.bulletAbsorb;
+    if (m.armourWear) s.armourWear = m.armourWear;
     if (m.ram) s.ram *= m.ram;
     if (m.nitroCap) s.nitroCap *= m.nitroCap;
     if (m.nitroPower) s.nitroPower *= m.nitroPower;
@@ -185,7 +218,11 @@ function buildStats(b) {
   }
   s.absorb = Math.min(0.75, s.absorb);
   if (partBroken(b, 'engine')) { s.top *= 0.55; s.accel *= 0.5; }
-  if (partBroken(b, 'tyres')) { s.grip *= 0.5; s.handling *= 0.8; }
+  if (partBroken(b, 'tyres')) {
+    const runFlat = PARTS[b.parts.tyres.id].mods.runFlat;
+    s.grip *= runFlat ? 0.85 : 0.5;
+    s.handling *= runFlat ? 0.95 : 0.8;
+  }
   if (partBroken(b, 'nitro')) { s.nitroCap = 0.001; s.nitroRegen = 0; }
   if (b.chip === 'daredevil') s.offroadMul *= 0.5;
   return s;
@@ -257,7 +294,8 @@ function removeMod(b, rackIndex, slot) {
 
 function itemCard(type, id) {
   const src = { part: PARTS, weapon: WEAPONS, ability: ABILITIES, trinket: TRINKETS, chip: CHIPS, mod: MODS }[type][id];
-  return { type, id, name: src.name, desc: src.desc, price: src.price || 0 };
+  const rarity = src.rarity || { trinket: 'epic', chip: 'epic', part: 'common', weapon: 'rare', ability: 'rare' }[type];
+  return { type, id, name: src.name, desc: src.desc, price: src.price || 0, rarity };
 }
 
 const ownsPart = (b, id) => b.parts[PARTS[id].slot].id === id || b.stash.parts.some((p) => p.id === id);
@@ -270,7 +308,7 @@ function rollRewards(b, rng, count) {
   for (const id in PARTS) if (PARTS[id].price > 0 && !ownsPart(b, id)) pool.push(['part', id, 3]);
   for (const id in WEAPONS) if (!ownsWeapon(b, id)) pool.push(['weapon', id, 3]);
   for (const id in ABILITIES) if (!ownsAbility(b, id)) pool.push(['ability', id, 2]);
-  for (const id in MODS) pool.push(['mod', id, 2]);
+  for (const id in MODS) pool.push(['mod', id, { common: 2, rare: 1.2, epic: 0.6 }[MODS[id].rarity]]);
   for (const id in TRINKETS) if (!has(b, id)) pool.push(['trinket', id, 2]);
   for (const id in CHIPS) if (!ownsChip(b, id)) pool.push(['chip', id, 1]);
   const out = [];
@@ -287,7 +325,7 @@ function rollShop(b, rng) {
   const parts = pickN(Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id)), 2);
   const weapons = pickN(Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id)), 1);
   const abil = pickN(Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id)), 1);
-  const mods = pickN(Object.keys(MODS), 2);
+  const mods = pickN(Object.keys(MODS), 3);
   return [
     ...parts.map((id) => itemCard('part', id)), ...weapons.map((id) => itemCard('weapon', id)),
     ...abil.map((id) => itemCard('ability', id)), ...mods.map((id) => itemCard('mod', id)),
@@ -323,40 +361,3 @@ function applyItem(b, card) {
   }
   return true;
 }
-
-// ---------- Cosmetics (kept between runs, unlocked with reputation) ----------
-
-const BODY_STYLES = [
-  { id: 'comet', name: 'Coupe', rep: 0 }, { id: 'brick', name: 'Estate', rep: 20 },
-  { id: 'wasp', name: 'Hot Hatch', rep: 60 }, { id: 'phantom', name: 'Fastback', rep: 120 },
-];
-const PAINTS = [
-  { id: 'red', name: 'Rust Red', color: '#a8322a', rep: 0 }, { id: 'primer', name: 'Primer Grey', color: '#6f6f68', rep: 0 },
-  { id: 'orange', name: 'Prison Orange', color: '#d96a1e', rep: 0 }, { id: 'black', name: 'Matte Black', color: '#2a2a2e', rep: 30 },
-  { id: 'olive', name: 'Army Olive', color: '#5a6b3a', rep: 60 }, { id: 'blue', name: 'Patrol Blue', color: '#2f4f8a', rep: 100 },
-  { id: 'cream', name: 'Faded Cream', color: '#d8cfb0', rep: 150 }, { id: 'gold', name: "Warden's Gold", color: '#c9a443', rep: 250 },
-];
-const FINISHES = [
-  { id: 'gloss', name: 'Gloss', rep: 0 }, { id: 'matte', name: 'Matte', rep: 0 },
-  { id: 'rusty', name: 'Rusted Out', rep: 40 }, { id: 'patched', name: 'Primer Patches', rep: 80 },
-];
-const LIVERIES = [
-  { id: 'none', name: 'Plain', rep: 0 }, { id: 'stencil', name: 'Spray Stencil', rep: 0 },
-  { id: 'roundel', name: 'Racing Roundel', rep: 0 }, { id: 'stripes', name: 'Twin Stripes', rep: 50 },
-  { id: 'flames', name: 'Flames', rep: 120 }, { id: 'skull', name: 'Skull', rep: 200 },
-];
-const COSMETIC_KEY = 'apexrogue_cosmetics_v1';
-
-function loadCosmetics() {
-  const def = { style: 'comet', paint: 'red', finish: 'gloss', livery: 'stencil', number: 47, plate: 'INM 4471', rep: 0 };
-  try { return Object.assign(def, JSON.parse(localStorage.getItem(COSMETIC_KEY)) || {}); } catch (e) { return def; }
-}
-
-function saveCosmetics(c) {
-  try { localStorage.setItem(COSMETIC_KEY, JSON.stringify(c)); } catch (e) { /* storage unavailable */ }
-}
-
-const paintColor = (c) => (PAINTS.find((p) => p.id === c.paint) || PAINTS[0]).color;
-const carLook = (c) => ({ style: c.style, color: paintColor(c), accent: '#1d1d1d', finish: c.finish, livery: c.livery, number: c.number, plate: c.plate });
-// Reputation from a race: finishing, winning and wrecking rivals all build your name.
-const raceRep = (place, wrecks) => 10 + (place === 1 ? 25 : place <= 3 ? 10 : 0) + wrecks * 5;

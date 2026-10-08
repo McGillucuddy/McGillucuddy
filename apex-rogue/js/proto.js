@@ -65,6 +65,7 @@ const Proto = {
     });
     this.ui.addEventListener('change', (e) => {
       if (e.target.id === 'plateInput') this.action('cosmetic', 'plate:' + e.target.value);
+      if (e.target.id === 'inmateInput') this.action('cosmetic', 'inmate:' + e.target.value);
     });
 
     this.newRun();
@@ -105,7 +106,7 @@ const Proto = {
       case 'abandon': this.gameOver(false); break;
       case 'after-results': this.afterResults(); break;
       // Garage & shop
-      case 'tab': this.tab = arg; this.showGarage(); break;
+      case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
       case 'repair-hull': { const c = repairHullCost(b); if (c > 0 && buy(c)) b.hull = b.maxHull; this.showGarage(); break; }
       case 'repair-part': { const c = repairPartCost(b, arg); if (c > 0 && buy(c)) b.parts[arg].dur = partMaxDur(b, b.parts[arg].id); this.showGarage(); break; }
       case 'buy-spare': if (!b.spare && buy(spareCost(b, arg))) b.spare = { id: b.parts[arg].id }; this.showGarage(); break;
@@ -131,10 +132,15 @@ const Proto = {
       case 'remove-mod': { const [ri, slot] = arg.split(':').map(Number); removeMod(b, ri, slot); this.showGarage(); break; }
       case 'tune': { const [slot, v] = arg.split(':'); b.parts[slot].tune = +v; this.showGarage(); break; }
       // Paint shop (saved between runs)
+      case 'paint-tab': this.paintTab = arg; if (this.preview) this.preview.setMode({ cabin: 'interior', guns: 'guns' }[arg] || 'car'); this.showGarage(); break;
+      case 'preset-save': savePreset(this.cos, +arg); saveCosmetics(this.cos); this.showGarage(); break;
+      case 'preset-load': loadPreset(this.cos, +arg); saveCosmetics(this.cos); if (this.preview) this.preview.setLook(carLook(this.cos)); this.showGarage(); break;
       case 'cosmetic': {
         const i = arg.indexOf(':'), key = arg.slice(0, i), val = arg.slice(i + 1);
         if (key === 'number') this.cos.number = (+val + 100) % 100;
         else if (key === 'plate') this.cos.plate = val.toUpperCase().replace(/[^A-Z0-9 ]/g, '').slice(0, 8) || 'INM 4471';
+        else if (key === 'inmate') this.cos.inmate = val.replace(/[^0-9]/g, '').slice(0, 6) || '4471';
+        else if (key.startsWith('gun.')) this.cos.gunFinish[key.slice(4)] = val;
         else this.cos[key] = val;
         saveCosmetics(this.cos);
         if (this.preview) this.preview.setLook(carLook(this.cos));
@@ -288,7 +294,7 @@ const Proto = {
     const race = this.race, tr = race.track, bio = tr.biome;
     const rivals = race.cars.filter((c) => c !== race.player).map((c) => `
       <div class="rival"><span class="dot" style="background:${c.color}"></span>${c.name}
-      ${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : ''}</div>`).join('');
+      ${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
       <h1>Race Briefing</h1>
@@ -346,7 +352,7 @@ const Proto = {
     const repGain = raceRep(p.place, s.wrecked), repBefore = this.cos.rep;
     this.cos.rep += repGain;
     saveCosmetics(this.cos);
-    const unlocked = [...BODY_STYLES, ...PAINTS, ...FINISHES, ...LIVERIES].filter((o) => o.rep > repBefore && o.rep <= this.cos.rep).map((o) => o.name);
+    const unlocked = allCosmeticOptions().filter((o) => o.rep > repBefore && o.rep <= this.cos.rep).map((o) => o.name);
     const parts = PART_SLOTS.map((slot) => `<span class="${b.parts[slot].dur <= 0 ? 'bad' : ''}">${SLOT_NAMES[slot]} ${b.parts[slot].dur <= 0 ? 'BROKEN' : Math.round((100 * b.parts[slot].dur) / partMaxDur(b, b.parts[slot].id)) + '%'}</span>`).join(' · ');
     const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
     this.setUI(`<div class="screen results">
@@ -487,26 +493,38 @@ const Proto = {
   },
 
   garagePaint() {
-    const c = this.cos;
-    const opt = (key, list, render) => list.map((o) => {
-      const locked = o.rep > c.rep, on = c[key] === o.id;
-      return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'disabled' : ''} data-action="cosmetic" data-arg="${key}:${o.id}" title="${locked ? 'Unlocks at ' + o.rep + ' reputation' : o.name}">${render ? render(o) : ''}<span>${locked ? '🔒 ' + o.rep : o.name}</span></button>`;
+    const c = this.cos, sub = this.paintTab || 'body';
+    const opt = (key, list, render, cur = c[key], argKey = key) => list.map((o) => {
+      const locked = o.rep > c.rep, on = cur === o.id;
+      return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'disabled' : ''} data-action="cosmetic" data-arg="${argKey}:${o.id}" title="${locked ? 'Unlocks at ' + o.rep + ' reputation' : o.name}">${render ? render(o) : ''}<span>${locked ? '🔒 ' + o.rep : o.name}</span></button>`;
     }).join('');
-    const next = [...BODY_STYLES, ...PAINTS, ...FINISHES, ...LIVERIES].filter((o) => o.rep > c.rep).sort((a, b2) => a.rep - b2.rep)[0];
+    const sw = (o) => `<i class="swatch" style="background:${o.color}"></i>`;
+    const L = COSMETICS, row = (title, html) => `<h3>${title}</h3><div class="opts">${html}</div>`;
+    const next = allCosmeticOptions().filter((o) => o.rep > c.rep).sort((a, b2) => a.rep - b2.rep)[0];
+    const pages = {
+      body: () => row('Body', opt('style', L.style)) + row('Paint', opt('paint', L.paint, sw)) + row('Two-tone', opt('twoTone', L.twoTone))
+        + (c.twoTone !== 'none' ? row('Second colour', opt('paint2', L.paint, sw)) : '')
+        + row('Finish', opt('finish', L.finish)) + row('Grime', opt('grime', L.grime)) + row('Livery', opt('livery', L.livery))
+        + `<h3>Race number</h3><div class="opts"><button class="opt" data-action="cosmetic" data-arg="number:${c.number - 1}">−</button><b class="num">${c.number}</b><button class="opt" data-action="cosmetic" data-arg="number:${c.number + 1}">+</button>
+          <button class="opt" data-action="cosmetic" data-arg="number:${Math.floor(Math.random() * 100)}">Random</button></div>
+          <h3>Number plate</h3><input id="plateInput" class="plate-input" maxlength="8" value="${c.plate}">`,
+      kit: () => row('Rims', opt('rims', L.rims)) + row('Front bumper', opt('bumper', L.bumper)) + row('Roof', opt('roof', L.roof))
+        + row('Spoiler', opt('spoiler', L.spoiler)) + row('Exhaust', opt('exhaust', L.exhaust)) + row('Underglow', opt('underglow', L.underglow, (o) => (o.color ? sw(o) : ''))),
+      cabin: () => row('Seat covers', opt('seats', L.seats)) + row('Wheel wrap', opt('wheelWrap', L.wheelWrap)) + row('Dash', opt('dash', L.dash, sw))
+        + row('Cabin bulb', opt('bulb', L.bulb, sw)) + row('Dash ornament', opt('ornament', L.ornament))
+        + `<h3>Inmate number</h3><input id="inmateInput" class="plate-input" maxlength="6" value="${c.inmate}"><p class="muted small">Stencilled on the glovebox.</p>`,
+      guns: () => Object.keys(SHORT_WEAPON).map((w) => row(SHORT_WEAPON[w], opt('gunFinish', L.gunFinish, null, c.gunFinish[w], 'gun.' + w))).join(''),
+      presets: () => `<p class="muted small">Save your whole look (car, cabin and guns) into a slot and swap between them any time.</p>` + c.presets.map((p, i) => `<div class="preset-row">
+          <b>Slot ${i + 1}</b> <span class="muted small">${p ? `${(cosOption('style', p.style) || {}).name || ''} · ${(cosOption('paint', p.paint) || {}).name || ''} · #${p.number}` : 'empty'}</span>
+          <button class="opt" data-action="preset-save" data-arg="${i}">Save</button>
+          <button class="opt" ${p ? '' : 'disabled'} data-action="preset-load" data-arg="${i}">Load</button></div>`).join(''),
+    };
+    const tabs = [['body', 'Body'], ['kit', 'Kit'], ['cabin', 'Cabin'], ['guns', 'Guns'], ['presets', 'Presets']]
+      .map(([id, n]) => `<button class="opt ${sub === id ? 'on' : ''}" data-action="paint-tab" data-arg="${id}">${n}</button>`).join('');
     return `<div class="garage-grid">
       <div class="panel"><div id="previewSlot" class="preview-slot"></div>
         <p class="muted small">Your look is kept between runs. Reputation: <b>${c.rep}</b>${next ? ` · next unlock: ${next.name} at ${next.rep}` : ' · everything unlocked'}</p></div>
-      <div class="panel paint-opts">
-        <h3>Body</h3><div class="opts">${opt('style', BODY_STYLES)}</div>
-        <h3>Paint</h3><div class="opts">${opt('paint', PAINTS, (o) => `<i class="swatch" style="background:${o.color}"></i>`)}</div>
-        <h3>Finish</h3><div class="opts">${opt('finish', FINISHES)}</div>
-        <h3>Livery</h3><div class="opts">${opt('livery', LIVERIES)}</div>
-        <h3>Race number</h3>
-        <div class="opts"><button class="opt" data-action="cosmetic" data-arg="number:${c.number - 1}">−</button><b class="num">${c.number}</b><button class="opt" data-action="cosmetic" data-arg="number:${c.number + 1}">+</button>
-          <button class="opt" data-action="cosmetic" data-arg="number:${Math.floor(Math.random() * 100)}">Random</button></div>
-        <h3>Number plate</h3>
-        <input id="plateInput" class="plate-input" maxlength="8" value="${c.plate}">
-      </div>
+      <div class="panel paint-opts"><div class="opts subtabs">${tabs}</div>${pages[sub]()}</div>
     </div>`;
   },
 
@@ -660,12 +678,48 @@ class CarPreview {
     this.size = [0, 0];
   }
 
+  setMode(mode) {
+    if (mode === this.mode) return;
+    this.mode = mode;
+    if (this.look) this.setLook(this.look);
+  }
+
+  // Exterior: the car on a turntable. Interior: your seat, looking round the cabin. Guns: your rack, laid out.
   setLook(look) {
+    this.look = look;
     if (this.model) this.scene.remove(this.model);
-    this.model = Models.car(Object.assign({}, look));
-    PSX.apply(this.model);
-    PSX.setTextures(this.model, PSX.enabled);
-    this.scene.add(this.model);
+    if (this.bulbLight) { this.scene.remove(this.bulbLight); this.bulbLight = null; }
+    const mode = this.mode || 'car';
+    const g = new THREE.Group();
+    if (mode === 'interior') {
+      g.add(Models.car(Object.assign({}, look, { shell: true })));
+      g.add(Models.interior(look.color, { cabin: look.cabin }).group);
+      this.bulbLight = new THREE.PointLight(look.cabin.bulb, 2.4, 60, 1.1);
+      this.bulbLight.position.set(-7.5, 10, -1.5);
+      this.scene.add(this.bulbLight);
+    } else if (mode === 'guns') {
+      const rack = (typeof Proto !== 'undefined' && Proto.build) ? Proto.build.rack : [];
+      ['smg', 'shotgun', 'rocket', 'flare'].forEach((id, i) => {
+        const owned = rack.find((w) => w.id === id);
+        const gun = Models.gunFinish(Models.modVisuals(Models.weapon(id), id, owned ? owned.mods : [], false), (look.gunFinish || {})[id]);
+        const holder = new THREE.Group();
+        holder.position.set(0, 7 + (1.5 - i) * 3.4, 0);
+        holder.add(gun);
+        gun.rotation.y = Math.PI / 2;
+        if (id === 'rocket') gun.scale.setScalar(0.75);
+        holder.userData.spin = i * 0.4;
+        g.add(holder);
+      });
+      this.bulbLight = new THREE.PointLight('#fff2dd', 2.2, 80, 1);
+      this.bulbLight.position.set(4, 14, 22);
+      this.scene.add(this.bulbLight);
+    } else {
+      g.add(Models.car(Object.assign({}, look)));
+    }
+    this.model = g;
+    PSX.apply(g);
+    PSX.setTextures(g, PSX.enabled);
+    this.scene.add(g);
   }
 
   render(w, h, dt, t) {
@@ -678,8 +732,24 @@ class CarPreview {
       this.camera.updateProjectionMatrix();
     }
     this.yaw += dt * 0.5;
-    this.camera.position.set(Math.cos(this.yaw) * 58, 20, Math.sin(this.yaw) * 58);
-    this.camera.lookAt(0, 4, 0);
+    const mode = this.mode || 'car';
+    if (mode === 'interior') {
+      // Sitting in your seat, glancing from the dash round to the driver and the rack.
+      const a = -0.35 + Math.sin(t * 0.35) * 0.75;
+      this.camera.fov = 70;
+      this.camera.position.set(EYE.x, EYE.y, EYE.z);
+      this.camera.lookAt(EYE.x + Math.cos(a) * 10, EYE.y - 2.2, EYE.z + Math.sin(a) * 10 - 1);
+    } else if (mode === 'guns') {
+      this.camera.fov = 32;
+      this.camera.position.set(0, 8, 34);
+      this.camera.lookAt(0, 7, 0);
+      for (const h of this.model.children) h.rotation.y = Math.sin(t * 0.6 + h.userData.spin) * 0.5;
+    } else {
+      this.camera.fov = 32;
+      this.camera.position.set(Math.cos(this.yaw) * 58, 20, Math.sin(this.yaw) * 58);
+      this.camera.lookAt(0, 4, 0);
+    }
+    this.camera.updateProjectionMatrix();
     if (PSX.enabled) { this.post.begin(); this.renderer.render(this.scene, this.camera); this.post.end(t); }
     else this.renderer.render(this.scene, this.camera);
   }

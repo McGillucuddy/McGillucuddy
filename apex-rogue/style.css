@@ -243,3 +243,6 @@ body.mv { display: flex; overflow: hidden; }
 .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.4); }
 .num { font-size: 20px; min-width: 34px; text-align: center; font-family: monospace; }
 .plate-input { font: bold 18px monospace; text-transform: uppercase; background: #e9e4d0; color: #1a1a1a; border: 2px solid #222; border-radius: 4px; padding: 4px 10px; width: 150px; text-align: center; }
+.subtabs { margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+.preset-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.preset-row span { flex: 1; }

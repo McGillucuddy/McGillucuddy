@@ -46,6 +46,14 @@ const LP = {
     m.lookAt(vb);
     return m;
   },
+  // A round tube between two points (cages, bars).
+  tube(a, b, r, mat) {
+    const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r, va.distanceTo(vb), 6), mat);
+    t.position.copy(va).add(vb).multiplyScalar(0.5);
+    t.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize());
+    return t;
+  },
   cyl(rTop, rBot, h, seg, mat, x, y, z) {
     return LP.mesh(new THREE.CylinderGeometry(rTop, rBot, h, seg), mat, x, y, z);
   },
@@ -100,15 +108,29 @@ const DECALS = {
       g.fillStyle = '#1a1a1a'; g.font = 'bold 14px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(arg || 'APX 714', W / 2, H / 2 + 1);
     } else if (kind === 'rim') {
+      const v = arg || 'spoke5';
+      const metal = v === 'black' ? '#2c2e31' : v === 'steel' ? '#7a7f84' : '#9ea4aa';
       g.fillStyle = '#1a1a1a'; g.fillRect(0, 0, W, H);
-      g.fillStyle = '#9ea4aa'; g.beginPath(); g.arc(16, 16, 15, 0, TAU); g.fill();
-      g.fillStyle = '#26282b';
-      for (let k = 0; k < 5; k++) {
-        const a = (k / 5) * TAU + 0.3;
-        g.beginPath(); g.moveTo(16, 16);
-        g.arc(16, 16, 13, a, a + 0.75); g.fill();
+      g.fillStyle = metal; g.beginPath(); g.arc(16, 16, 15, 0, TAU); g.fill();
+      g.fillStyle = '#1e2022';
+      if (v === 'steel') {
+        for (let k = 0; k < 6; k++) { const a = (k / 6) * TAU; g.beginPath(); g.arc(16 + Math.cos(a) * 9.5, 16 + Math.sin(a) * 9.5, 2.2, 0, TAU); g.fill(); }
+        g.fillStyle = '#b8bdc2'; g.beginPath(); g.arc(16, 16, 6, 0, TAU); g.fill();
+      } else if (v === 'slotted') {
+        for (let k = 0; k < 5; k++) { const a = (k / 5) * TAU; g.save(); g.translate(16, 16); g.rotate(a); g.fillRect(5, -1.6, 8, 3.2); g.restore(); }
+      } else if (v === 'wire') {
+        g.strokeStyle = '#d8dde2'; g.lineWidth = 1;
+        g.fillStyle = '#30332f'; g.beginPath(); g.arc(16, 16, 13, 0, TAU); g.fill();
+        for (let k = 0; k < 18; k++) { const a = (k / 18) * TAU; g.beginPath(); g.moveTo(16 + Math.cos(a) * 3, 16 + Math.sin(a) * 3); g.lineTo(16 + Math.cos(a + 0.5) * 13, 16 + Math.sin(a + 0.5) * 13); g.stroke(); }
+        g.strokeStyle = metal; g.lineWidth = 2; g.beginPath(); g.arc(16, 16, 14, 0, TAU); g.stroke();
+      } else {
+        for (let k = 0; k < 5; k++) {
+          const a = (k / 5) * TAU + 0.3;
+          g.beginPath(); g.moveTo(16, 16);
+          g.arc(16, 16, 13, a, a + 0.75); g.fill();
+        }
       }
-      g.fillStyle = '#c4c9ce'; g.beginPath(); g.arc(16, 16, 4, 0, TAU); g.fill();
+      g.fillStyle = v === 'black' ? '#4a4d50' : '#c4c9ce'; g.beginPath(); g.arc(16, 16, 4, 0, TAU); g.fill();
       g.fillStyle = '#555';
       for (let k = 0; k < 5; k++) { const a = (k / 5) * TAU; g.fillRect(16 + Math.cos(a) * 6 - 1, 16 + Math.sin(a) * 6 - 1, 2, 2); }
     } else if (kind === 'gauges') {
@@ -223,6 +245,29 @@ const DECALS = {
       g.fillStyle = '#141414';
       g.beginPath(); g.arc(12, 13, 3, 0, TAU); g.arc(20, 13, 3, 0, TAU); g.fill();
       g.fillRect(15, 17, 2, 3); for (let x = 11; x < 22; x += 3) g.fillRect(x, 23, 1, 3);
+    } else if (kind === 'tartan') {
+      g.fillStyle = '#7a1c1c'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(20,40,20,0.6)'; for (let k = 0; k < W; k += 16) { g.fillRect(k, 0, 6, H); g.fillRect(0, k, W, 6); }
+      g.fillStyle = 'rgba(230,200,90,0.7)'; for (let k = 10; k < W; k += 16) { g.fillRect(k, 0, 1, H); g.fillRect(0, k, W, 1); }
+    } else if (kind === 'beads') {
+      g.fillStyle = '#3a2a1a'; g.fillRect(0, 0, W, H);
+      for (let y = 2; y < H; y += 4) for (let x = (y % 8 ? 2 : 4); x < W; x += 4) { g.fillStyle = (x + y) % 3 ? '#b8946a' : '#8a6a44'; g.beginPath(); g.arc(x, y, 1.6, 0, TAU); g.fill(); }
+    } else if (kind === 'leopard') {
+      g.fillStyle = '#c99a4a'; g.fillRect(0, 0, W, H);
+      const r = mulberry32(7);
+      for (let k = 0; k < 14; k++) {
+        const x = r() * W, y = r() * H;
+        g.fillStyle = '#1a120a'; g.beginPath(); g.arc(x, y, 3.2, 0, TAU); g.fill();
+        g.fillStyle = '#8a5a24'; g.beginPath(); g.arc(x, y, 1.8, 0, TAU); g.fill();
+      }
+    } else if (kind === 'fur') {
+      g.fillStyle = arg || '#d86aa8'; g.fillRect(0, 0, W, H);
+      const r = mulberry32(3);
+      for (let k = 0; k < 120; k++) { g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'; g.fillRect(r() * W, r() * H, 1, 2); }
+    } else if (kind === 'camo') {
+      g.fillStyle = '#5a6040'; g.fillRect(0, 0, W, H);
+      const r = mulberry32(11), cols = ['#3a3a26', '#7a6a48', '#262a1c'];
+      for (let k = 0; k < 16; k++) { g.fillStyle = cols[k % 3]; g.beginPath(); g.ellipse(r() * W, r() * H, 3 + r() * 5, 2 + r() * 3, r() * 3, 0, TAU); g.fill(); }
     } else if (kind === 'crackdash') {
       g.fillStyle = '#1b1d22'; g.fillRect(0, 0, W, H);
       g.strokeStyle = 'rgba(0,0,0,0.9)'; g.lineWidth = 1;
@@ -266,9 +311,8 @@ const CAR_STYLES = {
     wheels: [11.2, -10.8], wheelR: 2.7, wheelZ: 7.25,
     lightY: 4.1, tailY: 5.6, frontPlateY: 2.5, rearPlateY: 4.2, mirrorX: 7.6, mirrorY: 7.6,
     bPillar: -1.6, seams: [6.6, -4.8], cPillar: [[-5.4, 7.1], [-7, 10.8], [-12.2, 7.1]],
-    extras(g, m, st) {
-      g.add(LP.side([[-15.8, 7.4], [-12.9, 7.6], [-12.9, 7.9], [-16.2, 7.8]], 14, m.body, 0.1)); // decklid lip spoiler
-    },
+    kit: { bumper: 'none', roof: 'none', spoiler: 'lip' },
+    extras() {},
   },
   // Brick: a boxy 80s estate car with a bull bar and roof rails.
   brick: {
@@ -277,14 +321,8 @@ const CAR_STYLES = {
     wheels: [11.4, -11], wheelR: 3, wheelZ: 7.4,
     lightY: 4.7, tailY: 6.4, frontPlateY: 2.6, rearPlateY: 4.6, mirrorX: 8.2, mirrorY: 8.2,
     bPillar: -1.2, seams: [7.4, -3.4, -11.5], cPillar: [[-10.6, 7.8], [-10.6, 12], [-11.6, 12], [-11.6, 7.8]],
-    extras(g, m, st) {
-      const steel = LP.mat('#8a8f94', { metalness: 0.7, roughness: 0.4 });
-      for (const s of [-1, 1]) g.add(LP.box(0.7, 5.2, 0.7, steel, 19.7, 3.8, 5 * s)); // bull bar
-      g.add(LP.box(0.7, 0.7, 12, steel, 19.7, 6.1, 0));
-      g.add(LP.box(0.7, 0.7, 12, steel, 19.7, 3.6, 0));
-      for (const s of [-1, 1]) g.add(LP.box(19, 0.4, 0.5, m.dark, -5.6, 12.75, 6.4 * s)); // roof rails
-      for (const x of [3, -14]) for (const s of [-1, 1]) g.add(LP.box(0.6, 0.6, 0.6, m.dark, x, 12.4, 6.4 * s));
-    },
+    kit: { bumper: 'bullbar', roof: 'rails', spoiler: 'none' },
+    extras() {},
   },
   // Wasp: a hot hatch.
   wasp: {
@@ -293,8 +331,8 @@ const CAR_STYLES = {
     wheels: [10.4, -9.6], wheelR: 2.6, wheelZ: 6.8,
     lightY: 4, tailY: 5.4, frontPlateY: 2.4, rearPlateY: 3.8, mirrorX: 6.4, mirrorY: 7.3,
     bPillar: -2.4, seams: [5.6, -5.4], cPillar: [[-7.6, 6.9], [-9.2, 10.3], [-10.8, 10.3], [-13.9, 7]],
-    extras(g, m, st) {
-      g.add(LP.side([[-9.6, 10.6], [-14.4, 10.2], [-14.6, 9.6], [-10.4, 10.2]], 13, m.body, 0.1)); // roof spoiler
+    kit: { bumper: 'none', roof: 'none', spoiler: 'roofspoiler' },
+    extras(g, m) {
       g.add(LP.box(1.4, 0.4, 13, m.dark, 17.6, 1.6, 0)); // front lip
     },
   },
@@ -305,9 +343,9 @@ const CAR_STYLES = {
     wheels: [11.8, -11.2], wheelR: 2.9, wheelZ: 7.4,
     lightY: 4.4, tailY: 5.2, frontPlateY: 2.6, rearPlateY: 3.6, mirrorX: 4.4, mirrorY: 7.4,
     bPillar: -3.4, seams: [3.4, -6.2], cPillar: [[-6.4, 6.8], [-4.6, 10.3], [-16.4, 6.8]],
-    extras(g, m, st) {
+    kit: { bumper: 'none', roof: 'none', spoiler: 'ducktail' },
+    extras(g, m) {
       g.add(LP.side([[13, 6.5], [7.5, 7], [7.2, 7.8], [10.5, 7.8]], 4, m.dark, 0.15)); // hood scoop
-      g.add(LP.side([[-15.5, 7], [-17.6, 7.2], [-17.8, 7.8], [-16, 7.6]], 14.5, m.body, 0.1)); // ducktail
     },
   },
 };
@@ -346,7 +384,8 @@ function shellProfiles(st, xf, xr) {
 }
 
 // Darken vertices near the ground: road grime and fake ambient occlusion baked into vertex colours.
-function bakeGrime(root, height) {
+function bakeGrime(root, height, strength) {
+  const amt = 0.45 * (strength == null ? 1 : strength);
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const v = new THREE.Vector3();
@@ -358,7 +397,7 @@ function bakeGrime(root, height) {
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i).applyMatrix4(m);
       const t = clamp(v.y / height, 0, 1);
-      const k = 0.55 + 0.45 * t * t * (3 - 2 * t); // smoothstep: dark at the sills, clean up top
+      const k = Math.max(0.2, 1 - amt * (1 - t * t * (3 - 2 * t))); // smoothstep: dark at the sills, clean up top
       col[i * 3] = k * 1.0; col[i * 3 + 1] = k * 0.97; col[i * 3 + 2] = k * 0.92; // brownish road dirt
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
@@ -381,6 +420,9 @@ const Models = {
     const dark = LP.mat('#1b1c1e', { roughness: 0.9 });
     const chrome = LP.mat('#a7adb3', { metalness: 0.8, roughness: 0.3 });
     const glass = DECALS.mat('glass', { metalness: 0.4, roughness: 0.2 });
+    const paint2 = new THREE.Color(opts.paint2 || '#2a2a2e').lerp(new THREE.Color('#77736a'), 0.18);
+    const body2 = LP.mat(paint2, finish === 'gloss' ? { metalness: 0.35, roughness: 0.4 } : { metalness: 0.05, roughness: 0.95 });
+    const roofMat = opts.twoTone === 'roof' ? body2 : body;
     g.userData.bodyMat = body;
     const W = opts.shell ? 18 : st.bodyW, hw = W / 2;
     const bev = 0.35;
@@ -394,12 +436,12 @@ const Models = {
       const cab = st.cabin, cw = st.cabinW;
       g.add(LP.side(cab, cw, glass, 0.25));
       const roofY = cab[1][1];
-      g.add(LP.side([[cab[1][0] - 0.2, roofY - 0.2], [cab[2][0] + 0.2, roofY - 0.2], [cab[2][0], roofY + 0.35], [cab[1][0] - 0.3, roofY + 0.35]], cw + 0.3, body, 0.1));
+      g.add(LP.side([[cab[1][0] - 0.2, roofY - 0.2], [cab[2][0] + 0.2, roofY - 0.2], [cab[2][0], roofY + 0.35], [cab[1][0] - 0.3, roofY + 0.35]], cw + 0.3, roofMat, 0.1));
       for (const s of [-1, 1]) {
         const z = (cw / 2 + 0.1) * s;
-        g.add(LP.beam([cab[0][0], cab[0][1], z], [cab[1][0], cab[1][1], z], 0.55, body)); // A-pillar
-        g.add(LP.box(0.9, roofY - cab[0][1] + 0.1, 0.4, body, st.bPillar, (roofY + cab[0][1]) / 2, z)); // B-pillar
-        g.add(LP.side(st.cPillar, 0.45, body, 0.05).translateZ(z)); // C-pillar
+        g.add(LP.beam([cab[0][0], cab[0][1], z], [cab[1][0], cab[1][1], z], 0.55, roofMat)); // A-pillar
+        g.add(LP.box(0.9, roofY - cab[0][1] + 0.1, 0.4, roofMat, st.bPillar, (roofY + cab[0][1]) / 2, z)); // B-pillar
+        g.add(LP.side(st.cPillar, 0.45, roofMat, 0.05).translateZ(z)); // C-pillar
       }
     }
 
@@ -419,9 +461,6 @@ const Models = {
     const plate = opts.plate || 'APX ' + (100 + Math.floor(paint.r * 899));
     g.add(LP.box(0.12, 1.0, 2.6, DECALS.mat('plate', {}, plate), fx + 0.85, st.frontPlateY, 0));
     g.add(LP.box(0.12, 1.0, 2.6, DECALS.mat('plate', {}, plate), rx - 0.85, st.rearPlateY, 0));
-    const exhaust = LP.cyl(0.35, 0.35, 1.6, 6, chrome, rx - 0.2, 1.5, -hw + 3);
-    exhaust.rotation.z = Math.PI / 2;
-    g.add(exhaust);
 
     // Sides: door seams and handles, mirrors.
     if (!opts.shell) {
@@ -445,7 +484,7 @@ const Models = {
         const w = new THREE.Group();
         const t = LP.cyl(st.wheelR, st.wheelR, 2.2, 12, tyre);
         t.rotation.x = Math.PI / 2;
-        const rim = LP.mesh(new THREE.CircleGeometry(st.wheelR * 0.66, 12), DECALS.mat('rim', { metalness: 0.5, roughness: 0.4 }), 0, 0, 1.12 * s);
+        const rim = LP.mesh(new THREE.CircleGeometry(st.wheelR * 0.66, 12), DECALS.mat('rim', { metalness: 0.5, roughness: 0.4 }, opts.rims || 'spoke5'), 0, 0, 1.12 * s);
         if (s < 0) rim.rotation.y = Math.PI;
         rim.userData.noGrime = true;
         w.add(t, rim);
@@ -455,19 +494,149 @@ const Models = {
       }
     }
     st.extras(g, { body, dark, chrome }, st);
+    Models.bodyKit(g, st, opts, { body, body2, dark, chrome }, W, bev, fx, rx);
     Models.livery(g, st, opts, W, bev);
 
     if (opts.weapon === 'rocket') {
       const pod = Models.rocketPod();
       pod.position.set(st.cabin[1][0] - 4.2, st.cabin[1][1] + 0.35, 0);
       g.add(pod);
+    } else if (opts.weapon === 'gun') {
+      // Gunner: a passenger leaning out of the window with a rifle.
+      const z = W / 2 + 0.2, y = st.cabin[1][1] - 1.6, x = st.cabin[1][0] - 2;
+      g.add(LP.box(1.4, 1.6, 1.2, LP.mat('#d96a1e'), x, y, z)); // arm in a prison jumpsuit
+      g.add(LP.box(5.5, 0.5, 0.5, LP.mat('#1a1b1d', { metalness: 0.6 }), x + 2.6, y + 0.6, z + 0.5));
+      g.add(LP.box(1.2, 0.9, 0.5, LP.mat('#3a2a1a'), x - 0.4, y + 0.3, z + 0.5));
     } else if (opts.weapon === 'mine') {
       const d = Models.mineDropper();
       d.position.set(rx - 0.6, 0, 0);
       g.add(d);
     }
-    bakeGrime(g, 9);
+    bakeGrime(g, 9, { clean: 0.35, dirty: 1, filthy: 1.6 }[opts.grime || 'dirty']);
+    if (opts.underglow) {
+      // Neon underglow: an additive glow pad under the car.
+      const L = Math.abs(fx - rx);
+      for (const [sc, op] of [[1, 0.55], [1.35, 0.2]]) {
+        const pad = LP.mesh(new THREE.PlaneGeometry((L - 4) * sc, (W - 2) * sc).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: opts.underglow, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false }), (fx + rx) / 2, 0.25, 0);
+        pad.userData.noGrime = true;
+        g.add(pad);
+      }
+    }
     return g;
+  },
+
+  // Bolt-ons: bumpers, roof gear, spoilers, exhausts, two-tone panels, mud.
+  bodyKit(g, st, opts, m, W, bev, fx, rx) {
+    const hw = W / 2;
+    const steel = LP.mat('#8a8f94', { metalness: 0.7, roughness: 0.4 });
+    const rusty = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.75 });
+    const pickKit = (k) => (opts[k] && opts[k] !== 'stock' ? opts[k] : st.kit[k]);
+    const [xd, yd] = st.top[st.top.length - 3]; // rear deck
+    const cab = st.cabin, cw = st.cabinW, roofTop = cab[1][1] + 0.35;
+
+    // Bumper
+    const bumper = pickKit('bumper');
+    if (bumper === 'bullbar') {
+      for (const s of [-1, 1]) g.add(LP.box(0.7, 5.2, 0.7, steel, fx + 1.3, 3.8, 5 * s));
+      g.add(LP.box(0.7, 0.7, 12, steel, fx + 1.3, st.lightY + 1.4, 0));
+      g.add(LP.box(0.7, 0.7, 12, steel, fx + 1.3, 3.6, 0));
+    } else if (bumper === 'pushbar') {
+      for (const s of [-1, 1]) g.add(LP.box(0.6, 4.6, 0.6, m.dark, fx + 1.1, 3.4, 2.4 * s));
+      g.add(LP.box(0.9, 3, 6.2, LP.mat('#111', { roughness: 1 }), fx + 1.5, 3.4, 0));
+      g.add(LP.box(0.6, 0.6, 6.4, m.dark, fx + 1.1, 5.4, 0));
+    } else if (bumper === 'plow') {
+      g.add(LP.side([[fx + 0.3, 0.6], [fx + 4.4, 0.6], [fx + 1.0, st.lightY + 0.6], [fx + 0.3, st.lightY + 0.6]], W + 1, rusty, 0.1));
+      for (const z of [-4, 0, 4]) g.add(LP.side([[fx + 0.5, 0.7], [fx + 4.6, 0.7], [fx + 1.2, st.lightY + 0.5]], 0.3, steel, 0).translateZ(z));
+    }
+
+    // Roof
+    const roof = opts.shell ? 'none' : pickKit('roof');
+    const rx0 = cab[2][0] + 0.6, rx1 = cab[1][0] - 0.6, rlen = rx1 - rx0, rmid = (rx0 + rx1) / 2;
+    if (roof === 'rails' || roof === 'rack') {
+      for (const s of [-1, 1]) {
+        g.add(LP.box(rlen, 0.4, 0.5, m.dark, rmid, roofTop + 0.55, (cw / 2 - 0.7) * s));
+        for (const x of [rx0 + 0.4, rx1 - 0.4]) g.add(LP.box(0.6, 0.6, 0.6, m.dark, x, roofTop + 0.25, (cw / 2 - 0.7) * s));
+      }
+    }
+    if (roof === 'rack') {
+      for (const x of [rx0 + 1.5, rmid, rx1 - 1.5]) g.add(LP.box(0.4, 0.35, cw - 1.2, m.dark, x, roofTop + 0.8, 0));
+      const spare = LP.cyl(2.3, 2.3, 1.2, 12, LP.mat('#151515', { roughness: 1 }), rmid - 2, roofTop + 1.6, -1.6);
+      g.add(spare);
+      g.add(LP.box(2.2, 1.4, 1.2, LP.mat('#4b5a2e'), rmid + 2.6, roofTop + 1.7, 2.4)); // jerrycan
+      g.add(LP.box(2.6, 1.1, 2.4, LP.mat('#5a4a32', { roughness: 1 }), rmid + 2.2, roofTop + 1.5, -0.6)); // tarp bundle
+    } else if (roof === 'lightbar') {
+      g.add(LP.box(1.0, 0.7, cw - 1.5, m.dark, rx1 - 0.8, roofTop + 0.6, 0));
+      [-4.2, -1.4, 1.4, 4.2].forEach((z, i) => g.add(LP.box(0.35, 0.55, 1.6, LP.glow(i % 3 === 0 ? '#ffb000' : '#fff6d8', 0.9), rx1 - 0.25, roofTop + 0.62, z)));
+      for (const s of [-1, 1]) g.add(LP.box(0.5, 0.6, 0.5, m.dark, rx1 - 0.8, roofTop + 0.2, (cw / 2 - 1.5) * s));
+    } else if (roof === 'cage') {
+      const r = 0.32;
+      for (const x of [rx1, rx0]) {
+        for (const s of [-1, 1]) g.add(LP.tube([x, 6.6, (hw + 0.5) * s], [x, roofTop + 1.1, (cw / 2 + 0.2) * s], r, rusty));
+        g.add(LP.tube([x, roofTop + 1.1, -cw / 2 - 0.2], [x, roofTop + 1.1, cw / 2 + 0.2], r, rusty));
+      }
+      for (const s of [-1, 1]) {
+        g.add(LP.tube([rx0, roofTop + 1.1, (cw / 2 + 0.2) * s], [rx1, roofTop + 1.1, (cw / 2 + 0.2) * s], r, rusty));
+        g.add(LP.tube([rx1, roofTop + 1.1, (cw / 2 + 0.2) * s], [fx - 1.5, st.lightY + 1.2, (hw - 1.2) * s], r, rusty)); // down to the front
+      }
+    }
+
+    // Spoiler
+    const spoiler = pickKit('spoiler');
+    if (spoiler === 'lip') {
+      g.add(LP.side([[xd + 0.8, yd + 0.5], [xd + 3.7, yd + 0.7], [xd + 3.7, yd + 1.0], [xd + 0.4, yd + 0.9]], W - 2, m.body, 0.1));
+    } else if (spoiler === 'roofspoiler' && !opts.shell) {
+      const [x2, y2] = cab[2];
+      g.add(LP.side([[x2 + 1.2, y2 + 0.3], [x2 - 3.6, y2 - 0.1], [x2 - 3.8, y2 - 0.7], [x2 + 0.4, y2 - 0.1]], cw - 0.6, m.body, 0.1));
+    } else if (spoiler === 'ducktail') {
+      g.add(LP.side([[xd + 1.9, yd + 0.4], [xd - 0.2, yd + 0.6], [xd - 0.4, yd + 1.2], [xd + 1.4, yd + 1.0]], W - 1.5, m.body, 0.1));
+    } else if (spoiler === 'wing') {
+      g.add(LP.box(3.2, 0.5, W + 0.8, m.body, xd + 1.4, yd + 3.0, 0));
+      for (const s of [-1, 1]) g.add(LP.box(1, 2.6, 0.6, m.dark, xd + 1.8, yd + 1.6, (hw - 3) * s));
+    } else if (spoiler === 'bigwing') {
+      g.add(LP.side([[xd + 0.4, yd + 5.3], [xd + 5.4, yd + 5.7], [xd + 5.4, yd + 6.5], [xd + 0.4, yd + 6.3]], W + 2.5, m.dark, 0.15));
+      for (const s of [-1, 1]) {
+        g.add(LP.box(1, 5.4, 0.7, m.dark, xd + 3, yd + 2.9, (hw - 2.5) * s));
+        g.add(LP.box(4.6, 2.2, 0.15, m.body, xd + 3, yd + 6.2, (hw + 1.3) * s)); // end plates
+      }
+    }
+
+    // Exhaust
+    const R = st.wheelR + 0.75;
+    const pipe = (x, z) => { const e = LP.cyl(0.35, 0.35, 1.6, 6, m.chrome, x, 1.5, z); e.rotation.z = Math.PI / 2; g.add(e); };
+    if (opts.exhaust === 'twin') { pipe(rx - 0.2, -hw + 3); pipe(rx - 0.2, hw - 3); } else if (opts.exhaust === 'side') {
+      const x0 = st.wheels[1] + R + 0.8, x1 = st.wheels[0] - R - 0.8;
+      for (const s of [-1, 1]) {
+        const p = LP.cyl(0.42, 0.42, x1 - x0, 8, m.chrome, (x0 + x1) / 2, 1.8, (hw + 0.75) * s);
+        p.rotation.z = Math.PI / 2;
+        g.add(p);
+        g.add(LP.box(x1 - x0 - 2, 0.5, 0.15, LP.mat('#3a3a3a', { metalness: 0.6 }), (x0 + x1) / 2, 2.35, (hw + 0.85) * s)); // heat shield
+      }
+    } else pipe(rx - 0.2, -hw + 3);
+
+    // Two-tone panels
+    if (opts.twoTone === 'hood') {
+      const [p2x, p2y] = st.top[2], [p3x0, p3y0] = st.top[3];
+      const p3x = opts.shell ? Math.max(p3x0, 9) : p3x0;
+      const p3y = p2y + ((p3y0 - p2y) * (p2x - p3x)) / (p2x - p3x0);
+      g.add(LP.side([[p2x, p2y + bev + 0.03], [p3x, p3y + bev + 0.03], [p3x, p3y + bev + 0.14], [p2x, p2y + bev + 0.14]], W - 1.2, m.body2, 0));
+    } else if (opts.twoTone === 'lower' && !opts.shell) {
+      const x0 = st.wheels[1] + R, x1 = st.wheels[0] - R;
+      for (const s of [-1, 1]) g.add(LP.box(x1 - x0, 1.7, 0.08, m.body2, (x0 + x1) / 2, 2.35, (hw + bev + 0.03) * s));
+      g.add(LP.box(0.08, 1.4, W - 1, m.body2, fx + 0.85, 1.9, 0));
+    }
+
+    // Mud splatter for the filthiest look.
+    if (opts.grime === 'filthy' && !opts.shell) {
+      const rng = mulberry32((opts.number || 3) * 31 + 7);
+      const mud = LP.mat('#3a2a1a', { roughness: 1 });
+      for (let k = 0; k < 14; k++) {
+        const s = k % 2 ? 1 : -1;
+        const blob = LP.mesh(new THREE.CircleGeometry(randRange(rng, 0.3, 0.9), 5), mud, randRange(rng, rx + 1, fx - 1), randRange(rng, 1.3, 3.6), (hw + bev + 0.05) * s);
+        if (s < 0) blob.rotation.y = Math.PI;
+        blob.userData.noGrime = true;
+        g.add(blob);
+      }
+    }
   },
 
   // Improvised roof-mounted rocket pod on welded brackets.
@@ -736,11 +905,115 @@ const Models = {
         add(LP.box(0.4, 0.5, 0.8, steel, A.side[0], A.side[1], A.side[2]));
         add(LP.box(0.06, 1.0, 0.06, steel, A.side[0], A.side[1] + 0.7, A.side[2]));
         add(LP.box(0.15, 0.15, 0.05, LP.glow('#ff2020', 1.2), A.side[0], A.side[1] + 0.2, A.side[2] - 0.43));
+      } else if (id === 'suppressor') {
+        add(LP.cyl(0.42, 0.42, 2.6, 8, steel, A.muzzle[0], A.muzzle[1], A.muzzle[2] - 1.2).rotateX(Math.PI / 2));
+      } else if (id === 'tracer') {
+        add(LP.box(0.06, 0.3, 1.8, LP.glow('#7aff5a', 0.8), A.side[0] - 0.02, A.side[1] + 0.35, A.side[2]));
+      } else if (id === 'hair_trigger') {
+        add(LP.box(0.2, 0.5, 0.3, LP.mat('#c22a1a'), A.under[0], A.under[1] - 0.2, A.under[2] + 2.0));
+      } else if (id === 'sawn_off') {
+        const tape = DECALS.mat('tape', { roughness: 1 });
+        add(LP.box(1.0, 1.0, 0.5, tape, A.muzzle[0], A.muzzle[1] - 0.2, A.muzzle[2] + 1.2));
+        for (let k = 0; k < 4; k++) add(LP.box(0.12, 0.25, 0.25, steel, A.muzzle[0] - 0.3 + k * 0.2, A.muzzle[1] + 0.2, A.muzzle[2] + 0.2));
+      } else if (id === 'slugs') {
+        for (let k = 0; k < 4; k++) add(LP.cyl(0.16, 0.16, 0.7, 6, LP.mat(k % 2 ? '#b8862a' : '#7a2a1a', { metalness: 0.5 }), A.side[0] + 0.1, A.side[1] - 0.2, A.side[2] - 0.6 + k * 0.4));
+      } else if (id === 'bunker_buster') {
+        const cone = LP.mesh(new THREE.ConeGeometry(0.55, 1.4, 6), LP.mat('#5a5e62', { metalness: 0.7 }), A.muzzle[0], A.muzzle[1], A.muzzle[2] - 0.8);
+        cone.rotation.x = -Math.PI / 2;
+        add(cone);
+      } else if (id === 'twin_tube') {
+        add(LP.cyl(0.7, 0.7, 7.5, 8, LP.mat('#3a4a2a'), A.side[0] + 0.8, A.side[1] + 0.2, -1.6).rotateX(Math.PI / 2));
+        for (const z of [-4.2, 1.2]) add(LP.box(0.3, 1.6, 0.4, steel, A.side[0] + 0.3, A.side[1] + 0.2, z));
+      } else if (id === 'remote_det') {
+        add(LP.box(0.5, 0.6, 0.9, LP.mat('#d9b52c'), A.side[0], A.side[1] - 0.4, A.side[2] + 1.0));
+        add(LP.box(0.05, 1.4, 0.05, steel, A.side[0], A.side[1] + 0.5, A.side[2] + 1.2));
+        add(LP.box(0.12, 0.12, 0.12, LP.glow('#ffcf3a', 1.4), A.side[0], A.side[1] + 1.25, A.side[2] + 1.2));
+      } else if (id === 'long_burn') {
+        add(LP.cyl(0.35, 0.35, 1.4, 6, LP.mat('#d9601e'), A.under[0], A.under[1] - 0.2, A.under[2]).rotateX(Math.PI / 2));
+      } else if (id === 'phosphor') {
+        add(LP.box(0.06, 0.4, 1.6, LP.glow('#f4f8ff', 1.0), A.side[0] - 0.02, A.side[1], A.side[2]));
       } else if (id === 'cluster') {
         for (let k = 0; k < 3; k++) add(LP.cyl(0.18, 0.18, 0.9, 6, LP.mat('#d9601e'), A.side[0] + 0.1, A.side[1] - 0.3 - k * 0.4, A.side[2] + 0.8).rotateX(Math.PI / 2));
       }
     }
     return gun;
+  },
+
+  // Gun finish: re-skins the metal and furniture; mod attachments and glowing bits keep their own look.
+  gunFinish(gun, finish) {
+    if (!finish || finish === 'stock') return gun;
+    const tint = { rust: '#6b4a32', chrome: '#eef2f6', gold: '#e0b44a', camo: '#ffffff' }[finish];
+    gun.traverse((o) => {
+      if (!o.isMesh || o.userData.modVis || !o.material || !o.material.isMeshStandardMaterial) return;
+      const m = o.material;
+      if (m.emissiveIntensity > 0 && m.emissive && m.emissive.getHex() !== 0) return;
+      if (finish === 'tape') return;
+      const nm = m.clone();
+      nm.color.set(tint);
+      if (finish === 'rust') { nm.color.lerp(m.color, 0.3); nm.metalness = 0.4; nm.roughness = 0.95; }
+      else if (finish === 'chrome') { nm.metalness = 0.55; nm.roughness = 0.25; } // no env map, so full metal would read black
+      else if (finish === 'gold') { nm.metalness = 0.45; nm.roughness = 0.3; }
+      else if (finish === 'camo') { nm.map = DECALS.get('camo'); nm.metalness = 0.1; nm.roughness = 0.9; }
+      o.material = nm;
+    });
+    if (finish === 'tape') {
+      const bb = new THREE.Box3().setFromObject(gun), sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+      const tape = DECALS.mat('tape', { roughness: 1 });
+      for (const t of [-0.3, 0.05, 0.3]) {
+        const band = LP.box(Math.min(sz.x, 1.4) + 0.12, Math.min(sz.y, 1.2) + 0.12, 0.5, tape, c.x, c.y + sz.y * 0.1, c.z + t * sz.z);
+        band.userData.modVis = true;
+        gun.add(band);
+      }
+    }
+    return gun;
+  },
+
+  // Dash ornaments (cosmetic). userData.sway is the part that wobbles with the car.
+  ornament(id) {
+    const g = new THREE.Group(), m3 = LP.mat;
+    g.name = id + ' ornament';
+    const sway = new THREE.Group();
+    g.add(sway);
+    g.userData.sway = sway;
+    if (id === 'hula') {
+      g.add(LP.cyl(0.9, 1, 0.3, 8, m3('#3a2a1a'), 0, 0.15, 0));
+      g.add(LP.cyl(0.25, 0.75, 1.3, 7, m3('#6a8a2a', { roughness: 1 }), 0, 0.95, 0)); // grass skirt
+      sway.position.y = 1.6;
+      sway.add(LP.cyl(0.32, 0.25, 1.1, 6, m3('#c98a5a'), 0, 0.55, 0));
+      sway.add(LP.box(0.2, 0.25, 0.7, m3('#d84a6a'), 0.12, 0.8, 0)); // top
+      sway.add(LP.mesh(new THREE.IcosahedronGeometry(0.42, 0), m3('#c98a5a'), 0, 1.4, 0));
+      sway.add(LP.mesh(new THREE.IcosahedronGeometry(0.44, 0), m3('#1a120a'), -0.12, 1.5, 0)); // hair
+      sway.add(LP.mesh(new THREE.TorusGeometry(0.35, 0.09, 4, 8), m3('#ff5a8a'), 0, 1.05, 0).rotateX(Math.PI / 2)); // lei
+      for (const z of [-1, 1]) sway.add(LP.beam([0, 0.95, 0.3 * z], [0.1, 1.5, 0.75 * z], 0.12, m3('#c98a5a')));
+      sway.userData.axis = 'z';
+    } else if (id === 'dog') {
+      g.add(LP.box(2.2, 1.2, 1.1, m3('#7a5a3a'), 0, 0.6, 0));
+      g.add(LP.box(0.6, 0.5, 0.25, m3('#e8e0c8'), 0.6, 0.5, 0.56)); // spot
+      sway.position.set(0.9, 1.25, 0);
+      sway.add(LP.box(1.1, 0.9, 0.9, m3('#7a5a3a'), 0.4, 0.3, 0));
+      sway.add(LP.box(0.5, 0.5, 0.6, m3('#e8e0c8'), 1.05, 0.15, 0)); // snout
+      sway.add(LP.box(0.18, 0.18, 0.2, m3('#111'), 1.32, 0.3, 0));
+      for (const z of [-0.5, 0.5]) sway.add(LP.box(0.4, 0.8, 0.12, m3('#4a3420'), 0.25, 0.1, z)); // ears
+      sway.userData.axis = 'nod';
+    } else if (id === 'saint') {
+      g.add(LP.cyl(0.6, 0.7, 0.3, 8, m3('#d8d0b8'), 0, 0.15, 0));
+      sway.position.y = 0.3;
+      sway.add(LP.mesh(new THREE.ConeGeometry(0.6, 2.2, 7), m3('#3a5a9a'), 0, 1.1, 0)); // robe
+      sway.add(LP.mesh(new THREE.IcosahedronGeometry(0.32, 0), m3('#e8c8a0'), 0, 2.35, 0));
+      sway.add(LP.mesh(new THREE.TorusGeometry(0.42, 0.06, 4, 10), LP.glow('#ffd86a', 0.8), -0.15, 2.55, 0).rotateY(Math.PI / 2));
+      sway.userData.axis = 'z';
+      sway.userData.stiff = true;
+    } else {
+      g.add(LP.cyl(0.7, 0.8, 0.25, 6, m3('#2a2a2a'), 0, 0.12, 0));
+      sway.position.y = 0.25;
+      sway.add(LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(0.8, 1), 0.06, 4), m3('#e0d8c0'), 0, 0.9, 0));
+      sway.add(LP.box(0.7, 0.4, 0.9, m3('#d8d0b8'), 0.25, 0.25, 0)); // jaw
+      for (const z of [-0.3, 0.3]) sway.add(LP.box(0.2, 0.3, 0.26, m3('#0a0a0a'), 0.72, 1.0, z));
+      sway.add(LP.box(0.15, 0.2, 0.14, m3('#0a0a0a'), 0.78, 0.65, 0));
+      sway.userData.axis = 'z';
+      sway.userData.stiff = true;
+    }
+    return g;
   },
 
   weapon(id) {
@@ -936,11 +1209,15 @@ const Models = {
   // The cabin you sit in. Screens, mirror and windshield get live textures in the cockpit view.
   interior(color, opts) {
     const noRoof = opts && opts.noRoof;
+    const cab = Object.assign({ seats: 'vinyl', wheelWrap: 'tape', dash: '#1b1d22', bulb: '#ffd9a0', ornament: 'none', inmate: '4471' }, (opts && opts.cabin) || {});
     const I = new THREE.Group();
     I.name = 'cockpit interior';
     const refs = {};
     const m3 = LP.mat, box = LP.box, beam = LP.beam;
-    const dark = m3('#1b1d22'), trim = m3('#2a2d33'), seat = m3('#3b2a24'), body = m3(color, { metalness: 0.3, roughness: 0.5 });
+    const dark = m3(cab.dash), trim = m3('#2a2d33'), seat = {
+      vinyl: () => m3('#3b2a24'), leather: () => m3('#161412', { roughness: 0.35 }), tartan: () => DECALS.mat('tartan', { roughness: 1 }),
+      beaded: () => DECALS.mat('beads', { roughness: 0.6 }), leopard: () => DECALS.mat('leopard', { roughness: 1 }),
+    }[cab.seats in { vinyl: 1, leather: 1, tartan: 1, beaded: 1, leopard: 1 } ? cab.seats : 'vinyl'](), body = m3(color, { metalness: 0.3, roughness: 0.5 });
     I.add(box(34, 1, 17, m3('#15161a'), -1, 1, 0)); // floor
     I.add(box(5, 2.6, 17.2, dark, 6.5, 5, 0)); // dashboard
     I.add(box(3.5, 0.6, 17.2, trim, 5.6, 6.5, 0)); // dash top lip
@@ -992,7 +1269,7 @@ const Models = {
     bulb.position.set(-7.5, 12.3, -1.5);
     bulb.add(beam([0, 0, 0], [0, -1.6, 0], 0.08, m3('#111')));
     bulb.add(LP.cyl(0.25, 0.25, 0.4, 6, m3('#8a8f94', { metalness: 0.7 }), 0, -1.7, 0));
-    const glass = LP.mesh(new THREE.IcosahedronGeometry(0.45, 0), LP.glow('#ffd9a0', 1.4), 0, -2.2, 0);
+    const glass = LP.mesh(new THREE.IcosahedronGeometry(0.45, 0), LP.glow(cab.bulb, 1.4), 0, -2.2, 0);
     bulb.add(glass);
     bulb.userData.glass = glass;
     I.add(bulb);
@@ -1107,7 +1384,7 @@ const Models = {
     tally.rotation.z = Math.PI / 2;
     I.add(tally);
     refs.tally = tally;
-    const sten = LP.mesh(new THREE.PlaneGeometry(3.0, 1.2), LP.mat('#ffffff', { map: DECALS.get('stencil', '4471') }), 3.9, 4.6, 4.6);
+    const sten = LP.mesh(new THREE.PlaneGeometry(3.0, 1.2), LP.mat('#ffffff', { map: DECALS.get('stencil', cab.inmate) }), 3.9, 4.6, 4.6);
     sten.rotation.y = -Math.PI / 2;
     I.add(sten);
 
@@ -1131,8 +1408,30 @@ const Models = {
     I.add(box(2.6, 0.06, 0.5, tapeMat, -1.4, 4.45, 4.5)); // your cushion, taped
     I.add(box(0.5, 0.06, 2.4, tapeMat, -2.2, 4.45, 4.0));
 
-    // Tape wrapped around the steering wheel rim.
-    for (const a of [0.4, 2.2, 4.0]) wheel.add(box(0.9, 0.75, 0.75, tapeMat, Math.cos(a) * 2.6, Math.sin(a) * 2.6, 0).rotateZ(a + Math.PI / 2));
+    // Steering wheel wrap.
+    if (cab.wheelWrap === 'leather' || cab.wheelWrap === 'fur') {
+      const wrapMat = cab.wheelWrap === 'fur' ? DECALS.mat('fur', { roughness: 1 }) : m3('#4a2c1a', { roughness: 0.5 });
+      wheel.add(new THREE.Mesh(new THREE.TorusGeometry(2.6, cab.wheelWrap === 'fur' ? 0.55 : 0.4, 5, 12), wrapMat));
+    } else if (cab.wheelWrap === 'chain') {
+      const iron2 = m3('#6a6c6e', { metalness: 0.8, roughness: 0.35 });
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * TAU, l = LP.mesh(new THREE.TorusGeometry(0.42, 0.13, 4, 6), iron2, Math.cos(a) * 2.6, Math.sin(a) * 2.6, 0);
+        l.rotation.set(k % 2 ? Math.PI / 2 : 0, 0, a);
+        wheel.add(l);
+      }
+    } else {
+      for (const a of [0.4, 2.2, 4.0]) wheel.add(box(0.9, 0.75, 0.75, tapeMat, Math.cos(a) * 2.6, Math.sin(a) * 2.6, 0).rotateZ(a + Math.PI / 2));
+    }
+
+    // Dash ornament.
+    if (cab.ornament && cab.ornament !== 'none') {
+      const orn = Models.ornament(cab.ornament);
+      orn.position.set(6.3, 6.8, 2.9);
+      orn.rotation.y = Math.PI;
+      orn.scale.setScalar(0.6);
+      I.add(orn);
+      refs.ornament = orn;
+    }
 
     // Exposed wiring drooping from under the dash.
     const wireCols = ['#b52b1e', '#d9b52c', '#1a1a1a', '#2b5fae'];
