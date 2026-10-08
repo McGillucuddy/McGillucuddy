@@ -323,7 +323,8 @@ class CockpitView {
       sprite.position.set(0, 19, 0);
       g.add(sprite);
       this.scene.add(g);
-      this.carMeshes.set(car, { g, bodyMat: model.userData.bodyMat, wheels: model.userData.wheels, tag, sprite, lastTag: '' });
+      this.carMeshes.set(car, { g, model, bodyMat: model.userData.bodyMat, wheels: model.userData.wheels, tag, sprite, lastTag: '',
+        mo: { pvx: car.vx, pvy: car.vy, roll: 0, vroll: 0, pitch: 0, vpitch: 0, hp: car.hp, hop: 0, spin: 0, seed: Math.random() * 10 } });
     }
   }
 
@@ -437,6 +438,15 @@ class CockpitView {
     const flash = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     this.vmCamera.add(flash);
     this.vm = { root: vm, guns, flash };
+    // Spent casings flicked out of the ejection port, in the hand-held layer.
+    this.casings = [];
+    this.casingPool = [];
+    for (let k = 0; k < 16; k++) {
+      const c = LP.cyl(0.09, 0.09, 0.42, 10, LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 }));
+      c.visible = false;
+      this.vmCamera.add(c);
+      this.casingPool.push(c);
+    }
     this.anim = { switchT: 0, pumpT: 0, dry: 0, sway: { x: 0, vx: 0, y: 0, vy: 0, r: 0, vr: 0 }, lastYaw: 0, lastPitch: 0, rl: null };
   }
 
@@ -460,6 +470,12 @@ class CockpitView {
       puff: pool(160, () => new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), new THREE.MeshBasicMaterial({ color: '#cccccc', transparent: true, opacity: 0.5, depthWrite: false }))),
     };
     this.puffs = [];
+    this.sparkPool = pool(90, () => new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 2.4), new THREE.MeshBasicMaterial({ color: '#ffd27a' })));
+    this.debrisPool = pool(60, () => new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 1.6), LP.mat('#2a2826', { roughness: 0.9 })));
+    this.ringPool = pool(8, () => new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffd9a0', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })));
+    this.sparks = [];
+    this.debris = [];
+    this.rings = [];
     this.lockLines = new Map();
     for (const car of this.race.cars) {
       if (car.weapon !== 'rocket') continue;
@@ -478,6 +494,8 @@ class CockpitView {
   // ---------- Per-frame ----------
 
   onEvent(ev) {
+    if (ev.type === 'shoot' || ev.type === 'shotgun') this.ejectCasing(ev.type === 'shotgun');
+    if (ev.type === 'explode') this.burst(ev.x, ev.y, ev.big);
     if (ev.type === 'switch') this.anim.switchT = 0.38;
     else if (ev.type === 'empty') this.anim.dry = 0.14;
     if (ev.type === 'shotgun') this.anim.pumpT = 0.55;
@@ -610,7 +628,11 @@ class CockpitView {
     for (const [car, m] of this.carMeshes) {
       m.g.position.set(car.x, 0, car.y);
       m.g.rotation.y = -car.heading;
-      for (const w of m.wheels) w.rotation.z -= (car.forwardSpeed * dt) / 3.8;
+      for (const w of m.wheels) {
+        w.rotation.z -= (car.forwardSpeed * dt) / 3.8;
+        if (w.position.x > 0) w.rotation.y = -(car.input ? car.input.steer : 0) * 0.5; // front wheels steer
+      }
+      this.carMotion(car, m, dt, t);
       const flash = car.hitFlash > 0;
       if (car.burnT > 0 && this.puffs.length < this.pools.puff.length && Math.random() < 0.5) this.puffs.push({ x: car.x + (Math.random() - 0.5) * 20, y: car.y + (Math.random() - 0.5) * 12, t: 0, fire: true });
       m.bodyMat.emissive.set(flash ? '#ffffff' : car.burnT > 0 && Math.random() < 0.6 ? '#ff4a0a' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
@@ -677,6 +699,123 @@ class CockpitView {
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(eye.clone().add(dir));
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(this.look.yaw));
+  }
+
+  // Body roll in corners, nose dive under braking, squat on launch, suspension jiggle, a jolt when hit,
+  // and a hop-and-spin the moment a car is wrecked. Damaged cars smoke; exhausts puff under hard throttle.
+  carMotion(car, m, dt, t) {
+    const mo = m.mo;
+    if (dt > 0) {
+      const ax = (car.vx - mo.pvx) / dt, ay = (car.vy - mo.pvy) / dt;
+      const c = Math.cos(car.heading), s = Math.sin(car.heading);
+      const fwd = ax * c + ay * s, lat = -ax * s + ay * c;
+      const k = 140, d = 11;
+      mo.vroll += ((clamp(-lat * 0.00011, -0.11, 0.11) - mo.roll) * k - mo.vroll * d) * dt; mo.roll += mo.vroll * dt;
+      mo.vpitch += ((clamp(fwd * 0.00007, -0.07, 0.07) - mo.pitch) * k - mo.vpitch * d) * dt; mo.pitch += mo.vpitch * dt;
+    }
+    mo.pvx = car.vx; mo.pvy = car.vy;
+    // Took a hit: jolt the body.
+    if (car.hp < mo.hp - 1.5) { mo.vroll += (Math.random() - 0.5) * 4; mo.vpitch += (Math.random() - 0.5) * 2.5; this.sparkAt(car.x, car.y, 6); }
+    // Wrecked just now: hop and spin.
+    if (mo.hp > 0 && car.hp <= 0) { mo.hop = 1; mo.spin = (Math.random() < 0.5 ? -1 : 1) * TAU; this.burst(car.x, car.y, false, true); }
+    mo.hp = car.hp;
+    let y = Math.sin(t * 13 + mo.seed) * 0.05 * Math.min(1, Math.abs(car.forwardSpeed) / 300);
+    let spinY = 0, extraRoll = 0;
+    if (mo.hop > 0) {
+      mo.hop = Math.max(0, mo.hop - dt * 1.4);
+      const f = 1 - mo.hop;
+      y += Math.sin(Math.PI * f) * 10;
+      spinY = mo.spin * (1 - (1 - f) * (1 - f)) % TAU;
+      extraRoll = Math.sin(Math.PI * f) * 0.6;
+    }
+    if (car.hp <= 0) extraRoll += 0.05; // sagging on a broken spring
+    m.model.position.y = y;
+    m.model.rotation.set(mo.roll + extraRoll, spinY * (mo.hop > 0 ? 1 : 0), mo.pitch);
+    // Smoke from damaged engines, black when wrecked; exhaust puffs under hard throttle.
+    const frac = car.hp / (car.stats.maxHp || 100), room = this.puffs.length < this.pools.puff.length;
+    if (room && frac < 0.5 && Math.random() < (frac <= 0 ? 0.6 : frac < 0.25 ? 0.35 : 0.15)) {
+      const c = Math.cos(car.heading), s = Math.sin(car.heading);
+      this.puffs.push({ x: car.x + c * 14, y: car.y + s * 14, t: 0, smoke: frac <= 0 ? 'black' : frac < 0.25 ? 'dark' : 'grey' });
+    }
+    if (room && car.input && car.input.throttle > 0.8 && car.forwardSpeed < 200 && Math.random() < 0.25) {
+      const c = Math.cos(car.heading), s = Math.sin(car.heading);
+      this.puffs.push({ x: car.x - c * 19, y: car.y - s * 19, t: 0, exh: true });
+    }
+  }
+
+  sparkAt(x, y, n) {
+    for (let k = 0; k < n && this.sparks.length < this.sparkPool.length; k++) {
+      const a = Math.random() * TAU, sp = 60 + Math.random() * 120;
+      this.sparks.push({ x: x + (Math.random() - 0.5) * 14, y: y + (Math.random() - 0.5) * 8, z: 5 + Math.random() * 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vz: 30 + Math.random() * 60, t: 0, life: 0.25 + Math.random() * 0.25 });
+    }
+  }
+
+  // Explosion: flying debris, sparks and a shockwave ring on the ground.
+  burst(x, y, big, wreck) {
+    const n = big ? 12 : wreck ? 10 : 6;
+    for (let k = 0; k < n && this.debris.length < this.debrisPool.length; k++) {
+      const a = Math.random() * TAU, sp = 40 + Math.random() * (big ? 160 : 100);
+      this.debris.push({ x, y, z: 6, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, vz: 40 + Math.random() * 90, rx: Math.random() * 6, ry: Math.random() * 6, sx: (Math.random() - 0.5) * 14, sy: (Math.random() - 0.5) * 14, t: 0, s: 0.6 + Math.random() * (big ? 1.4 : 0.9) });
+    }
+    this.sparkAt(x, y, big ? 18 : 10);
+    if (this.rings.length < this.ringPool.length) this.rings.push({ x, y, t: 0, r: big ? 90 : wreck ? 55 : 60 });
+  }
+
+  ejectCasing(shell) {
+    const held = this.vm.guns[this.combat.wi];
+    if (!held || this.casings.length >= this.casingPool.length) return;
+    const [x, y, z] = held.userData.hold;
+    this.casings.push({ x: x + 0.6, y: y + 0.4, z: z + 0.3, vx: 3 + Math.random() * 2, vy: 4 + Math.random() * 2, vz: 1 + Math.random(), r: 0, vr: 10 + Math.random() * 10, t: 0, shell });
+  }
+
+  updateParticles(dt) {
+    const g = 160;
+    for (const s of this.sparks) { s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vz -= g * dt; s.z = Math.max(0.3, s.z + s.vz * dt); }
+    this.sparks = this.sparks.filter((s) => s.t < s.life);
+    this.sparkPool.forEach((o, i) => {
+      const s = this.sparks[i];
+      o.visible = !!s;
+      if (!s) return;
+      o.position.set(s.x, s.z, s.y);
+      o.lookAt(s.x + s.vx, s.z + s.vz, s.y + s.vy);
+      o.material.color.set(s.t < s.life * 0.4 ? '#fff2b0' : '#ff9a3a');
+    });
+    for (const d of this.debris) {
+      d.t += dt;
+      if (d.z > 0.5 || d.vz > 0) { d.x += d.vx * dt; d.y += d.vy * dt; d.vz -= g * dt; d.z += d.vz * dt; d.rx += d.sx * dt; d.ry += d.sy * dt; }
+      if (d.z <= 0.5 && d.vz < 0) { d.z = 0.5; d.vz = Math.abs(d.vz) > 30 ? -d.vz * 0.35 : 0; d.vx *= 0.5; d.vy *= 0.5; }
+    }
+    this.debris = this.debris.filter((d) => d.t < 6);
+    this.debrisPool.forEach((o, i) => {
+      const d = this.debris[i];
+      o.visible = !!d;
+      if (!d) return;
+      o.position.set(d.x, d.z, d.y);
+      o.rotation.set(d.rx, d.ry, 0);
+      o.scale.setScalar(d.s * (d.t > 5 ? 6 - d.t : 1));
+    });
+    for (const r of this.rings) r.t += dt;
+    this.rings = this.rings.filter((r) => r.t < 0.45);
+    this.ringPool.forEach((o, i) => {
+      const r = this.rings[i];
+      o.visible = !!r;
+      if (!r) return;
+      const k = r.t / 0.45;
+      o.position.set(r.x, 0.6, r.y);
+      o.scale.setScalar(r.r * (0.2 + k));
+      o.material.opacity = 0.7 * (1 - k);
+    });
+    for (const c of this.casings) { c.t += dt; c.x += c.vx * dt; c.y += c.vy * dt; c.z += c.vz * dt; c.vy -= 30 * dt; c.r += c.vr * dt; }
+    this.casings = this.casings.filter((c) => c.t < 0.7);
+    this.casingPool.forEach((o, i) => {
+      const c = this.casings[i];
+      o.visible = !!c;
+      if (!c) return;
+      o.position.set(c.x, c.y, c.z);
+      o.rotation.set(c.r, c.r * 0.7, Math.PI / 2);
+      o.scale.set(c.shell ? 2.2 : 1, c.shell ? 1.6 : 1, c.shell ? 2.2 : 1);
+      o.material.color.set(c.shell ? '#a8221a' : '#c9a443');
+    });
   }
 
   // Held-weapon animation: reloads (per weapon), shotgun pump after each shot, switch raise, inertia sway
@@ -859,11 +998,26 @@ class CockpitView {
     for (const pf of this.puffs) pf.t += dt;
     this.puffs = this.puffs.filter((pf) => pf.t < 0.8);
     show(this.pools.puff, this.puffs, (o, pf) => {
+      if (pf.smoke) {
+        o.position.set(pf.x, 8 + pf.t * 22, pf.y);
+        o.scale.setScalar(2 + pf.t * 9);
+        o.material.color.set(pf.smoke === 'black' ? '#141210' : pf.smoke === 'dark' ? '#3a3632' : '#8a8680');
+        o.material.opacity = 0.55 * (1 - pf.t / 0.8);
+        return;
+      }
+      if (pf.exh) {
+        o.position.set(pf.x, 2 + pf.t * 3, pf.y);
+        o.scale.setScalar(0.8 + pf.t * 4);
+        o.material.color.set('#9a968c');
+        o.material.opacity = 0.4 * (1 - pf.t / 0.8);
+        return;
+      }
       o.position.set(pf.x, 9 + pf.t * 6, pf.y);
       o.scale.setScalar(pf.fire ? 2.5 - pf.t * 2 : 2 + pf.t * 7);
       o.material.color.set(pf.fire ? (pf.t < 0.3 ? '#ffc23a' : '#ff5a1a') : '#cccccc');
       o.material.opacity = (pf.fire ? 0.9 : 0.45) * (1 - pf.t / 0.8);
     });
+    this.updateParticles(dt);
     for (const [car, line] of this.lockLines) {
       const lock = car.wpn && car.wpn.lock > 0;
       line.visible = lock;
