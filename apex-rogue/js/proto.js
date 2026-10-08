@@ -89,8 +89,7 @@ const Proto = {
     // them a few milliseconds per frame while the menus idle, so neither the menus nor the first race stall.
     Sculpt.collect = true;
     try {
-      for (const k of ['pistol', 'support']) Models.hand(k, [2, -3, 6]);
-      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.weapon(id);
+      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.hands(Models.weapon(id), id); // guns and their fitted gloves
       for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
       Models.car(Object.assign({}, carLook(this.cos), { shell: true })); // your own car, seen from inside
       Models.interior('#888888', {});

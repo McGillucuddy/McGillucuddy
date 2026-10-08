@@ -1104,6 +1104,10 @@ const Models = {
     for (const m of sets.tip) { g.remove(m); m.position.z = 6.3; tip.add(m); }
     g.add(tip);
     g.userData.tip = tip;
+    const barrel = new THREE.Object3D(); // muzzle marker
+    barrel.position.set(0, 0, -5.1);
+    g.add(barrel);
+    g.userData.barrel = barrel;
     for (const z of [-0.45, 0.8, 2.05]) for (const a of [0, Math.PI]) g.add(GUNTEX.screw(M.worn, Math.cos(a) * 0.97, 0, z, 0.07)); // band screws
     g.add(LP.mesh(new THREE.CircleGeometry(0.27, 16), LP.glow('#5ad87a', 0.6), -0.95, 0.85, -2.21).rotateY(Math.PI));
     return g;
@@ -1146,18 +1150,20 @@ const Models = {
     sc.add(worn, SDF.box([0.16, 0.06, 6.0], 0.025, [0, 0.66, -4.75]), 0.03); // vent rib
     sc.add(worn, SDF.box([0.36, 0.7, 0.3], 0.1, [0, 0.02, -5.95]), 0.04); // barrel clamp
     sc.add(worn, SDF.box([0.07, 0.22, 0.4], 0.03, [-0.47, -0.36, 1.35]), 0.02); // slide release
-    sc.add(worn, SDF.path([[0, -0.72, -0.05], [0, -0.92, -0.12], [0, -1.08, -0.02]], 0.06), 0.03); // trigger
-    sc.add(worn, SDF.cyl(0.09, 0.72, 'x', 0.03, [0, -0.62, 0.45]), 0.02); // cross-bolt safety
+    sc.add(worn, SDF.path([[0, -0.72, 1.9], [0, -0.92, 1.83], [0, -1.08, 1.93]], 0.06), 0.03); // trigger
+    sc.add(worn, SDF.cyl(0.09, 0.72, 'x', 0.03, [0, -0.62, 1.25]), 0.02); // cross-bolt safety
     sc.add(worn, SDF.torus(0.17, 0.045, [0, -0.62, -6.5], [0, Math.PI / 2, 0]), 0.03);
     sc.add(worn, SDF.torus(0.17, 0.045, [0, -1.6, 5.6], [0, Math.PI / 2, 0]), 0.03);
-    // Trigger plate and guard moulded together; recoil pad.
-    sc.add(M.poly, SDF.side([[-1.9, -0.45], [0.7, -0.45], [0.55, -0.72], [-1.8, -0.72]], 0.7, 0.08), 0.06);
-    sc.add(M.poly, SDF.path([[0, -0.66, -0.55], [0, -1.15, -0.35], [0, -1.25, 0.3], [0, -1.05, 0.85], [0, -0.66, 1.0]], 0.075), 0.1);
+    // Trigger plate and guard moulded together at the back of the receiver, by the wrist of the stock; recoil pad.
+    sc.add(M.poly, SDF.side([[-2.3, -0.45], [-1.0, -0.45], [-1.15, -0.72], [-2.2, -0.72]], 0.7, 0.08), 0.06);
+    sc.add(M.poly, SDF.path([[0, -0.66, 1.35], [0, -1.12, 1.48], [0, -1.24, 1.95], [0, -1.08, 2.3], [0, -0.8, 2.45]], 0.075), 0.1);
     sc.add(M.poly, SDF.side([[-6.9, 0.22], [-7.2, 0.24], [-7.22, -2.0], [-6.9, -1.98]], 0.9, 0.08), 0.04);
     // Stock: smooth straight stock with a comb, narrowing at the wrist.
     const stockPts = chaikin([[-2.25, 0.5], [-3.2, 0.32], [-5.4, 0.22], [-6.95, 0.18], [-6.98, -0.6], [-6.95, -1.95], [-5.6, -1.62], [-3.6, -0.9], [-2.7, -0.62], [-2.3, -0.5]], 2, 0.2);
     const fat = (y, z) => { const t = clamp((z - 2.4) / 3.6, 0, 1); return (0.68 + 0.32 * t) * (1 - 0.25 * clamp(y / 0.3, 0, 1) * t); };
     sc.add(wood, SDF.warp(SDF.side(stockPts, 0.86, 0.16), (x, y, z) => [x / fat(y, z), y, z]), 0.04);
+    // Pistol grip dropping from the wrist, raked back, growing out of the stock (a modern pump gun's stock).
+    sc.add(wood, SDF.side(chaikin([[-2.32, -0.35], [-3.35, -0.55], [-3.5, -1.9], [-3.35, -2.08], [-2.78, -2.1], [-2.62, -1.95]], 1, 0.25).concat([[-2.32, -0.35]]), 0.7, 0.2), 0.35);
     // Forend: fat, grooved, slightly oval, riding on two action bars back into the receiver.
     const pump = [[0.36, -2.15]];
     for (let k = 0; k <= 12; k++) pump.push([k % 2 ? 0.5 : 0.56, -2.3 - k * 0.2]);
@@ -1457,23 +1463,28 @@ const Models = {
   },
 
   // First-person hands: leather tactical gloves and orange prison-jumpsuit sleeves, posed on each gun's grips.
-  // 'pistol' wraps a vertical grip (axis = local Y, right hand); 'support' cradles a tube or handguard from below
-  // (axis = Z, left hand, palm up). Mirrored by scale.x = -1. Each glove is one seamless surface (see gloveGeo).
-  hand(kind, arm) {
+  // 'pistol' wraps a grip (axis = local Y, right hand); 'support' cradles a tube or handguard from below (axis = Z,
+  // left hand, palm up). Mirrored by scale.x = -1. pose = { grip: [half width, half depth], tube: radius,
+  // trigger: fingertip target (hand-local) }: the fingers are laid round that gun's real grip.
+  hand(kind, arm, pose) {
     const g = new THREE.Group();
-    const leather = LP.mat('#ffffff', { vertexColors: true, roughness: 0.58, metalness: 0.06, side: THREE.DoubleSide });
+    const leather = LP.mat('#ffffff', { vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide });
     leather.userData.psxKind = 'vinyl'; // retro mode: a leathery grain, not stone
-    const glove = Models.gloveGeo(kind, leather); // meshed once per kind, shared by every gun
+    const glove = Models.gloveGeo(kind, leather, arm, pose || {}); // meshed once per grip, shared after that
     glove.sc.build(g);
     const opts = { side: THREE.DoubleSide };
     const buckle = LP.mat('#8a8a86', { metalness: 0.8, roughness: 0.35 });
     const suit = LP.mat('#d6631d', Object.assign({ roughness: 0.95 }, opts)), cuff = LP.mat('#b4521a', Object.assign({ roughness: 0.95 }, opts));
     const dir = new THREE.Vector3(...arm).normalize(), L = new THREE.Vector3(...arm).length();
     const along = (d) => glove.wrist.clone().addScaledVector(dir, d).toArray();
+    // Buckle on top of the wrist strap (top = away from the palm, across the arm).
+    const up = new THREE.Vector3(...glove.top).projectOnPlane(dir).normalize();
     const bk = LP.rbox(0.2, 0.06, 0.26, 0.03, buckle, 0, 0, 0);
-    bk.position.set(...along(0.11)); bk.position.y += 0.47; g.add(bk);
+    bk.position.set(...along(0.11)).addScaledVector(up, 0.47);
+    bk.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
+    g.add(bk);
     g.add(LP.limb([along(0.6), along(0.85), along(1.1)], [0.58, 0.64, 0.6], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1))); // rolled cuff
-    g.add(LP.limb([along(0.95), along(L * 0.45), along(L)], [0.6, 0.7, 0.76], suit,
+    g.add(LP.limb([along(0.95), along(L * 0.45), along(L)], [0.6, 0.7, 0.78], suit,
       (t, a) => 1 + 0.045 * Math.sin(a * 3 + t * 9) + 0.03 * Math.sin(a * 7 - t * 14))); // sleeve with cloth folds
     g.traverse((o) => { if (o.isMesh) o.userData.modVis = true; });
     return g;
@@ -1482,55 +1493,88 @@ const Models = {
   // The glove as a single blended surface: every bone (phalanges, metacarpals, thumb, wrist) is a tapered round cone;
   // each finger blends into the palm with a soft web but stays creased against its neighbours. A moulded knuckle
   // guard and the wrist strap are blended in, and the panels, seams and stitching are painted into the vertex colours.
-  gloveGeo(kind, leather) {
-    const arm = kind === 'pistol' ? [2.2, -3.4, 6] : [-2.5, -3.1, 6.2]; // typical forearm direction; the sleeve covers the rest
+  // The skeleton is fitted to the grip: fingers are laid round its real cross-section by bone length.
+  gloveGeo(kind, leather, arm, pose) {
     const V = (a) => new THREE.Vector3(...a), lerp = (a, b, t) => V(a).lerp(V(b), t).toArray();
+    const r2 = (a) => (a ? a.map((v) => Math.round(v * 100) / 100) : null);
+    const key = 'glove:' + kind + ':' + JSON.stringify([r2(arm), r2(pose.grip), pose.tube, r2(pose.trigger)]);
     const palm = [], fingers = [], guard = [];
     const bone = (list, a, b, ra, rb) => list.push({ a, b, ra, rb });
     const chain = (j, rs) => { const f = []; for (let i = 0; i < j.length - 1; i++) bone(f, j[i], j[i + 1], rs[i], rs[i + 1]); fingers.push(f); return f; };
-    let w, radial, knuckles = [];
+    // Walk a finger round an ellipse (half axes ex, ez, in the plane of axes u/v) by bone lengths from angle a0.
+    const wrap = (pt, ex, ez, a0, k0, lens, aMax) => {
+      const out = [pt(a0, k0)];
+      let a = a0, prev = pt(a0, 1);
+      for (const L of lens) {
+        let d = 0;
+        while (d < L && a < aMax) { a += 0.01; const q = pt(a, 1); d += Math.hypot(q[0] - prev[0], q[1] - prev[1], q[2] - prev[2]); prev = q; }
+        out.push(pt(a, 1));
+      }
+      return out;
+    };
+    const LENS = [0.5, 0.38, 0.28];
+    let w, radial, knuckles = [], top;
     if (kind === 'pistol') {
-      // Grip axis is local Y through (0.02, -0.05); angle 0 = right side, PI/2 = front strap, PI = left side.
-      const at = (a, y, k) => [0.02 + 0.56 * k * Math.cos(a), y, -0.05 - 0.64 * k * Math.sin(a)];
-      radial = (x, y, z) => [x - 0.02, 0, z + 0.05];
-      const F = [[0.1, 0.15, 2.2], [-0.25, 0.14, 2.15], [-0.58, 0.12, 2.0]]; // [height, radius, tip angle]
+      // Grip axis is local Y; angle 0 = right side (back of the hand), PI/2 = front strap, PI = left side.
+      const [rx, rz] = pose.grip || [0.4, 0.48];
+      const ex = rx + 0.16, ez = rz + 0.16, sx = (rx + 0.2) / 0.6, sz = (rz + 0.2) / 0.68;
+      const S = (p) => [p[0] * sx, p[1], p[2] * sz]; // the base skeleton, stretched to this grip
+      radial = (x, y, z) => [x / ex, 0, z / ez];
+      const F = [[0.1, 0.15], [-0.25, 0.14], [-0.58, 0.12]]; // [height, radius]
       const bases = [[0.64, -0.1, 0.64], [0.62, -0.32, 0.64], [0.57, -0.5, 0.6]];
-      F.forEach(([y, r, ta], i) => {
-        const j = [at(0.18, y, 1.12), at(1.05, y - 0.03, 1), at(1.68, y - 0.06, 1), at(ta, y - 0.08, 1)];
+      F.forEach(([y, r], i) => {
+        const sc = i === 2 ? 0.82 : i === 1 ? 0.95 : 1; // the pinky is shorter
+        const j = wrap((a, k) => [ex * k * Math.cos(a), y - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS.map((l) => l * sc), 2.9);
         chain(j, [r * 1.18, r * 1.12, r * 1.06, r * 0.98]);
-        bone(palm, bases[i], j[0], 0.17, r * 1.18);
+        bone(palm, S(bases[i]), j[0], 0.17, r * 1.18);
         knuckles.push(j[0]);
       });
-      // Trigger finger straight along the frame, off the trigger; its back faces right and up.
-      const ix = [[0.6, 0.36, -0.2], [0.66, 0.42, -0.7], [0.64, 0.43, -1.06], [0.6, 0.42, -1.3]];
-      chain(ix, [0.165, 0.158, 0.15, 0.14]).dorsal = [0.9, 0.44, 0];
-      bone(palm, [0.62, 0.12, 0.62], ix[0], 0.17, 0.155);
+      // Trigger finger: from its knuckle forward along the frame, then curled in onto the trigger.
+      const M = S([0.6, 0.36, -0.2]);
+      let ix;
+      if (pose.trigger) {
+        let T = V(pose.trigger);
+        const reach = 1.22;
+        if (T.distanceTo(V(M)) > reach) T = V(M).add(T.clone().sub(V(M)).setLength(reach));
+        const C = [(M[0] + T.x) / 2 + 0.12, (M[1] + T.y) / 2 + 0.08, T.z + 0.18];
+        const bez = (t) => [0, 1, 2].map((i) => (1 - t) * (1 - t) * M[i] + 2 * (1 - t) * t * C[i] + t * t * T.getComponent(i));
+        ix = [M, bez(0.48), bez(0.8), bez(1)];
+      } else {
+        ix = wrap((a, k) => [ex * k * Math.cos(a), 0.42 - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS, 2.9);
+      }
+      chain(ix, [0.165, 0.158, 0.15, 0.14]);
+      bone(palm, S([0.62, 0.12, 0.62]), ix[0], 0.17, 0.155);
       knuckles.unshift(ix[0]);
-      bone(palm, [0.55, -0.5, 0.62], [0.22, -0.42, 0.66], 0.2, 0.17); // heel of the palm round the back strap
-      bone(palm, [0.62, -0.3, 0.62], [0.6, -0.5, 1.0], 0.3, 0.36); // wrist
+      bone(palm, S([0.55, -0.5, 0.62]), S([0.22, -0.42, 0.66]), 0.2, 0.17); // heel of the palm round the back strap
+      bone(palm, S([0.62, -0.3, 0.62]), S([0.6, -0.5, 1.0]), 0.3, 0.36); // wrist
       // Thumb: its metacarpal and muscle run over the top of the grip, then two bones down the left side.
-      const T = [[0.5, 0.0, 0.72], [-0.2, 0.44, 0.46], [-0.55, 0.36, -0.02], [-0.58, 0.27, -0.34]];
+      const T = [[0.5, 0.0, 0.72], [-0.2, 0.44, 0.46], [-0.55, 0.36, -0.02], [-0.58, 0.27, -0.34]].map(S);
       bone(palm, T[0], T[1], 0.22, 0.18);
       chain(T.slice(1), [0.185, 0.175, 0.16]);
-      w = [0.6, -0.55, 1.08];
+      w = S([0.6, -0.55, 1.08]);
+      top = [1, 0, 0];
     } else {
       // Tube axis is local Z; angle 0 = straight below, PI/2 = right side.
-      const at = (b, z, k) => [0.57 * k * Math.sin(b), -0.57 * k * Math.cos(b), z];
+      const R = pose.tube || 0.43, er = R + 0.14, s2 = (R + 0.25) / 0.68;
+      const S = (p) => [p[0] * s2, p[1] * s2, p[2]];
       radial = (x, y) => [x, y, 0];
-      const F = [[-0.55, 0.14, 2.4], [-0.19, 0.145, 2.45], [0.17, 0.14, 2.35], [0.5, 0.12, 2.15]]; // [z, radius, tip angle]
+      const F = [[-0.55, 0.14], [-0.19, 0.145], [0.17, 0.14], [0.5, 0.12]]; // [z, radius]
       const bases = [-0.18, 0.04, 0.26, 0.46];
-      F.forEach(([z, r, tb], i) => {
-        const j = [at(0.72, z + 0.04, 1.15), at(1.45, z, 1), at(1.98, z - 0.02, 1), at(tb, z - 0.04, 1)];
+      F.forEach(([z, r], i) => {
+        const sc = i === 3 ? 0.82 : i === 0 ? 0.95 : 1;
+        const j = wrap((a, k) => [er * k * Math.sin(a), -er * k * Math.cos(a), z + 0.04 - (a - 0.72) * 0.03], er, er, 0.72, 1.15, LENS.map((l) => l * sc), 2.75);
         chain(j, [r * 1.18, r * 1.12, r * 1.06, r * 0.98]);
-        bone(palm, [-0.18, -0.68, bases[i]], j[0], 0.17, r * 1.18);
+        bone(palm, S([-0.18, -0.68, bases[i]]), j[0], 0.17, r * 1.18);
         knuckles.push(j[0]);
       });
-      bone(palm, [-0.18, -0.7, 0.46], [-0.12, -0.8, 0.85], 0.19, 0.2); // heel
-      bone(palm, [-0.15, -0.72, 0.3], [-0.08, -0.9, 1.0], 0.26, 0.34); // wrist
-      const T = [[-0.12, -0.78, 0.62], [-0.52, -0.56, 0.22], [-0.62, -0.26, -0.18], [-0.58, -0.04, -0.46]];
+      bone(palm, S([-0.18, -0.7, 0.46]), S([-0.12, -0.8, 0.85]), 0.19, 0.2); // heel
+      bone(palm, S([-0.15, -0.72, 0.3]), S([-0.08, -0.9, 1.0]), 0.26, 0.34); // wrist
+      // Thumb along the left side of the tube, pointing forward.
+      const T = [[-0.12, -0.78, 0.62], [-0.53, -0.5, 0.2], [-0.6, -0.18, -0.2], [-0.57, -0.04, -0.52]].map(S);
       bone(palm, T[0], T[1], 0.2, 0.17);
       chain(T.slice(1), [0.18, 0.17, 0.155]);
-      w = [-0.08, -0.92, 1.08];
+      w = S([-0.08, -0.92, 1.08]);
+      top = [0, -1, 0];
     }
     // Gauntlet up the wrist with a raised strap.
     const dir = V(arm).normalize(), along = (d) => V(w).addScaledVector(dir, d).toArray();
@@ -1571,7 +1615,7 @@ const Models = {
     };
     // Colours: back leather, lighter suede palm, dark side seams with a stitched thread line, black guard, strap.
     const C = (h) => new THREE.Color(h);
-    const back = C('#3b3029'), palmC = C('#5c5248'), seam = C('#1b1612'), thread = C('#8d7a62'), guardC = C('#1f1d1c'), strapC = C('#4c4036');
+    const back = C('#3a2f28'), palmC = C('#5e5750'), seam = C('#17130f'), thread = C('#9a8f7e'), guardC = C('#161515'), strapC = C('#463c34');
     const near = (b, x, y, z) => { // closest point on the bone's axis: [t, distance along, offset vector]
       const ab = V(b.b).sub(V(b.a)), len = ab.length(), q = new THREE.Vector3(x, y, z).sub(V(b.a));
       const t = Math.max(0, Math.min(1, q.dot(ab) / (len * len)));
@@ -1590,7 +1634,7 @@ const Models = {
         const l = t * V(bb.b).distanceTo(V(bb.a));
         return Math.abs(l - 0.88) < 0.03 ? seam : Math.abs(l - 0.82) < 0.025 && Math.sin(l * 0 + Math.atan2(q.y, q.x) * 18) > 0 ? thread : back;
       }
-      const dor = V(bf && bf.dorsal ? bf.dorsal : radial(x, y, z)).normalize(), s = q.dot(dor);
+      const dor = V(radial(x, y, z)).normalize(), s = q.dot(dor);
       if (Math.abs(s) < 0.1) return seam;
       if (s > 0 && s < 0.2 && Math.sin(s0 * 70) > 0) return thread;
       if (s < 0) return palmC;
@@ -1603,9 +1647,9 @@ const Models = {
       box[i] = Math.min(box[i], p[i] - m); box[i + 3] = Math.max(box[i + 3], p[i] + m);
     }
     // Full density: the seams and stitching live in the vertex colours.
-    const sc = new Sculpt('glove:' + kind, 0.028);
+    const sc = new Sculpt(key, 0.028);
     sc.add(leather, { d: sdf, box }, 0.0001).opt(leather, { decimate: false, color, uv: 0.4 });
-    return { sc, wrist: V(w) };
+    return { sc, wrist: V(w), top };
   },
 
   // One round of spare ammo for the door rack, standing upright (y up): an SMG mag, a 12-gauge shell,
@@ -1631,21 +1675,43 @@ const Models = {
     return g;
   },
 
-  // Where the hands go on each gun: [kind, position, x-tilt, arm direction, mirrored].
+  // Where the hands go on each gun (gun space): kind, position, x tilt of the grip axis, the grip's half width and
+  // depth (or a tube radius for a cradling hand), the trigger the index finger rests on, the forearm towards the
+  // shoulder, and whether it is a mirrored (left) pistol hand.
   GRIPS: {
-    smg: [['pistol', [0, -1.45, 0.15], -0.12, [2.2, -3.6, 6], false], ['support', [0, -0.78, -1.95], 0, [-2.4, -3.2, 6], false]],
-    shotgun: [['pistol', [0, -0.75, 2.75], 1.05, [2.2, -3.0, 6], false], ['support', [0, -0.24, -3.5], 0, [-2.6, -3, 6.5], false]],
-    rocket: [['pistol', [0, -1.45, 0.95], -0.15, [2.2, -3.4, 6], false], ['pistol', [0, -1.35, -1.95], -0.15, [-2.6, -3.2, 7], true]],
-    flare: [['pistol', [0, -1.35, 0.95], -0.32, [2.2, -3.6, 6], false]],
+    smg: [
+      { kind: 'pistol', pos: [0, -1.45, 0.15], tilt: -0.12, grip: [0.45, 0.52], trigger: [0, -0.82, -1.1], arm: [1.6, -2.6, 6.2] },
+      { kind: 'support', pos: [0, -0.74, -1.95], tilt: 0, tube: 0.53, arm: [-3.4, -2.6, 7.5] },
+    ],
+    shotgun: [
+      { kind: 'pistol', pos: [0, -1.25, 2.98], tilt: -0.2, grip: [0.35, 0.46], trigger: [0, -0.92, 1.74], arm: [1.3, -2.6, 3.9] },
+      { kind: 'support', pos: [0, -0.24, -3.5], tilt: 0, tube: 0.5, arm: [-3.6, -3.2, 8] },
+    ],
+    rocket: [
+      { kind: 'pistol', pos: [0, -1.45, 0.95], tilt: -0.15, grip: [0.36, 0.46], trigger: [0, -0.9, -0.3], arm: [0.8, -2.8, 7] },
+      { kind: 'pistol', pos: [0, -1.35, -1.95], tilt: -0.15, grip: [0.35, 0.42], arm: [-4.8, -2.8, 8.5], mirror: true },
+    ],
+    flare: [
+      { kind: 'pistol', pos: [0, -1.35, 0.95], tilt: -0.32, grip: [0.45, 0.57], trigger: [0, -0.62, -0.44], arm: [1.4, -2.4, 5.4] },
+    ],
   },
 
   hands(gun, weaponId) {
-    for (const [kind, pos, tilt, arm, mirror] of Models.GRIPS[weaponId] || []) {
-      const h = Models.hand(kind, mirror ? [-arm[0], arm[1], arm[2]] : arm);
-      if (mirror) h.scale.x = -1;
-      h.position.set(...pos);
-      h.rotation.x = tilt;
-      h.userData.rest = { pos: h.position.clone(), rot: tilt };
+    const X = new THREE.Vector3(1, 0, 0);
+    for (const G of Models.GRIPS[weaponId] || []) {
+      const s = G.mirror ? -1 : 1;
+      const local = (p, isDir) => { // gun space -> the hand's own (unmirrored) frame
+        const v = new THREE.Vector3(...p);
+        if (!isDir) v.sub(new THREE.Vector3(...G.pos));
+        v.applyAxisAngle(X, -G.tilt);
+        v.x *= s;
+        return v.toArray();
+      };
+      const h = Models.hand(G.kind, local(G.arm, true), { grip: G.grip, tube: G.tube, trigger: G.trigger && local(G.trigger) });
+      if (G.mirror) h.scale.x = -1;
+      h.position.set(...G.pos);
+      h.rotation.x = G.tilt;
+      h.userData.rest = { pos: h.position.clone(), rot: G.tilt };
       (gun.userData.hands = gun.userData.hands || []).push(h);
       gun.add(h);
     }

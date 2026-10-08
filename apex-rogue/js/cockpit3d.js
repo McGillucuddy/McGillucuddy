@@ -463,13 +463,20 @@ class CockpitView {
     const vm = new THREE.Group();
     this.vmCamera.add(vm);
     // One held model per weapon on your rack; the active one is shown.
-    const HOLD = { smg: [1.9, -1.7, -5.6, 1], shotgun: [1.8, -1.55, -4.6, 0.85], rocket: [2.7, -1.9, -5.4, 0.7], flare: [1.9, -1.55, -5.0, 1] };
+    // [x, y, z, scale, yaw, roll, pitch]: low on the right, turned in towards the crosshair and canted a touch, so you
+    // see the gun's left side and both hands round the grips.
+    const HOLD = {
+      smg: [2.6, -1.6, -5.6, 1, 0.28, 0.05, 0.03], shotgun: [2.4, -1.5, -4.9, 0.85, 0.24, 0.06, 0.03],
+      rocket: [3.0, -1.9, -5.6, 0.7, 0.18, 0.04, 0.02], flare: [2.3, -1.15, -5.0, 1, 0.28, 0.06, 0.02],
+    };
     const guns = this.combat.build.rack.map((w) => {
       const m = Models.hands(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]), w.id);
-      const [x, y, z, sc] = HOLD[w.id];
+      const [x, y, z, sc, yaw, roll, pitch] = HOLD[w.id];
       m.position.set(x, y, z);
       m.scale.setScalar(sc);
+      m.rotation.set(pitch, yaw, roll);
       m.userData.hold = [x, y, z];
+      m.userData.holdRot = [pitch, yaw, roll];
       vm.add(m);
       return m;
     });
@@ -1014,11 +1021,16 @@ class CockpitView {
       }
       const dry = A.dry > 0 ? Math.sin((A.dry / 0.14) * Math.PI) * 0.05 : 0;
       g.position.set(x + sw.x * 0.5 + ox, y + bob + sw.y * 0.4 - this.dip - raise + oy, z + this.recoil * 0.8 + oz);
-      g.rotation.set(this.recoil * 0.12 - this.dip * 0.15 + sw.y * 0.06 + rx + dry, sw.r * 0.3 + ry, -sw.x * 0.1 + rz);
+      const [hp, hy, hr] = u.holdRot || [0, 0, 0];
+      g.rotation.set(hp + this.recoil * 0.12 - this.dip * 0.15 + sw.y * 0.06 + rx + dry, hy + sw.r * 0.3 + ry, hr - sw.x * 0.1 + rz);
     });
     const held = vm.guns[combat.wi];
     vm.flash.visible = this.flash > 0;
-    vm.flash.position.set(held.userData.hold[0] + 0.2, held.userData.hold[1] + 0.3, held.userData.hold[2] - 6.5);
+    // Flash at the gun's actual muzzle (the held gun is turned in, so a fixed offset would miss it).
+    if (held.userData.barrel) {
+      held.updateMatrix();
+      vm.flash.position.copy(held.userData.barrel.position).applyMatrix4(held.matrix).add(new THREE.Vector3(0, 0, -0.6).applyEuler(held.rotation));
+    } else vm.flash.position.set(held.userData.hold[0] + 0.2, held.userData.hold[1] + 0.3, held.userData.hold[2] - 6.5);
     vm.flash.rotation.z = Math.random() * TAU;
   }
 
