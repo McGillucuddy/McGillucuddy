@@ -8,7 +8,7 @@ const EYE = { x: -2.6, y: 9.8, z: 4.2 };
 
 const LP = {
   mat(color, opts) {
-    return new THREE.MeshStandardMaterial(Object.assign({ color, flatShading: true, roughness: 0.8, metalness: 0.05 }, opts));
+    return new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.8, metalness: 0.05 }, opts));
   },
   glow(color, intensity) {
     return LP.mat(color, { emissive: color, emissiveIntensity: intensity == null ? 0.8 : intensity });
@@ -21,19 +21,71 @@ const LP = {
   box(w, h, d, mat, x, y, z) {
     return LP.mesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
   },
-  // Side profile (x forward, y up) extruded across the width, with a one-step chamfer.
-  side(points, width, mat, bevel) {
+  // Side profile (x forward, y up) extruded across the width, with rounded edges.
+  // steps: slices across the width (lets LP.warp bend the shape in plan view).
+  side(points, width, mat, bevel, steps) {
     const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
     const b = bevel == null ? 0.5 : bevel;
     const geo = new THREE.ExtrudeGeometry(shape, {
       depth: Math.max(0.01, width - 2 * b), bevelEnabled: b > 0, bevelThickness: b, bevelSize: b,
-      bevelSegments: 1, curveSegments: 1,
+      bevelSegments: b > 0.02 ? 3 : 1, curveSegments: 1, steps: steps || 1,
     });
     geo.translate(0, 0, -(width - 2 * b) / 2);
-    return new THREE.Mesh(geo, mat);
+    return new THREE.Mesh(LP.smooth(geo), mat);
+  },
+  // Smooth normals across gentle bends, hard edges kept where faces meet at more than `angle` degrees.
+  smooth(geo, angle) {
+    const g = geo.index ? geo.toNonIndexed() : geo;
+    const pos = g.attributes.position, n = pos.count, cos = Math.cos(((angle || 38) * Math.PI) / 180);
+    const fn = new Float32Array(n * 3), a = new THREE.Vector3(), b2 = new THREE.Vector3(), c = new THREE.Vector3();
+    for (let i = 0; i + 2 < n; i += 3) {
+      a.fromBufferAttribute(pos, i); b2.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
+      const f = b2.sub(a).cross(c.sub(a));
+      const L = f.length() || 1;
+      for (let k = 0; k < 3; k++) fn.set([f.x / L, f.y / L, f.z / L], (i + k) * 3);
+    }
+    const groups = new Map();
+    for (let i = 0; i < n; i++) {
+      const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
+      let l = groups.get(key);
+      if (!l) groups.set(key, (l = []));
+      l.push(i);
+    }
+    const out = new Float32Array(n * 3);
+    for (const l of groups.values()) {
+      for (const i of l) {
+        let x = 0, y = 0, z = 0;
+        for (const j of l) {
+          const d = fn[i * 3] * fn[j * 3] + fn[i * 3 + 1] * fn[j * 3 + 1] + fn[i * 3 + 2] * fn[j * 3 + 2];
+          if (d >= cos) { x += fn[j * 3]; y += fn[j * 3 + 1]; z += fn[j * 3 + 2]; }
+        }
+        const L = Math.hypot(x, y, z) || 1;
+        out[i * 3] = x / L; out[i * 3 + 1] = y / L; out[i * 3 + 2] = z / L;
+      }
+    }
+    g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
+    return g;
+  },
+  // Rounded box (extruded rounded rectangle with rounded edges): fingers, grips, soft parts.
+  rbox(w, h, d, r, mat, x, y, z) {
+    r = Math.min(r, w / 2 - 0.01, h / 2 - 0.01, d / 2 - 0.01);
+    const s = new THREE.Shape(), hw = w / 2 - r, hh = h / 2 - r;
+    s.moveTo(-hw, -hh); s.lineTo(hw, -hh); s.lineTo(hw, hh); s.lineTo(-hw, hh); s.lineTo(-hw, -hh);
+    const geo = new THREE.ExtrudeGeometry(s, { depth: Math.max(0.01, d - 2 * r), bevelEnabled: true, bevelThickness: r, bevelSize: r, bevelSegments: 3, curveSegments: 4 });
+    geo.translate(0, 0, -(d - 2 * r) / 2);
+    return LP.mesh(LP.smooth(geo, 50), mat, x, y, z);
   },
   // Same, but for hand-held items: profile u = forward, v = up; result points down -Z.
   sideZ(points, width, mat, bevel) {
+    // Softly round every corner of the outline (closed-loop corner cutting) so stocks and grips aren't knife-edged.
+    if (points.length >= 4) {
+      const out = [];
+      for (let i = 0; i < points.length; i++) {
+        const [x1, y1] = points[i], [x2, y2] = points[(i + 1) % points.length];
+        out.push([x1 + (x2 - x1) * 0.14, y1 + (y2 - y1) * 0.14], [x1 + (x2 - x1) * 0.86, y1 + (y2 - y1) * 0.86]);
+      }
+      points = out;
+    }
     const m = LP.side(points, width, mat, bevel);
     m.geometry.rotateY(Math.PI / 2);
     return m;
@@ -49,19 +101,20 @@ const LP = {
   // A round tube between two points (cages, bars).
   tube(a, b, r, mat) {
     const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
-    const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r, va.distanceTo(vb), 6), mat);
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r, va.distanceTo(vb), 14), mat);
     t.position.copy(va).add(vb).multiplyScalar(0.5);
     t.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize());
     return t;
   },
   cyl(rTop, rBot, h, seg, mat, x, y, z) {
-    return LP.mesh(new THREE.CylinderGeometry(rTop, rBot, h, seg), mat, x, y, z);
+    // Round things stay round: at least 18 sides, whatever the model asked for.
+    return LP.mesh(new THREE.CylinderGeometry(rTop, rBot, h, Math.max(18, seg || 0)), mat, x, y, z);
   },
   // Round part turned on a lathe around the Z axis (barrels, tubes, warheads): profile is [[radius, z], ...].
   lathe(profile, seg, mat, x, y, z) {
     // Faces point outward only when the profile runs towards +Z, so flip it if it was drawn the other way.
     if (profile[0][1] > profile[profile.length - 1][1]) profile = profile.slice().reverse();
-    const geo = new THREE.LatheGeometry(profile.map(([r, zz]) => new THREE.Vector2(Math.max(0.001, r), zz)), seg || 8);
+    const geo = new THREE.LatheGeometry(profile.map(([r, zz]) => new THREE.Vector2(Math.max(0.001, r), zz)), Math.max(20, seg || 0));
     geo.rotateX(Math.PI / 2);
     return LP.mesh(geo, mat, x, y, z);
   },
@@ -76,8 +129,7 @@ const LP = {
       if (geo.index) geo = geo.toNonIndexed();
       const pos = geo.attributes.position;
       for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i); fn(v); pos.setXYZ(i, v.x, v.y, v.z); }
-      geo.computeVertexNormals();
-      m.geometry = geo;
+      m.geometry = LP.smooth(geo);
       m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.set(1, 1, 1);
     }
   },
@@ -373,18 +425,33 @@ const CAR_STYLES = {
   },
 };
 
-// Full body outline: the top chain plus a bottom edge with proper wheel arches.
+// Chaikin corner cutting: rounds a polyline's corners (ends stay put).
+function chaikin(pts, iters, cut) {
+  let p = pts;
+  for (let k = 0; k < (iters || 2); k++) {
+    const out = [p[0]];
+    for (let i = 0; i < p.length - 1; i++) {
+      const [x1, y1] = p[i], [x2, y2] = p[i + 1], q = cut || 0.25;
+      out.push([x1 + (x2 - x1) * q, y1 + (y2 - y1) * q], [x1 + (x2 - x1) * (1 - q), y1 + (y2 - y1) * (1 - q)]);
+    }
+    out.push(p[p.length - 1]);
+    p = out;
+  }
+  return p;
+}
+
+// Full body outline: the (rounded) top chain plus a bottom edge with proper wheel arches.
 function bodyOutline(st) {
   const [wf, wr] = st.wheels, R = st.wheelR + 0.75, cy = st.wheelR - 0.2;
   const rearX = st.top[st.top.length - 1][0], frontX = st.top[0][0];
   return [
-    ...st.top,
+    ...chaikin(st.top, 2, 0.22),
     [rearX + 2.2, 1.5],
-    ...archPts(wr, cy, R, 7),
+    ...archPts(wr, cy, R, 14),
     [wr + R + 0.2, 1.3], [wf - R - 0.2, 1.3],
-    ...archPts(wf, cy, R, 7),
+    ...archPts(wf, cy, R, 14),
     [frontX - 2.2, 1.5],
-  ];
+  ].map(([x, y]) => [x, y]);
 }
 
 // Split a body outline into a front clip (x >= xf) and rear deck (x <= xr) for the player's open shell.
@@ -448,13 +515,13 @@ const Models = {
     const roofMat = opts.twoTone === 'roof' ? body2 : body;
     g.userData.bodyMat = body;
     const W = opts.shell ? 18 : st.bodyW, hw = W / 2;
-    const bev = 0.35;
+    const bev = 0.5;
 
     if (opts.shell) {
       const [front, rear] = shellProfiles(st, 8.5, -12.5);
       g.add(LP.side(front, W, body, bev), LP.side(rear, W, body, bev));
     } else {
-      const shell = LP.side(bodyOutline(st), W, body, bev);
+      const shell = LP.side(bodyOutline(st), W, body, bev, 8);
       g.add(shell);
       // Round the body off: corners pulled in towards the nose and tail, a softened shoulder along the top.
       const [wf, wr] = st.wheels, ar = st.wheelR + 0.75, fX = st.top[0][0], rX = st.top[st.top.length - 1][0];
@@ -465,6 +532,10 @@ const Models = {
         k -= 0.035 * clamp((v.y - (belt - 0.6)) / 0.8, 0, 1); // shoulder
         k -= 0.03 * clamp((2.2 - v.y) / 1.0, 0, 1); // sills tuck under
         v.z *= k;
+        // Corners rounded in plan view: the outer edges of the nose and tail sweep back.
+        const e = Math.pow(Math.abs(v.z) / (W / 2 + bev), 3);
+        v.x -= 1.8 * e * clamp((v.x - (fX - 4)) / 4, 0, 1);
+        v.x += 1.4 * e * clamp(((rX + 4) - v.x) / 4, 0, 1);
       });
       // Glasshouse: tinted glass, roof skin, pillars, window trim; it leans in as it rises (tumblehome).
       const cab = st.cabin, cw = st.cabinW;
@@ -495,9 +566,9 @@ const Models = {
       const dir = Math.sign(x1 - x0), cut = 1.3;
       const pts = [[x0, -half], [x1 - dir * 0.3, -(half - cut)], [x1, -(half - cut - 0.4)], [x1, half - cut - 0.4], [x1 - dir * 0.3, half - cut], [x0, half]];
       const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
-      const geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 1 });
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: true, bevelThickness: 0.25, bevelSize: 0.25, bevelSegments: 3 });
       geo.rotateX(-Math.PI / 2);
-      return LP.mesh(geo, mat, 0, y, 0);
+      return LP.mesh(LP.smooth(geo), mat, 0, y, 0);
     };
     g.add(bumperSlab(fx - 0.6, fx + 0.85, 1.65, 1.3, (W / 2 - 0.3) * 0.9, dark));
     g.add(bumperSlab(rx + 0.6, rx - 0.85, 1.75, 1.3, (W / 2 - 0.3) * 0.93, dark));
@@ -530,7 +601,7 @@ const Models = {
         // Wheel-arch flares and a side skirt between them.
         const ar = st.wheelR + 0.75, cy = st.wheelR - 0.2;
         for (const wc of st.wheels) {
-          const band = [...archPts(wc, cy, ar + 0.55, 9), ...archPts(wc, cy, ar - 0.05, 9).reverse()];
+          const band = [...archPts(wc, cy, ar + 0.55, 16), ...archPts(wc, cy, ar - 0.05, 16).reverse()];
           g.add(LP.side(band, 0.5, body, 0.08).translateZ((hw * (wc > 0 ? 0.985 : 0.99) + bev - 0.12) * s));
         }
         const sx0 = st.wheels[1] + ar + 0.4, sx1 = st.wheels[0] - ar - 0.4;
@@ -552,11 +623,11 @@ const Models = {
         const w = new THREE.Group();
         const R = st.wheelR;
         // Tyre with rounded shoulders and sidewalls, turned on a lathe.
-        const t = LP.lathe([[R * 0.66, -1.15], [R * 0.9, -1.15], [R - 0.12, -0.95], [R, -0.55], [R, 0.55], [R - 0.12, 0.95], [R * 0.9, 1.15], [R * 0.66, 1.15]], 16, tyre);
+        const t = LP.lathe([[R * 0.66, -1.15], [R * 0.9, -1.15], [R - 0.12, -0.95], [R, -0.55], [R, 0.55], [R - 0.12, 0.95], [R * 0.9, 1.15], [R * 0.66, 1.15]], 28, tyre);
         // Rim dished in from the sidewall, with a brake disc behind the spokes.
         const dish = LP.lathe([[R * 0.66, 1.12 * s], [R * 0.6, 0.85 * s], [R * 0.22, 0.75 * s]], 16, LP.mat('#2a2c2e', { metalness: 0.6, roughness: 0.5 }));
         const disc = LP.cyl(R * 0.48, R * 0.48, 0.25, 14, LP.mat('#6a6c6e', { metalness: 0.7, roughness: 0.4 }), 0, 0, 0.55 * s).rotateX(Math.PI / 2);
-        const rim = LP.mesh(new THREE.CircleGeometry(R * 0.64, 16), DECALS.mat('rim', { metalness: 0.5, roughness: 0.4 }, opts.rims || 'spoke5'), 0, 0, 0.98 * s);
+        const rim = LP.mesh(new THREE.CircleGeometry(R * 0.64, 28), DECALS.mat('rim', { metalness: 0.5, roughness: 0.4 }, opts.rims || 'spoke5'), 0, 0, 0.98 * s);
         if (s < 0) rim.rotation.y = Math.PI;
         rim.userData.noGrime = true;
         w.add(t, dish, disc, rim);
@@ -1148,28 +1219,28 @@ const Models = {
     const opts = { side: THREE.DoubleSide, roughness: 0.85 };
     const skin = LP.mat('#c08a62', opts), glove = LP.mat('#2e2620', opts), suit = LP.mat('#d9661e', opts), cuff = LP.mat('#a8481a', opts);
     if (kind === 'pistol') {
-      g.add(LP.box(0.42, 1.5, 1.2, glove, 0.68, -0.1, 0.05)); // back of the hand
-      g.add(LP.box(0.46, 1.25, 0.42, glove, 0.64, -0.2, -0.55)); // knuckles
-      g.add(LP.box(0.9, 0.42, 0.45, glove, 0.22, 0.6, 0.55)); // web over the top of the grip
+      g.add(LP.rbox(0.42, 1.5, 1.2, 0.13, glove, 0.68, -0.1, 0.05)); // back of the hand
+      g.add(LP.rbox(0.46, 1.25, 0.42, 0.13, glove, 0.64, -0.2, -0.55)); // knuckles
+      g.add(LP.rbox(0.9, 0.42, 0.45, 0.13, glove, 0.22, 0.6, 0.55)); // web over the top of the grip
       for (let k = 0; k < 3; k++) {
         const y = -0.05 - k * 0.38;
-        g.add(LP.box(1.05, 0.32, 0.36, skin, 0.05, y, -0.74)); // finger across the front
-        g.add(LP.box(0.34, 0.3, 0.46, skin, -0.6, y, -0.46)); // fingertip on the far side
+        g.add(LP.rbox(1.05, 0.32, 0.36, 0.13, skin, 0.05, y, -0.74)); // finger across the front
+        g.add(LP.rbox(0.34, 0.3, 0.46, 0.13, skin, -0.6, y, -0.46)); // fingertip on the far side
       }
-      g.add(LP.box(0.3, 0.3, 1.0, skin, 0.62, 0.42, -0.95)); // trigger finger along the frame
-      const thumb = LP.box(0.32, 0.32, 0.95, skin, -0.55, 0.45, 0.05);
+      g.add(LP.rbox(0.3, 0.3, 1.0, 0.13, skin, 0.62, 0.42, -0.95)); // trigger finger along the frame
+      const thumb = LP.rbox(0.32, 0.32, 0.95, 0.13, skin, -0.55, 0.45, 0.05);
       thumb.rotation.y = 0.3;
       g.add(thumb);
-      g.add(LP.box(0.85, 0.95, 0.85, glove, 0.6, -0.45, 0.85)); // wrist
+      g.add(LP.rbox(0.85, 0.95, 0.85, 0.13, glove, 0.6, -0.45, 0.85)); // wrist
     } else {
-      g.add(LP.box(1.0, 0.36, 1.45, glove, 0.05, -0.62, 0)); // palm under the tube
+      g.add(LP.rbox(1.0, 0.36, 1.45, 0.13, glove, 0.05, -0.62, 0)); // palm under the tube
       for (let k = 0; k < 4; k++) {
         const z = -0.55 + k * 0.37;
-        g.add(LP.box(0.3, 0.7, 0.3, skin, 0.56, -0.2, z)); // fingers up the far side
-        g.add(LP.box(0.3, 0.26, 0.3, skin, 0.36, 0.22, z)); // tips curled over
+        g.add(LP.rbox(0.3, 0.7, 0.3, 0.13, skin, 0.56, -0.2, z)); // fingers up the far side
+        g.add(LP.rbox(0.3, 0.26, 0.3, 0.13, skin, 0.36, 0.22, z)); // tips curled over
       }
-      g.add(LP.box(0.3, 0.66, 0.34, skin, -0.55, -0.22, 0.35)); // thumb
-      g.add(LP.box(0.9, 0.8, 0.8, glove, -0.1, -0.85, 0.85)); // wrist
+      g.add(LP.rbox(0.3, 0.66, 0.34, 0.13, skin, -0.55, -0.22, 0.35)); // thumb
+      g.add(LP.rbox(0.9, 0.8, 0.8, 0.13, glove, -0.1, -0.85, 0.85)); // wrist
     }
     // Forearm in the jumpsuit sleeve, running back towards the camera.
     const w = kind === 'pistol' ? [0.62, -0.55, 1.15] : [-0.1, -0.95, 1.15];
