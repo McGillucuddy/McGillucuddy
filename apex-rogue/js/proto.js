@@ -91,12 +91,17 @@ const Proto = {
       case 'view-top': this.setView('top'); this.refresh(); break;
       case 'next': this.newRace(); break;
       case 'restart': this.newRace(this.seed); break;
+      case 'retro': this.toggleRetro(); this.refresh(); break;
     }
   },
 
   refresh() {
     if (this.state === 'briefing') this.showBriefing();
     else if (this.state === 'paused') this.showPause();
+  },
+
+  toggleRetro() {
+    if (this.cockpit) this.cockpit.setRetro(!PSX.enabled);
   },
 
   setView(v) {
@@ -208,13 +213,14 @@ const Proto = {
           <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further)</div>
           <div class="ctl"><kbd>Space</kbd> Shield: block right as a rocket hits to <b>parry</b> it back</div>
           <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
-          <div class="ctl"><kbd>V</kbd> Switch view · <kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
+          <div class="ctl"><kbd>V</kbd> Switch view · <kbd>F</kbd> Retro filter · <kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
           <p class="muted small">Shoot rockets and mines out of the air with the SMG. Red laser = a gunner is locking on to you.</p>
         </div>
       </div>
       <div class="btn-row">
         ${this.cockpit ? `<button class="btn ${this.view === 'cockpit' ? 'primary' : ''}" data-action="view-cockpit">Cockpit view</button>` : ''}
         <button class="btn ${this.view === 'top' ? 'primary' : ''}" data-action="view-top">Top-down view</button>
+        ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'}</button>` : ''}
       </div>
       <button class="btn primary big" data-action="start">Start race ▶</button>
       <p><a class="muted small" href="index.html">← Back to the main game</a></p>
@@ -227,6 +233,7 @@ const Proto = {
       <h1>Paused</h1>
       <button class="btn primary big" data-action="resume">${this.view === 'cockpit' ? 'Click to resume aiming' : 'Resume'}</button>
       ${this.cockpit ? `<button class="btn" data-action="${this.view === 'cockpit' ? 'view-top' : 'view-cockpit'}">Switch to ${this.view === 'cockpit' ? 'top-down' : 'cockpit'} view</button>` : ''}
+      ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'} (F)</button>` : ''}
       <button class="btn" data-action="restart">Restart this race</button>
       <button class="btn ghost" data-action="next">New track</button>
     </div>`);
@@ -264,6 +271,7 @@ const Proto = {
     this.last = now;
     this.time += dt;
     if (Input.consume('KeyM')) Sound.toggleMute();
+    if (Input.consume('KeyF')) { this.toggleRetro(); this.refresh(); }
 
     if (this.state === 'race') {
       if (Input.consume('KeyV')) this.setView(this.view === 'cockpit' ? 'top' : 'cockpit');
@@ -332,7 +340,7 @@ const Proto = {
         ctx.fillRect(0, H / 2 - 40, W, 80);
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'center';
-        ctx.font = 'bold 26px system-ui, sans-serif';
+        ctx.font = `bold 26px ${hudFont()}`;
         ctx.fillText('Click to grab your gun', W / 2, H / 2 + 9);
       }
     } else {
@@ -346,6 +354,8 @@ const Proto = {
 };
 
 // ---------- HUD pieces ----------
+
+const hudFont = () => (PSX.enabled ? '"Courier New", monospace' : 'system-ui, sans-serif');
 
 function drawTrackPreview(canvas, race) {
   const ctx = canvas.getContext('2d'), tr = race.track, b = tr.bounds;
@@ -387,7 +397,7 @@ function drawWeaponPanel(ctx, P, W, H) {
   ctx.textAlign = 'left';
   const row = (yy, active, label, right, frac, col) => {
     ctx.fillStyle = active ? '#ffd23f' : 'rgba(255,255,255,0.6)';
-    ctx.font = `${active ? 'bold ' : ''}14px system-ui, sans-serif`;
+    ctx.font = `${active ? 'bold ' : ''}14px ${hudFont()}`;
     ctx.fillText(label, x + 12, yy);
     ctx.textAlign = 'right';
     ctx.fillText(right, x + 226, yy);
@@ -405,7 +415,7 @@ function drawWeaponPanel(ctx, P, W, H) {
   row(y + 78, false, 'G  Grenades', `${n.ammo}/${n.max}`, n.ammo < n.max ? n.regen / 9 : 1, '#7cfc00');
   row(y + 106, s.t > 0, '␣  Shield', s.t > 0 ? 'ACTIVE' : s.cd > 0 ? `${s.cd.toFixed(1)}s` : 'READY', s.cd > 0 ? 1 - s.cd / s.cooldown : 1, '#5ad8ff');
   ctx.fillStyle = c.swerveCd > 0 ? 'rgba(255,255,255,0.5)' : '#fff';
-  ctx.font = '13px system-ui, sans-serif';
+  ctx.font = `13px ${hudFont()}`;
   ctx.fillText(`A/D  Swerve ${c.swerveCd > 0 ? c.swerveCd.toFixed(1) + 's' : 'ready'}`, x + 12, y + 130);
 }
 
@@ -415,7 +425,7 @@ function drawMessages(ctx, race, W, H) {
   for (const m of race.messages) {
     const a = clamp(Math.min(m.t * 6, (m.life - m.t) * 3), 0, 1);
     ctx.globalAlpha = a;
-    ctx.font = `bold ${m.big ? 44 : 22}px system-ui, sans-serif`;
+    ctx.font = `bold ${m.big ? 44 : 22}px ${hudFont()}`;
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillText(m.text, W / 2 + 2, y + 2);
     ctx.fillStyle = m.color;
@@ -465,7 +475,7 @@ function drawCockpitHUD(ctx, P, W, H, t) {
       ctx.lineWidth = 5;
       ctx.beginPath(); ctx.arc(W / 2, H / 2, R, start - 0.18, start + 0.18); ctx.stroke();
       ctx.fillStyle = '#ff4040';
-      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.font = `bold 13px ${hudFont()}`;
       ctx.textAlign = 'center';
       ctx.fillText('LOCK', W / 2 + Math.sin(rel) * (R + 20), H / 2 - Math.cos(rel) * (R + 20) + 4);
     } else {
@@ -473,7 +483,7 @@ function drawCockpitHUD(ctx, P, W, H, t) {
       ctx.lineWidth = 6 + th.k * 10;
       ctx.beginPath(); ctx.arc(W / 2, H / 2, R + 8, start - 0.12, start + 0.12); ctx.stroke();
       ctx.fillStyle = '#ffb13b';
-      ctx.font = 'bold 13px system-ui, sans-serif';
+      ctx.font = `bold 13px ${hudFont()}`;
       ctx.textAlign = 'center';
       ctx.fillText('ROCKET', W / 2 + Math.sin(rel) * (R + 34), H / 2 - Math.cos(rel) * (R + 34) + 4);
     }
@@ -500,19 +510,34 @@ function drawCockpitHUD(ctx, P, W, H, t) {
   hudPanel(ctx, 12, 12, 190, 56);
   ctx.textAlign = 'left';
   ctx.fillStyle = p.place <= race.qualify ? '#7CFC00' : '#ff6b6b';
-  ctx.font = 'bold 30px system-ui, sans-serif';
+  ctx.font = `bold 30px ${hudFont()}`;
   ctx.fillText(ordinal(p.place), 22, 50);
   ctx.fillStyle = '#fff';
-  ctx.font = '14px system-ui, sans-serif';
+  ctx.font = `14px ${hudFont()}`;
   const lap = clamp(Math.floor(p.progress / race.track.N) + 1, 1, race.laps);
   ctx.fillText(`Lap ${p.finished ? race.laps : lap}/${race.laps}  ${fmtTime(p.finished ? p.finishTime : race.time)}`, 84, 46);
 
+  if (PSX.enabled) {
+    // Chunky name tags drawn on the crisp HUD layer (3D text would be mush at 240p).
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 13px "Courier New", monospace';
+    for (const tg of P.cockpit.tags(W, H)) {
+      const a = clamp(1.3 - tg.d / 900, 0.25, 1);
+      const w = ctx.measureText(tg.label).width + 10;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(Math.round(tg.x - w / 2), Math.round(tg.y - 12), Math.round(w), 16);
+      ctx.fillStyle = tg.armed ? '#ff8a6a' : '#e8e2c8';
+      ctx.fillText(tg.label, Math.round(tg.x), Math.round(tg.y));
+    }
+    ctx.globalAlpha = 1;
+  }
   drawWeaponPanel(ctx, P, W, H);
   if (race.state === 'countdown') {
     const n = Math.ceil(race.countdown);
     if (n <= 3) {
       ctx.textAlign = 'center';
-      ctx.font = 'bold 110px system-ui, sans-serif';
+      ctx.font = `bold 110px ${hudFont()}`;
       ctx.fillStyle = ['#7CFC00', '#ffd23f', '#ff9f1c', '#ff4040'][n];
       ctx.fillText(n, W / 2, H / 2 - 60);
     }

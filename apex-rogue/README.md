@@ -26,6 +26,11 @@ One race, with a switchable first-person cockpit view and top-down view (press `
   grenade crate you can count, fuzzy dice and a bobblehead (trinkets) reacting to the car's movement,
   and a windshield that cracks when you take hits from the front.
 - A briefing screen before the race shows the track layout, hazards and which rivals are armed.
+- **Retro look** (on by default, toggle with `F`): a PS1-era style in the spirit of *Fears to Fathom*.
+  The world renders at 240p with hard pixels, 15-bit colour and ordered dithering, film grain and a
+  vignette; vertices snap to the low-res grid so geometry wobbles; every model gets grimy 64×64 pixel
+  textures (scratched paint, rust, cracked vinyl, scuffed plastic); fog is thick and murky; the mirror
+  is grainy; and a bare bulb flickers in the cabin. Code: `js/psx.js`.
 
 | Action | Control |
 | --- | --- |
@@ -51,6 +56,9 @@ around each one and download it as a `.glb`. Pre-exported copies live in `models
 - **Weapons:** SMG, rocket launcher, grenade, rocket, mine.
 - **Cabin and trinkets:** cockpit interior, fuzzy dice, bobblehead, grenade crate.
 - **Scenery:** tree, pine, cactus, rock, neon building.
+
+The exported `.glb` files include the retro pixel textures (nearest-neighbour filtered). Untick
+"Retro look" in the viewer to see or export them untextured.
 
 Scale: a car is 36 units long, so 1 unit is about 12.5 cm.
 
@@ -112,6 +120,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/combat.js` | Gunner prototype: weapons, armed rivals, projectiles, shield/parry, swerve |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
+| `js/psx.js` | Retro PS1-style rendering: low-res dithered post pass, vertex snapping, grimy pixel textures |
 | `js/models.js`, `js/modelviewer.js` | Low-poly model library and the model viewer / `.glb` exporter |
 | `js/hud.js` | Race HUD shared by both pages |
 | `tools/sim.js` | Headless balance simulator: `node tools/sim.js [races] [botSkill]` |

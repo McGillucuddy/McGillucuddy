@@ -430,6 +430,17 @@ const Models = {
     I.add(wheelTilt);
     refs.wheel = wheel;
 
+    // A bare bulb hanging from the headliner on a cable.
+    const bulb = new THREE.Group();
+    bulb.position.set(-7.5, 12.3, -1.5);
+    bulb.add(beam([0, 0, 0], [0, -1.6, 0], 0.08, m3('#111')));
+    bulb.add(LP.cyl(0.25, 0.25, 0.4, 6, m3('#8a8f94', { metalness: 0.7 }), 0, -1.7, 0));
+    const glass = LP.mesh(new THREE.IcosahedronGeometry(0.45, 0), LP.glow('#ffd9a0', 1.4), 0, -2.2, 0);
+    bulb.add(glass);
+    bulb.userData.glass = glass;
+    I.add(bulb);
+    refs.bulb = bulb;
+
     // Rear-view mirror (live feed in the cockpit view).
     const mirror = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.35), new THREE.MeshBasicMaterial({ color: '#8fa3b8' }));
     refs.mirror = mirror;

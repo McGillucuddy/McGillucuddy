@@ -47,6 +47,7 @@ const Viewer = {
   orbit: { yaw: 0.8, pitch: 0.35, dist: 60 },
   auto: true,
   wire: false,
+  retro: true,
 
   init() {
     this.canvas = document.getElementById('view');
@@ -55,15 +56,16 @@ const Viewer = {
     r.outputColorSpace = THREE.SRGBColorSpace;
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.post = new PSXPost(r);
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color('#1a1726');
+    this.scene.background = new THREE.Color('#141310');
     this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000);
     this.scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x3a2f4a, 1.1));
     const sun = (this.sun = new THREE.DirectionalLight(0xfff2dd, 1.6));
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     this.scene.add(sun, sun.target);
-    this.ground = new THREE.Mesh(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#2a2540', roughness: 1 }));
+    this.ground = new THREE.Mesh(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#24221c', roughness: 1 }));
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
 
@@ -94,6 +96,13 @@ const Viewer = {
     });
     document.getElementById('auto').addEventListener('change', (e) => { this.auto = e.target.checked; });
     document.getElementById('wire').addEventListener('change', (e) => { this.wire = e.target.checked; this.applyWire(); });
+    document.getElementById('retro').addEventListener('change', (e) => {
+      this.retro = e.target.checked;
+      PSX.snapOn.value = this.retro ? 1 : 0;
+      PSX.setTextures(this.model, this.retro);
+      this.ground.material.color.set(this.retro ? '#24221c' : '#2a2540');
+      this.scene.background.set(this.retro ? '#141310' : '#1a1726');
+    });
   },
 
   bindInput() {
@@ -115,6 +124,7 @@ const Viewer = {
   resize() {
     const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
     this.renderer.setSize(w, h, false);
+    this.post.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
   },
@@ -128,6 +138,8 @@ const Viewer = {
     const entry = CATALOG[i];
     const m = (this.model = entry.make());
     m.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    PSX.apply(m);
+    PSX.setTextures(m, this.retro);
     this.scene.add(m);
     const box = new THREE.Box3().setFromObject(m);
     const sphere = box.getBoundingSphere(new THREE.Sphere());
@@ -163,7 +175,9 @@ const Viewer = {
   },
 
   async exportGLB(i) {
-    const obj = flattenForExport(CATALOG[i].make());
+    const src = CATALOG[i].make();
+    if (this.retro) PSX.apply(src); // include the grimy pixel textures
+    const obj = flattenForExport(src);
     return new GLTFExporter().parseAsync(obj, { binary: true });
   },
 
@@ -192,7 +206,9 @@ const Viewer = {
       c.z + Math.sin(o.yaw) * Math.cos(o.pitch) * o.dist,
     );
     this.camera.lookAt(c);
+    if (this.retro) this.post.begin();
     this.renderer.render(this.scene, this.camera);
+    if (this.retro) this.post.end(performance.now() / 1000);
   },
 };
 

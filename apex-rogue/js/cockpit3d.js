@@ -41,11 +41,34 @@ class CockpitView {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.look = { yaw: 0, pitch: -0.05 };
     this.mirrorRT = new THREE.WebGLRenderTarget(512, 156);
+    this.post = new PSXPost(this.renderer);
     this.frameNo = 0;
+  }
+
+  // Retro (PS1-style) look: low-res dithered render, vertex wobble, grimy textures, thick fog.
+  setRetro(on) {
+    PSX.enabled = on;
+    PSX.snapOn.value = on ? 1 : 0;
+    const filt = on ? THREE.NearestFilter : THREE.LinearFilter;
+    this.mirrorRT.setSize(on ? 128 : 512, on ? 40 : 156);
+    this.mirrorRT.texture.magFilter = this.mirrorRT.texture.minFilter = filt;
+    if (!this.scene) return;
+    PSX.setTextures(this.scene, on);
+    PSX.setTextures(this.vmScene, on);
+    this.ground.material.map = on ? this.groundTex.retro : this.groundTex.clean;
+    this.ground.material.needsUpdate = true;
+    const a = this.atmos[on ? 'retro' : 'clean'];
+    this.scene.background.set(a.sky);
+    this.scene.fog.color.set(a.sky);
+    this.scene.fog.near = a.near;
+    this.scene.fog.far = a.far;
+    this.hemi.intensity = a.hemi;
+    this.sun.intensity = a.sun;
   }
 
   resize(W, H) {
     this.renderer.setSize(W, H, false);
+    this.post.setSize(W, H);
     for (const cam of [this.camera, this.vmCamera]) {
       if (!cam) continue;
       cam.aspect = W / H;
@@ -62,7 +85,7 @@ class CockpitView {
       if (o.geometry) o.geometry.dispose();
       const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
       for (const m of mats) {
-        if (m.map && m.map !== this.mirrorRT.texture) m.map.dispose();
+        if (m.map && m.map !== this.mirrorRT.texture && !m.map.name.startsWith('psx_')) m.map.dispose();
         m.dispose();
       }
     });
@@ -97,6 +120,9 @@ class CockpitView {
     this.buildInterior();
     this.buildViewmodels();
     this.buildFx();
+    PSX.apply(this.scene);
+    PSX.apply(this.vmScene);
+    this.setRetro(PSX.enabled);
     this.resize(this.canvas.clientWidth || window.innerWidth, this.canvas.clientHeight || window.innerHeight);
   }
 
@@ -105,10 +131,17 @@ class CockpitView {
   buildWorld() {
     const tr = this.race.track, bio = tr.biome, b = tr.bounds, scene = this.scene;
     const sky = bio.night ? '#07060f' : bio === BIOMES.tundra ? '#cfdbe6' : bio === BIOMES.desert ? '#f2d9a8' : '#a9d3f0';
+    // Retro: murky, close fog that swallows the track a few hundred metres out.
+    const murk = bio.night ? '#05040a' : new THREE.Color(sky).lerp(new THREE.Color('#5a5648'), 0.55).getStyle();
+    this.atmos = {
+      clean: { sky, near: bio.night ? 250 : 500, far: bio.night ? 1600 : 2800, hemi: bio.night ? 0.5 : 1.1, sun: bio.night ? 0.35 : 1.2 },
+      retro: { sky: murk, near: bio.night ? 60 : 120, far: bio.night ? 650 : 1150, hemi: bio.night ? 0.55 : 1.0, sun: bio.night ? 0.3 : 0.95 },
+    };
     scene.background = new THREE.Color(sky);
-    scene.fog = new THREE.Fog(sky, bio.night ? 250 : 500, bio.night ? 1600 : 2800);
-    scene.add(new THREE.HemisphereLight(0xffffff, new THREE.Color(bio.bg), bio.night ? 0.5 : 1.1));
-    const sun = new THREE.DirectionalLight(bio.night ? 0x8a7cff : 0xfff2dd, bio.night ? 0.35 : 1.2);
+    scene.fog = new THREE.Fog(sky, this.atmos.clean.near, this.atmos.clean.far);
+    this.hemi = new THREE.HemisphereLight(0xffffff, new THREE.Color(bio.bg), this.atmos.clean.hemi);
+    scene.add(this.hemi);
+    const sun = (this.sun = new THREE.DirectionalLight(bio.night ? 0x8a7cff : 0xfff2dd, this.atmos.clean.sun));
     sun.position.set(400, 900, 250);
     scene.add(sun);
 
@@ -117,7 +150,12 @@ class CockpitView {
     const tex = new THREE.CanvasTexture(tr.canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: tex }));
+    const retroTex = new THREE.CanvasTexture(PSX.groundCanvas(tr.canvas, tr.seed));
+    retroTex.colorSpace = THREE.SRGBColorSpace;
+    retroTex.magFilter = retroTex.minFilter = THREE.NearestFilter;
+    retroTex.generateMipmaps = false;
+    this.groundTex = { clean: tex, retro: retroTex };
+    const ground = (this.ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: tex })));
     ground.position.set(b.minX + W / 2, 0, b.minY + H / 2);
     scene.add(ground);
     const far = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: bio.bg }));
@@ -249,7 +287,7 @@ class CockpitView {
       sprite.position.set(0, 30, 0);
       g.add(sprite);
       this.scene.add(g);
-      this.carMeshes.set(car, { g, bodyMat: model.userData.bodyMat, wheels: model.userData.wheels, tag, lastTag: '' });
+      this.carMeshes.set(car, { g, bodyMat: model.userData.bodyMat, wheels: model.userData.wheels, tag, sprite, lastTag: '' });
     }
   }
 
@@ -281,9 +319,12 @@ class CockpitView {
     this.cracks = canvasTex(512, 256);
     live(refs.windshield, this.cracks.tex, { opacity: 1 });
 
-    const cabinLight = new THREE.PointLight(0xffe2c0, 0.6, 40, 1.5);
-    cabinLight.position.set(-2, 11.5, 0);
+    // The dangling cabin bulb flickers (see update()).
+    const cabinLight = (this.cabinLight = new THREE.PointLight(0xffd9a0, 0.7, 60, 1.2));
+    cabinLight.position.copy(refs.bulb.position);
     I.add(cabinLight);
+    this.bulb = refs.bulb;
+    this.flicker = 1;
     this.interior = I;
     this.playerGroup.add(I);
   }
@@ -377,6 +418,19 @@ class CockpitView {
 
   aimAngle() { return this.race.player.heading + this.look.yaw; }
 
+  // Screen positions of rival name tags (the retro view draws them crisp on the HUD instead of in 3D).
+  tags(W, H) {
+    const out = [], v = new THREE.Vector3();
+    for (const [car, m] of this.carMeshes) {
+      v.set(car.x, 30, car.y).project(this.camera);
+      if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) continue;
+      const d = Math.hypot(car.x - this.race.player.x, car.y - this.race.player.y);
+      if (d > 1100) continue;
+      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${car.place}. ${car.name.split(' ')[0]}${car.hp <= 0 ? ' ✖' : ''}`, armed: !!car.weapon, d });
+    }
+    return out;
+  }
+
   update(dt, t) {
     const race = this.race, p = race.player, combat = this.combat;
     this.frameNo++;
@@ -409,6 +463,7 @@ class CockpitView {
       const flash = car.hitFlash > 0;
       m.bodyMat.emissive.set(flash ? '#ffffff' : car.hp <= 0 ? '#331100' : '#000000');
       m.bodyMat.emissiveIntensity = flash ? 0.8 : 1;
+      m.sprite.visible = !PSX.enabled;
       const label = `${car.place}. ${car.name.split(' ')[0]}${car.hp <= 0 ? ' ✖' : ''}`;
       if (label !== m.lastTag) {
         const c = m.tag.ctx;
@@ -425,6 +480,15 @@ class CockpitView {
     }
 
     this.wheel.rotation.z = -(p.input ? p.input.steer : 0) * 2.2;
+
+    // Bad wiring: the bulb mostly glows, sometimes stutters or drops out.
+    if (Math.random() < dt * 1.5) this.flickerT = 0.05 + Math.random() * 0.35;
+    this.flickerT = (this.flickerT || 0) - dt;
+    this.flicker = this.flickerT > 0 ? (Math.random() < 0.5 ? 0.1 : 0.6) : lerp(this.flicker, 1, Math.min(1, dt * 10));
+    this.cabinLight.intensity = (PSX.enabled ? 1.6 : 0.8) * this.flicker;
+    this.bulb.userData.glass.material.emissiveIntensity = 1.4 * this.flicker;
+    this.bulb.rotation.z = clamp(this.dice.a, -1, 1) * 0.6;
+    this.bulb.rotation.x = clamp(this.dice.b, -1, 1) * 0.6;
 
     // Interior props reflect combat state.
     for (let k = 0; k < 3; k++) this.nadeMeshes[k].visible = k < combat.nades.ammo;
@@ -630,10 +694,12 @@ class CockpitView {
       this.vm.root.visible = true;
       this.vm.flash.visible = flashVis;
     }
+    if (PSX.enabled) this.post.begin();
     r.render(this.scene, this.camera);
     r.autoClear = false;
     r.clearDepth();
     r.render(this.vmScene, this.vmCamera);
     r.autoClear = true;
+    if (PSX.enabled) this.post.end(t);
   }
 }
