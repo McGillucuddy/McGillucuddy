@@ -91,10 +91,12 @@ class CockpitView {
     });
   }
 
-  load(race, combat) {
+  // look: the player's cosmetics (body style, paint, finish, livery, number, plate).
+  load(race, combat, look) {
     this.dispose();
     this.race = race;
     this.combat = combat;
+    this.look3d = look || {};
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(74, 1, 0.3, 6000);
     this.rearCam = new THREE.PerspectiveCamera(50, 512 / 156, 1, 3000);
@@ -274,13 +276,17 @@ class CockpitView {
       if (car === this.race.player) {
         // Your own car is just a shell (hood, rear deck, wheels); the cockpit interior fills the middle.
         this.playerGroup = new THREE.Group();
-        this.playerGroup.add(Models.car({ color: car.color, accent: car.accent, shell: true }));
+        this.playerGroup.add(Models.car(Object.assign({ color: car.color, accent: car.accent }, this.look3d, { shell: true })));
         this.scene.add(this.playerGroup);
         continue;
       }
       const g = new THREE.Group();
-      const style = ['comet', 'brick', 'wasp', 'phantom'][this.carMeshes.size % 4];
-      const model = Models.car({ style, color: car.color, accent: car.accent, weapon: car.weapon });
+      // Rivals get a mix of body styles and paint jobs.
+      const k = this.carMeshes.size;
+      const style = ['comet', 'brick', 'wasp', 'phantom'][k % 4];
+      const livery = ['stencil', 'roundel', 'none', 'stripes', 'stencil', 'flames'][k % 6];
+      const finish = ['gloss', 'matte', 'rusty', 'patched'][(k * 3) % 4];
+      const model = Models.car({ style, color: car.color, accent: car.accent, weapon: car.weapon, livery, finish, number: 10 + ((k * 37) % 89) });
       g.add(model);
       const tag = canvasTex(256, 64);
       // Constant on-screen size so tags stay readable without filling the view up close.
@@ -343,7 +349,7 @@ class CockpitView {
     const b = this.combat.build;
     const hooks = [7.3, 6.1, 4.9];
     this.rackGuns = b.rack.map((w, i) => {
-      const m = Models.weapon(w.id);
+      const m = Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false);
       if (w.id === 'rocket') m.scale.setScalar(0.8);
       m.position.set(-1.2, hooks[i] || 4.9, -7.4);
       m.rotation.y = -Math.PI / 2;
@@ -380,7 +386,7 @@ class CockpitView {
     // One held model per weapon on your rack; the active one is shown.
     const HOLD = { smg: [2.1, -2.2, -6, 1], shotgun: [2.0, -2.2, -4.6, 0.9], rocket: [3.0, -2.3, -5.5, 0.75], flare: [2.0, -2.0, -5.2, 1] };
     const guns = this.combat.build.rack.map((w) => {
-      const m = Models.weapon(w.id);
+      const m = Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true);
       const [x, y, z, sc] = HOLD[w.id];
       m.position.set(x, y, z);
       m.scale.setScalar(sc);
@@ -557,7 +563,8 @@ class CockpitView {
       m.g.rotation.y = -car.heading;
       for (const w of m.wheels) w.rotation.z -= (car.forwardSpeed * dt) / 3.8;
       const flash = car.hitFlash > 0;
-      m.bodyMat.emissive.set(flash ? '#ffffff' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
+      if (car.burnT > 0 && this.puffs.length < this.pools.puff.length && Math.random() < 0.5) this.puffs.push({ x: car.x + (Math.random() - 0.5) * 20, y: car.y + (Math.random() - 0.5) * 12, t: 0, fire: true });
+      m.bodyMat.emissive.set(flash ? '#ffffff' : car.burnT > 0 && Math.random() < 0.6 ? '#ff4a0a' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
       m.bodyMat.emissiveIntensity = flash ? 0.8 : 1;
       m.sprite.visible = !PSX.enabled;
       const label = `${car.place}. ${car.name.split(' ')[0]}${car.hp <= 0 ? ' ✖' : ''}`;
@@ -670,10 +677,10 @@ class CockpitView {
     show(this.pools.boom, c.explosions, (o, e) => {
       const k = e.t / 0.5;
       o.position.set(e.x, 8, e.y);
-      if (e.kind === 'emp') {
+      if (e.kind === 'emp' || e.kind === 'flare') {
         o.scale.set(e.r * k, 6, e.r * k);
         o.material.opacity = 0.6 * (1 - k);
-        o.material.color.set('#7fd8ff');
+        o.material.color.set(e.kind === 'flare' ? '#ff7a2a' : '#7fd8ff');
         return;
       }
       o.scale.setScalar(e.r * (0.4 + 0.7 * k));
@@ -702,8 +709,9 @@ class CockpitView {
     this.puffs = this.puffs.filter((pf) => pf.t < 0.8);
     show(this.pools.puff, this.puffs, (o, pf) => {
       o.position.set(pf.x, 9 + pf.t * 6, pf.y);
-      o.scale.setScalar(2 + pf.t * 7);
-      o.material.opacity = 0.45 * (1 - pf.t / 0.8);
+      o.scale.setScalar(pf.fire ? 2.5 - pf.t * 2 : 2 + pf.t * 7);
+      o.material.color.set(pf.fire ? (pf.t < 0.3 ? '#ffc23a' : '#ff5a1a') : '#cccccc');
+      o.material.opacity = (pf.fire ? 0.9 : 0.45) * (1 - pf.t / 0.8);
     });
     for (const [car, line] of this.lockLines) {
       const lock = car.wpn && car.wpn.lock > 0;

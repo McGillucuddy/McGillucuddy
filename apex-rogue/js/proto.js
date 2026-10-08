@@ -26,6 +26,10 @@ const Proto = {
       this.cockpit = null; // no WebGL: top-down only
       this.view = 'top';
     }
+    this.cos = loadCosmetics();
+    this.tab = 'car';
+    this.previewCanvas = document.getElementById('preview3d');
+    try { this.preview = new CarPreview(this.previewCanvas); } catch (e) { this.preview = null; }
     Input.init();
     window.addEventListener('resize', () => this.resize());
     this.resize();
@@ -58,6 +62,9 @@ const Proto = {
       if (!el) return;
       Sound.resume();
       this.action(el.dataset.action, el.dataset.arg);
+    });
+    this.ui.addEventListener('change', (e) => {
+      if (e.target.id === 'plateInput') this.action('cosmetic', 'plate:' + e.target.value);
     });
 
     this.newRun();
@@ -98,22 +105,42 @@ const Proto = {
       case 'abandon': this.gameOver(false); break;
       case 'after-results': this.afterResults(); break;
       // Garage & shop
+      case 'tab': this.tab = arg; this.showGarage(); break;
       case 'repair-hull': { const c = repairHullCost(b); if (c > 0 && buy(c)) b.hull = b.maxHull; this.showGarage(); break; }
       case 'repair-part': { const c = repairPartCost(b, arg); if (c > 0 && buy(c)) b.parts[arg].dur = partMaxDur(b, b.parts[arg].id); this.showGarage(); break; }
       case 'buy-spare': if (!b.spare && buy(spareCost(b, arg))) b.spare = { id: b.parts[arg].id }; this.showGarage(); break;
-      case 'buy-ammo': { const w = b.rack[+arg], d = WEAPONS[w.id]; if (buy(d.packPrice)) w.reserve += d.pack; this.showGarage(); break; }
+      case 'buy-ammo': { const w = b.rack[+arg], d = weaponStats(w); if (buy(d.packPrice)) w.reserve += d.pack; this.showGarage(); break; }
       case 'buy-nade': if (b.grenades < MAX_GRENADES && buy(GRENADE_PRICE)) b.grenades++; this.showGarage(); break;
       case 'buy-item': {
         const card = this.shop[+arg];
-        if (!card || card.sold || b.scrap < card.price) break;
-        this.pending = { card, source: 'shop', index: +arg };
-        this.tryApply();
+        if (!card || card.sold || !buy(card.price)) break;
+        applyItem(b, card);
+        card.sold = true;
+        this.showGarage();
         break;
       }
-      case 'pick-reward': this.pending = { card: this.rewards[+arg], source: 'reward' }; this.tryApply(); break;
+      case 'pick-reward': applyItem(b, this.rewards[+arg]); Sound.play({ type: 'buy' }); this.toGarage(); break;
       case 'skip-reward': b.scrap += 50; this.toGarage(); break;
-      case 'replace': this.tryApply(+arg); break;
-      case 'cancel-replace': this.pending = null; this.state === 'reward' ? this.showReward() : this.showGarage(); break;
+      // Loadout (swappable here; only trinkets are permanent)
+      case 'equip-part': equipPart(b, +arg); this.showGarage(); break;
+      case 'equip-weapon': { const [si, ri] = arg.split(':').map(Number); equipWeapon(b, si, ri >= 0 ? ri : null); this.showGarage(); break; }
+      case 'unequip-weapon': unequipWeapon(b, +arg); this.showGarage(); break;
+      case 'equip-ability': { const [si, slot] = arg.split(':').map(Number); equipAbility(b, si, slot); this.showGarage(); break; }
+      case 'equip-chip': equipChip(b, +arg); this.showGarage(); break;
+      case 'fit-mod': { const [si, ri, slot] = arg.split(':').map(Number); fitMod(b, si, ri, slot); Sound.play({ type: 'reloaded' }); this.showGarage(); break; }
+      case 'remove-mod': { const [ri, slot] = arg.split(':').map(Number); removeMod(b, ri, slot); this.showGarage(); break; }
+      case 'tune': { const [slot, v] = arg.split(':'); b.parts[slot].tune = +v; this.showGarage(); break; }
+      // Paint shop (saved between runs)
+      case 'cosmetic': {
+        const i = arg.indexOf(':'), key = arg.slice(0, i), val = arg.slice(i + 1);
+        if (key === 'number') this.cos.number = (+val + 100) % 100;
+        else if (key === 'plate') this.cos.plate = val.toUpperCase().replace(/[^A-Z0-9 ]/g, '').slice(0, 8) || 'INM 4471';
+        else this.cos[key] = val;
+        saveCosmetics(this.cos);
+        if (this.preview) this.preview.setLook(carLook(this.cos));
+        this.showGarage();
+        break;
+      }
     }
   },
 
@@ -136,20 +163,8 @@ const Proto = {
   toGarage() {
     this.state = 'garage';
     this.shop = rollShop(this.build, this.runRng);
-    this.pending = null;
+    if (this.preview) this.preview.setLook(carLook(this.cos));
     this.showGarage();
-  },
-
-  // Apply the pending reward/purchase; may first ask which weapon or ability to replace.
-  tryApply(replaceIndex) {
-    const b = this.build, pend = this.pending;
-    if (!pend) return;
-    const ok = applyItem(b, pend.card, replaceIndex);
-    if (!ok) { this.showReplace(pend.card); return; }
-    if (pend.source === 'shop') { b.scrap -= pend.card.price; this.shop[pend.index].sold = true; Sound.play({ type: 'buy' }); }
-    this.pending = null;
-    if (pend.source === 'reward') this.toGarage();
-    else this.showGarage();
   },
 
   afterResults() {
@@ -200,7 +215,7 @@ const Proto = {
     if (biome === 'tundra') stats.grip *= stats.iceGrip;
     const chipLat = { cautious: 0.85, hothead: 1.08, daredevil: 1.04 }[b.chip] || 1;
     stats.aLat = (1050 + 650 * 0.15) * Math.sqrt(track.biome.grip) * chipLat;
-    const player = new Car({ name: 'You', color: base.color, accent: base.accent, isPlayer: true, stats, hp: b.hull });
+    const player = new Car({ name: 'You', color: paintColor(this.cos), accent: '#1d1d1d', isPlayer: true, stats, hp: b.hull });
     const driver = new AIDriver(player, 0.95, rng);
     driver.rammer = b.chip === 'hothead';
     driver.insideMul = b.chip === 'daredevil' ? 2.2 : 1;
@@ -212,7 +227,7 @@ const Proto = {
     this.driver = driver;
     this.combat = new Combat(this.race, { driver, build: b });
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
-    if (this.cockpit) this.cockpit.load(this.race, this.combat);
+    if (this.cockpit) this.cockpit.load(this.race, this.combat, carLook(this.cos));
     this.cam.x = player.x;
     this.cam.y = player.y;
     this.cam.zoom = this.baseZoom();
@@ -327,6 +342,11 @@ const Proto = {
     b.race++;
     if (p.place === 1) b.wins++;
     if (!ok) b.strikes++;
+    // Reputation persists between runs and unlocks paint-shop options.
+    const repGain = raceRep(p.place, s.wrecked), repBefore = this.cos.rep;
+    this.cos.rep += repGain;
+    saveCosmetics(this.cos);
+    const unlocked = [...BODY_STYLES, ...PAINTS, ...FINISHES, ...LIVERIES].filter((o) => o.rep > repBefore && o.rep <= this.cos.rep).map((o) => o.name);
     const parts = PART_SLOTS.map((slot) => `<span class="${b.parts[slot].dur <= 0 ? 'bad' : ''}">${SLOT_NAMES[slot]} ${b.parts[slot].dur <= 0 ? 'BROKEN' : Math.round((100 * b.parts[slot].dur) / partMaxDur(b, b.parts[slot].id)) + '%'}</span>`).join(' · ');
     const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
     this.setUI(`<div class="screen results">
@@ -344,6 +364,8 @@ const Proto = {
           <div><span>Placing pay</span><b>${placePay} scrap</b></div>
           <div><span>Wreck bounties</span><b>${wreckPay} scrap</b></div>
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
+          <div><span>Reputation</span><b>+${repGain} (${this.cos.rep})</b></div>
+          ${unlocked.length ? `<div class="unlock small">Paint shop unlocked: ${unlocked.join(', ')}</div>` : ''}
           <p class="small">${parts}</p>
         </div>
       </div>
@@ -356,65 +378,136 @@ const Proto = {
   // ---------- Garage / shop / rewards ----------
 
   showGarage() {
-    const b = this.build, money = (n) => `${n} scrap`;
+    const b = this.build;
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
-    const parts = PART_SLOTS.map((slot) => {
-      const part = b.parts[slot], def = PARTS[part.id], max = partMaxDur(b, part.id), broken = part.dur <= 0;
-      const cost = repairPartCost(b, slot);
-      return `<div class="gp-row">
-        <div class="gp-name"><small>${SLOT_NAMES[slot]}</small><b>${def.name}</b><small class="muted">${def.desc}</small></div>
-        <div class="gp-bar">${bar(part.dur / max, broken)}<small>${broken ? '<span class="bad">BROKEN</span>' : Math.round(part.dur) + ' / ' + max}</small></div>
-        <button class="btn small" data-action="repair-part" data-arg="${slot}" ${cost <= 0 || b.scrap < cost ? 'disabled' : ''}>${cost <= 0 ? 'OK' : 'Fix ' + cost}</button>
-        <button class="btn small" data-action="buy-spare" data-arg="${slot}" ${b.spare || b.scrap < spareCost(b, slot) ? 'disabled' : ''} title="Carry a spare ${def.name} to fit mid-race">Spare ${spareCost(b, slot)}</button>
-      </div>`;
-    }).join('');
-    const rack = b.rack.map((w, i) => {
-      const d = WEAPONS[w.id];
-      return `<div class="gp-row"><div class="gp-name"><small>Rack ${i + 1}</small><b>${d.name}</b><small class="muted">${d.desc}</small></div>
-        <div class="gp-ammo">${w.mag} / ${w.reserve}</div>
-        <button class="btn small" data-action="buy-ammo" data-arg="${i}" ${b.scrap < d.packPrice ? 'disabled' : ''}>+${d.pack} for ${d.packPrice}</button></div>`;
-    }).join('') + (b.rack.length < rackSlots(b) ? `<div class="gp-row muted small">Empty rack slot</div>` : '');
-    const abil = b.abilities.map((id, i) => `<div class="gp-chip"><kbd>${i === 0 ? 'Space' : 'E'}</kbd> ${id ? `<b>${ABILITIES[id].name}</b> <small class="muted">${ABILITIES[id].desc}</small>` : '<span class="muted">Empty</span>'}</div>`).join('');
-    const trinkets = b.trinkets.length ? b.trinkets.map((t) => `<span class="perk rarity-rare" title="${TRINKETS[t].desc}">${TRINKETS[t].name}</span>`).join('') : '<span class="muted small">None yet: they hang in your cabin once you find them.</span>';
-    const shop = this.shop.map((c, i) => `<div class="shop-card ${c.sold ? 'sold' : ''}">
-        <small class="muted">${c.type.toUpperCase()}${c.type === 'part' ? ' · replaces your ' + SLOT_NAMES[PARTS[c.id].slot].toLowerCase() : ''}</small>
-        <b>${c.name}</b><small>${c.desc}</small>
-        <button class="btn small" data-action="buy-item" data-arg="${i}" ${c.sold || b.scrap < c.price ? 'disabled' : ''}>${c.sold ? 'Sold' : 'Buy ' + c.price}</button>
-      </div>`).join('');
-    const hullCost = repairHullCost(b);
+    const tabs = [['car', 'Car'], ['weapons', 'Weapons'], ['market', 'Black market'], ['paint', 'Paint shop']]
+      .map(([id, label]) => `<button class="btn tab ${this.tab === id ? 'primary' : ''}" data-action="tab" data-arg="${id}">${label}</button>`).join('');
+    const trinkets = b.trinkets.length ? b.trinkets.map((t) => `<span class="perk rarity-epic" title="${TRINKETS[t].desc}">${TRINKETS[t].name}</span>`).join('') : '<span class="muted small">No trinkets yet. They are the only things you keep for the whole run.</span>';
+    const body = { car: () => this.garageCar(bar), weapons: () => this.garageWeapons(), market: () => this.garageMarket(), paint: () => this.garagePaint() }[this.tab]();
     this.setUI(`<div class="screen garage proto-garage">
       <div class="topbar">
         <div><b>THE GARAGE</b></div>
         <div>Race <b>${b.race + 1}</b></div>
-        <div class="cash">${money(b.scrap)}</div>
+        <div class="cash">${b.scrap} scrap</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
-        <div>Wins <b>${b.wins}</b></div>
+        <div>Rep <b>${this.cos.rep}</b></div>
       </div>
-      <div class="garage-grid">
-        <div class="panel">
-          <h2>Car</h2>
-          <div class="gp-row"><div class="gp-name"><small>Hull</small><b>${Math.ceil(b.hull)} / ${b.maxHull}</b></div>
-            <div class="gp-bar">${bar(b.hull / b.maxHull)}</div>
-            <button class="btn small" data-action="repair-hull" ${hullCost <= 0 || b.scrap < hullCost ? 'disabled' : ''}>${hullCost <= 0 ? 'OK' : 'Repair ' + hullCost}</button></div>
-          ${parts}
-          <p class="small">Spare part: <b>${b.spare ? PARTS[b.spare.id].name : 'none'}</b> <span class="muted">(press <kbd>B</kbd> mid-race to fit it when that part breaks)</span></p>
-          <h3>Driver chip</h3>
-          <div class="gp-chip">${b.chip ? `<b>${CHIPS[b.chip].name}</b> <small class="muted">${CHIPS[b.chip].desc}</small>` : '<span class="muted small">Stock driver AI</span>'}</div>
-        </div>
-        <div class="panel">
-          <h2>Weapons</h2>
-          ${rack}
-          <div class="gp-row"><div class="gp-name"><small>Throwable</small><b>Grenades</b></div><div class="gp-ammo">${b.grenades} / ${MAX_GRENADES}</div>
-            <button class="btn small" data-action="buy-nade" ${b.grenades >= MAX_GRENADES || b.scrap < GRENADE_PRICE ? 'disabled' : ''}>+1 for ${GRENADE_PRICE}</button></div>
-          <h3>Abilities</h3>${abil}
-          <h3>Trinkets</h3><div class="perks">${trinkets}</div>
-          <h3>Black market</h3>
-          <div class="shop-grid">${shop}</div>
-        </div>
-      </div>
+      <div class="perks trinket-row">${trinkets}</div>
+      <div class="tabs">${tabs}</div>
+      ${body}
       <button class="btn primary big" data-action="to-briefing">Next race ▶</button>
       <p class="small"><a class="muted" href="models.html">Model viewer</a> · <a class="muted" href="index.html">Top-down game</a></p>
     </div>`);
+  },
+
+  garageCar(bar) {
+    const b = this.build, hullCost = repairHullCost(b);
+    const slots = PART_SLOTS.map((slot) => {
+      const part = b.parts[slot], def = PARTS[part.id], max = partMaxDur(b, part.id), broken = part.dur <= 0;
+      const cost = repairPartCost(b, slot), tu = TUNING[slot];
+      const tune = TUNE_STEPS.map((v) => `<button class="tune-step ${part.tune === v ? 'on' : ''}" data-action="tune" data-arg="${slot}:${v}" title="${v}"></button>`).join('');
+      const alts = b.stash.parts.map((inst, i) => ({ inst, i })).filter(({ inst }) => PARTS[inst.id].slot === slot)
+        .map(({ inst, i }) => `<button class="btn small" data-action="equip-part" data-arg="${i}" title="${PARTS[inst.id].desc}">Fit ${PARTS[inst.id].name} (${Math.max(0, Math.round(inst.dur))}/${partMaxDur(b, inst.id)})</button>`).join('');
+      return `<div class="part-card">
+        <div class="gp-row">
+          <div class="gp-name"><small>${SLOT_NAMES[slot]}</small><b>${def.name}</b><small class="muted">${def.desc}</small></div>
+          <div class="gp-bar">${bar(part.dur / max, broken)}<small>${broken ? '<span class="bad">BROKEN</span>' : Math.round(part.dur) + ' / ' + max}</small></div>
+          <button class="btn small" data-action="repair-part" data-arg="${slot}" ${cost <= 0 || b.scrap < cost ? 'disabled' : ''}>${cost <= 0 ? 'OK' : 'Fix ' + cost}</button>
+          <button class="btn small" data-action="buy-spare" data-arg="${slot}" ${b.spare || b.scrap < spareCost(b, slot) ? 'disabled' : ''} title="Carry a spare ${def.name} to fit mid-race">Spare ${spareCost(b, slot)}</button>
+        </div>
+        <div class="tune-row"><small>${tu.left}</small><span class="tune">${tune}</span><small>${tu.right}</small><small class="muted">${tu.desc}</small></div>
+        ${alts ? `<div class="alts"><small class="muted">In your stash:</small> ${alts}</div>` : ''}
+      </div>`;
+    }).join('');
+    const chips = b.stash.chips.map((id, i) => `<button class="btn small" data-action="equip-chip" data-arg="${i}" title="${CHIPS[id].desc}">Install ${CHIPS[id].name}</button>`).join('');
+    return `<div class="garage-grid one">
+      <div class="panel">
+        <div class="gp-row"><div class="gp-name"><small>Hull</small><b>${Math.ceil(b.hull)} / ${b.maxHull}</b></div>
+          <div class="gp-bar">${bar(b.hull / b.maxHull)}</div>
+          <button class="btn small" data-action="repair-hull" ${hullCost <= 0 || b.scrap < hullCost ? 'disabled' : ''}>${hullCost <= 0 ? 'OK' : 'Repair ' + hullCost}</button></div>
+        ${slots}
+        <p class="small">Spare part: <b>${b.spare ? PARTS[b.spare.id].name : 'none'}</b> <span class="muted">(press <kbd>B</kbd> mid-race to fit it when that part breaks)</span></p>
+        <h3>Driver chip</h3>
+        <div class="gp-chip">${b.chip ? `<b>${CHIPS[b.chip].name}</b> <small class="muted">${CHIPS[b.chip].desc}</small>` : '<span class="muted small">Stock driver AI</span>'}</div>
+        ${chips ? `<div class="alts">${chips}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  garageWeapons() {
+    const b = this.build, slots = rackSlots(b);
+    const rack = b.rack.map((w, ri) => {
+      const d = weaponStats(w);
+      const mods = w.mods.map((m, ms) => {
+        if (m) return `<span class="mod-chip on" title="${MODS[m].desc}">${MODS[m].name} <button class="x" data-action="remove-mod" data-arg="${ri}:${ms}">✕</button></span>`;
+        const fits = b.stash.mods.map((id, si) => ({ id, si })).filter(({ id }) => modFits(id, w.id) && !w.mods.includes(id));
+        return `<span class="mod-chip">Empty mod slot${fits.length ? ': ' + fits.map(({ id, si }) => `<button class="btn tiny" data-action="fit-mod" data-arg="${si}:${ri}:${ms}" title="${MODS[id].desc}">${MODS[id].name}</button>`).join('') : ''}</span>`;
+      }).join('');
+      return `<div class="part-card">
+        <div class="gp-row"><div class="gp-name"><small>Rack ${ri + 1}</small><b>${d.name}</b><small class="muted">${WEAPONS[w.id].desc}</small></div>
+          <div class="gp-ammo">${w.mag}/${d.mag} · ${w.reserve}</div>
+          <button class="btn small" data-action="buy-ammo" data-arg="${ri}" ${b.scrap < d.packPrice ? 'disabled' : ''}>+${d.pack} for ${d.packPrice}</button>
+          <button class="btn small ghost" data-action="unequip-weapon" data-arg="${ri}" ${b.rack.length <= 1 ? 'disabled' : ''}>To stash</button></div>
+        <div class="mods">${mods}</div>
+      </div>`;
+    }).join('') + Array.from({ length: slots - b.rack.length }, () => '<div class="part-card muted small">Empty rack slot</div>').join('');
+    const stashW = b.stash.weapons.map((w, si) => {
+      const btns = b.rack.length < slots
+        ? `<button class="btn small" data-action="equip-weapon" data-arg="${si}:-1">Add to rack</button>`
+        : b.rack.map((r, ri) => `<button class="btn small" data-action="equip-weapon" data-arg="${si}:${ri}">Swap for ${WEAPONS[r.id].name}</button>`).join('');
+      return `<div class="gp-row"><div class="gp-name"><b>${WEAPONS[w.id].name}</b><small class="muted">${w.mag}+${w.reserve} rounds${w.mods.some(Boolean) ? ' · ' + w.mods.filter(Boolean).map((m) => MODS[m].name).join(', ') : ''}</small></div>${btns}</div>`;
+    }).join('');
+    const abil = b.abilities.map((id, i) => `<div class="gp-chip"><kbd>${i === 0 ? 'Space' : 'E'}</kbd> ${id ? `<b>${ABILITIES[id].name}</b> <small class="muted">${ABILITIES[id].desc}</small>` : '<span class="muted">Empty</span>'}</div>`).join('');
+    const stashA = b.stash.abilities.map((id, si) => `<div class="gp-row"><div class="gp-name"><b>${ABILITIES[id].name}</b><small class="muted">${ABILITIES[id].desc}</small></div>
+      <button class="btn small" data-action="equip-ability" data-arg="${si}:0">On Space</button><button class="btn small" data-action="equip-ability" data-arg="${si}:1">On E</button></div>`).join('');
+    const stashM = b.stash.mods.map((id) => `<span class="mod-chip" title="${MODS[id].desc}">${MODS[id].name} <small class="muted">(${MODS[id].fits.map((f) => SHORT_WEAPON[f]).join('/')})</small></span>`).join('');
+    return `<div class="garage-grid">
+      <div class="panel"><h2>Rack <small class="muted">(${b.rack.length}/${slots})</small></h2>${rack}
+        <div class="gp-row"><div class="gp-name"><small>Throwable</small><b>Grenades</b></div><div class="gp-ammo">${b.grenades} / ${MAX_GRENADES}</div>
+          <button class="btn small" data-action="buy-nade" ${b.grenades >= MAX_GRENADES || b.scrap < GRENADE_PRICE ? 'disabled' : ''}>+1 for ${GRENADE_PRICE}</button></div>
+      </div>
+      <div class="panel">
+        <h2>Abilities</h2>${abil}
+        <h2>Stash</h2>
+        ${stashW || stashA || stashM ? '' : '<p class="muted small">Empty. Anything you win or buy that isn\'t equipped waits here.</p>'}
+        ${stashW}${stashA}
+        ${stashM ? `<h3>Loose mods</h3><div class="mods">${stashM}</div>` : ''}
+      </div>
+    </div>`;
+  },
+
+  garageMarket() {
+    const b = this.build;
+    const shop = this.shop.map((c, i) => `<div class="shop-card ${c.sold ? 'sold' : ''}">
+        <small class="muted">${c.type.toUpperCase()}${c.type === 'part' ? ' · ' + SLOT_NAMES[PARTS[c.id].slot] : ''}${c.type === 'mod' ? ' · fits ' + MODS[c.id].fits.map((f) => WEAPONS[f].name).join(', ') : ''}</small>
+        <b>${c.name}</b><small>${c.desc}</small>
+        <button class="btn small" data-action="buy-item" data-arg="${i}" ${c.sold || b.scrap < c.price ? 'disabled' : ''}>${c.sold ? 'Sold' : 'Buy ' + c.price}</button>
+      </div>`).join('');
+    return `<div class="panel"><h2>Black market</h2><p class="muted small">Stock changes every visit. Purchases go into your stash (or a free slot).</p><div class="shop-grid three">${shop}</div></div>`;
+  },
+
+  garagePaint() {
+    const c = this.cos;
+    const opt = (key, list, render) => list.map((o) => {
+      const locked = o.rep > c.rep, on = c[key] === o.id;
+      return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'disabled' : ''} data-action="cosmetic" data-arg="${key}:${o.id}" title="${locked ? 'Unlocks at ' + o.rep + ' reputation' : o.name}">${render ? render(o) : ''}<span>${locked ? '🔒 ' + o.rep : o.name}</span></button>`;
+    }).join('');
+    const next = [...BODY_STYLES, ...PAINTS, ...FINISHES, ...LIVERIES].filter((o) => o.rep > c.rep).sort((a, b2) => a.rep - b2.rep)[0];
+    return `<div class="garage-grid">
+      <div class="panel"><div id="previewSlot" class="preview-slot"></div>
+        <p class="muted small">Your look is kept between runs. Reputation: <b>${c.rep}</b>${next ? ` · next unlock: ${next.name} at ${next.rep}` : ' · everything unlocked'}</p></div>
+      <div class="panel paint-opts">
+        <h3>Body</h3><div class="opts">${opt('style', BODY_STYLES)}</div>
+        <h3>Paint</h3><div class="opts">${opt('paint', PAINTS, (o) => `<i class="swatch" style="background:${o.color}"></i>`)}</div>
+        <h3>Finish</h3><div class="opts">${opt('finish', FINISHES)}</div>
+        <h3>Livery</h3><div class="opts">${opt('livery', LIVERIES)}</div>
+        <h3>Race number</h3>
+        <div class="opts"><button class="opt" data-action="cosmetic" data-arg="number:${c.number - 1}">−</button><b class="num">${c.number}</b><button class="opt" data-action="cosmetic" data-arg="number:${c.number + 1}">+</button>
+          <button class="opt" data-action="cosmetic" data-arg="number:${Math.floor(Math.random() * 100)}">Random</button></div>
+        <h3>Number plate</h3>
+        <input id="plateInput" class="plate-input" maxlength="8" value="${c.plate}">
+      </div>
+    </div>`;
   },
 
   showReward() {
@@ -429,19 +522,6 @@ const Proto = {
       <p class="muted">${this.build.scrap} scrap · choose one</p>
       <div class="cards">${cards}</div>
       <button class="btn ghost" data-action="skip-reward">Skip (+50 scrap)</button>
-    </div>`);
-  },
-
-  showReplace(card) {
-    const b = this.build;
-    const opts = card.type === 'weapon'
-      ? b.rack.map((w, i) => `<button class="btn" data-action="replace" data-arg="${i}">Drop ${WEAPONS[w.id].name}</button>`).join('')
-      : b.abilities.map((id, i) => `<button class="btn" data-action="replace" data-arg="${i}">Replace ${id ? ABILITIES[id].name : 'empty'}</button>`).join('');
-    this.setUI(`<div class="screen pause">
-      <h1>${card.type === 'weapon' ? 'Rack is full' : 'No free ability slot'}</h1>
-      <p>Make room for <b>${card.name}</b>:</p>
-      ${opts}
-      <button class="btn ghost" data-action="cancel-replace">Cancel</button>
     </div>`);
   },
 
@@ -461,6 +541,7 @@ const Proto = {
       else this.updateRace(dt);
     }
     this.render(dt);
+    this.renderPreview(dt);
     Input.endFrame();
     requestAnimationFrame((t) => this.frame(t));
   },
@@ -511,6 +592,20 @@ const Proto = {
     }
   },
 
+  // The paint shop's spinning car, drawn on its own canvas over the panel's placeholder.
+  renderPreview(dt) {
+    const slot = this.state === 'garage' && this.tab === 'paint' && document.getElementById('previewSlot');
+    const cv = this.previewCanvas;
+    if (!slot || !this.preview) { cv.style.display = 'none'; return; }
+    const r = slot.getBoundingClientRect();
+    cv.style.display = 'block';
+    cv.style.left = r.left + 'px';
+    cv.style.top = r.top + 'px';
+    cv.style.width = r.width + 'px';
+    cv.style.height = r.height + 'px';
+    this.preview.render(r.width, r.height, dt, this.time);
+  },
+
   render(dt) {
     const ctx = this.ctx, W = this.W, H = this.H, race = this.race;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
@@ -539,6 +634,56 @@ const Proto = {
     }
   },
 };
+
+const SHORT_WEAPON = { smg: 'SMG', shotgun: 'Shotgun', rocket: 'Launcher', flare: 'Flare' };
+
+// ---------- Paint shop preview ----------
+
+class CarPreview {
+  constructor(canvas) {
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color('#141310');
+    this.scene.fog = new THREE.Fog('#141310', 80, 160);
+    this.camera = new THREE.PerspectiveCamera(32, 1, 0.5, 500);
+    this.scene.add(new THREE.HemisphereLight(0xfff2dd, 0x2a2620, 1.1));
+    const sun = new THREE.DirectionalLight(0xffe2b8, 1.3);
+    sun.position.set(30, 50, 20);
+    this.scene.add(sun);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 24).rotateX(-Math.PI / 2), LP.mat('#3a362e', { roughness: 1 }));
+    PSX.apply(floor);
+    this.scene.add(floor);
+    this.post = new PSXPost(this.renderer);
+    this.yaw = 0.7;
+    this.size = [0, 0];
+  }
+
+  setLook(look) {
+    if (this.model) this.scene.remove(this.model);
+    this.model = Models.car(Object.assign({}, look));
+    PSX.apply(this.model);
+    PSX.setTextures(this.model, PSX.enabled);
+    this.scene.add(this.model);
+  }
+
+  render(w, h, dt, t) {
+    w = Math.max(1, Math.round(w)); h = Math.max(1, Math.round(h));
+    if (w !== this.size[0] || h !== this.size[1]) {
+      this.size = [w, h];
+      this.renderer.setSize(w, h, false);
+      this.post.setSize(w, h);
+      this.camera.aspect = w / h;
+      this.camera.updateProjectionMatrix();
+    }
+    this.yaw += dt * 0.5;
+    this.camera.position.set(Math.cos(this.yaw) * 58, 20, Math.sin(this.yaw) * 58);
+    this.camera.lookAt(0, 4, 0);
+    if (PSX.enabled) { this.post.begin(); this.renderer.render(this.scene, this.camera); this.post.end(t); }
+    else this.renderer.render(this.scene, this.camera);
+  }
+}
 
 // ---------- HUD pieces ----------
 
@@ -601,7 +746,7 @@ function drawWeaponPanel(ctx, P, W, H) {
     yy += 24;
   };
   b.rack.forEach((w, i) => {
-    const d = WEAPONS[w.id], st = c.wstate[i];
+    const d = weaponStats(w), st = c.wstate[i];
     const reloading = st.reloadT > 0;
     line(i === c.wi, `${i + 1} ${d.name}`, reloading ? 'RELOADING' : `${w.mag} | ${w.reserve}`, reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag, reloading ? '#ff9f1c' : '#5ad8ff');
   });

@@ -72,6 +72,18 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **Driver chips** change how the AI drives your car, each with a downside: Hothead, Cautious,
   Daredevil, Gun Nut.
 
+- **Loadout is swappable in the garage; only trinkets are permanent.** Everything you buy or win goes
+  into your **stash** (or straight into a free slot), and in the garage you can refit parts, swap rack
+  weapons, change abilities and driver chips. Mid-race your only option is the spare part.
+- **Weapon mods** (2 slots per weapon, swappable): Extended Mag, Speed Loader, Incendiary Rounds
+  (sets rivals on fire), Armour-Piercing Rounds, Laser Sight (with a visible beam), Full Choke, Homing
+  Fins, Cluster Flare. Fitted mods show up on the gun in your hands and on the rack.
+- **Part tuning:** one trade-off slider per part (engine reliable↔boosted, tyres hard↔soft, armour
+  light↔heavy, nitro capacity↔power), free to change in the garage.
+- **Paint shop** (cosmetic, kept between runs): body style, paint, finish (gloss, matte, rusted out,
+  primer patches), livery (spray stencil, racing roundel, twin stripes, flames, skull), race number and
+  number plate, with a spinning 3D preview. Races earn **reputation**, which unlocks more options.
+
 All the data lives in `js/build.js`.
 
 ## Models (`models.html`, `models/`)

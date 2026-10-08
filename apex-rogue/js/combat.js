@@ -53,7 +53,7 @@ class Combat {
   }
 
   get weapon() { return this.build.rack[this.wi]; }
-  get weaponDef() { return WEAPONS[this.weapon.id]; }
+  get weaponDef() { return weaponStats(this.weapon); }
   get busy() { return this.fitT > 0; }
 
   // ---------- Player actions ----------
@@ -170,7 +170,7 @@ class Combat {
     const slot = rel < 0.8 ? 'engine' : rel > 2.3 && info.kind !== 'wall' ? 'nitro' : 'tyres';
     const part = b.parts[slot];
     if (part.dur > 0) {
-      part.dur -= amount * 1.4; // parts wear faster than the hull, so breakdowns come before wrecks
+      part.dur -= amount * 1.4 * wearMul(b, slot); // parts wear faster than the hull, so breakdowns come before wrecks
       if (part.dur <= 0) this.breakPart(slot);
     }
     if (has(b, 'rabbit_foot') && !this.footUsed && p.hp > 1 && p.hp - amount <= 0) {
@@ -213,14 +213,25 @@ class Combat {
     if (def.kind === 'bullet') {
       for (let k = 0; k < def.pellets; k++) {
         const a = ctl.aim + randRange(this.rng, -def.spread, def.spread);
-        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0 });
+        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0 });
       }
       this.events.push({ type: def.pellets > 1 ? 'shotgun' : 'shoot' });
     } else if (def.kind === 'rocket') {
-      this.spawn('rocket', p, ctl.aim, def.speed, 1, { dmg: def.dmg, radius: def.radius, life: def.life });
+      // Homing fins: lock onto the rival nearest the aim direction.
+      let target = null;
+      if (def.homing) {
+        let best = 0.55;
+        for (const c of this.race.cars) {
+          if (c === p || c.finished) continue;
+          const d = Math.hypot(c.x - p.x, c.y - p.y);
+          const off = Math.abs(wrapAngle(Math.atan2(c.y - p.y, c.x - p.x) - ctl.aim));
+          if (d < 950 && off < best) { best = off; target = c; }
+        }
+      }
+      this.spawn('rocket', p, ctl.aim, def.speed, 1, { dmg: def.dmg, radius: def.radius, life: def.life, target, turn: target ? 1.6 : 0 });
       this.events.push({ type: 'rocket' });
     } else if (def.kind === 'flare') {
-      this.spawn('flare', p, ctl.aim, def.speed, 1, { dmg: def.dmg, life: def.life, blind: def.blind });
+      this.spawn('flare', p, ctl.aim, def.speed, 1, { dmg: def.dmg, life: def.life, blind: def.blind, cluster: !!def.cluster });
       this.events.push({ type: 'flare' });
     }
     if (w.mag === 0 && w.reserve > 0) this.reload();
@@ -274,6 +285,15 @@ class Combat {
     for (const c of race.cars) {
       if (c.empT > 0) c.empT -= dt;
       if (c.blindT > 0) c.blindT -= dt;
+      if (c.burnT > 0) {
+        c.burnT -= dt;
+        const before = c.hp;
+        race.damage(c, c.burnDps * dt, { kind: 'fire' });
+        if (c.burnBy === p && c !== p) {
+          this.stats.dealt += before - c.hp;
+          if (before > 0 && c.hp <= 0) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.race.message(`${c.name.split(' ')[0]} burned out!`, '#ffd23f'); }
+        }
+      }
     }
     // Smoke clouds: rivals inside lose their lock and choke; rockets lose their target.
     for (const cl of this.clouds) {
@@ -412,10 +432,20 @@ class Combat {
             c.vx += Math.cos(a) * pr.knock;
             c.vy += Math.sin(a) * pr.knock;
           }
+          if (pr.burn) { c.burnT = 3; c.burnDps = pr.burn; c.burnBy = pr.owner; }
           if (pr.type === 'flare') {
             c.blindT = pr.blind;
             if (c.wpn) c.wpn.lock = 0;
             if (pr.owner === p) this.race.message(`${c.name.split(' ')[0]} is blinded!`, '#ff8a3c');
+            if (pr.cluster) {
+              // Cluster flare: the burst blinds everyone nearby.
+              this.explosions.push({ x: pr.x, y: pr.y, r: 120, t: 0, kind: 'flare' });
+              for (const o of this.race.cars) {
+                if (o === pr.owner || o === c || Math.hypot(o.x - pr.x, o.y - pr.y) > 120) continue;
+                o.blindT = pr.blind * 0.8;
+                if (o.wpn) o.wpn.lock = 0;
+              }
+            }
           }
         }
         break;
@@ -581,6 +611,7 @@ class Combat {
     }
     for (const c of this.race.cars) {
       if (c.blindT > 0) { ctx.fillStyle = 'rgba(255,90,40,0.35)'; ctx.beginPath(); ctx.arc(c.x, c.y, 26, 0, TAU); ctx.fill(); }
+      if (c.burnT > 0 && Math.random() < 0.8) this.race.particles.push({ x: c.x + (Math.random() - 0.5) * 16, y: c.y + (Math.random() - 0.5) * 16, vx: 0, vy: 0, life: 0.5, t: 0, size: 6, color: Math.random() < 0.5 ? '#ff7a1a' : '#ffcf3a', type: 'smoke' });
       if (c.empT > 0 && Math.floor(t * 10) % 2) { ctx.strokeStyle = '#7fd8ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x, c.y, 20, 0, TAU); ctx.stroke(); }
     }
     for (const pr of this.projectiles) {
@@ -618,8 +649,8 @@ class Combat {
     }
     for (const e of this.explosions) {
       const k = e.t / 0.5;
-      if (e.kind === 'emp') {
-        ctx.strokeStyle = `rgba(127,216,255,${1 - k})`;
+      if (e.kind === 'emp' || e.kind === 'flare') {
+        ctx.strokeStyle = e.kind === 'flare' ? `rgba(255,120,40,${1 - k})` : `rgba(127,216,255,${1 - k})`;
         ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r * k, 0, TAU); ctx.stroke();
         continue;

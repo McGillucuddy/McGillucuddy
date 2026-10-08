@@ -68,44 +68,96 @@ const CHIPS = {
   gun_nut: { name: 'Gun Nut Chip', desc: 'Weapons reload 40% faster, but your driver wobbles while you shoot.' },
 };
 
+// Weapon mods: two slots per weapon, swappable in the garage.
+const MODS = {
+  ext_mag: { name: 'Extended Mag', desc: '+50% magazine size, but reloads 25% slower.', fits: ['smg', 'shotgun', 'rocket', 'flare'], price: 120 },
+  quick_mag: { name: 'Speed Loader', desc: 'Reloads 40% faster, but -25% magazine size.', fits: ['smg', 'shotgun', 'rocket', 'flare'], price: 120 },
+  incendiary: { name: 'Incendiary Rounds', desc: 'Hits set rivals on fire (3 dmg/s for 3s). Ammo costs 50% more.', fits: ['smg', 'shotgun'], price: 160 },
+  ap_rounds: { name: 'Armour-Piercing Rounds', desc: '+35% damage, but -15% fire rate.', fits: ['smg', 'shotgun'], price: 150 },
+  laser: { name: 'Laser Sight', desc: '-60% spread. Paints a red dot on your target.', fits: ['smg', 'shotgun'], price: 100 },
+  choke: { name: 'Full Choke', desc: 'Shotgun spread halved and range +50%.', fits: ['shotgun'], price: 110 },
+  homing: { name: 'Homing Fins', desc: 'Rockets curve toward the rival nearest your aim.', fits: ['rocket'], price: 200 },
+  cluster: { name: 'Cluster Flare', desc: 'Flares burst on impact, blinding every driver within 120.', fits: ['flare'], price: 170 },
+};
+const modFits = (modId, weaponId) => MODS[modId].fits.includes(weaponId);
+
+// Part tuning: one trade-off slider per part, -1..1 in steps of 0.5. Free to change in the garage.
+const TUNING = {
+  engine: { left: 'Reliable', right: 'Boosted', desc: 'More power, but the engine wears faster.' },
+  tyres: { left: 'Hard', right: 'Soft', desc: 'More grip, but the tyres wear faster.' },
+  armour: { left: 'Light', right: 'Heavy', desc: 'Absorbs more, but adds weight (slower).' },
+  nitro: { left: 'Capacity', right: 'Power', desc: 'Stronger boost from a smaller bottle.' },
+};
+const TUNE_STEPS = [-1, -0.5, 0, 0.5, 1];
+
 const PLACE_SCRAP = [220, 160, 120, 80, 50, 30, 20];
 const WRECK_SCRAP = 30;
 const STRIKES_TO_LOSE = 3;
 
 function newBuild() {
   const b = {
-    scrap: 150, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0,
+    scrap: 150, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0,
     parts: {}, spare: null,
     rack: [], rackBase: 2,
     grenades: 3,
     abilities: ['shield', null],
-    trinkets: [],
+    trinkets: [], // the only permanent things in a run
     chip: null,
+    stash: { parts: [], weapons: [], abilities: [], mods: [], chips: [] },
   };
   for (const id of ['stock_engine', 'stock_tyres', 'scrap_plating', 'stock_nitro']) installPart(b, id);
   addWeapon(b, 'smg');
   addWeapon(b, 'rocket');
+  b.stash.mods.push('ext_mag'); // a taste of modding from the start
   return b;
 }
 
 const has = (b, trinket) => b.trinkets.includes(trinket);
 const rackSlots = (b) => b.rackBase + (has(b, 'keys') ? 1 : 0);
 const partMaxDur = (b, id) => Math.round(PARTS[id].dur * (has(b, 'freshener') ? 1.25 : 1));
+const newPart = (b, id) => ({ id, dur: partMaxDur(b, id), tune: 0 });
 
 function installPart(b, id) {
-  b.parts[PARTS[id].slot] = { id, dur: partMaxDur(b, id) };
+  b.parts[PARTS[id].slot] = newPart(b, id);
 }
 
+const newWeapon = (id) => ({ id, mag: WEAPONS[id].mag, reserve: Math.max(0, WEAPONS[id].start - WEAPONS[id].mag), mods: [null, null] });
+
 function addWeapon(b, id, replaceIndex) {
-  const w = WEAPONS[id];
-  const entry = { id, mag: w.mag, reserve: Math.max(0, w.start - w.mag) };
-  if (replaceIndex != null) b.rack[replaceIndex] = entry;
-  else b.rack.push(entry);
+  if (replaceIndex != null) b.rack[replaceIndex] = newWeapon(id);
+  else b.rack.push(newWeapon(id));
 }
 
 const partBroken = (b, slot) => b.parts[slot].dur <= 0;
 
-// Car stats from the base car + installed parts (broken parts cripple their stat).
+// A weapon's stats with its mods applied.
+function weaponStats(w) {
+  const d = Object.assign({}, WEAPONS[w.id]);
+  const m = new Set(w.mods.filter(Boolean));
+  if (m.has('ext_mag')) { d.mag = Math.ceil(d.mag * 1.5); d.reload *= 1.25; }
+  if (m.has('quick_mag')) { d.mag = Math.max(1, Math.floor(d.mag * 0.75)); d.reload *= 0.6; }
+  if (m.has('incendiary')) { d.burn = 3; d.packPrice = Math.round(d.packPrice * 1.5); }
+  if (m.has('ap_rounds')) { d.dmg *= 1.35; d.rate *= 1.15; }
+  if (m.has('laser')) { d.spread *= 0.4; d.laser = true; }
+  if (m.has('choke')) { d.spread *= 0.5; d.life *= 1.5; }
+  if (m.has('homing')) d.homing = true;
+  if (m.has('cluster')) d.cluster = true;
+  return d;
+}
+
+// Keep the loaded magazine within capacity after mods change.
+function fitMag(w) {
+  const cap = weaponStats(w).mag;
+  if (w.mag > cap) { w.reserve += w.mag - cap; w.mag = cap; }
+}
+
+// How fast each fitted part wears, from its tuning.
+function wearMul(b, slot) {
+  const t = b.parts[slot].tune || 0;
+  return { engine: 1 + 0.6 * t, tyres: 1 + 0.7 * t, armour: 1, nitro: 1 }[slot];
+}
+
+// Car stats from the base car + installed parts and their tuning (broken parts cripple their stat).
 function buildStats(b) {
   const s = computeStats(newRun('comet', 1));
   s.maxHp = b.maxHull;
@@ -125,7 +177,13 @@ function buildStats(b) {
     if (m.nitroCap) s.nitroCap *= m.nitroCap;
     if (m.nitroPower) s.nitroPower *= m.nitroPower;
     if (m.nitroRegen) s.nitroRegen *= m.nitroRegen;
+    const t = part.tune || 0;
+    if (slot === 'engine') { s.top *= 1 + 0.05 * t; s.accel *= 1 + 0.08 * t; }
+    if (slot === 'tyres') s.grip *= 1 + 0.12 * t;
+    if (slot === 'armour') { s.absorb *= 1 + 0.4 * t; s.blastAbsorb *= 1 + 0.4 * t; s.top *= 1 - 0.03 * t; s.accel *= 1 - 0.04 * t; }
+    if (slot === 'nitro') { s.nitroPower *= 1 + 0.3 * t; s.nitroCap *= 1 - 0.25 * t; }
   }
+  s.absorb = Math.min(0.75, s.absorb);
   if (partBroken(b, 'engine')) { s.top *= 0.55; s.accel *= 0.5; }
   if (partBroken(b, 'tyres')) { s.grip *= 0.5; s.handling *= 0.8; }
   if (partBroken(b, 'nitro')) { s.nitroCap = 0.001; s.nitroRegen = 0; }
@@ -133,20 +191,88 @@ function buildStats(b) {
   return s;
 }
 
+// ---------- Garage loadout (everything except trinkets can be swapped here) ----------
+
+function equipPart(b, stashIndex) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.parts.length)) return;
+  const inst = b.stash.parts[stashIndex], slot = PARTS[inst.id].slot;
+  b.stash.parts[stashIndex] = b.parts[slot];
+  b.parts[slot] = inst;
+}
+
+function equipWeapon(b, stashIndex, rackIndex) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.weapons.length)) return;
+  const w = b.stash.weapons[stashIndex];
+  if (rackIndex == null || rackIndex >= b.rack.length) {
+    if (b.rack.length >= rackSlots(b)) return;
+    b.stash.weapons.splice(stashIndex, 1);
+    b.rack.push(w);
+  } else {
+    b.stash.weapons[stashIndex] = b.rack[rackIndex];
+    b.rack[rackIndex] = w;
+  }
+}
+
+function unequipWeapon(b, rackIndex) {
+  if (b.rack.length <= 1) return;
+  b.stash.weapons.push(b.rack.splice(rackIndex, 1)[0]);
+}
+
+function equipAbility(b, stashIndex, slot) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.abilities.length)) return;
+  const id = b.stash.abilities[stashIndex];
+  const old = b.abilities[slot];
+  b.stash.abilities.splice(stashIndex, 1);
+  if (old) b.stash.abilities.push(old);
+  b.abilities[slot] = id;
+}
+
+function equipChip(b, stashIndex) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.chips.length)) return;
+  const id = b.stash.chips[stashIndex];
+  b.stash.chips.splice(stashIndex, 1);
+  if (b.chip) b.stash.chips.push(b.chip);
+  b.chip = id;
+}
+
+function fitMod(b, stashIndex, rackIndex, slot) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.mods.length)) return;
+  const w = b.rack[rackIndex], id = b.stash.mods[stashIndex];
+  if (!modFits(id, w.id) || w.mods.includes(id)) return;
+  b.stash.mods.splice(stashIndex, 1);
+  if (w.mods[slot]) b.stash.mods.push(w.mods[slot]);
+  w.mods[slot] = id;
+  fitMag(w);
+}
+
+function removeMod(b, rackIndex, slot) {
+  const w = b.rack[rackIndex];
+  if (!w.mods[slot]) return;
+  b.stash.mods.push(w.mods[slot]);
+  w.mods[slot] = null;
+  fitMag(w);
+}
+
 // ---------- Rewards & shop ----------
 
 function itemCard(type, id) {
-  const src = { part: PARTS, weapon: WEAPONS, ability: ABILITIES, trinket: TRINKETS, chip: CHIPS }[type][id];
+  const src = { part: PARTS, weapon: WEAPONS, ability: ABILITIES, trinket: TRINKETS, chip: CHIPS, mod: MODS }[type][id];
   return { type, id, name: src.name, desc: src.desc, price: src.price || 0 };
 }
 
+const ownsPart = (b, id) => b.parts[PARTS[id].slot].id === id || b.stash.parts.some((p) => p.id === id);
+const ownsWeapon = (b, id) => b.rack.some((w) => w.id === id) || b.stash.weapons.some((w) => w.id === id);
+const ownsAbility = (b, id) => b.abilities.includes(id) || b.stash.abilities.includes(id);
+const ownsChip = (b, id) => b.chip === id || b.stash.chips.includes(id);
+
 function rollRewards(b, rng, count) {
   const pool = [];
-  for (const id in PARTS) if (PARTS[id].price > 0 && b.parts[PARTS[id].slot].id !== id) pool.push(['part', id, 3]);
-  for (const id in WEAPONS) if (!b.rack.some((w) => w.id === id)) pool.push(['weapon', id, 3]);
-  for (const id in ABILITIES) if (!b.abilities.includes(id)) pool.push(['ability', id, 2]);
+  for (const id in PARTS) if (PARTS[id].price > 0 && !ownsPart(b, id)) pool.push(['part', id, 3]);
+  for (const id in WEAPONS) if (!ownsWeapon(b, id)) pool.push(['weapon', id, 3]);
+  for (const id in ABILITIES) if (!ownsAbility(b, id)) pool.push(['ability', id, 2]);
+  for (const id in MODS) pool.push(['mod', id, 2]);
   for (const id in TRINKETS) if (!has(b, id)) pool.push(['trinket', id, 2]);
-  for (const id in CHIPS) if (b.chip !== id) pool.push(['chip', id, 1]);
+  for (const id in CHIPS) if (!ownsChip(b, id)) pool.push(['chip', id, 1]);
   const out = [];
   while (out.length < count && pool.length) {
     const pickd = weightedPick(rng, pool, (p) => p[2]);
@@ -157,32 +283,80 @@ function rollRewards(b, rng, count) {
 }
 
 function rollShop(b, rng) {
-  const parts = shuffle(rng, Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && b.parts[PARTS[id].slot].id !== id)).slice(0, 2);
-  const weapons = shuffle(rng, Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !b.rack.some((w) => w.id === id))).slice(0, 1);
-  const abil = shuffle(rng, Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !b.abilities.includes(id))).slice(0, 1);
-  return [...parts.map((id) => itemCard('part', id)), ...weapons.map((id) => itemCard('weapon', id)), ...abil.map((id) => itemCard('ability', id))];
+  const pickN = (ids, n) => shuffle(rng, ids).slice(0, n);
+  const parts = pickN(Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id)), 2);
+  const weapons = pickN(Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id)), 1);
+  const abil = pickN(Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id)), 1);
+  const mods = pickN(Object.keys(MODS), 2);
+  return [
+    ...parts.map((id) => itemCard('part', id)), ...weapons.map((id) => itemCard('weapon', id)),
+    ...abil.map((id) => itemCard('ability', id)), ...mods.map((id) => itemCard('mod', id)),
+  ];
 }
 
 const repairHullCost = (b) => Math.ceil((b.maxHull - b.hull) * 1.2);
 const repairPartCost = (b, slot) => Math.ceil((partMaxDur(b, b.parts[slot].id) - Math.max(0, b.parts[slot].dur)) * 0.8) + (partBroken(b, slot) ? 30 : 0);
 const spareCost = (b, slot) => Math.max(60, Math.round(PARTS[b.parts[slot].id].price * 0.6));
 
-// Install an item; returns false if a choice (which weapon/ability to replace) is needed.
-function applyItem(b, card, replaceIndex) {
-  if (card.type === 'part') installPart(b, card.id);
-  else if (card.type === 'weapon') {
-    const owned = b.rack.find((w) => w.id === card.id);
-    if (owned) { owned.reserve += WEAPONS[card.id].pack * 2; return true; } // a duplicate becomes ammo
-    if (b.rack.length >= rackSlots(b) && replaceIndex == null) return false;
-    addWeapon(b, card.id, replaceIndex);
+// New items go into the stash, or straight into a free slot. Only trinkets are permanent.
+function applyItem(b, card) {
+  if (card.type === 'part') {
+    b.stash.parts.push(b.parts[PARTS[card.id].slot]); // fit the new part; the old one goes to the stash
+    installPart(b, card.id);
+  } else if (card.type === 'weapon') {
+    const owned = b.rack.concat(b.stash.weapons).find((w) => w.id === card.id);
+    if (owned) owned.reserve += WEAPONS[card.id].pack * 2; // a duplicate becomes ammo
+    else if (b.rack.length < rackSlots(b)) addWeapon(b, card.id);
+    else b.stash.weapons.push(newWeapon(card.id));
   } else if (card.type === 'ability') {
     const free = b.abilities.indexOf(null);
-    if (free >= 0 && replaceIndex == null) b.abilities[free] = card.id;
-    else if (replaceIndex == null) return false;
-    else b.abilities[replaceIndex] = card.id;
+    if (free >= 0) b.abilities[free] = card.id;
+    else b.stash.abilities.push(card.id);
+  } else if (card.type === 'mod') {
+    b.stash.mods.push(card.id);
   } else if (card.type === 'trinket') {
     b.trinkets.push(card.id);
-    if (card.id === 'freshener') for (const slot of PART_SLOTS) b.parts[slot].dur = Math.round(b.parts[slot].dur * 1.25);
-  } else if (card.type === 'chip') b.chip = card.id;
+    if (card.id === 'freshener') for (const inst of [...Object.values(b.parts), ...b.stash.parts]) inst.dur = Math.round(inst.dur * 1.25);
+  } else if (card.type === 'chip') {
+    if (!b.chip) b.chip = card.id;
+    else b.stash.chips.push(card.id);
+  }
   return true;
 }
+
+// ---------- Cosmetics (kept between runs, unlocked with reputation) ----------
+
+const BODY_STYLES = [
+  { id: 'comet', name: 'Coupe', rep: 0 }, { id: 'brick', name: 'Estate', rep: 20 },
+  { id: 'wasp', name: 'Hot Hatch', rep: 60 }, { id: 'phantom', name: 'Fastback', rep: 120 },
+];
+const PAINTS = [
+  { id: 'red', name: 'Rust Red', color: '#a8322a', rep: 0 }, { id: 'primer', name: 'Primer Grey', color: '#6f6f68', rep: 0 },
+  { id: 'orange', name: 'Prison Orange', color: '#d96a1e', rep: 0 }, { id: 'black', name: 'Matte Black', color: '#2a2a2e', rep: 30 },
+  { id: 'olive', name: 'Army Olive', color: '#5a6b3a', rep: 60 }, { id: 'blue', name: 'Patrol Blue', color: '#2f4f8a', rep: 100 },
+  { id: 'cream', name: 'Faded Cream', color: '#d8cfb0', rep: 150 }, { id: 'gold', name: "Warden's Gold", color: '#c9a443', rep: 250 },
+];
+const FINISHES = [
+  { id: 'gloss', name: 'Gloss', rep: 0 }, { id: 'matte', name: 'Matte', rep: 0 },
+  { id: 'rusty', name: 'Rusted Out', rep: 40 }, { id: 'patched', name: 'Primer Patches', rep: 80 },
+];
+const LIVERIES = [
+  { id: 'none', name: 'Plain', rep: 0 }, { id: 'stencil', name: 'Spray Stencil', rep: 0 },
+  { id: 'roundel', name: 'Racing Roundel', rep: 0 }, { id: 'stripes', name: 'Twin Stripes', rep: 50 },
+  { id: 'flames', name: 'Flames', rep: 120 }, { id: 'skull', name: 'Skull', rep: 200 },
+];
+const COSMETIC_KEY = 'apexrogue_cosmetics_v1';
+
+function loadCosmetics() {
+  const def = { style: 'comet', paint: 'red', finish: 'gloss', livery: 'stencil', number: 47, plate: 'INM 4471', rep: 0 };
+  try { return Object.assign(def, JSON.parse(localStorage.getItem(COSMETIC_KEY)) || {}); } catch (e) { return def; }
+}
+
+function saveCosmetics(c) {
+  try { localStorage.setItem(COSMETIC_KEY, JSON.stringify(c)); } catch (e) { /* storage unavailable */ }
+}
+
+const paintColor = (c) => (PAINTS.find((p) => p.id === c.paint) || PAINTS[0]).color;
+const carLook = (c) => ({ style: c.style, color: paintColor(c), accent: '#1d1d1d', finish: c.finish, livery: c.livery, number: c.number, plate: c.plate });
+// Reputation from a race: finishing, winning and wrecking rivals all build your name.
+const raceRep = (place, wrecks) => 10 + (place === 1 ? 25 : place <= 3 ? 10 : 0) + wrecks * 5;

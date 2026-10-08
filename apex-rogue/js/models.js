@@ -71,7 +71,7 @@ const DECALS = {
   get(kind, arg) {
     const key = kind + (arg || '');
     if (this.cache[key]) return this.cache[key];
-    const size = { plate: [64, 24], grille: [64, 24], gauges: [64, 32], vent: [32, 16], stencil: [48, 28] }[kind] || [32, 32];
+    const size = { plate: [64, 24], grille: [64, 24], gauges: [64, 32], vent: [32, 16], stencil: [48, 28], flames: [64, 24] }[kind] || [32, 32];
     const c = document.createElement('canvas');
     [c.width, c.height] = size;
     const g = c.getContext('2d');
@@ -194,6 +194,35 @@ const DECALS = {
       for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(Math.random() * W, Math.random() * H); g.lineTo(Math.random() * W, Math.random() * H); g.stroke(); }
       g.fillStyle = 'rgba(60,60,80,0.5)';
       for (let y = 6; y < H - 4; y += 4) g.fillRect(4, y, 10 + Math.random() * 14, 1);
+    } else if (kind === 'number') {
+      // arg = "style:number". Spray stencil with drips, or a white racing roundel.
+      const [style, num] = (arg || 'stencil:47').split(':');
+      g.clearRect(0, 0, W, H);
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      if (style === 'roundel') {
+        g.fillStyle = '#ece6d6'; g.beginPath(); g.arc(W / 2, H / 2, W / 2 - 1, 0, TAU); g.fill();
+        g.fillStyle = '#141414'; g.font = 'bold 20px monospace'; g.fillText(num, W / 2, H / 2 + 1);
+      } else {
+        g.fillStyle = 'rgba(236,230,214,0.92)'; g.font = 'bold 24px monospace'; g.fillText(num, W / 2, H / 2);
+        for (let k = 0; k < 5; k++) g.fillRect(6 + Math.random() * (W - 12), H / 2 + 8, 1, 2 + Math.random() * 7); // drips
+        g.fillStyle = 'rgba(0,0,0,0.35)';
+        for (let k = 0; k < 10; k++) g.fillRect(Math.random() * W, Math.random() * H, 2, 1); // flaking
+      }
+    } else if (kind === 'flames') {
+      g.clearRect(0, 0, W, H);
+      for (const [col, sc] of [['#c2361a', 1], ['#e8871e', 0.72], ['#f2cf3a', 0.45]]) {
+        g.fillStyle = col;
+        g.beginPath(); g.moveTo(0, H * 0.5 - H * 0.4 * sc);
+        for (let k = 0; k <= 5; k++) { const x = (k / 5) * W * (0.6 + 0.4 * sc); g.quadraticCurveTo(x + 3, H * 0.5 - (k % 2 ? 2 : H * 0.35) * sc, x + 6, H * 0.5); }
+        g.lineTo(0, H * 0.5 + H * 0.4 * sc); g.closePath(); g.fill();
+      }
+    } else if (kind === 'skull') {
+      g.clearRect(0, 0, W, H);
+      g.fillStyle = '#ece6d6';
+      g.beginPath(); g.arc(16, 13, 10, 0, TAU); g.fill(); g.fillRect(10, 18, 12, 8);
+      g.fillStyle = '#141414';
+      g.beginPath(); g.arc(12, 13, 3, 0, TAU); g.arc(20, 13, 3, 0, TAU); g.fill();
+      g.fillRect(15, 17, 2, 3); for (let x = 11; x < 22; x += 3) g.fillRect(x, 23, 1, 3);
     } else if (kind === 'crackdash') {
       g.fillStyle = '#1b1d22'; g.fillRect(0, 0, W, H);
       g.strokeStyle = 'rgba(0,0,0,0.9)'; g.lineWidth = 1;
@@ -347,7 +376,8 @@ const Models = {
     const g = new THREE.Group();
     g.name = opts.name || 'car';
     const paint = new THREE.Color(opts.color).lerp(new THREE.Color('#77736a'), 0.18); // real paint is less saturated
-    const body = LP.mat(paint, { metalness: 0.3, roughness: 0.55 });
+    const finish = opts.finish || 'gloss';
+    const body = LP.mat(paint, finish === 'gloss' ? { metalness: 0.35, roughness: 0.4 } : { metalness: 0.05, roughness: 0.95 });
     const dark = LP.mat('#1b1c1e', { roughness: 0.9 });
     const chrome = LP.mat('#a7adb3', { metalness: 0.8, roughness: 0.3 });
     const glass = DECALS.mat('glass', { metalness: 0.4, roughness: 0.2 });
@@ -425,6 +455,7 @@ const Models = {
       }
     }
     st.extras(g, { body, dark, chrome }, st);
+    Models.livery(g, st, opts, W, bev);
 
     if (opts.weapon === 'rocket') {
       const pod = Models.rocketPod();
@@ -590,6 +621,126 @@ const Models = {
     g.add(LP.box(0.5, 0.5, 0.8, black, 0, 0.5, 0.4)); // hammer
     g.userData.barrel = barrel;
     return g;
+  },
+
+  // Paint job details: race number + livery decals, and rust/primer patches for worn finishes.
+  livery(g, st, opts, W, bev) {
+    const hw = W / 2, side = hw + bev + 0.05;
+    const rng = mulberry32((opts.number || 7) * 97 + 13);
+    const decal = (tex, w, h) => LP.mesh(new THREE.PlaneGeometry(w, h), LP.mat('#ffffff', { map: tex, transparent: true, alphaTest: 0.3, roughness: 0.9 }));
+    const doorX = (st.seams[0] + st.seams[1]) / 2;
+    const onDoors = (tex, w, h, y, x) => {
+      if (opts.shell) return;
+      for (const s of [-1, 1]) {
+        const m = decal(tex, w, h);
+        m.position.set(x == null ? doorX : x, y, side * s);
+        if (s < 0) m.rotation.y = Math.PI;
+        m.userData.noGrime = true;
+        g.add(m);
+      }
+    };
+    // Hood decal, lying on the hood slope, reading from the driver's seat.
+    const [hx1, hy1] = st.top[2], [hx2, hy2] = st.top[3];
+    const onHood = (tex, w, h, t) => {
+      const x = lerp(hx1, Math.max(hx2, opts.shell ? 9 : hx2), t == null ? 0.5 : t);
+      const y = lerp(hy1, hy2, (hx1 - x) / (hx1 - hx2)) + bev + 0.06;
+      const tilt = new THREE.Group();
+      tilt.position.set(x, y, 0);
+      tilt.rotation.z = -Math.atan2(hy2 - hy1, hx1 - hx2);
+      const m = decal(tex, w, h);
+      m.geometry.rotateX(-Math.PI / 2);
+      m.rotation.y = -Math.PI / 2;
+      m.userData.noGrime = true;
+      tilt.add(m);
+      g.add(tilt);
+    };
+    const num = String(opts.number == null ? 47 : opts.number);
+    const lv = opts.livery || 'none';
+    if (lv === 'stencil' || lv === 'roundel') {
+      const tex = DECALS.get('number', `${lv}:${num}`);
+      onDoors(tex, 3.6, 3.6, 4.3);
+      onHood(tex, 3.4, 3.4, 0.45);
+    } else if (lv === 'stripes') {
+      const white = LP.mat('#e6e0cf', { roughness: 0.9 });
+      for (const z of [-1.3, 1.3]) {
+        const len = Math.abs(hx1 - Math.max(hx2, opts.shell ? 9 : hx2));
+        const tilt = new THREE.Group();
+        tilt.position.set((hx1 + Math.max(hx2, opts.shell ? 9 : hx2)) / 2, (hy1 + hy2) / 2 + bev + 0.05, z);
+        tilt.rotation.z = -Math.atan2(hy2 - hy1, hx1 - hx2);
+        tilt.add(LP.box(len, 0.06, 1.1, white));
+        g.add(tilt);
+        if (!opts.shell) g.add(LP.box(Math.abs(st.cabin[1][0] - st.cabin[2][0]), 0.06, 1.1, white, (st.cabin[1][0] + st.cabin[2][0]) / 2, st.cabin[1][1] + 0.4, z));
+      }
+      onDoors(DECALS.get('number', `stencil:${num}`), 3, 3, 4.3);
+    } else if (lv === 'flames') {
+      onDoors(DECALS.get('flames'), 7, 2.6, 3.6, st.seams[0] + 3.2);
+      onHood(DECALS.get('flames'), 6, 2.2, 0.3);
+    } else if (lv === 'skull') {
+      onHood(DECALS.get('skull'), 4, 4, 0.5);
+      onDoors(DECALS.get('number', `stencil:${num}`), 3.2, 3.2, 4.3);
+    }
+    // Worn finishes: rust or grey primer patches.
+    if (opts.finish === 'rusty' || opts.finish === 'patched') {
+      const col = opts.finish === 'rusty' ? ['#6b3a1e', '#7d4422', '#5a3018'] : ['#7a7a74', '#86857d'];
+      for (let k = 0; k < (opts.shell ? 3 : 9); k++) {
+        const patch = LP.mesh(new THREE.CircleGeometry(randRange(rng, 0.5, 1.4), 6), LP.mat(pick(rng, col), { roughness: 1 }));
+        patch.scale.set(randRange(rng, 1, 1.8), 1, 1);
+        patch.userData.noGrime = true;
+        if (opts.shell || k % 3 === 0) {
+          patch.geometry.rotateX(-Math.PI / 2);
+          const x = randRange(rng, opts.shell ? 10 : hx2, hx1 - 1);
+          patch.position.set(x, lerp(hy1, hy2, (hx1 - x) / (hx1 - hx2)) + bev + 0.04, randRange(rng, -hw + 1.5, hw - 1.5));
+        } else {
+          const s = k % 2 ? 1 : -1;
+          patch.position.set(randRange(rng, st.top[st.top.length - 1][0] + 2, st.top[0][0] - 2), randRange(rng, 2.2, 5.5), (side - 0.01) * s);
+          if (s < 0) patch.rotation.y = Math.PI;
+        }
+        g.add(patch);
+      }
+    }
+  },
+
+  // Mod attachments, so you can see what's fitted. beam: draw the laser sight's beam (held weapon only).
+  modVisuals(gun, weaponId, mods, beam) {
+    const A = {
+      smg: { mag: [0, -3.6, -0.8], side: [0.55, 0.1, 0.2], muzzle: [0, 0.1, -4.3], under: [0, -0.6, -2.7] },
+      shotgun: { mag: [0.5, -0.1, -1.5], side: [0.5, 0.1, -0.3], muzzle: [0, 0.3, -7.95], under: [0, -0.7, -5.4] },
+      rocket: { mag: [1.0, -0.4, 1.6], side: [0.65, 0.4, -1.4], muzzle: [0, 0, -5.4], under: [0, -1.0, -3.0] },
+      flare: { mag: [0, -2.2, 0.0], side: [0.6, 0.25, -1.0], muzzle: [0, 0.2, -3.45], under: [0, -0.5, -2.6] },
+    }[weaponId];
+    const steel = LP.mat('#2b2d30', { metalness: 0.6, roughness: 0.45 });
+    const add = (m) => { m.userData.modVis = true; gun.add(m); return m; };
+    for (const id of mods.filter(Boolean)) {
+      if (id === 'ext_mag') {
+        if (weaponId === 'smg') add(LP.box(0.62, 2.4, 0.95, steel, A.mag[0], A.mag[1], A.mag[2]));
+        else add(LP.box(0.9, 1.6, 2.2, LP.mat('#4a3a24'), A.mag[0], A.mag[1], A.mag[2])); // ammo pouch / shell carrier
+      } else if (id === 'quick_mag') {
+        add(LP.box(0.5, 1.2, 0.8, steel, A.side[0] + 0.25, A.side[1] - 0.8, A.side[2]));
+        add(LP.box(0.55, 0.25, 0.85, LP.mat('#d9b52c'), A.side[0] + 0.25, A.side[1] - 0.8, A.side[2])); // taped together
+      } else if (id === 'incendiary') {
+        add(LP.box(0.06, 0.35, 2.2, LP.glow('#ff6a1a', 0.6), A.side[0] - 0.02, A.side[1], A.side[2]));
+      } else if (id === 'ap_rounds') {
+        add(LP.box(0.06, 0.35, 1.4, LP.mat('#3fc8c0', { metalness: 0.6 }), A.side[0] - 0.02, A.side[1] - 0.4, A.side[2]));
+      } else if (id === 'laser') {
+        add(LP.box(0.35, 0.35, 0.9, steel, A.under[0], A.under[1], A.under[2]));
+        add(LP.box(0.2, 0.2, 0.05, LP.glow('#ff2020', 1.5), A.under[0], A.under[1], A.under[2] - 0.48));
+        if (beam) {
+          const b = LP.mesh(new THREE.BoxGeometry(0.03, 0.03, 80), new THREE.MeshBasicMaterial({ color: '#ff2020', transparent: true, opacity: 0.35, depthWrite: false }), A.under[0], A.under[1], A.under[2] - 40.5);
+          add(b);
+        }
+      } else if (id === 'choke') {
+        const ring = LP.cyl(0.4, 0.4, 0.6, 8, steel, A.muzzle[0], A.muzzle[1], A.muzzle[2]);
+        ring.rotation.x = Math.PI / 2;
+        add(ring);
+      } else if (id === 'homing') {
+        add(LP.box(0.4, 0.5, 0.8, steel, A.side[0], A.side[1], A.side[2]));
+        add(LP.box(0.06, 1.0, 0.06, steel, A.side[0], A.side[1] + 0.7, A.side[2]));
+        add(LP.box(0.15, 0.15, 0.05, LP.glow('#ff2020', 1.2), A.side[0], A.side[1] + 0.2, A.side[2] - 0.43));
+      } else if (id === 'cluster') {
+        for (let k = 0; k < 3; k++) add(LP.cyl(0.18, 0.18, 0.9, 6, LP.mat('#d9601e'), A.side[0] + 0.1, A.side[1] - 0.3 - k * 0.4, A.side[2] + 0.8).rotateX(Math.PI / 2));
+      }
+    }
+    return gun;
   },
 
   weapon(id) {

@@ -243,6 +243,7 @@ class PSXPost {
   }
 
   begin() {
+    PSX.snapRes.value.copy(this.mat.uniforms.res.value); // several views share the snap grid
     this.renderer.setRenderTarget(this.rt);
     this.renderer.clear();
   }
