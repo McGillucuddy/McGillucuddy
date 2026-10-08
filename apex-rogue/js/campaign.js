@@ -40,7 +40,7 @@ function makeNode(rng, raceIndex, type, biome) {
 
 function genRouteChoices(run, rng) {
   const i = run.raceIndex;
-  const biomes = shuffle(rng, Object.keys(BIOMES));
+  const biomes = shuffle(rng, ['meadow', 'desert', 'tundra', 'neon']); // the gunner acts have their own biomes
   if (RACE_PLAN[i].boss) {
     const n = makeNode(rng, i, 'standard', biomes[0]);
     n.label = 'Grand Final';

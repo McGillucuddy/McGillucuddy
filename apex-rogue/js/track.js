@@ -30,6 +30,36 @@ const BIOMES = {
     deco: 'building', night: true, hw: 64, runoff: 30,
     blurb: 'Night race. Tight walls, high grip.',
   },
+  // The gunner campaign's acts (see js/env.js for the 3D dressing). dirt: grime on the tarmac;
+  // lawn: mown stripes on the grass.
+  undercity: {
+    name: 'The Undercity', bg: '#2e2a25', bgDots: '#38332c', runoffColor: '#4a443a',
+    wall: '#6e6a60', wallStripe: '#c9a227', asphalt: '#34322f', line: 'rgba(220,200,120,0.3)',
+    curbA: '#8a6a1e', curbB: '#3a3630', grip: 0.96, offroadTop: 0.6, offroadDrag: 0.9,
+    deco: 'slum', night: false, hw: 70, runoff: 40, env: 'undercity', dirt: 1,
+    blurb: 'Under the plate. Oil on the tarmac, no sky overhead.',
+  },
+  stacks: {
+    name: 'The Stacks', bg: '#3e3428', bgDots: '#4a3e30', runoffColor: '#5e4c36',
+    wall: '#7a6e5e', wallStripe: '#b5452a', asphalt: '#3a3733', line: 'rgba(240,210,160,0.3)',
+    curbA: '#b5452a', curbB: '#4a4038', grip: 0.94, offroadTop: 0.62, offroadDrag: 0.8,
+    deco: 'industrial', night: false, hw: 72, runoff: 46, env: 'stacks', dirt: 0.8,
+    blurb: 'Smokestacks and tenements. Loose grit everywhere.',
+  },
+  terraces: {
+    name: 'The Gilded Terraces', bg: '#4f8a3e', bgDots: '#5a9846', runoffColor: '#e8e2d0',
+    wall: '#f2f0ea', wallStripe: '#c9a443', asphalt: '#2a2c30', line: 'rgba(255,255,255,0.8)',
+    curbA: '#c23a2a', curbB: '#f5f5f5', grip: 1.02, offroadTop: 0.55, offroadDrag: 0.9,
+    deco: 'garden', night: false, hw: 72, runoff: 50, env: 'terraces', lawn: true,
+    blurb: 'Above the smog. Fresh tarmac and an audience of the rich.',
+  },
+  crown: {
+    name: 'The Crown', bg: '#5a8a46', bgDots: '#64964e', runoffColor: '#efe9dc',
+    wall: '#faf7f0', wallStripe: '#d9b24a', asphalt: '#26282c', line: 'rgba(255,240,200,0.85)',
+    curbA: '#d9b24a', curbB: '#ffffff', grip: 1.04, offroadTop: 0.55, offroadDrag: 0.95,
+    deco: 'palace', night: false, hw: 70, runoff: 46, env: 'crown', lawn: true,
+    blurb: 'The top of the Spire at sunset. Win here and you walk free.',
+  },
 };
 
 const TRACK_SPACING = 10;
@@ -315,6 +345,29 @@ function drawDeco(ctx, kind, d) {
       ctx.fillStyle = '#b8915f';
       ctx.beginPath(); ctx.ellipse(-4 * s, -3 * s, 9 * s, 6 * s, d.r * 6, 0, TAU); ctx.fill();
     }
+  } else if (kind === 'slum' || kind === 'industrial') {
+    const w = (26 + d.r * 30) * s, h = (18 + (1 - d.r) * 20) * s;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(-w / 2 + 6, -h / 2 + 6, w, h);
+    ctx.fillStyle = ['#5a3a2a', '#3a4a52', '#4a4a3a', '#3e3a36'][Math.floor(d.r * 4)];
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    if (d.r > 0.3 && d.r < 0.46) { ctx.fillStyle = '#ff8a2a'; ctx.beginPath(); ctx.arc(0, 0, 4, 0, TAU); ctx.fill(); }
+  } else if (kind === 'garden' || kind === 'palace') {
+    if (d.r < 0.4) {
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.beginPath(); ctx.arc(6, 6, 18 * s, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#3a7a32';
+      for (let k = 0; k < 6; k++) { ctx.save(); ctx.rotate((k / 6) * TAU + d.r); ctx.fillRect(0, -3 * s, 20 * s, 6 * s); ctx.restore(); }
+    } else {
+      const w = 40 * s, h = 30 * s;
+      ctx.fillStyle = 'rgba(0,0,0,0.15)';
+      ctx.fillRect(-w / 2 + 6, -h / 2 + 6, w, h);
+      ctx.fillStyle = '#f4f2ec';
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+      ctx.strokeStyle = '#d9b24a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-w / 2, -h / 2, w, h);
+    }
   } else if (kind === 'building') {
     const w = 50 * s, h = 40 * s + d.r * 30;
     ctx.fillStyle = '#0b0a14';
@@ -355,6 +408,18 @@ function renderTrack(track) {
     }
     for (let y = Math.floor(b.minY / 160) * 160; y < b.maxY; y += 160) {
       ctx.beginPath(); ctx.moveTo(b.minX, y); ctx.lineTo(b.maxX, y); ctx.stroke();
+    }
+  }
+  if (bio.lawn) {
+    // Mown stripes.
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    for (let x = Math.floor(b.minX / 120) * 120; x < b.maxX; x += 240) ctx.fillRect(x, b.minY, 120, H);
+  }
+  if (bio.dirt) {
+    // Puddles and dumped rubbish.
+    for (let k = 0; k < (W * H) / 60000 * bio.dirt; k++) {
+      ctx.fillStyle = rng() < 0.5 ? 'rgba(10,10,12,0.35)' : 'rgba(80,70,50,0.3)';
+      ctx.beginPath(); ctx.ellipse(b.minX + rng() * W, b.minY + rng() * H, 10 + rng() * 40, 6 + rng() * 20, rng() * 3, 0, TAU); ctx.fill();
     }
   }
   for (const d of track.decos) drawDeco(ctx, bio.deco, d);
@@ -398,6 +463,40 @@ function renderTrack(track) {
       const lat = (rng() * 2 - 1) * hw * 0.95;
       ctx.fillRect(pts[i].x + track.nx[i] * lat, pts[i].y + track.ny[i] * lat, 3, 3);
     }
+  }
+
+  if (bio.dirt) {
+    // A filthy surface: oil stains, patched potholes, cracks and old rubber.
+    for (let i = 0; i < track.N; i++) {
+      const p = pts[i], nx = track.nx[i], ny = track.ny[i];
+      if (rng() < 0.12 * bio.dirt) {
+        const lat = (rng() * 2 - 1) * hw * 0.8;
+        ctx.fillStyle = `rgba(8,8,10,${0.25 + rng() * 0.3})`;
+        ctx.beginPath(); ctx.ellipse(p.x + nx * lat, p.y + ny * lat, 6 + rng() * 18, 4 + rng() * 10, rng() * 3, 0, TAU); ctx.fill();
+      }
+      if (rng() < 0.03 * bio.dirt) {
+        const lat = (rng() * 2 - 1) * hw * 0.6;
+        ctx.save();
+        ctx.translate(p.x + nx * lat, p.y + ny * lat);
+        ctx.rotate(track.ang[i] + (rng() - 0.5) * 0.5);
+        ctx.fillStyle = rng() < 0.5 ? 'rgba(20,20,22,0.6)' : 'rgba(90,86,78,0.35)';
+        ctx.fillRect(-15 - rng() * 20, -8 - rng() * 8, 30 + rng() * 40, 16 + rng() * 14);
+        ctx.restore();
+      }
+      if (rng() < 0.06 * bio.dirt) {
+        let x = p.x + nx * (rng() * 2 - 1) * hw, y = p.y + ny * (rng() * 2 - 1) * hw;
+        ctx.strokeStyle = 'rgba(10,10,10,0.55)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(x, y);
+        for (let k = 0; k < 5; k++) { x += (rng() - 0.5) * 24; y += (rng() - 0.5) * 24; ctx.lineTo(x, y); }
+        ctx.stroke();
+      }
+    }
+    // Old rubber laid down along the racing line.
+    ctx.strokeStyle = 'rgba(10,10,10,0.12)';
+    ctx.lineWidth = hw * 0.5;
+    tracePath(ctx, pts);
+    ctx.stroke();
   }
 
   ctx.setLineDash([30, 36]);

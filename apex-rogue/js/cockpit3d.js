@@ -132,6 +132,18 @@ class CockpitView {
 
   buildWorld() {
     const tr = this.race.track, bio = tr.biome, b = tr.bounds, scene = this.scene;
+    this.env = null;
+    if (bio.env) {
+      // Gunner-campaign act: sky, megastructures, themed walls and scenery come from js/env.js.
+      this.env = Env.build(scene, tr, bio.env);
+      this.atmos = this.env.atmos;
+      this.hemi = this.env.hemi;
+      this.sun = this.env.sun;
+      this.buildGround();
+      this.buildHazards();
+      this.buildGantry(this.env.th.banner, this.env.th.luxury ? '#d9b24a' : '#4a4038');
+      return;
+    }
     const sky = bio.night ? '#07060f' : bio === BIOMES.tundra ? '#cfdbe6' : bio === BIOMES.desert ? '#f2d9a8' : '#a9d3f0';
     // Retro: murky, close fog that swallows the track a few hundred metres out.
     const murk = bio.night ? '#05040a' : new THREE.Color(sky).lerp(new THREE.Color('#5a5648'), 0.55).getStyle();
@@ -147,7 +159,16 @@ class CockpitView {
     sun.position.set(400, 900, 250);
     scene.add(sun);
 
-    // Ground: reuse the pre-rendered 2D track canvas as one big texture.
+    this.buildGround();
+    this.buildWalls();
+    this.buildDecos();
+    this.buildHazards();
+    this.buildGantry({ text: 'APEX ROGUE', bg: '#111', fg: '#ffd23f', edge: '#ffffff' }, bio.night ? '#2ff3ff' : '#333', bio.night);
+  }
+
+  // Ground: reuse the pre-rendered 2D track canvas as one big texture.
+  buildGround() {
+    const tr = this.race.track, bio = tr.biome, b = tr.bounds, scene = this.scene;
     const W = b.maxX - b.minX, H = b.maxY - b.minY;
     const tex = new THREE.CanvasTexture(tr.canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -161,26 +182,29 @@ class CockpitView {
     ground.position.set(b.minX + W / 2, 0, b.minY + H / 2);
     scene.add(ground);
     const far = new THREE.Mesh(new THREE.PlaneGeometry(40000, 40000).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: bio.bg }));
-    far.position.y = -0.5;
+    far.position.y = -1.5;
+    // No PS1 vertex snapping on these two giant flat planes: snapping their far-off corners tilts the
+    // interpolated depth enough for the backdrop to poke through the track at low angles.
+    ground.material.userData.psxSnap = true;
+    far.material.userData.psxSnap = true;
     scene.add(far);
+  }
 
-    this.buildWalls();
-    this.buildDecos();
-    this.buildHazards();
-
-    // Start/finish gantry.
+  // Start/finish gantry with a banner across the track.
+  buildGantry(bn, postColor, glow) {
+    const tr = this.race.track, scene = this.scene;
     const i0 = 0, p0 = tr.pts[i0], n0x = tr.nx[i0], n0y = tr.ny[i0];
     const span = tr.hw + tr.runoff;
-    const gm = m3(bio.night ? '#2ff3ff' : '#333', bio.night ? { emissive: '#2ff3ff', emissiveIntensity: 0.6 } : {});
+    const gm = m3(postColor, glow ? { emissive: postColor, emissiveIntensity: 0.6 } : {});
     for (const s of [-1, 1]) {
       const post = box(3, 40, 3, gm, p0.x + n0x * span * s, 20, p0.y + n0y * span * s);
       scene.add(post);
     }
     const bannerTex = canvasTex(512, 64);
     const bc = bannerTex.ctx;
-    bc.fillStyle = '#111'; bc.fillRect(0, 0, 512, 64);
-    for (let k = 0; k < 32; k++) { bc.fillStyle = k % 2 ? '#fff' : '#111'; bc.fillRect(k * 16, 0, 16, 8); bc.fillRect(k * 16 + (k % 2 ? -16 : 16), 56, 16, 8); }
-    bc.fillStyle = '#ffd23f'; bc.font = 'bold 36px system-ui'; bc.textAlign = 'center'; bc.fillText('APEX ROGUE', 256, 46);
+    bc.fillStyle = bn.bg; bc.fillRect(0, 0, 512, 64);
+    for (let k = 0; k < 32; k++) { bc.fillStyle = k % 2 ? bn.edge : bn.bg; bc.fillRect(k * 16, 0, 16, 8); bc.fillRect(k * 16 + (k % 2 ? -16 : 16), 56, 16, 8); }
+    bc.fillStyle = bn.fg; bc.font = 'bold 34px Impact, system-ui'; bc.textAlign = 'center'; bc.fillText(bn.text, 256, 46, 490);
     const banner = new THREE.Mesh(new THREE.BoxGeometry(span * 2, 9, 1.5), new THREE.MeshBasicMaterial({ map: bannerTex.tex }));
     banner.position.set(p0.x, 38, p0.y);
     banner.rotation.y = -tr.ang[i0] + Math.PI / 2;
@@ -559,6 +583,8 @@ class CockpitView {
       if (o.userData.axis === 'nod') o.rotation.set(0, 0, clamp(-this.bob.b * 1.2 + Math.sin(performance.now() * 0.009) * 0.04, -0.7, 0.7));
       else o.rotation.set(clamp(this.bob.a * k, -0.6, 0.6), 0, clamp(this.bob.b * k, -0.6, 0.6));
     }
+
+    if (this.env) Env.update(this.env, dt, t, p.x, p.y, this.scene);
 
     // Cars
     this.playerGroup.position.set(p.x, 0, p.y);

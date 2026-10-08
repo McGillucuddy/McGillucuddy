@@ -4,12 +4,20 @@
 // Press V to swap between the first-person cockpit and the top-down view.
 
 const LOOK_SENS = 0.0024;
-const PROTO_BIOMES = ['meadow', 'desert', 'tundra', 'neon'];
+// The run climbs out of the undercity: two acts under the megastructures, then two racing for the rich.
+const ACTS = [
+  { biome: 'undercity', name: 'Act I', title: 'The Undercity' },
+  { biome: 'stacks', name: 'Act II', title: 'The Stacks' },
+  { biome: 'terraces', name: 'Act III', title: 'The Gilded Terraces' },
+  { biome: 'crown', name: 'Act IV', title: 'The Crown' },
+];
+const RACES_PER_ACT = 3;
+const RUN_RACES = ACTS.length * RACES_PER_ACT;
+const actOf = (race) => ACTS[Math.min(ACTS.length - 1, Math.floor(race / RACES_PER_ACT))];
 
 const Proto = {
   view: 'cockpit',
   state: 'garage',
-  biomeIdx: 0,
   mouse: { x: 0, y: 0, down: false, pressed: false },
   cam: { x: 0, y: 0, zoom: 1 },
   locked: false,
@@ -176,6 +184,10 @@ const Proto = {
   afterResults() {
     const b = this.build;
     if (b.strikes >= STRIKES_TO_LOSE) { this.gameOver(false); return; }
+    if (b.race >= RUN_RACES) {
+      if (this.race.player.place === 1) { this.victory(); return; }
+      b.race = RUN_RACES - 1; // lost the final: take the strike and run it again
+    }
     this.state = 'reward';
     this.rewards = rollRewards(b, this.runRng, 3);
     this.showReward();
@@ -189,6 +201,17 @@ const Proto = {
       <h1>Escape failed</h1>
       <p>Three strikes. The warden sends you back to your cell after ${b.race} race${b.race === 1 ? '' : 's'} and ${b.wins} win${b.wins === 1 ? '' : 's'}.</p>
       <p class="muted">Trinkets collected: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
+      <button class="btn primary big" data-action="new-run">New run ▶</button>
+    </div>`);
+  },
+
+  victory() {
+    const b = this.build;
+    this.state = 'over';
+    this.setUI(`<div class="screen end won">
+      <h1>Free</h1>
+      <p>You won the Crown. The warden signs your release in front of the whole upper city, smiling for the cameras.</p>
+      <p class="muted">${b.race} races · ${b.wins} wins · trinkets: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
       <button class="btn primary big" data-action="new-run">New run ▶</button>
     </div>`);
   },
@@ -210,9 +233,8 @@ const Proto = {
     if (this.locked) document.exitPointerLock();
     const b = this.build;
     this.seed = (this.runRng() * 2 ** 31) | 0;
-    this.biomeIdx = (this.biomeIdx + 1) % PROTO_BIOMES.length;
     const rng = mulberry32(this.seed);
-    const biome = PROTO_BIOMES[this.biomeIdx];
+    const biome = actOf(b.race).biome;
     const track = generateTrack(this.seed, biome, { hazardLevel: 1 });
     renderTrack(track);
     const base = CARS.comet;
@@ -226,7 +248,7 @@ const Proto = {
     driver.rammer = b.chip === 'hothead';
     driver.insideMul = b.chip === 'daredevil' ? 2.2 : 1;
     this.race = new Race({
-      track, laps: 3, playerCar: player, rng, qualify: 3,
+      track, laps: b.race === RUN_RACES - 1 ? 4 : 3, playerCar: player, rng, qualify: b.race === RUN_RACES - 1 ? 1 : 3,
       opponents: buildOpponents(rng, Math.min(7, 1 + b.race), { aiBonus: 0 }, false),
       playerGrid: 4,
     });
@@ -298,7 +320,8 @@ const Proto = {
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
       <h1>Race Briefing</h1>
-      <p class="muted">Race ${this.build.race + 1} · ${this.build.scrap} scrap · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
+      <p class="act-line">${actOf(this.build.race).name} · ${actOf(this.build.race).title} · race ${this.build.race % RACES_PER_ACT + 1} of ${RACES_PER_ACT}${this.build.race === RUN_RACES - 1 ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
+      <p class="muted">Race ${this.build.race + 1} of ${RUN_RACES} · ${this.build.scrap} scrap · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
       <div class="brief-grid">
         <div class="panel"><canvas id="preview" width="320" height="320"></canvas>
           <h2>${bio.name}</h2><p class="muted">${bio.blurb}</p>
@@ -393,7 +416,8 @@ const Proto = {
     this.setUI(`<div class="screen garage proto-garage">
       <div class="topbar">
         <div><b>THE GARAGE</b></div>
-        <div>Race <b>${b.race + 1}</b></div>
+        <div>${actOf(b.race).name} · <b>${actOf(b.race).title}</b></div>
+        <div>Race <b>${b.race + 1}</b>/${RUN_RACES}</div>
         <div class="cash">${b.scrap} scrap</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
