@@ -26,6 +26,11 @@ One race, with a switchable first-person cockpit view and top-down view (press `
   grenade crate you can count, fuzzy dice and a bobblehead (trinkets) reacting to the car's movement,
   and a windshield that cracks when you take hits from the front.
 - A briefing screen before the race shows the track layout, hazards and which rivals are armed.
+- The cabin is a prisoner's death-race car: a rusty welded roll cage, a shackle and chain bolted to
+  the floor, "INMATE 4471" stencilled on the glovebox, tally marks scratched into the dash, a taped
+  polaroid on the visor, torn and duct-taped seats, a taped-over dash crack, exposed wiring, riveted
+  steel plate on the door, wire mesh over the rear windows, junk on the floor, a grimy windshield
+  with wiper arcs, and dust drifting in the light of a flickering bulb.
 - **Retro look** (on by default, toggle with `F`): a PS1-era style in the spirit of *Fears to Fathom*.
   The world renders at 240p with hard pixels, 15-bit colour and ordered dithering, film grain and a
   vignette; vertices snap to the low-res grid so geometry wobbles; every model gets grimy 64×64 pixel

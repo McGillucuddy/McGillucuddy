@@ -71,7 +71,7 @@ const DECALS = {
   get(kind, arg) {
     const key = kind + (arg || '');
     if (this.cache[key]) return this.cache[key];
-    const size = { plate: [64, 24], grille: [64, 24], gauges: [64, 32], vent: [32, 16] }[kind] || [32, 32];
+    const size = { plate: [64, 24], grille: [64, 24], gauges: [64, 32], vent: [32, 16], stencil: [48, 28] }[kind] || [32, 32];
     const c = document.createElement('canvas');
     [c.width, c.height] = size;
     const g = c.getContext('2d');
@@ -136,6 +136,72 @@ const DECALS = {
       g.fillStyle = '#c9a227'; g.fillRect(0, 0, W, H);
       g.fillStyle = '#1a1a1a';
       for (let k = -W; k < W * 2; k += 10) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k + 5, 0); g.lineTo(k + 5 - H, H); g.lineTo(k - H, H); g.fill(); }
+    } else if (kind === 'tape') {
+      g.fillStyle = '#8d8f8c'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(255,255,255,0.15)';
+      for (let y = 1; y < H; y += 3) g.fillRect(0, y, W, 1);
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      for (let k = 0; k < 6; k++) g.fillRect(Math.random() * W, 0, 1, H); // creases
+      g.fillStyle = '#6e706d'; g.fillRect(0, 0, 2, H); g.fillRect(W - 2, 0, 2, H); // torn ends
+    } else if (kind === 'foam') {
+      g.fillStyle = '#3b2a24'; g.fillRect(0, 0, W, H);
+      g.fillStyle = '#c9a85a';
+      g.beginPath(); g.moveTo(8, 4); g.lineTo(24, 6); g.lineTo(27, 18); g.lineTo(20, 28); g.lineTo(9, 25); g.lineTo(4, 14); g.fill();
+      g.fillStyle = 'rgba(120,90,30,0.6)';
+      for (let k = 0; k < 30; k++) g.fillRect(6 + Math.random() * 20, 6 + Math.random() * 20, 1, 1);
+      g.strokeStyle = '#1e1512'; g.lineWidth = 1; g.stroke();
+    } else if (kind === 'tally') {
+      g.fillStyle = '#1b1d22'; g.fillRect(0, 0, W, H);
+      g.strokeStyle = 'rgba(200,195,180,0.85)'; g.lineWidth = 1;
+      const n = arg ? +arg : 7;
+      for (let k = 0; k < n; k++) {
+        const grp = Math.floor(k / 5), i = k % 5, x = 3 + grp * 14 + i * 2.5;
+        g.beginPath();
+        if (i === 4) { g.moveTo(x - 11, 22); g.lineTo(x + 1, 8); } else { g.moveTo(x, 7); g.lineTo(x + 0.5, 24); }
+        g.stroke();
+      }
+    } else if (kind === 'stencil') {
+      g.fillStyle = '#1b1d22'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(220,210,180,0.85)'; g.font = 'bold 9px monospace'; g.textAlign = 'center';
+      g.fillText('INMATE', W / 2, 10); g.font = 'bold 11px monospace'; g.fillText(arg || '4471', W / 2, 22);
+      g.fillStyle = 'rgba(27,29,34,0.9)';
+      for (let k = 0; k < 6; k++) g.fillRect(Math.random() * W, Math.random() * H, 2, 1); // flaked paint
+    } else if (kind === 'photo') {
+      g.fillStyle = '#e9e4d6'; g.fillRect(0, 0, W, H);
+      g.fillStyle = '#6b7f8c'; g.fillRect(3, 3, W - 6, H - 10);
+      g.fillStyle = '#3d4a2c'; g.fillRect(3, 16, W - 6, 9);
+      g.fillStyle = '#d9b48a'; g.beginPath(); g.arc(12, 13, 4, 0, TAU); g.fill(); g.fillRect(9, 16, 6, 7);
+      g.fillStyle = '#c99a7a'; g.beginPath(); g.arc(21, 14, 3, 0, TAU); g.fill(); g.fillRect(19, 16, 5, 6);
+      g.fillStyle = 'rgba(120,90,40,0.25)'; g.fillRect(0, 0, W, H); // yellowed
+    } else if (kind === 'mesh') {
+      g.clearRect(0, 0, W, H);
+      g.strokeStyle = '#5c5a52'; g.lineWidth = 1;
+      for (let k = -W; k < W * 2; k += 6) {
+        g.beginPath(); g.moveTo(k, 0); g.lineTo(k + H, H); g.stroke();
+        g.beginPath(); g.moveTo(k + H, 0); g.lineTo(k, H); g.stroke();
+      }
+    } else if (kind === 'rust') {
+      g.fillStyle = '#5a5850'; g.fillRect(0, 0, W, H);
+      for (let k = 0; k < 40; k++) {
+        g.fillStyle = `rgba(${110 + Math.random() * 50},${50 + Math.random() * 25},20,${0.3 + Math.random() * 0.5})`;
+        g.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random() * 4, 1 + Math.random() * 3);
+      }
+      g.fillStyle = 'rgba(0,0,0,0.25)';
+      for (let k = 0; k < 8; k++) g.fillRect(Math.random() * W, Math.random() * H, 1, 3 + Math.random() * 6);
+    } else if (kind === 'paper') {
+      g.fillStyle = '#d8d3c2'; g.fillRect(0, 0, W, H);
+      g.strokeStyle = 'rgba(0,0,0,0.25)';
+      for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(Math.random() * W, Math.random() * H); g.lineTo(Math.random() * W, Math.random() * H); g.stroke(); }
+      g.fillStyle = 'rgba(60,60,80,0.5)';
+      for (let y = 6; y < H - 4; y += 4) g.fillRect(4, y, 10 + Math.random() * 14, 1);
+    } else if (kind === 'crackdash') {
+      g.fillStyle = '#1b1d22'; g.fillRect(0, 0, W, H);
+      g.strokeStyle = 'rgba(0,0,0,0.9)'; g.lineWidth = 1;
+      let x = 2, y = 18;
+      g.beginPath(); g.moveTo(x, y);
+      for (let k = 0; k < 8; k++) { x += 3 + Math.random() * 2; y += (Math.random() - 0.5) * 6; g.lineTo(x, y); }
+      g.stroke();
+      g.strokeStyle = 'rgba(120,120,110,0.4)'; g.beginPath(); g.moveTo(2, 19); g.lineTo(x, y + 1); g.stroke();
     }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -721,6 +787,120 @@ const Models = {
     const ws = new THREE.Mesh(new THREE.PlaneGeometry(17, 8.4), new THREE.MeshBasicMaterial({ color: '#9fd3ff', transparent: true, opacity: 0.06, depthWrite: false, side: THREE.DoubleSide }));
     refs.windshield = ws;
     const u = new THREE.Vector3(0, 0, 1), v = new THREE.Vector3(-5.9, 6, 0).normalize(), n = new THREE.Vector3().crossVectors(u, v);
+    // ---- Grit: this is a prisoner's death-race car ----
+    const rusty = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.7 });
+    const tapeMat = DECALS.mat('tape', { roughness: 1 });
+    // Welded roll cage: A-pillar tubes, main hoop behind the seats, diagonal brace, door X-bars.
+    const tube = (a, b) => {
+      const va = new THREE.Vector3(...a), vb = new THREE.Vector3(...b);
+      const t = LP.cyl(0.32, 0.32, va.distanceTo(vb), 6, rusty);
+      t.position.copy(va).add(vb).multiplyScalar(0.5);
+      t.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), vb.clone().sub(va).normalize());
+      I.add(t);
+    };
+    for (const s of [-1, 1]) {
+      tube([7.6, 6.8, 7.7 * s], [2.4, 12.1, 7.4 * s]); // along A-pillars
+      tube([-5.6, 1.6, 7.6 * s], [-5.6, 12.1, 7.4 * s]); // main hoop legs
+      tube([2.4, 12.1, 7.4 * s], [-5.6, 12.1, 7.4 * s]); // roof rails
+      tube([-5.6, 12.1, 7.4 * s], [-15.5, 7.4, 7.2 * s]); // rear stays
+    }
+    tube([-5.6, 12.1, -7.4], [-5.6, 12.1, 7.4]); // hoop top
+    tube([-5.8, 12.0, 7.2], [-5.8, 2.0, -7.2]); // diagonal brace behind the seats
+    tube([5.5, 6.2, -8.3], [-4.6, 3.2, -8.3]); // driver door X-bars (behind the gun rack)
+    tube([5.5, 3.2, -8.3], [-4.6, 6.2, -8.3]);
+    // Weld blobs where tubes meet.
+    for (const p of [[-5.6, 12.1, 7.4], [-5.6, 12.1, -7.4], [2.4, 12.1, 7.4], [2.4, 12.1, -7.4]]) I.add(LP.mesh(new THREE.IcosahedronGeometry(0.5, 0), rusty, ...p));
+
+    // Bolted steel plate over the passenger door card, with rivets.
+    I.add(box(9, 2.8, 0.3, DECALS.mat('rust', { metalness: 0.5, roughness: 0.8 }), -0.6, 3.2, 8.25));
+    for (const x of [-4.6, -1.8, 1, 3.6]) for (const y of [2.2, 4.2]) I.add(LP.mesh(new THREE.IcosahedronGeometry(0.16, 0), rusty, x, y, 8.05));
+
+    // Wire mesh over the rear side windows.
+    for (const s of [-1, 1]) {
+      const mesh = LP.mesh(new THREE.PlaneGeometry(6.5, 4.6), LP.mat('#ffffff', { map: DECALS.get('mesh'), transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, metalness: 0.5 }), -9.6, 9.4, 8.35 * s);
+      I.add(mesh);
+    }
+
+    // Shackle bolted to the floor by your feet: ring, chain, ankle cuff.
+    const iron = LP.mat('#3a3b3c', { metalness: 0.7, roughness: 0.5 });
+    I.add(LP.cyl(0.6, 0.7, 0.3, 6, iron, 2.8, 1.85, 6.4)); // floor plate in your footwell
+    const links = 9;
+    for (let k = 0; k < links; k++) {
+      const t = k / (links - 1);
+      const link = LP.mesh(new THREE.TorusGeometry(0.28, 0.08, 4, 6), iron, lerp(2.8, 1.2, t), 2.0 + Math.sin(t * Math.PI) * 0.25, lerp(6.4, 4.5, t));
+      link.rotation.set(k % 2 ? Math.PI / 2 : 0, 0.6, 0);
+      I.add(link);
+    }
+    const cuff = LP.mesh(new THREE.TorusGeometry(0.75, 0.2, 4, 8), iron, 0.9, 2.2, 4.2);
+    cuff.rotation.set(Math.PI / 2, 0, 0.3);
+    I.add(cuff);
+
+    // Dash: crack taped over, scratched tally marks, inmate stencil on the glovebox.
+    const crack = LP.mesh(new THREE.PlaneGeometry(4, 2), LP.mat('#ffffff', { map: DECALS.get('crackdash') }), 6.6, 6.82, 3.2);
+    crack.rotation.x = -Math.PI / 2;
+    crack.rotation.z = 0.2;
+    I.add(crack);
+    for (const r of [0.6, -0.6]) {
+      const strip = box(0.4, 0.06, 2.4, tapeMat, 6.6, 6.86, 3.2);
+      strip.rotation.y = r;
+      I.add(strip);
+    }
+    const tally = LP.mesh(new THREE.PlaneGeometry(3, 1.5), LP.mat('#ffffff', { map: DECALS.get('tally', '7') }), 5.2, 6.84, 6.4);
+    tally.rotation.x = -Math.PI / 2;
+    tally.rotation.z = Math.PI / 2;
+    I.add(tally);
+    refs.tally = tally;
+    const sten = LP.mesh(new THREE.PlaneGeometry(3.0, 1.2), LP.mat('#ffffff', { map: DECALS.get('stencil', '4471') }), 3.9, 4.6, 4.6);
+    sten.rotation.y = -Math.PI / 2;
+    I.add(sten);
+
+    // Polaroid taped to the passenger sun visor.
+    const photo = LP.mesh(new THREE.PlaneGeometry(1.4, 1.4), LP.mat('#ffffff', { map: DECALS.get('photo') }), 1.0, 11.6, 4.4);
+    photo.rotation.set(0, -Math.PI / 2, 0.08);
+    photo.rotateX(-0.25);
+    I.add(photo);
+    I.add(box(0.05, 0.25, 0.9, tapeMat, 0.98, 12.3, 4.4));
+
+    // Torn seats: exposed foam and duct-tape patches.
+    const foam = LP.mesh(new THREE.PlaneGeometry(2.4, 2.4), LP.mat('#ffffff', { map: DECALS.get('foam') }), -3.75, 8.6, -4.5);
+    foam.rotation.y = Math.PI / 2;
+    foam.rotation.x = -0.12;
+    I.add(foam);
+    for (const r of [0.7, -0.7]) {
+      const p = box(0.06, 0.45, 2.6, tapeMat, -3.7, 6.4, -4.5);
+      p.rotation.x = r;
+      I.add(p);
+    }
+    I.add(box(2.6, 0.06, 0.5, tapeMat, -1.4, 4.45, 4.5)); // your cushion, taped
+    I.add(box(0.5, 0.06, 2.4, tapeMat, -2.2, 4.45, 4.0));
+
+    // Tape wrapped around the steering wheel rim.
+    for (const a of [0.4, 2.2, 4.0]) wheel.add(box(0.9, 0.75, 0.75, tapeMat, Math.cos(a) * 2.6, Math.sin(a) * 2.6, 0).rotateZ(a + Math.PI / 2));
+
+    // Exposed wiring drooping from under the dash.
+    const wireCols = ['#b52b1e', '#d9b52c', '#1a1a1a', '#2b5fae'];
+    wireCols.forEach((c, k) => {
+      const z = 2.4 + k * 0.35, wm = LP.mat(c);
+      I.add(LP.beam([4.0, 3.9, z], [3.0, 2.6 - k * 0.15, z + 0.4], 0.09, wm));
+      I.add(LP.beam([3.0, 2.6 - k * 0.15, z + 0.4], [3.7, 1.9, z + 0.9], 0.09, wm));
+    });
+    I.add(box(0.5, 0.5, 0.5, tapeMat, 3.05, 2.55, 3.3)); // taped splice
+
+    // Floor junk: crushed cans, crumpled paper, a cigarette pack.
+    const can = LP.mat('#b8b0a0', { metalness: 0.7, roughness: 0.4 });
+    for (const [x, z, r] of [[2.4, -6.4, 0.4], [-6.2, 5.6, 1.6], [-6.4, -2.0, 2.4]]) {
+      const c = LP.cyl(0.42, 0.42, 1.2, 6, can, x, 2.05, z);
+      c.scale.set(1, 0.55, 1);
+      c.rotation.set(Math.PI / 2, r, 0.3);
+      I.add(c);
+    }
+    for (const [x, z, s] of [[-6.6, 1.0, 0.9], [3.4, 7.2, 0.7], [-6.0, -6.4, 1.1]]) {
+      I.add(LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(0.5 * s, 0), 0.25, Math.round(x * 10)), LP.mat('#ffffff', { map: DECALS.get('paper') }), x, 2.0, z));
+    }
+    const pack = box(0.9, 0.35, 0.55, LP.mat('#c23a2a'), 2.8, 5.7, -0.9);
+    pack.rotation.y = 0.5;
+    I.add(pack);
+
     // ---- Real-car details ----
     const fabric = m3('#2f2b28'), plastic = m3('#26282b');
     I.add(box(30, 0.3, 16.6, m3('#24211e'), -1, 1.6, 0)); // carpet

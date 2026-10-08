@@ -319,7 +319,16 @@ class CockpitView {
     this.status = canvasTex(256, 128);
     live(refs.status, this.status.tex);
     this.cracks = canvasTex(512, 256);
+    this.grimeWindshield();
     live(refs.windshield, this.cracks.tex, { opacity: 1 });
+
+    // Dust drifting in the bulb light.
+    const N = 40, pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) { pos[i * 3] = randRange(Math.random, -12, 4); pos[i * 3 + 1] = randRange(Math.random, 4, 12); pos[i * 3 + 2] = randRange(Math.random, -7, 7); }
+    const dg = new THREE.BufferGeometry();
+    dg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.dust = new THREE.Points(dg, new THREE.PointsMaterial({ color: '#d8c8a0', size: 0.045, transparent: true, opacity: 0.4, depthWrite: false }));
+    I.add(this.dust);
 
     // The dangling cabin bulb flickers (see update()).
     const cabinLight = (this.cabinLight = new THREE.PointLight(0xffd9a0, 0.7, 60, 1.2));
@@ -394,6 +403,46 @@ class CockpitView {
       const d = Math.hypot(ev.x - p.x, ev.y - p.y);
       if (d < 250) this.shake = Math.max(this.shake, (1 - d / 250) * 0.8);
     }
+  }
+
+  // Permanent grime: dirt packed into the corners and along the bottom, two wiper arcs wiped clean.
+  grimeWindshield() {
+    const c = this.cracks.ctx, W = 512, H = 256;
+    c.clearRect(0, 0, W, H);
+    const grad = c.createLinearGradient(0, H, 0, H * 0.45);
+    grad.addColorStop(0, 'rgba(70,58,40,0.55)');
+    grad.addColorStop(1, 'rgba(70,58,40,0)');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, W, H);
+    for (const cx of [0, W]) {
+      const rg = c.createRadialGradient(cx, 0, 10, cx, 0, 200);
+      rg.addColorStop(0, 'rgba(60,50,35,0.6)');
+      rg.addColorStop(1, 'rgba(60,50,35,0)');
+      c.fillStyle = rg;
+      c.fillRect(0, 0, W, H);
+    }
+    for (let k = 0; k < 260; k++) {
+      c.fillStyle = `rgba(${80 + Math.random() * 40},${65 + Math.random() * 30},45,${0.15 + Math.random() * 0.3})`;
+      c.fillRect(Math.random() * W, H * 0.4 + Math.random() * H * 0.6, 1 + Math.random() * 3, 1 + Math.random() * 3);
+    }
+    // Wipers cleaned two fans; erase the grime there.
+    c.save();
+    c.globalCompositeOperation = 'destination-out';
+    for (const px of [150, 360]) {
+      c.fillStyle = 'rgba(0,0,0,0.75)';
+      c.beginPath();
+      c.moveTo(px, H);
+      c.arc(px, H, 190, Math.PI * 1.08, Math.PI * 1.92);
+      c.closePath();
+      c.fill();
+    }
+    c.restore();
+    // Bug splats.
+    for (let k = 0; k < 7; k++) {
+      c.fillStyle = 'rgba(40,35,20,0.6)';
+      c.beginPath(); c.arc(Math.random() * W, Math.random() * H * 0.6, 1.5 + Math.random() * 2, 0, TAU); c.fill();
+    }
+    this.cracks.tex.needsUpdate = true;
   }
 
   crack(rel) {
@@ -490,6 +539,15 @@ class CockpitView {
     this.cabinLight.intensity = (PSX.enabled ? 1.6 : 0.8) * this.flicker;
     this.bulb.userData.glass.material.emissiveIntensity = 1.4 * this.flicker;
     this.bulb.rotation.z = clamp(this.dice.a, -1, 1) * 0.6;
+    const dp = this.dust.geometry.attributes.position;
+    for (let i = 0; i < dp.count; i++) {
+      let y = dp.getY(i) + Math.sin(t * 0.7 + i) * dt * 0.3 - dt * 0.08;
+      if (y < 3.5) y = 12;
+      dp.setY(i, y);
+      dp.setX(i, dp.getX(i) + Math.cos(t * 0.5 + i * 1.3) * dt * 0.2);
+    }
+    dp.needsUpdate = true;
+    this.dust.material.opacity = 0.4 * this.flicker;
     this.bulb.rotation.x = clamp(this.dice.b, -1, 1) * 0.6;
 
     // Interior props reflect combat state.
