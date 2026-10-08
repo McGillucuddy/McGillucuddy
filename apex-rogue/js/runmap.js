@@ -4,8 +4,8 @@
 // Commissary: the only place the black market is open. Event: a choice with a trade-off. Mechanic: free repairs.
 // Boss: beat the named rival to move up to the next act (fail = strike, and you face them again).
 
-const MAP_ROWS = 4; // rows of choices before the boss
-const MAP_COLS = 3;
+const MAP_ROWS = 7; // rows of choices before the boss
+const MAP_COLS = 4;
 
 const NODE_TYPES_RUN = {
   race: { label: 'Race', icon: '🏁', desc: 'A regular race. Finish top 3 or take a strike.' },
@@ -13,6 +13,8 @@ const NODE_TYPES_RUN = {
   shop: { label: 'Commissary', icon: '🛒', desc: 'The black market opens its hatch. Buy parts, guns, mods.' },
   event: { label: 'Event', icon: '?', desc: 'Something happens in the cell block. Choose how to handle it.' },
   repair: { label: 'Mechanic', icon: '🔧', desc: 'An old lifer patches your car up for free.' },
+  bounty: { label: 'Bounty race', icon: '💰', desc: 'The warden has put a price on one rival. Wreck them for a fat bounty (still finish top 3).' },
+  stash: { label: 'Stash', icon: '📦', desc: 'A hidden contraband stash. Take one of two items, no race needed.' },
   boss: { label: 'Qualifier', icon: '👑', desc: 'Beat the boss to move up.' },
 };
 
@@ -99,6 +101,46 @@ const EVENTS = [
       } },
     ],
   },
+  {
+    id: 'fight', title: 'Fight in the yard',
+    text: 'A driver from the last race corners you by the showers. He wants his scrap back.',
+    options: [
+      { label: 'Pay him off (60 scrap)', desc: 'Walk away clean.', ok: (b) => b.scrap >= 60, apply: (b) => { b.scrap -= 60; return 'He counts it twice and lets you pass.'; } },
+      { label: 'Stand your ground', desc: '50/50: win +80 scrap and +20 rep, or lose 30 hull to sabotage.', apply: (b, r, rng) => {
+        if (rng() < 0.5) { b.scrap += 80; r.flags.repGain = (r.flags.repGain || 0) + 20; return 'He goes down hard. His friends pay you to keep quiet (+80 scrap).'; }
+        b.hull = Math.max(1, b.hull - 30); return 'You win the fight, but someone loosens your wheel nuts that night (-30 hull).';
+      } },
+    ],
+  },
+  {
+    id: 'trade', title: 'Cell-block trade',
+    text: 'Your cellmate eyes your stash. "I could use that. I have something you could use."',
+    options: [
+      { label: 'Swap a loose mod for 2 grenades', desc: 'Lose your newest loose mod.', ok: (b) => b.stash.mods.length > 0, apply: (b) => { const m = b.stash.mods.pop(); b.grenades = Math.min(MAX_GRENADES, b.grenades + 2); return `Your ${MODS[m].name} for two grenades.`; } },
+      { label: 'Sell him scrap metal (+70 scrap)', desc: 'Your armour loses 20 durability.', apply: (b) => { b.scrap += 70; b.parts.armour.dur = Math.max(0, b.parts.armour.dur - 20); return 'He pays in cash. Your armour is a little thinner.'; } },
+      { label: 'No deal', desc: 'Nothing happens.', apply: () => 'He shrugs and goes back to his bunk.' },
+    ],
+  },
+  {
+    id: 'sponsor', title: 'A sponsor calls',
+    text: 'A voice from the upper city wants a logo on your bonnet. They pay up front, but they expect results.',
+    options: [
+      { label: 'Sign (+200 scrap)', desc: 'Finish outside the top 3 next race and they take 200 back.', apply: (b, r) => { b.scrap += 200; r.flags.sponsor = 200; return 'A gaudy decal goes on your bonnet. Do not lose.'; } },
+      { label: 'Hang up', desc: 'Nothing happens.', apply: () => 'Rich people call back. Eventually.' },
+    ],
+  },
+  {
+    id: 'ammo', title: 'The armoury door',
+    text: 'The armoury door is propped open with a mop. Nobody is watching.',
+    options: [
+      { label: 'Grab what you can', desc: 'Refill ammo on every rack weapon, but take a strike if caught (25%).', apply: (b, r, rng) => {
+        for (const w of b.rack) w.reserve += WEAPONS[w.id].pack;
+        if (rng() < 0.25) { b.strikes++; return 'Arms full of ammo, you walk straight into a guard. A strike goes on your record.'; }
+        return 'You fill your pockets and slip out unseen.';
+      } },
+      { label: 'Keep walking', desc: 'Nothing happens.', apply: () => 'Not worth the risk.' },
+    ],
+  },
 ];
 
 // Build an act's route sheet: rows of 2-3 nodes with crossing-free links to the row above, then the boss.
@@ -106,10 +148,11 @@ function genActMap(rng, act) {
   const rows = [];
   let id = 0;
   for (let r = 0; r < MAP_ROWS; r++) {
-    const cols = shuffle(rng, [0, 1, 2]).slice(0, r === 0 ? 2 + (rng() < 0.5 ? 1 : 0) : 2 + (rng() < 0.6 ? 1 : 0)).sort();
+    const n = r === 0 ? 3 : 2 + Math.floor(rng() * 3); // 2-4 stops per row (3 to start)
+    const cols = shuffle(rng, [0, 1, 2, 3]).slice(0, n).sort();
     rows.push(cols.map((c) => ({ id: id++, row: r, col: c, type: 'race', next: [], done: false })));
   }
-  // Links: each node goes to the nearest nodes in the next row (|dc| <= 1), every node reachable.
+  // Links: each node goes to the nearby nodes in the next row (|dc| <= 1), every node reachable.
   for (let r = 0; r < MAP_ROWS - 1; r++) {
     const A = rows[r], B = rows[r + 1];
     for (const a of A) {
@@ -118,28 +161,35 @@ function genActMap(rng, act) {
     }
     for (const bn of B) if (!A.some((a) => a.next.includes(bn.id))) A.reduce((best, a) => (Math.abs(a.col - bn.col) < Math.abs(best.col - bn.col) ? a : best)).next.push(bn.id);
   }
-  const boss = { id: id++, row: MAP_ROWS, col: 1, type: 'boss', next: [], done: false };
+  const boss = { id: id++, row: MAP_ROWS, col: 1.5, type: 'boss', next: [], done: false };
   for (const n of rows[MAP_ROWS - 1]) n.next.push(boss.id);
-  // Types: the first row is always racing; later rows mix in elites, the commissary, events and the mechanic.
-  const pool = ['race', 'race', 'race', 'elite', 'event', 'event', 'shop', 'repair'];
-  for (let r = 1; r < MAP_ROWS; r++) for (const n of rows[r]) n.type = pool[Math.floor(rng() * pool.length)];
+  // Types: row 0 is always racing; the middle mixes everything; the last row before the boss is a chance to
+  // patch up and shop (mechanics and commissaries weighted up).
+  const mid = ['race', 'race', 'race', 'race', 'elite', 'elite', 'event', 'event', 'shop', 'repair', 'bounty', 'stash'];
+  const late = ['race', 'repair', 'repair', 'shop', 'shop', 'event', 'elite'];
+  for (let r = 1; r < MAP_ROWS; r++) for (const n of rows[r]) { const pool = r === MAP_ROWS - 1 ? late : mid; n.type = pool[Math.floor(rng() * pool.length)]; }
+  if (rows[1]) for (const n of rows[1]) if (n.type === 'elite') n.type = 'race'; // no elites straight away
   const all = rows.flat();
   const ensure = (type, rowsOk) => {
     if (all.some((n) => n.type === type)) return;
     const cands = all.filter((n) => rowsOk.includes(n.row) && n.type === 'race');
     if (cands.length) cands[Math.floor(rng() * cands.length)].type = type;
   };
-  ensure('shop', [2, 3]);
-  ensure('elite', [1, 2, 3]);
-  ensure('event', [1, 2]);
-  // Keep it varied but fair: at most two elites and three events per act.
+  ensure('shop', [2, 3, 4]);
+  ensure('elite', [3, 4, 5]);
+  ensure('event', [1, 2, 3]);
+  ensure('repair', [4, 5, 6]);
+  ensure('bounty', [2, 3, 4, 5]);
+  // Keep it varied but fair.
   const cap = (type, max) => { const l = all.filter((n) => n.type === type); while (l.length > max) l.splice(Math.floor(rng() * l.length), 1)[0].type = 'race'; };
-  cap('elite', 2);
-  cap('event', 3);
-  cap('repair', 1);
-  cap('shop', 2);
-  // Never two commissaries side by side in a row.
-  for (const row of rows) { let seen = false; for (const n of row) { if (n.type === 'shop') { if (seen) n.type = 'race'; seen = true; } } }
+  cap('elite', 4);
+  cap('event', 5);
+  cap('repair', 3);
+  cap('shop', 3);
+  cap('bounty', 3);
+  cap('stash', 2);
+  // Never two commissaries or two mechanics side by side in a row.
+  for (const row of rows) for (const t of ['shop', 'repair']) { let seen = false; for (const n of row) { if (n.type === t) { if (seen) n.type = 'race'; seen = true; } } }
   return { act, rows, boss, nodes: [...all, boss], seed: Math.floor(rng() * 1e9) };
 }
 

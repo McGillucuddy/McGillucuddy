@@ -555,7 +555,7 @@ class CockpitView {
       if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) continue;
       const d = Math.hypot(car.x - this.race.player.x, car.y - this.race.player.y);
       if (d > 1100) continue;
-      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${car.place}. ${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}${car.markT > 0 ? ' ◎' : ''}`, armed: !!car.weapon, d });
+      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${car.place}. ${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}${car.markT > 0 ? ' ◎' : ''}${car.bounty ? ' $' : ''}`, armed: !!car.weapon, d });
     }
     return out;
   }
@@ -601,7 +601,7 @@ class CockpitView {
       m.bodyMat.emissive.set(flash ? '#ffffff' : car.burnT > 0 && Math.random() < 0.6 ? '#ff4a0a' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
       m.bodyMat.emissiveIntensity = flash ? 0.8 : 1;
       m.sprite.visible = !PSX.enabled;
-      const label = `${car.place}. ${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}`;
+      const label = `${car.place}. ${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}${car.bounty ? ' $' : ''}`;
       if (label !== m.lastTag) {
         const c = m.tag.ctx;
         c.clearRect(0, 0, 256, 64);

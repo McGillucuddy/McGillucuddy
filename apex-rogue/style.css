@@ -398,3 +398,9 @@ body.proto #ui { z-index: 2; }
 .stop:not(.can):not(.done) { opacity: .8; }
 .route-info { min-height: 38px; font: 14px/1.35 system-ui, sans-serif; color: #2a2620; background: rgba(255,250,235,.6); border: 1px dashed rgba(60,50,40,.35); border-radius: 4px; padding: 6px 10px; }
 .route.sheet .route-map { height: calc(100% - 140px); }
+
+/* Longer acts: the sheet scrolls; the info line sticks to the bottom of the clipboard */
+.route.sheet .route-map { height: 900px; min-height: 0; }
+.route.sheet .route-info { position: sticky; bottom: -14px; z-index: 2; background: #f3ebd3; box-shadow: 0 -6px 10px rgba(232,221,192,.9); }
+.stop.t-bounty { --c: #8a6a10; background: #f7efd2; }
+.stop.t-stash { --c: #5a4a3a; background: #efe6d8; }

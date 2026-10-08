@@ -53,7 +53,7 @@ The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor
 
 ### Acts and environments (prototype)
 
-A run is four acts. Each act is a **route sheet**: four rows of branching stops and then a boss qualifier.
+A run is four acts. Each act is a **route sheet**: seven rows of 2-4 branching stops (the last row before the boss leans towards repairs and shopping) and then a boss qualifier.
 You pick your path through it (`js/runmap.js`):
 
 | Stop | What happens |
@@ -61,8 +61,10 @@ You pick your path through it (`js/runmap.js`):
 | 🏁 Race | Finish top 3 or take a strike. Make the cut to pick a reward. |
 | ☠ Elite race | Sharper drivers, an extra rocket gunner and gunner, 1.4x placing pay. A trinket is guaranteed among the rewards. |
 | 🛒 Commissary | The only place the black market is open. Repairs, ammo and spares are always available in the garage. |
-| ? Event | A cell-block scene with a choice: bribe a guard to wipe a strike, run contraband, bet on yourself, dig through the scrapyard, snitch on the gunners, visit the chapel. |
+| ? Event | A cell-block scene with a choice: bribe a guard to wipe a strike, run contraband, bet on yourself, dig through the scrapyard, snitch on the gunners, visit the chapel, a yard fight, a cell-block trade, a sponsor deal, raid the armoury. |
 | 🔧 Mechanic | A free full repair. |
+| 💰 Bounty race | A regular race with a price on one rival's head: wreck them for 150+ scrap. |
+| 📦 Stash | Pick one of two items, no race. |
 | 👑 Qualifier | A named boss in a signature car. Finish ahead of them to move up an act (+250 scrap and a **driver trait**: Getaway Veteran, Ghost or Showboat, each with a downside). Lose, and you take a strike and must face them again. |
 
 The bosses are The Turnkey (an armoured prison van with a gunner), Smokestack Sal (a mine layer), Augustin Vale (a gold

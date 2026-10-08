@@ -282,6 +282,9 @@ const Proto = {
     </div>`);
     const cv = document.getElementById('routeCanvas');
     if (cv) RouteSheet.draw(cv, map, reach, run.cur);
+    // Open the sheet scrolled to where you are on it.
+    const sheet = document.querySelector('.route.sheet'), first = document.querySelector('.stop.can');
+    if (sheet && first) sheet.scrollTop = Math.max(0, first.offsetTop + first.parentElement.offsetTop - sheet.clientHeight * 0.55);
     const mug = document.getElementById('mugshot');
     if (mug) RouteSheet.mugshot(mug, boss);
     // Hovering a stop explains it in the line under the map.
@@ -298,7 +301,16 @@ const Proto = {
     const run = this.run, node = mapNode(run.map, id);
     if (!node || !reachableNodes(run.map, run.cur).includes(id)) return;
     run.node = node;
-    if (node.type === 'race' || node.type === 'elite' || node.type === 'boss') { this.newRace(node); return; }
+    if (['race', 'elite', 'boss', 'bounty'].includes(node.type)) { this.newRace(node); return; }
+    if (node.type === 'stash') {
+      node.done = true;
+      run.cur = node.id;
+      this.state = 'reward';
+      this.rewardKind = 'stash';
+      this.rewards = rollRewards(this.build, this.runRng, 2);
+      this.showReward();
+      return;
+    }
     // Non-race stops resolve here, then you move on.
     node.done = true;
     run.cur = node.id;
@@ -375,6 +387,7 @@ const Proto = {
   },
 
   afterReward() {
+    if (this.rewardKind === 'stash') { this.rewardKind = null; this.showMap(); return; }
     if (this.pendingAct != null) {
       const next = this.pendingAct;
       this.pendingAct = null;
@@ -429,7 +442,7 @@ const Proto = {
     const rng = mulberry32(this.seed);
     const biome = this.act.biome;
     const boss = node.type === 'boss' ? BOSSES[run.act] : null;
-    const d = run.act * 4 + Math.min(node.row, 3) + (node.type === 'elite' ? 2 : 0);
+    const d = run.act * 4 + Math.round((Math.min(node.row, MAP_ROWS - 1) * 3) / (MAP_ROWS - 1)) + (node.type === 'elite' ? 2 : 0);
     const track = generateTrack(this.seed, biome, { hazardLevel: 1 });
     renderTrack(track);
     const base = CARS.comet;
@@ -451,6 +464,12 @@ const Proto = {
     });
     this.race.node = node;
     this.race.boss = boss;
+    if (node.type === 'bounty') {
+      // A price on one rival's head: the strongest non-boss driver on the grid.
+      const field = this.race.cars.filter((c) => c !== player && !c.isBoss);
+      this.race.bountyCar = field[field.length - 1];
+      this.race.bountyCar.bounty = 150 + run.act * 50;
+    }
     if (boss) {
       const bc = this.race.cars.find((c) => c.isBoss);
       bc.stats.maxHp = bc.hp = boss.hp;
@@ -533,10 +552,10 @@ const Proto = {
     const race = this.race, tr = race.track, bio = tr.biome;
     const rivals = race.cars.filter((c) => c !== race.player).map((c) => `
       <div class="rival"><span class="dot" style="background:${c.color}"></span>${c.name}
-      ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
+      ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.bounty ? `<em class="tag yellow">💰 Bounty ${c.bounty}</em>` : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
-      <h1>${race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : 'Race briefing'}</h1>
+      <h1>${race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : race.node.type === 'bounty' ? 'Bounty race' : 'Race briefing'}</h1>
       <p class="act-line">Act ${ROMAN[this.run.act]} · ${this.act.title}${race.boss && race.boss.mustWin ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
       ${race.boss ? `<p class="boss-line"><b>${race.boss.title}.</b> ${race.boss.desc}</p>` : race.node.type === 'elite' ? '<p class="boss-line">Sharper drivers and more guns on the grid. A trinket waits for you if you make the cut.</p>' : ''}
       <p class="muted">${this.build.scrap} scrap · hull ${Math.ceil(this.build.hull)}/${this.build.maxHull} · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
@@ -588,9 +607,12 @@ const Proto = {
     const show = b.chip === 'showboat' ? 1.5 : 1;
     const placePay = Math.round((PLACE_SCRAP[p.place - 1] || 0) * show * (race.node.type === 'elite' ? 1.4 : 1)), wreckPay = Math.round((s.wrecked * WRECK_SCRAP + s.scrapBonus) * show);
     const bossPay = boss && ok ? 250 : 0;
+    const bc = race.bountyCar, bountyPay = bc && bc.hp <= 0 ? bc.bounty : 0;
+    let sponsorCut = 0;
+    if (run.flags.sponsor) { if (!ok) sponsorCut = Math.min(b.scrap + placePay + wreckPay, run.flags.sponsor); run.flags.sponsor = 0; }
     let betPay = 0;
     if (run.flags.bet) { if (p.place <= 2) betPay = run.flags.bet; run.flags.bet = 0; }
-    b.scrap += placePay + wreckPay + bossPay + betPay;
+    b.scrap += placePay + wreckPay + bossPay + betPay + bountyPay - sponsorCut;
     b.hull = Math.max(1, Math.round(p.hp));
     b.race++;
     if (p.place === 1) b.wins++;
@@ -618,6 +640,8 @@ const Proto = {
           <div><span>Placing pay</span><b>${placePay} scrap</b></div>
           <div><span>Wreck bounties</span><b>${wreckPay} scrap</b></div>
           ${bossPay ? `<div><span>Qualifier purse</span><b>${bossPay} scrap</b></div>` : ''}
+          ${bc ? `<div><span>Bounty on ${bc.name}</span><b>${bountyPay ? bountyPay + ' scrap' : 'not wrecked'}</b></div>` : ''}
+          ${sponsorCut ? `<div><span>Sponsor takes back</span><b class="bad">-${sponsorCut} scrap</b></div>` : ''}
           ${betPay ? `<div><span>Bet winnings</span><b>${betPay} scrap</b></div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
           <div><span>Reputation</span><b>+${repGain} (${this.cos.rep})</b></div>
@@ -803,7 +827,7 @@ const Proto = {
       ${c.type === 'part' ? `<div class="up-desc"><i>Replaces your ${PARTS[this.build.parts[PARTS[c.id].slot].id].name}</i></div>` : ''}
     </button>`).join('');
     this.setUI(`<div class="screen reward">
-      <h1>${this.rewardKind === 'boss' ? 'Driver trait' : this.rewardKind === 'elite' ? 'Elite spoils' : 'Pick your cut'}</h1>
+      <h1>${this.rewardKind === 'boss' ? 'Driver trait' : this.rewardKind === 'elite' ? 'Elite spoils' : this.rewardKind === 'stash' ? 'Contraband stash' : 'Pick your cut'}</h1>
       <p class="muted">${this.rewardKind === 'boss' ? `${BOSSES[this.run.act].name} is beaten. Your driver picked up a habit or two: choose one (it fills your chip slot, swappable in the garage).` : this.build.scrap + ' scrap · choose one'}</p>
       <div class="cards">${cards}</div>
       <button class="btn ghost" data-action="skip-reward">Skip (+50 scrap)</button>

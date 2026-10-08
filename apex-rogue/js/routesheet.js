@@ -14,7 +14,7 @@ const HAND = '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
 
 const RouteSheet = {
   // Stop position on the sheet, in 0..1 of the map area (start at the bottom, boss at the top).
-  pos(n) { return { x: 0.18 + n.col * 0.32, y: 0.88 - (n.row / MAP_ROWS) * 0.76 }; },
+  pos(n) { return { x: 0.13 + n.col * 0.247, y: 0.95 - (n.row / MAP_ROWS) * 0.89 }; },
 
   draw(canvas, map, reach, curId) {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -65,7 +65,7 @@ const RouteSheet = {
     g.lineWidth = 7;
     g.lineCap = 'round';
     for (const f of [0.02, 0.98]) { g.beginPath(); g.moveTo(f * W, 0); g.lineTo(f * W + (rng() - 0.5) * 20, H); g.stroke(); }
-    for (const f of [0.25, 0.75]) { g.beginPath(); g.moveTo(0, f * H); g.lineTo(W, f * H + (rng() - 0.5) * 20); g.stroke(); }
+    for (const f of [0.18, 0.5, 0.82]) { g.beginPath(); g.moveTo(0, f * H); g.lineTo(W, f * H + (rng() - 0.5) * 20); g.stroke(); }
   },
 
   // A wobbly pencil sketch of the district: streets, hatched blocks, landmarks and handwritten labels.
