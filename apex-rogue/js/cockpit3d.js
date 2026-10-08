@@ -414,30 +414,49 @@ class CockpitView {
   // Webbing rack on the passenger door: your spare ammo as real objects, one row per rack weapon.
   // Items vanish as the reserve drops and come back when you buy more.
   buildAmmoRack(I, b) {
-    // A board bolted to the front of the passenger door on a bracket, angled to face your seat.
-    const R = new THREE.Group(), rows = b.rack.length, W = 3.9, rowH = 1.12;
+    // A board in the front footwell on the passenger door, between the seat and the dash, tipped up and turned
+    // a little towards your seat. Kept clear of the door card, window sill, dash and seat cushion.
+    const R = new THREE.Group(), rows = b.rack.length, W = 1.95, rowH = 1.1;
     const webbing = LP.mat('#3a3a2a', { roughness: 1 }), board = LP.mat('#6a6448', { roughness: 0.95 }), steel = LP.mat('#8a8f94', { metalness: 0.8 }); // olive canvas so dark mags stand out
     const H = rows * rowH + 0.3;
-    R.add(LP.box(W + 0.4, H, 0.12, board, 0, 0, -0.06));
-    for (const x of [-W / 2 - 0.05, W / 2 + 0.05]) for (const y of [H / 2 - 0.15, -H / 2 + 0.15]) R.add(LP.cyl(0.07, 0.07, 0.06, 10, steel, x, y, 0.02).rotateX(Math.PI / 2));
-    R.add(LP.box(0.3, 0.3, 1.2, steel, W / 2 - 0.4, 0, -0.6)); // bracket back to the door
-    const PER = { smg: { n: 6, gap: 0.62 }, shotgun: { n: 12, gap: 0.31 }, rocket: { n: 4, gap: 0.92 }, flare: { n: 8, gap: 0.46 } };
+    R.add(LP.box(W + 0.2, H, 0.1, board, 0, 0, -0.05));
+    for (const x of [-W / 2, W / 2]) for (const y of [H / 2 - 0.12, -H / 2 + 0.12]) R.add(LP.cyl(0.06, 0.06, 0.05, 10, steel, x, y, 0.02).rotateX(Math.PI / 2));
+    for (const x of [-W / 2 + 0.3, W / 2 - 0.3]) R.add(LP.box(0.16, 0.16, 0.2, steel, x, H / 2 - 0.1, -0.15)); // brackets to the door
+    // Per weapon: how many items, items per line, spacing, scale. Shells and flares sit in two lines.
+    const PER = { smg: [5, 5, 0.38, 0.68], shotgun: [10, 5, 0.38, 0.85], rocket: [4, 4, 0.46, 0.4], flare: [8, 4, 0.46, 0.8] };
     this.ammoRack = b.rack.map((w, r) => {
-      const cfg = PER[w.id], yc = H / 2 - 0.15 - rowH / 2 - r * rowH;
+      const [n, per, gap, sc] = PER[w.id], yc = H / 2 - 0.15 - rowH / 2 - r * rowH, lines = Math.ceil(n / per);
       const items = [];
-      for (let k = 0; k < cfg.n; k++) {
+      for (let k = 0; k < n; k++) {
+        const col = k % per, line = Math.floor(k / per);
         const it = Models.ammoItem(w.id);
-        it.position.set(-W / 2 + 0.3 + k * cfg.gap, yc, 0.2);
-        if (w.id === 'rocket') it.scale.setScalar(0.85);
+        it.position.set(-((per - 1) * gap) / 2 + col * gap, yc + (lines > 1 ? (0.5 - line) * 0.52 : 0), 0.16);
+        it.scale.setScalar(sc * (lines > 1 ? 0.8 : 1));
         R.add(it);
         items.push(it);
       }
-      R.add(LP.box(W + 0.1, 0.18, 0.08, webbing, 0, yc - 0.12, 0.38)); // elastic loop
-      return { items, wi: r, per: w.id === 'smg' ? weaponStats(w).mag : 1, shown: -1 };
+      R.add(LP.box(W, 0.12, 0.06, webbing, 0, yc - (lines > 1 ? 0.5 : 0.2), 0.3)); // elastic loop
+      return { items, wi: r, per: w.id === 'smg' ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
     });
-    R.position.set(2.6, 4.7, 7.5);
-    R.lookAt(EYE.x, EYE.y, EYE.z);
+    const tilt = 0.45, yaw = 0.2, h2 = H / 2;
+    const cy = 5.85 - h2 * Math.cos(tilt), cz = 7.85 - h2 * Math.sin(tilt) * Math.cos(yaw) - 0.28;
+    R.rotation.order = 'YXZ';
+    R.rotation.set(-tilt, Math.PI + yaw, 0); // face into the cabin, turned towards your seat, tipped up
+    R.position.set(2.74, Math.max(cy, 2.0 + h2 * Math.cos(tilt)), cz);
     I.add(R);
+    this.ammoRackGroup = R;
+  }
+
+  // Where the next round on the rack is, in the held gun's own coordinates (for the reloading hand).
+  rackPoint(g, wi) {
+    const row = this.ammoRack && this.ammoRack.find((r) => r.wi === wi);
+    if (!row) return null;
+    const it = row.items[clamp((row.shown > 0 ? row.shown : 1) - 1, 0, row.items.length - 1)];
+    const v = it.getWorldPosition(new THREE.Vector3()).applyMatrix4(this.camera.matrixWorldInverse);
+    v.z = Math.min(v.z, -2.5); // never behind you
+    v.x = clamp(v.x, -5, 8); v.y = clamp(v.y, -9, 2);
+    g.updateMatrixWorld(true);
+    return g.worldToLocal(this.vmCamera.localToWorld(v));
   }
 
   buildViewmodels() {
@@ -715,7 +734,7 @@ class CockpitView {
     const b = combat.build;
     for (let k = 0; k < 3; k++) this.nadeMeshes[k].visible = k < b.grenades;
     for (const row of this.ammoRack) {
-      const w = b.rack[row.wi], n = Math.min(row.items.length, Math.ceil(w.reserve / row.per));
+      const w = b.rack[row.wi], n = Math.max(0, Math.min(row.items.length, Math.ceil(w.reserve / row.per)) - (row.hide || 0));
       if (n !== row.shown) { row.items.forEach((it, k) => { it.visible = k < n; }); row.shown = n; }
     }
     this.rackGuns.forEach((m, i) => {
@@ -879,7 +898,7 @@ class CockpitView {
     if (st.reloadT > 0) {
       if (!A.rl || A.rl.wi !== combat.wi) A.rl = { wi: combat.wi, dur: st.reloadT };
       rp = 1 - st.reloadT / A.rl.dur;
-    } else A.rl = null;
+    } else { A.rl = null; if (this.ammoRack) for (const r of this.ammoRack) r.hide = 0; }
     // Inertia: the gun lags behind the car's lurches and your mouse movements, on springs.
     const dyaw = wrapAngle(this.look.yaw - A.lastYaw), dpitch = this.look.pitch - A.lastPitch;
     A.lastYaw = this.look.yaw; A.lastPitch = this.look.pitch;
@@ -908,51 +927,65 @@ class CockpitView {
       if (rp >= 0) {
         const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp));
         if (id === 'smg') {
-          // Tilt, drop the mag, the support hand fetches a fresh one, slaps it in, racks the bolt.
-          ry = 0.95 * tilt; rz = 0.25 * tilt; rx = 0.1 * tilt; ox = -1.4 * tilt; oy = 2.6 * tilt; oz = 0.2 * tilt; // turned side-on so you see the mag well
-          const out = ss(0.15, 0.32, rp), back = ss(0.55, 0.8, rp);
-          const drop = out * (1 - back);
-          u.mag.position.y -= drop * 7;
-          u.mag.position.x -= drop * 1.5;
-          const hand = hands[1];
-          if (hand) {
-            const away = ss(0.12, 0.3, rp) * (1 - ss(0.8, 0.92, rp));
-            // Down and away to the mag pouch, then cupping the mag base on the way back up.
-            const toMag = ss(0.55, 0.8, rp);
-            hand.position.lerp(new THREE.Vector3(-0.4, -5.2, 0.4), away * (1 - toMag) + 0);
-            if (toMag > 0 && rp < 0.92) hand.position.lerp(new THREE.Vector3(-0.2, -5.0 + 2.3 * toMag - drop * 7, 0.3), Math.min(1, toMag * 1.5) * (1 - ss(0.8, 0.92, rp)));
+          // Side-on: the empty mag drops out, the support hand reaches to the rack, brings a fresh mag back
+          // under the well, slaps it in and racks the bolt.
+          ry = 0.95 * tilt; rz = 0.25 * tilt; rx = 0.1 * tilt; ox = -1.4 * tilt; oy = 2.6 * tilt; oz = 0.2 * tilt;
+          const hand = hands[1], R = this.rackPoint(g, i), well = new THREE.Vector3(0, -4.3, 0.3);
+          const drop = ss(0.15, 0.32, rp);
+          if (hand && R) {
+            const rest = hand.userData.rest.pos;
+            if (rp < 0.3) hand.position.lerpVectors(rest, R, ss(0.12, 0.3, rp));
+            else if (rp < 0.45) hand.position.copy(R);
+            else if (rp < 0.72) hand.position.lerpVectors(R, well, ss(0.45, 0.72, rp));
+            else if (rp < 0.8) hand.position.copy(well).add(new THREE.Vector3(0, 0.3 * ss(0.72, 0.78, rp), 0));
+            else hand.position.lerpVectors(well, rest, ss(0.8, 0.92, rp));
+            hand.rotation.x = hand.userData.rest.rot + 0.6 * bump(0.12, 0.8, rp);
+            this.ammoRack[i] && (this.ammoRack[i].hide = rp > 0.38 && rp < 0.8 ? 1 : 0);
           }
-          oz += bump(0.78, 0.84, rp) * 0.4; // slap
+          if (rp < 0.32) { u.mag.position.y -= drop * 7; u.mag.position.x -= drop * 1.5; u.mag.visible = drop < 0.98; }
+          else if (rp < 0.4) u.mag.visible = false;
+          else if (rp < 0.78 && hand) { u.mag.visible = true; u.mag.position.copy(hand.position).add(new THREE.Vector3(0, 1.6, -0.1)); }
+          oz += bump(0.76, 0.82, rp) * 0.4; // slap
           rx -= bump(0.86, 0.94, rp) * 0.12; // bolt rack kick
         } else if (id === 'shotgun') {
-          // Roll it over, thumb four shells into the loading port, rack the pump.
+          // Roll it over; four trips to the rack, each shell thumbed into the loading port; rack the pump.
           rz = -0.7 * tilt; ry = 0.25 * tilt; oy = 0.9 * tilt; ox = -0.5 * tilt;
-          const hand = hands[1], port = new THREE.Vector3(0, -0.9, -0.3);
+          const hand = hands[1], port = new THREE.Vector3(0, -0.9, -0.3), R = this.rackPoint(g, i);
           const load = ss(0.12, 0.2, rp) * (1 - ss(0.78, 0.85, rp));
           if (hand) {
-            const cyc = clamp((rp - 0.2) / 0.58, 0, 1) * 4, f = cyc % 1, inLoad = rp > 0.2 && rp < 0.78;
-            const reach = inLoad ? Math.sin(Math.PI * f) : 0; // down to the shell carrier and back
             hand.position.lerp(port, load);
-            hand.position.y -= reach * 2.4;
             hand.rotation.x = hand.userData.rest.rot + load * 0.5;
-            if (u.shell && inLoad && f > 0.15 && f < 0.85) {
-              u.shell.visible = true;
-              u.shell.position.set(hand.position.x, hand.position.y + 0.55, hand.position.z + (f > 0.5 ? (0.85 - f) * 1.2 : 0));
-            }
+            const inLoad = rp > 0.2 && rp < 0.78, f = (clamp((rp - 0.2) / 0.58, 0, 0.999) * 4) % 1;
+            if (inLoad && R) {
+              // 0-.4 out to the rack, .4-.5 grab, .5-.9 back to the port, .9-1 push the shell in.
+              if (f < 0.4) hand.position.lerpVectors(port, R, ss(0, 0.4, f));
+              else if (f < 0.5) hand.position.copy(R);
+              else if (f < 0.9) hand.position.lerpVectors(R, port, ss(0.5, 0.9, f));
+              else hand.position.copy(port).add(new THREE.Vector3(0, 0.25 * bump(0.9, 1, f), 0));
+              if (u.shell && f > 0.45) { u.shell.visible = true; u.shell.position.copy(hand.position).add(new THREE.Vector3(0, 0.55, 0)); }
+              if (this.ammoRack[i]) this.ammoRack[i].hide = f > 0.45 ? 1 : 0;
+            } else if (this.ammoRack[i]) this.ammoRack[i].hide = 0;
           }
           const rack = bump(0.86, 0.98, rp);
           u.pump.position.z = rack * 1.2;
           if (hand && rp > 0.85) hand.position.z += rack * 1.2;
         } else if (id === 'rocket') {
-          // Lower the launcher, the front hand fetches a warhead and slides it into the muzzle.
+          // The front hand reaches to the rack, lifts a warhead off it and slides it into the muzzle.
           ry = 0.55 * tilt; rx = -0.1 * tilt; ox = -1.2 * tilt; oy = 0.3 * tilt; oz = 1.5 * tilt; rz = 0.15 * tilt;
-          const hand = hands[1];
-          const fetch = ss(0.12, 0.35, rp) * (1 - ss(0.45, 0.6, rp));
-          const slide = ss(0.45, 0.82, rp);
-          if (u.tip) { u.tip.visible = rp > 0.45; u.tip.position.z = -6.3 - (1 - slide) * 6; }
-          if (hand) {
-            hand.position.lerp(new THREE.Vector3(-0.8, -4.5, -3), fetch);
-            if (rp > 0.45 && rp < 0.9) hand.position.lerp(new THREE.Vector3(0, -0.9, u.tip.position.z + 1.2), 1 - ss(0.82, 0.9, rp));
+          const hand = hands[1], R = this.rackPoint(g, i), front = new THREE.Vector3(0, -0.6, -6.5);
+          if (hand && R) {
+            const rest = hand.userData.rest.pos;
+            if (rp < 0.32) hand.position.lerpVectors(rest, R, ss(0.12, 0.32, rp));
+            else if (rp < 0.4) hand.position.copy(R);
+            else if (rp < 0.6) hand.position.lerpVectors(R, front, ss(0.4, 0.6, rp));
+            else if (rp < 0.82) hand.position.lerpVectors(front, new THREE.Vector3(0, -0.6, -5.3), ss(0.6, 0.82, rp));
+            else hand.position.lerpVectors(new THREE.Vector3(0, -0.6, -5.3), rest, ss(0.82, 0.95, rp));
+            if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.36 && rp < 0.82 ? 1 : 0;
+            if (u.tip) {
+              u.tip.visible = rp > 0.36;
+              if (rp < 0.6) u.tip.position.copy(hand.position).add(new THREE.Vector3(0, 0.9, -1.0));
+              else u.tip.position.lerpVectors(new THREE.Vector3(0, 0.3, -7.5), new THREE.Vector3(0, 0, -6.3), ss(0.6, 0.82, rp));
+            }
           }
         } else if (id === 'flare') {
           // Break the barrel open, the spent case flips out, a fresh one goes in, snap it shut.
@@ -961,7 +994,13 @@ class CockpitView {
           u.barrelGrp.rotation.x = -0.75 * open;
           if (u.shell) {
             if (rp > 0.25 && rp < 0.45) { const f = (rp - 0.25) / 0.2; u.shell.visible = true; u.shell.position.set(0.3 * f, 0.4 + 2.5 * f, 0.6 + 2 * f); u.shell.rotation.set(Math.PI / 2 + f * 3, 0, f * 2); }
-            else if (rp > 0.5 && rp < 0.75) { const f = ss(0.5, 0.72, rp); u.shell.visible = true; u.shell.position.set(0, 0.3 - (1 - f) * 2.5, 0.2 + (1 - f) * 1.5); u.shell.rotation.set(Math.PI / 2, 0, 0); }
+            else if (rp > 0.5 && rp < 0.75) {
+              const f = ss(0.5, 0.72, rp), R = this.rackPoint(g, i) || new THREE.Vector3(0, -2.5, 1.5);
+              u.shell.visible = true;
+              u.shell.position.lerpVectors(R, new THREE.Vector3(0, 0.3, 0.2), f);
+              u.shell.rotation.set(Math.PI / 2, 0, 0);
+            }
+            if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.5 && rp < 0.75 ? 1 : 0;
           }
           oz += bump(0.86, 0.92, rp) * 0.3; // snap shut
         }
