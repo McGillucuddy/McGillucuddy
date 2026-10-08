@@ -140,6 +140,8 @@ class Combat {
   refreshStats() {
     const p = this.player, s = buildStats(this.build);
     s.aLat = p.stats.aLat;
+    s.top *= this.pace || 1; // the gunner races run at a slower global pace
+    s.accel *= this.pace || 1;
     if (this.race.track.biomeKey === 'tundra') s.grip *= s.iceGrip;
     p.stats = s;
     p.nitro = Math.min(p.nitro, s.nitroCap);

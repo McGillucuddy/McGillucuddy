@@ -12,6 +12,8 @@ const ACTS = [
   { biome: 'crown', name: 'Act IV', title: 'The Crown' },
 ];
 const RACES_PER_ACT = 3;
+const PACE = 0.72; // global speed scale for the gunner races
+const RIVAL_SKILL = (race) => Math.min(1.08, 0.97 + race * 0.008);
 const RUN_RACES = ACTS.length * RACES_PER_ACT;
 const ACT_LUXURY = (race) => Math.floor(race / RACES_PER_ACT) >= 2;
 const actOf = (race) => ACTS[Math.min(ACTS.length - 1, Math.floor(race / RACES_PER_ACT))];
@@ -43,8 +45,23 @@ const Proto = {
     this.tip.className = 'garage-tip hidden';
     document.body.appendChild(this.tip);
     // The garage is clickable: stations, goods on the counter, the door out.
+    // Drag to look round the cabin / orbit the car; a click without dragging uses whatever is under the mouse.
+    this.previewCanvas.addEventListener('mousedown', (e) => { this.gDrag = { x: e.clientX, y: e.clientY, moved: false }; });
+    window.addEventListener('mouseup', () => { setTimeout(() => { this.gDrag = null; }, 0); });
+    this.previewCanvas.addEventListener('wheel', (e) => { if (this.preview) this.preview.zoom(e.deltaY); }, { passive: true });
     this.previewCanvas.addEventListener('mousemove', (e) => {
       if (!this.preview || this.state !== 'garage') return;
+      if (this.gDrag && e.buttons & 1) {
+        const dx = e.clientX - this.gDrag.x, dy = e.clientY - this.gDrag.y;
+        if (Math.abs(dx) + Math.abs(dy) > 3) this.gDrag.moved = true;
+        if (this.gDrag.moved) {
+          this.preview.drag(dx, dy);
+          this.gDrag.x = e.clientX; this.gDrag.y = e.clientY;
+          this.previewCanvas.style.cursor = 'grabbing';
+          this.tip.classList.add('hidden');
+          return;
+        }
+      }
       const r = this.previewCanvas.getBoundingClientRect();
       const hot = this.preview.pick(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       this.previewCanvas.style.cursor = hot ? 'pointer' : 'default';
@@ -53,7 +70,7 @@ const Proto = {
     });
     this.previewCanvas.addEventListener('mouseleave', () => this.tip.classList.add('hidden'));
     this.previewCanvas.addEventListener('click', () => {
-      if (!this.preview || this.state !== 'garage' || !this.preview.hover) return;
+      if (!this.preview || this.state !== 'garage' || !this.preview.hover || (this.gDrag && this.gDrag.moved)) return;
       const h = this.preview.hover.userData.hot;
       Sound.resume();
       Sound.play({ type: 'click' });
@@ -272,11 +289,20 @@ const Proto = {
     driver.insideMul = b.chip === 'daredevil' ? 2.2 : 1;
     this.race = new Race({
       track, laps: b.race === RUN_RACES - 1 ? 4 : 3, playerCar: player, rng, qualify: b.race === RUN_RACES - 1 ? 1 : 3,
-      opponents: buildOpponents(rng, Math.min(7, 1 + b.race), { aiBonus: 0 }, false),
+      // Rivals as quick as a stock car from the start, getting sharper every race.
+      opponents: buildOpponents(rng, 0, { aiBonus: 0 }, false).map((o) => Object.assign(o, { skill: RIVAL_SKILL(b.race) + randRange(rng, -0.035, 0.03) })),
       playerGrid: 4,
     });
+    // Slower, heavier racing than the arcade game: more time to aim, and a pack that stays together.
+    for (const c of this.race.cars) {
+      c.stats.top *= PACE;
+      c.stats.accel *= PACE;
+      c.stats.aLat *= 0.88;
+    }
+    this.race.rubberCfg = { dist: 2200, ahead: -0.07, behind: 0.12 };
     this.driver = driver;
     this.combat = new Combat(this.race, { driver, build: b });
+    this.combat.pace = PACE;
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
     if (this.cockpit) this.cockpit.load(this.race, this.combat, carLook(this.cos));
     this.cam.x = player.x;
@@ -585,7 +611,8 @@ const Proto = {
       .map(([id, n]) => `<button class="opt ${sub === id ? 'on' : ''}" data-action="paint-tab" data-arg="${id}">${n}</button>`).join('');
     return `<div class="paint-opts">
       <p class="muted small">Your look is kept between runs. Reputation: <b>${c.rep}</b>${next ? ` · next unlock: ${next.name} at ${next.rep}` : ' · everything unlocked'}</p>
-      <div class="opts subtabs">${tabs}</div>${pages[sub]()}</div>`;
+      <div class="opts subtabs">${tabs}</div>
+      ${sub === 'cabin' || sub === 'body' || sub === 'kit' ? `<p class="muted small">Drag the view to look ${sub === 'cabin' ? 'round the cabin' : 'round the car'}${sub === 'cabin' ? '' : ' · scroll to zoom'}.</p>` : ''}${pages[sub]()}</div>`;
   },
 
   showReward() {

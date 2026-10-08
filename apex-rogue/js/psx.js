@@ -4,7 +4,7 @@
 
 const PSX = {
   enabled: true,
-  height: 240, // internal render height in pixels
+  height: 480, // internal render height in pixels (240 was authentic but too blurry upscaled)
   snapRes: { value: new THREE.Vector2(320, 240) },
   snapOn: { value: 1 },
   texCache: {},
@@ -30,7 +30,7 @@ const PSX = {
     // Base noise
     for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
       const base = { metal: 0.86, paint: 0.9, vinyl: 0.8, plastic: 0.85, rubber: 0.75, wood: 0.8, foliage: 0.8, stone: 0.8, glass: 0.9 }[kind] || 0.85;
-      px(x, y, shade(base + (rng() - 0.5) * 0.07));
+      px(x, y, shade(base + (rng() - 0.5) * 0.03));
     }
     if (kind === 'paint' || kind === 'metal') {
       // Scratches, dirt streaks running down, rust spots.
@@ -70,9 +70,9 @@ const PSX = {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    // Crisp texels up close, mipmapped far away so distant surfaces don't sparkle into grain.
     tex.magFilter = THREE.NearestFilter;
-    tex.minFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.name = 'psx_' + kind;
     this.texCache[kind] = tex;
     return tex;
@@ -186,7 +186,7 @@ const PSX = {
     const n = (c.width * c.height) / 220;
     for (let k = 0; k < n; k++) {
       const v = rng();
-      g.fillStyle = v < 0.5 ? `rgba(0,0,0,${0.04 + rng() * 0.07})` : `rgba(255,240,200,${rng() * 0.04})`;
+      g.fillStyle = v < 0.5 ? `rgba(0,0,0,${0.02 + rng() * 0.04})` : `rgba(255,240,200,${rng() * 0.02})`;
       g.fillRect(Math.floor(rng() * c.width), Math.floor(rng() * c.height), 1 + Math.floor(rng() * 2), 1 + Math.floor(rng() * 2));
     }
     for (let k = 0; k < n / 60; k++) {
@@ -222,11 +222,10 @@ class PSXPost {
           c = mix(vec3(l), c, 0.72);                              // desaturate
           c *= vec3(1.0, 0.98, 0.86);                             // grimy yellow-green cast
           c = (c - 0.5) * 1.08 + 0.53;                            // contrast, lifted shadows
-          c += (bayer4(px) - 0.5) / 62.0;                         // light ordered dither
+          c += (bayer4(px) - 0.5) / 160.0;                        // faint ordered dither
           c = floor(c * 31.0 + 0.5) / 31.0;                       // 15-bit colour
           vec2 q = vUv - 0.5;
           c *= 1.0 - dot(q, q) * 0.8;                             // vignette
-          c += (fract(sin(dot(px + floor(time * 24.0), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.012;
           gl_FragColor = vec4(c, 1.0);
         }`,
       depthTest: false,

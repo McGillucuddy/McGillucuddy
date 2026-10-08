@@ -186,7 +186,8 @@ class Race {
     for (const c of this.cars) {
       if (!c.ai) continue;
       const gap = (c.progress - p.progress) * this.track.step; // + means AI ahead
-      c.rubber = 1 + clamp(-gap / 4000, -0.05, 0.06);
+      const rb = this.rubberCfg || { dist: 4000, ahead: -0.05, behind: 0.06 };
+      c.rubber = 1 + clamp(-gap / rb.dist, rb.ahead, rb.behind);
     }
   }
 

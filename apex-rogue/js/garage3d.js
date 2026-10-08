@@ -29,6 +29,10 @@ class Garage3D {
     this.station = 'car';
     this.mode = 'car';
     this.orbit = 0.6;
+    this.orbitPitch = 30;
+    this.orbitR = 74;
+    this.userOrbit = false; // the turntable idles until you grab it
+    this.cabinLook = { yaw: -0.35, pitch: -0.22 };
     this.mouse = { x: 0, y: 0 };
     this.cam = { pos: new THREE.Vector3(...GARAGE_POSES.overview[0]), look: new THREE.Vector3(...GARAGE_POSES.overview[1]) };
     this.luxury = null;
@@ -467,6 +471,24 @@ class Garage3D {
 
   setStation(st) { this.station = st; }
 
+  // Drag to look: around the cabin from your seat, or round the car in the paint booth.
+  drag(dx, dy) {
+    if (this.station !== 'paint') return;
+    if (this.mode === 'interior') {
+      const l = this.cabinLook;
+      l.yaw = clamp(l.yaw + dx * 0.006, -2.6, 1.4);
+      l.pitch = clamp(l.pitch - dy * 0.005, -0.9, 0.5);
+    } else if (this.mode === 'car') {
+      this.userOrbit = true;
+      this.orbit += dx * 0.008;
+      this.orbitPitch = clamp(this.orbitPitch + dy * 0.15, 8, 70);
+    }
+  }
+
+  zoom(delta) {
+    if (this.station === 'paint' && this.mode === 'car') this.orbitR = clamp(this.orbitR + delta * 0.05, 48, 120);
+  }
+
   // ---------- Interaction ----------
 
   pick(nx, ny) {
@@ -491,8 +513,8 @@ class Garage3D {
     if (st === 'paint' && this.mode === 'interior') return null;
     if (st === 'paint' && this.mode === 'guns') return GARAGE_POSES.weapons;
     if (st === 'paint') {
-      const r = 74, a = this.orbit;
-      return [[GARAGE_LIFT.x + Math.cos(a) * r, 30, GARAGE_LIFT.z + Math.sin(a) * r], [GARAGE_LIFT.x, 12, GARAGE_LIFT.z]];
+      const r = this.orbitR, a = this.orbit;
+      return [[GARAGE_LIFT.x + Math.cos(a) * r, this.orbitPitch, GARAGE_LIFT.z + Math.sin(a) * r], [GARAGE_LIFT.x, 12, GARAGE_LIFT.z]];
     }
     return GARAGE_POSES[st] || GARAGE_POSES.overview;
   }
@@ -508,24 +530,25 @@ class Garage3D {
     this.camera.aspect = (W + panelW) / H;
     if (panelW > 0) this.camera.setViewOffset(W + panelW, H, panelW, 0, W, H);
     else this.camera.clearViewOffset();
-    this.orbit += dt * 0.25;
+    if (!this.userOrbit) this.orbit += dt * 0.15;
     const k = Math.min(1, dt * 3.5);
     const pose = this.pose();
     if (pose) {
-      const px = this.mouse.x * 3, py = this.mouse.y * 2;
+      const still = this.station === 'paint';
+      const px = still ? 0 : this.mouse.x * 3, py = still ? 0 : this.mouse.y * 2;
       this.cam.pos.lerp(new THREE.Vector3(pose[0][0] + px, pose[0][1] + py, pose[0][2]), k);
       this.cam.look.lerp(new THREE.Vector3(...pose[1]), k);
       this.camera.fov = 50;
       this.camera.position.copy(this.cam.pos);
       this.camera.lookAt(this.cam.look);
     } else {
-      // Sitting in your seat, glancing round the cabin.
-      const a = -0.35 + Math.sin(t * 0.35) * 0.75 + this.mouse.x * 0.3;
+      // Sitting in your seat; drag to look round the cabin.
+      const a = this.cabinLook.yaw, pt = this.cabinLook.pitch;
       const eye = new THREE.Vector3(EYE.x + GARAGE_LIFT.x, EYE.y + GARAGE_LIFT.y, EYE.z + GARAGE_LIFT.z);
       this.cam.pos.copy(eye);
       this.camera.fov = 70;
       this.camera.position.copy(eye);
-      this.camera.lookAt(eye.x + Math.cos(a) * 10, eye.y - 2.2 + this.mouse.y * 2, eye.z + Math.sin(a) * 10 - 1);
+      this.camera.lookAt(eye.x + Math.cos(a) * Math.cos(pt) * 10, eye.y + Math.sin(pt) * 10, eye.z + Math.sin(a) * Math.cos(pt) * 10);
     }
     this.camera.updateProjectionMatrix();
     // Life: a flickering tube, the trader's cigarette, the CCTV light, hovered goods lifting.

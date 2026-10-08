@@ -175,8 +175,8 @@ class CockpitView {
     tex.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
     const retroTex = new THREE.CanvasTexture(PSX.groundCanvas(tr.canvas, tr.seed));
     retroTex.colorSpace = THREE.SRGBColorSpace;
-    retroTex.magFilter = retroTex.minFilter = THREE.NearestFilter;
-    retroTex.generateMipmaps = false;
+    retroTex.magFilter = THREE.NearestFilter;
+    retroTex.minFilter = THREE.LinearMipmapLinearFilter;
     this.groundTex = { clean: tex, retro: retroTex };
     const ground = (this.ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ map: tex })));
     ground.position.set(b.minX + W / 2, 0, b.minY + H / 2);
