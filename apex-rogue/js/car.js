@@ -173,6 +173,14 @@ class Car {
       ctx.fillRect(-L / 2 + 3, -W / 2 + 1, 3, 4);
       ctx.fillRect(-L / 2 + 3, W / 2 - 5, 3, 4);
     }
+    if (this.weapon) {
+      // Roof-mounted launcher / mine dropper so armed rivals are readable.
+      ctx.fillStyle = '#222';
+      ctx.fillRect(-8, -4, 16, 8);
+      ctx.fillStyle = this.weapon === 'rocket' ? '#ff5a3c' : '#ffd23f';
+      if (this.weapon === 'rocket') ctx.fillRect(-4, -2.5, 16, 5);
+      else ctx.fillRect(-14, -3, 6, 6);
+    }
     if (this.isBoss) {
       ctx.fillStyle = '#ffd23f';
       ctx.beginPath();

@@ -49,6 +49,11 @@ class AIDriver {
     return Math.sqrt(this.car.stats.aLat / c);
   }
 
+  swerve(side, duration) {
+    this.forceLane = clamp(this.lane + side * 0.9, -0.8, 0.8);
+    this.forceT = duration;
+  }
+
   update(race, dt) {
     const car = this.car, tr = race.track, N = tr.N;
     const speed = car.speed;
@@ -77,8 +82,13 @@ class AIDriver {
       const side = o.lat - car.lat;
       if (Math.abs(side) < 30) avoid += (side > 0 ? -1 : 1) * (1 - Math.sqrt(d2) / 140);
     }
-    const lane = clamp(this.laneTarget + inside + avoid * 0.6, -0.7, 0.7);
-    this.lane += (lane - this.lane) * Math.min(1, dt * 2.5);
+    let lane = clamp(this.laneTarget + inside + avoid * 0.6, -0.7, 0.7);
+    // An ordered swerve overrides the racing line for a moment.
+    if (this.forceT > 0) {
+      this.forceT -= dt;
+      lane = this.forceLane;
+    }
+    this.lane += (lane - this.lane) * Math.min(1, dt * (this.forceT > 0 ? 6 : 2.5));
 
     const j = (i + ahead) % N;
     const lat = this.lane * tr.hw;

@@ -161,3 +161,15 @@ kbd { background: #2c2740; border: 1px solid #4a4266; border-bottom-width: 3px; 
 .tgroup button.sm { width: 60px; height: 44px; border-radius: 12px; font-size: 13px; font-weight: 700; }
 .tgroup button.gas { background: rgba(60,180,80,.45); }
 .tgroup button.down { background: rgba(255,210,63,.6); }
+
+/* Gunner prototype */
+body.proto #gl, body.proto #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+body.proto #hud { cursor: crosshair; }
+.briefing .brief-grid { display: grid; grid-template-columns: 360px 1fr; gap: 12px; text-align: left; margin: 12px 0; }
+@media (max-width: 820px) { .briefing .brief-grid { grid-template-columns: 1fr; } }
+.briefing canvas { width: 100%; max-width: 320px; border-radius: 10px; display: block; margin: 0 auto 8px; }
+.rival { padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.tag { font-style: normal; font-size: 12px; margin-left: 8px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.35); }
+.tag.red { color: #ff8a6a; }
+.tag.yellow { color: var(--accent); }
+.ctl { font-size: 13px; color: var(--muted); margin: 5px 0; }

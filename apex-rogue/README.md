@@ -11,6 +11,34 @@ No build step or dependencies: open `index.html` in a browser.
 npx serve apex-rogue     # then open the printed URL
 ```
 
+## Gunner prototype (`prototype.html`)
+
+An experiment in the next direction for the game: **the car drives itself and you are the gunner.**
+One race, with a switchable first-person cockpit view and top-down view (press `V`).
+
+- The car's AI drives. You aim with the mouse and fire the **SMG** (overheats) or **rocket launcher**,
+  throw **grenades** (look higher to throw further), raise a **shield**, and order the driver to **swerve**.
+- Some rivals are armed: **rocket gunners** paint you with a red laser before firing homing rockets,
+  and a **mine layer** drops mines when you're behind it. Shoot rockets and mines out of the air, or
+  raise the shield just as a rocket hits to **parry** it back at the shooter.
+- The cockpit is your space: the dashboard radar and status screen, a working rear-view mirror, the
+  empty driver's seat with the steering wheel turning by itself, a gun rack on the driver's door, a
+  grenade crate you can count, fuzzy dice and a bobblehead (trinkets) reacting to the car's movement,
+  and a windshield that cracks when you take hits from the front.
+- A briefing screen before the race shows the track layout, hazards and which rivals are armed.
+
+| Action | Control |
+| --- | --- |
+| Aim / look around | Mouse (click to capture it) |
+| Fire | Left click |
+| SMG / rockets | `1` / `2`, `Q` or mouse wheel to switch |
+| Grenade | Right click or `G` |
+| Shield / parry | `Space` |
+| Swerve left / right | `A` / `D` |
+| Switch view | `V` |
+
+The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor/` so it works offline.
+
 ## How a run works
 
 1. **Garage**: spend cash on stat upgrades (Engine, Gearbox, Steering, Tyres, Nitro), repair
@@ -66,4 +94,8 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/campaign.js` | Run structure, route choices, opponents, prize money |
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
 | `js/input.js`, `js/audio.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound |
+| `js/combat.js` | Gunner prototype: weapons, armed rivals, projectiles, shield/parry, swerve |
+| `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
+| `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
+| `js/hud.js` | Race HUD shared by both pages |
 | `tools/sim.js` | Headless balance simulator: `node tools/sim.js [races] [botSkill]` |

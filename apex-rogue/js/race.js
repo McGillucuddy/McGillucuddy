@@ -438,6 +438,8 @@ class Race {
     }
     ctx.globalAlpha = 1;
 
+    if (this.onRenderWorld) this.onRenderWorld(ctx, t);
+
     // Name tags
     ctx.font = 'bold 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
