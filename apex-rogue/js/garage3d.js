@@ -238,7 +238,7 @@ class Garage3D {
     g.fillStyle = '#e8e8e0'; g.font = 'bold 18px "Comic Sans MS", cursive';
     g.fillText(info.act, 12, 28, W - 24);
     g.font = '15px "Comic Sans MS", cursive';
-    g.fillText(`Race ${info.race} of ${info.of}`, 12, 54);
+    g.fillText(info.of || `Races run: ${info.race - 1}`, 12, 54, 230);
     g.fillText(`Scrap: ${info.scrap}`, 12, 78);
     g.fillText('Strikes:', 12, 106);
     for (let k = 0; k < info.maxStrikes; k++) {
@@ -440,7 +440,7 @@ class Garage3D {
     PSX.apply(D);
     PSX.apply(this.hotRoot);
     PSX.setTextures(this.room, PSX.enabled);
-    this.drawChalk({ act: act.label, race: b.race + 1, of: act.of, scrap: b.scrap, strikes: b.strikes, maxStrikes: act.maxStrikes, rep: cos.rep });
+    this.drawChalk({ act: act.label, race: b.race + 1, of: act.progress, scrap: b.scrap, strikes: b.strikes, maxStrikes: act.maxStrikes, rep: cos.rep });
   }
 
   setLook(look) {

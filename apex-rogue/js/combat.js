@@ -35,24 +35,24 @@ class Combat {
     this.lastFire = 9;
     // Suppressed guns keep you off the rivals' radar: they take longer to lock on.
     this.quiet = b.rack.some((w) => weaponStats(w).quiet);
-    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1);
+    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1) * (b.chip === 'showboat' ? 0.75 : 1);
     this.stats = { dealt: 0, parries: 0, shotDown: 0, taken: 0, wrecked: 0, scrapBonus: 0 };
 
     // The player's car runs every hit through the build (armour, parts, trinkets).
     const p = this.player;
     p.damageFilter = (amount, info) => this.filterDamage(amount, info);
     p.ramMul = p.stats.ram * (has(b, 'horseshoe') ? 3 : 1) * (b.chip === 'hothead' ? 1.5 : 1);
-    p.ramTakenMul = has(b, 'horseshoe') ? 1.5 : 1;
+    p.ramTakenMul = (has(b, 'horseshoe') ? 1.5 : 1) * (b.chip === 'veteran' ? 1.25 : 1);
     p.oilMul = b.chip === 'daredevil' ? 2 : 1;
 
-    // Arm some rivals: two rocket gunners and a mine layer.
-    const rivals = shuffle(this.rng, race.cars.filter((c) => c !== this.player));
-    rivals.forEach((c, i) => {
-      if (i < 2) c.weapon = 'rocket';
-      else if (i === 2) c.weapon = 'mine';
-      else if (i === 3) c.weapon = 'gun';
-      if (c.weapon) c.wpn = { cd: randRange(this.rng, 3, 7), lock: 0 };
-    });
+    // Arm the field: two rocket gunners, a mine layer and a gunner; elites bring an extra gun of each kind.
+    // The boss always carries their own weapon. A snitch tip-off leaves everyone else unarmed.
+    const loadout = opts.elite ? ['rocket', 'rocket', 'mine', 'gun', 'gun', 'rocket'] : ['rocket', 'rocket', 'mine', 'gun'];
+    const rivals = shuffle(this.rng, race.cars.filter((c) => c !== this.player && !c.isBoss));
+    rivals.forEach((c, i) => { if (!opts.disarm && loadout[i]) c.weapon = loadout[i]; });
+    const bossCar = race.cars.find((c) => c.isBoss);
+    if (bossCar && opts.boss) bossCar.weapon = opts.boss.weapon;
+    for (const c of race.cars) if (c.weapon && c !== this.player) c.wpn = { cd: randRange(this.rng, 3, 7), lock: 0 };
   }
 
   get weapon() { return this.build.rack[this.wi]; }
@@ -104,7 +104,7 @@ class Combat {
     if (this.swerveCd > 0 || this.player.finished) return false;
     this.driver.swerve(side, 0.9);
     const medal = has(this.build, 'medal');
-    this.swerveCd = medal ? 1.1 : 2.2;
+    this.swerveCd = (medal ? 1.1 : 2.2) * (this.build.chip === 'ghost' ? 0.5 : 1);
     if (medal) this.invulnT = 0.4;
     this.events.push({ type: 'swerve' });
     return true;
@@ -311,7 +311,7 @@ class Combat {
         race.damage(c, c.burnDps * dt, { kind: 'fire' });
         if (c.burnBy === p && c !== p) {
           this.stats.dealt += before - c.hp;
-          if (before > 0 && c.hp <= 0) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.race.message(`${c.name.split(' ')[0]} burned out!`, '#ffd23f'); }
+          if (before > 0 && c.hp <= 0) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.race.message(`${shortName(c)} burned out!`, '#ffd23f'); }
         }
       }
     }
@@ -477,7 +477,7 @@ class Combat {
           if (pr.type === 'flare') {
             c.blindT = pr.blind;
             if (c.wpn) c.wpn.lock = 0;
-            if (pr.owner === p) this.race.message(`${c.name.split(' ')[0]} is blinded!`, '#ff8a3c');
+            if (pr.owner === p) this.race.message(`${shortName(c)} is blinded!`, '#ff8a3c');
             if (pr.cluster) {
               // Cluster flare: the burst blinds everyone nearby.
               this.explosions.push({ x: pr.x, y: pr.y, r: 120, t: 0, kind: 'flare' });
@@ -600,7 +600,7 @@ class Combat {
       if (before > 0 && c.hp <= 0) {
         this.stats.wrecked++;
         if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
-        this.race.message(`${c.name.split(' ')[0]} wrecked!`, '#ffd23f');
+        this.race.message(`${shortName(c)} wrecked!`, '#ffd23f');
       }
     }
   }

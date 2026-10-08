@@ -59,3 +59,6 @@ function ordinal(n) {
   const v = n % 100;
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
+
+// Name tags and messages use first names; bosses keep their full title.
+const shortName = (car) => (car.isBoss ? car.name : car.name.split(' ')[0]);

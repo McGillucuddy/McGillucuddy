@@ -74,6 +74,10 @@ const CHIPS = {
   cautious: { name: 'Cautious Chip', desc: 'Your driver barely scratches the walls (-70% wall damage) but brakes far too early.' },
   daredevil: { name: 'Daredevil Chip', desc: 'Your driver cuts corners through the dirt (off-road -50%) but spins out on oil.' },
   gun_nut: { name: 'Gun Nut Chip', desc: 'Weapons reload 40% faster, but your driver wobbles while you shoot.' },
+  // Driver traits won from bosses.
+  veteran: { name: 'Getaway Veteran', desc: 'Your driver takes corners 6% faster, but your car takes 25% more damage from rams.' },
+  ghost: { name: 'Ghost Chip', desc: 'Swerves recharge twice as fast, but nitro is 30% weaker.' },
+  showboat: { name: 'Showboat Chip', desc: '+50% scrap from placings and wrecks, but rival gunners lock on 25% faster.' },
 };
 
 // Weapon mods: two slots per weapon, swappable in the garage.
@@ -217,6 +221,7 @@ function buildStats(b) {
     if (slot === 'nitro') { s.nitroPower *= 1 + 0.3 * t; s.nitroCap *= 1 - 0.25 * t; }
   }
   s.absorb = Math.min(0.75, s.absorb);
+  if (b.chip === 'ghost') s.nitroPower *= 0.7;
   if (partBroken(b, 'engine')) { s.top *= 0.55; s.accel *= 0.5; }
   if (partBroken(b, 'tyres')) {
     const runFlat = PARTS[b.parts.tyres.id].mods.runFlat;
@@ -310,13 +315,32 @@ function rollRewards(b, rng, count) {
   for (const id in ABILITIES) if (!ownsAbility(b, id)) pool.push(['ability', id, 2]);
   for (const id in MODS) pool.push(['mod', id, { common: 2, rare: 1.2, epic: 0.6 }[MODS[id].rarity]]);
   for (const id in TRINKETS) if (!has(b, id)) pool.push(['trinket', id, 2]);
-  for (const id in CHIPS) if (!ownsChip(b, id)) pool.push(['chip', id, 1]);
+  for (const id in CHIPS) if (!ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)) pool.push(['chip', id, 1]);
   const out = [];
   while (out.length < count && pool.length) {
     const pickd = weightedPick(rng, pool, (p) => p[2]);
     pool.splice(pool.indexOf(pickd), 1);
     out.push(itemCard(pickd[0], pickd[1]));
   }
+  return out;
+}
+
+// Elite races guarantee a trinket among the cards (while there are trinkets left to find).
+function rollEliteRewards(b, rng) {
+  const out = rollRewards(b, rng, 3).filter((c) => c.type !== 'trinket').slice(0, 2);
+  const left = Object.keys(TRINKETS).filter((id) => !has(b, id));
+  if (left.length) out.push(itemCard('trinket', left[Math.floor(rng() * left.length)]));
+  while (out.length < 3) { const extra = rollRewards(b, rng, 1)[0]; if (!extra || out.some((c) => c.id === extra.id)) break; out.push(extra); }
+  return shuffle(rng, out);
+}
+
+// Beating a boss: choose a driver trait (the boss-only chips first), padded with epic mods.
+function rollBossRewards(b, rng) {
+  const traits = shuffle(rng, ['veteran', 'ghost', 'showboat'].filter((id) => !ownsChip(b, id)));
+  const others = shuffle(rng, Object.keys(CHIPS).filter((id) => !ownsChip(b, id) && !traits.includes(id)));
+  const out = [...traits, ...others].slice(0, 3).map((id) => itemCard('chip', id));
+  const epics = shuffle(rng, Object.keys(MODS).filter((id) => MODS[id].rarity === 'epic'));
+  while (out.length < 3 && epics.length) out.push(itemCard('mod', epics.pop()));
   return out;
 }
 

@@ -11,12 +11,11 @@ const ACTS = [
   { biome: 'terraces', name: 'Act III', title: 'The Gilded Terraces' },
   { biome: 'crown', name: 'Act IV', title: 'The Crown' },
 ];
-const RACES_PER_ACT = 3;
 const PACE = 0.72; // global speed scale for the gunner races
-const RIVAL_SKILL = (race) => Math.min(1.08, 0.97 + race * 0.008);
-const RUN_RACES = ACTS.length * RACES_PER_ACT;
-const ACT_LUXURY = (race) => Math.floor(race / RACES_PER_ACT) >= 2;
-const actOf = (race) => ACTS[Math.min(ACTS.length - 1, Math.floor(race / RACES_PER_ACT))];
+// Rival skill rises through the run: d = act * 4 + row on the route sheet (0..15).
+const RIVAL_SKILL = (d) => Math.min(1.08, 0.97 + d * 0.007);
+const ACT_LUXURY = (act) => act >= 2;
+const ROMAN = ['I', 'II', 'III', 'IV'];
 
 const Proto = {
   view: 'cockpit',
@@ -149,7 +148,18 @@ const Proto = {
       case 'view-cockpit': this.setView('cockpit'); this.refresh(); break;
       case 'view-top': this.setView('top'); this.refresh(); break;
       case 'retro': this.toggleRetro(); this.refresh(); break;
-      case 'to-briefing': this.newRace(); break;
+      case 'to-briefing': this.showMap(); break;
+      case 'to-map': this.showMap(); break;
+      case 'open-garage': this.toGarage(); break;
+      case 'pick-node': this.pickNode(+arg); break;
+      case 'event-choice': {
+        const o = this.event.options[+arg];
+        if (o.ok && !o.ok(b)) break;
+        const res = o.apply(b, this.run, this.runRng);
+        Sound.play({ type: 'click' });
+        this.showEvent(this.event, res);
+        break;
+      }
       case 'new-run': this.newRun(); break;
       case 'abandon': this.gameOver(false); break;
       case 'after-results': this.afterResults(); break;
@@ -168,8 +178,8 @@ const Proto = {
         this.showGarage();
         break;
       }
-      case 'pick-reward': applyItem(b, this.rewards[+arg]); Sound.play({ type: 'buy' }); this.toGarage(); break;
-      case 'skip-reward': b.scrap += 50; this.toGarage(); break;
+      case 'pick-reward': applyItem(b, this.rewards[+arg]); Sound.play({ type: 'buy' }); this.afterReward(); break;
+      case 'skip-reward': b.scrap += 50; this.afterReward(); break;
       // Loadout (swappable here; only trinkets are permanent)
       case 'equip-part': equipPart(b, +arg); this.showGarage(); break;
       case 'equip-weapon': { const [si, ri] = arg.split(':').map(Number); equipWeapon(b, si, ri >= 0 ? ri : null); this.showGarage(); break; }
@@ -211,26 +221,144 @@ const Proto = {
     this.build = newBuild();
     this.runRng = mulberry32((Math.random() * 2 ** 31) | 0);
     this.race = null;
-    this.toGarage();
+    this.shop = [];
+    this.shopOpen = false;
+    this.startAct(0);
+  },
+
+  get act() { return ACTS[this.run.act]; },
+
+  startAct(i) {
+    this.run = { act: i, map: genActMap(this.runRng, i), cur: null, node: null, flags: (this.run && this.run.flags) || {} };
+    this.showMap();
+  },
+
+  // ---------- Route sheet ----------
+
+  showMap() {
+    this.state = 'map';
+    this.shopOpen = false;
+    const b = this.build, run = this.run, map = run.map, act = this.act, boss = BOSSES[run.act];
+    const reach = reachableNodes(map, run.cur);
+    const X = (c) => 18 + c * 32, Y = (r) => 88 - (r / MAP_ROWS) * 76; // % positions; start at the bottom, boss on top
+    const lines = map.nodes.flatMap((n) => n.next.map((t) => { const m = mapNode(map, t); return `<line x1="${X(n.col)}" y1="${Y(n.row)}" x2="${X(m.col)}" y2="${Y(m.row)}" class="${n.done && (m.done || reach.includes(m.id)) ? 'walked' : ''}"/>`; })).join('');
+    const nodes = map.nodes.map((n) => {
+      const t = NODE_TYPES_RUN[n.type], can = reach.includes(n.id);
+      const tip = n.type === 'boss' ? `${boss.name}, ${boss.title}. ${boss.desc}` : t.desc;
+      return `<button class="map-node t-${n.type} ${n.done ? 'done' : ''} ${can ? 'can' : ''} ${run.cur === n.id ? 'here' : ''}" style="left:${X(n.col)}%;top:${Y(n.row)}%"
+        ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} title="${tip.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? boss.name : t.label}</small></button>`;
+    }).join('');
+    const legend = Object.entries(NODE_TYPES_RUN).filter(([k]) => k !== 'boss').map(([, t]) => `<span><b>${t.icon}</b> ${t.label}</span>`).join('');
+    this.setUI(`<div class="screen mapscreen g3d">
+      <div class="g-top">
+        <div><b>Act ${ROMAN[run.act]}</b> · ${act.title}</div>
+        <div class="cash">${b.scrap} scrap</div>
+        <div>Hull <b>${Math.ceil(b.hull)}</b>/${b.maxHull}</div>
+        <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
+        <div>Rep <b>${this.cos.rep}</b></div>
+      </div>
+      <div class="route clipboard">
+        <div class="clip"></div>
+        <h2 class="g-title">Route sheet · Act ${ROMAN[run.act]}</h2>
+        <p class="small muted">Pick your next stop. Lines show where each stop leads. At the top: <b>${boss.name}</b>, ${boss.title}.</p>
+        <div class="route-map"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${lines}</svg>${nodes}</div>
+        <div class="route-legend small">${legend}</div>
+      </div>
+      <button class="btn big g-go garage-btn" data-action="open-garage">Garage: repairs, loadout, paint</button>
+    </div>`);
+    this.syncGarage();
+    if (this.preview) this.preview.setStation('overview');
+  },
+
+  pickNode(id) {
+    const run = this.run, node = mapNode(run.map, id);
+    if (!node || !reachableNodes(run.map, run.cur).includes(id)) return;
+    run.node = node;
+    if (node.type === 'race' || node.type === 'elite' || node.type === 'boss') { this.newRace(node); return; }
+    // Non-race stops resolve here, then you move on.
+    node.done = true;
+    run.cur = node.id;
+    if (node.type === 'shop') {
+      this.shop = rollShop(this.build, this.runRng);
+      this.shopOpen = true;
+      this.tab = 'market';
+      this.toGarage();
+    } else if (node.type === 'repair') {
+      const b = this.build;
+      b.hull = b.maxHull;
+      for (const slot of PART_SLOTS) b.parts[slot].dur = partMaxDur(b, b.parts[slot].id);
+      this.showEvent({ title: 'The mechanic', text: 'An old lifer with oil to his elbows waves you into his bay. "On the house. Just win."', result: 'Hull and every part repaired to full.' });
+    } else {
+      const seen = run.flags.seenEvents || (run.flags.seenEvents = []);
+      const pool = EVENTS.filter((e) => !seen.includes(e.id));
+      const ev = (pool.length ? pool : EVENTS)[Math.floor(this.runRng() * (pool.length || EVENTS.length))];
+      seen.push(ev.id);
+      this.event = ev;
+      this.showEvent(ev);
+    }
+  },
+
+  showEvent(ev, result) {
+    this.state = 'event';
+    const b = this.build;
+    const opts = result || ev.result ? `<p class="event-result">${result || ev.result}</p><button class="btn primary big" data-action="to-map">Continue ▶</button>`
+      : ev.options.map((o, i) => {
+        const ok = !o.ok || o.ok(b);
+        return `<button class="btn event-opt" ${ok ? `data-action="event-choice" data-arg="${i}"` : 'disabled'}><b>${o.label}</b><small>${o.desc}</small></button>`;
+      }).join('');
+    this.setUI(`<div class="screen eventscreen g3d">
+      <div class="route clipboard event-card">
+        <div class="clip"></div>
+        <h2 class="g-title">${ev.title}</h2>
+        <p class="event-text">${ev.text}</p>
+        <div class="event-opts">${opts}</div>
+        <p class="small muted">${b.scrap} scrap · hull ${Math.ceil(b.hull)}/${b.maxHull} · strikes ${b.strikes}/${STRIKES_TO_LOSE}</p>
+      </div>
+    </div>`);
+    if (this.preview) this.preview.setStation('overview');
   },
 
   toGarage() {
     this.state = 'garage';
-    this.shop = rollShop(this.build, this.runRng);
+    if (!this.shopOpen) this.shop = [];
     if (this.preview) this.preview.setLook(carLook(this.cos));
     this.showGarage();
   },
 
+  // After the results: strikes, boss outcome, then the reward pick.
   afterResults() {
-    const b = this.build;
+    const b = this.build, run = this.run, node = run.node, ok = this.lastOk;
     if (b.strikes >= STRIKES_TO_LOSE) { this.gameOver(false); return; }
-    if (b.race >= RUN_RACES) {
-      if (this.race.player.place === 1) { this.victory(); return; }
-      b.race = RUN_RACES - 1; // lost the final: take the strike and run it again
+    if (node.type === 'boss') {
+      if (!ok) { this.toGarage(); return; } // the boss waits for you; patch up and try again
+      node.done = true;
+      run.cur = node.id;
+      if (run.act === ACTS.length - 1) { this.victory(); return; }
+      this.pendingAct = run.act + 1;
+      this.state = 'reward';
+      this.rewardKind = 'boss';
+      this.rewards = rollBossRewards(b, this.runRng);
+      this.showReward();
+      return;
     }
+    node.done = true;
+    run.cur = node.id;
+    if (!ok) { this.toGarage(); return; } // a bad race earns nothing but the strike
     this.state = 'reward';
-    this.rewards = rollRewards(b, this.runRng, 3);
+    this.rewardKind = node.type;
+    this.rewards = node.type === 'elite' ? rollEliteRewards(b, this.runRng) : rollRewards(b, this.runRng, 3);
     this.showReward();
+  },
+
+  afterReward() {
+    if (this.pendingAct != null) {
+      const next = this.pendingAct;
+      this.pendingAct = null;
+      this.run.act = next;
+      this.run.map = genActMap(this.runRng, next);
+      this.run.cur = null;
+    }
+    this.toGarage();
   },
 
   gameOver() {
@@ -269,30 +397,45 @@ const Proto = {
 
   // ---------- Race setup ----------
 
-  newRace() {
+  newRace(node) {
     if (this.locked) document.exitPointerLock();
-    const b = this.build;
+    const b = this.build, run = this.run;
+    node = node || run.node || { type: 'race', row: 0 };
     this.seed = (this.runRng() * 2 ** 31) | 0;
     const rng = mulberry32(this.seed);
-    const biome = actOf(b.race).biome;
+    const biome = this.act.biome;
+    const boss = node.type === 'boss' ? BOSSES[run.act] : null;
+    const d = run.act * 4 + Math.min(node.row, 3) + (node.type === 'elite' ? 2 : 0);
     const track = generateTrack(this.seed, biome, { hazardLevel: 1 });
     renderTrack(track);
     const base = CARS.comet;
     // Stats come from the parts you have fitted; the driver chip changes how the AI drives.
     const stats = buildStats(b);
     if (biome === 'tundra') stats.grip *= stats.iceGrip;
-    const chipLat = { cautious: 0.85, hothead: 1.08, daredevil: 1.04 }[b.chip] || 1;
+    const chipLat = { cautious: 0.85, hothead: 1.08, daredevil: 1.04, veteran: 1.06 }[b.chip] || 1;
     stats.aLat = (1050 + 650 * 0.15) * Math.sqrt(track.biome.grip) * chipLat;
     const player = new Car({ name: 'You', color: paintColor(this.cos), accent: '#1d1d1d', isPlayer: true, stats, hp: b.hull });
     const driver = new AIDriver(player, 0.95, rng);
     driver.rammer = b.chip === 'hothead';
     driver.insideMul = b.chip === 'daredevil' ? 2.2 : 1;
+    // Rivals as quick as a stock car from the start, getting sharper through the run; the boss drives above the field.
+    const opponents = buildOpponents(rng, 0, { aiBonus: 0 }, false).map((o) => Object.assign(o, { skill: RIVAL_SKILL(d) + randRange(rng, -0.035, 0.03) }));
+    if (boss) opponents[opponents.length - 1] = { name: boss.name, color: boss.color, accent: '#111', skill: RIVAL_SKILL(d) + boss.skill, isBoss: true };
     this.race = new Race({
-      track, laps: b.race === RUN_RACES - 1 ? 4 : 3, playerCar: player, rng, qualify: b.race === RUN_RACES - 1 ? 1 : 3,
-      // Rivals as quick as a stock car from the start, getting sharper every race.
-      opponents: buildOpponents(rng, 0, { aiBonus: 0 }, false).map((o) => Object.assign(o, { skill: RIVAL_SKILL(b.race) + randRange(rng, -0.035, 0.03) })),
-      playerGrid: 4,
+      track, laps: boss ? 4 : 3, playerCar: player, rng, qualify: boss && boss.mustWin ? 1 : 3,
+      opponents, playerGrid: boss ? 5 : 4,
     });
+    this.race.node = node;
+    this.race.boss = boss;
+    if (boss) {
+      const bc = this.race.cars.find((c) => c.isBoss);
+      bc.stats.maxHp = bc.hp = boss.hp;
+      bc.stats.mass = boss.mass;
+      bc.bossLook = boss.look;
+      this.race.bossCar = bc;
+    }
+    // Contraband: a heavy load costs hull at the start.
+    if (run.flags.hullHit) { player.hp = Math.max(1, player.hp - run.flags.hullHit); run.flags.hullHit = 0; }
     // Slower, heavier racing than the arcade game: more time to aim, and a pack that stays together.
     for (const c of this.race.cars) {
       c.stats.top *= PACE;
@@ -301,7 +444,8 @@ const Proto = {
     }
     this.race.rubberCfg = { dist: 2200, ahead: -0.07, behind: 0.12 };
     this.driver = driver;
-    this.combat = new Combat(this.race, { driver, build: b });
+    this.combat = new Combat(this.race, { driver, build: b, elite: node.type === 'elite', boss, disarm: !!run.flags.disarm });
+    run.flags.disarm = false;
     this.combat.pace = PACE;
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
     if (this.cockpit) this.cockpit.load(this.race, this.combat, carLook(this.cos));
@@ -365,17 +509,18 @@ const Proto = {
     const race = this.race, tr = race.track, bio = tr.biome;
     const rivals = race.cars.filter((c) => c !== race.player).map((c) => `
       <div class="rival"><span class="dot" style="background:${c.color}"></span>${c.name}
-      ${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
+      ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
-      <h1>Race Briefing</h1>
-      <p class="act-line">${actOf(this.build.race).name} · ${actOf(this.build.race).title} · race ${this.build.race % RACES_PER_ACT + 1} of ${RACES_PER_ACT}${this.build.race === RUN_RACES - 1 ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
-      <p class="muted">Race ${this.build.race + 1} of ${RUN_RACES} · ${this.build.scrap} scrap · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
+      <h1>${race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : 'Race briefing'}</h1>
+      <p class="act-line">Act ${ROMAN[this.run.act]} · ${this.act.title}${race.boss && race.boss.mustWin ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
+      ${race.boss ? `<p class="boss-line"><b>${race.boss.title}.</b> ${race.boss.desc}</p>` : race.node.type === 'elite' ? '<p class="boss-line">Sharper drivers and more guns on the grid. A trinket waits for you if you make the cut.</p>' : ''}
+      <p class="muted">${this.build.scrap} scrap · hull ${Math.ceil(this.build.hull)}/${this.build.maxHull} · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
       <div class="brief-grid">
         <div class="panel"><canvas id="preview" width="320" height="320"></canvas>
           <h2>${bio.name}</h2><p class="muted">${bio.blurb}</p>
           <p>${race.laps} laps · ${Math.round((tr.length * 0.125) / 10) * 10}m lap · ${boosts} boost pads · ${oils} oil slicks</p>
-          <p><b>Finish top ${race.qualify}</b></p>
+          <p><b>${race.boss ? (race.boss.mustWin ? 'Win the race outright' : 'Finish ahead of ' + race.boss.name) : 'Finish top ' + race.qualify}</b></p>
         </div>
         <div class="panel"><h2>Rivals</h2>${rivals}
           <h2>Controls</h2>
@@ -412,24 +557,31 @@ const Proto = {
   showResults() {
     const race = this.race, p = race.player, s = this.combat.stats, b = this.build;
     race.rankCars();
-    const ok = p.place <= race.qualify;
+    const boss = race.boss, run = this.run;
+    const ok = boss ? (boss.mustWin ? p.place === 1 : p.place < race.bossCar.place) : p.place <= race.qualify;
+    this.lastOk = ok;
     // Bank the race: hull carries over, scrap paid out, strikes for missing the cut.
-    const placePay = PLACE_SCRAP[p.place - 1] || 0, wreckPay = s.wrecked * WRECK_SCRAP + s.scrapBonus;
-    b.scrap += placePay + wreckPay;
+    const show = b.chip === 'showboat' ? 1.5 : 1;
+    const placePay = Math.round((PLACE_SCRAP[p.place - 1] || 0) * show * (race.node.type === 'elite' ? 1.4 : 1)), wreckPay = Math.round((s.wrecked * WRECK_SCRAP + s.scrapBonus) * show);
+    const bossPay = boss && ok ? 250 : 0;
+    let betPay = 0;
+    if (run.flags.bet) { if (p.place <= 2) betPay = run.flags.bet; run.flags.bet = 0; }
+    b.scrap += placePay + wreckPay + bossPay + betPay;
     b.hull = Math.max(1, Math.round(p.hp));
     b.race++;
     if (p.place === 1) b.wins++;
     if (!ok) b.strikes++;
     // Reputation persists between runs and unlocks paint-shop options.
-    const repGain = raceRep(p.place, s.wrecked), repBefore = this.cos.rep;
+    const repGain = raceRep(p.place, s.wrecked) + (run.flags.repGain || 0) - (run.flags.repLoss || 0), repBefore = this.cos.rep;
+    run.flags.repGain = run.flags.repLoss = 0;
     this.cos.rep += repGain;
     saveCosmetics(this.cos);
     const unlocked = allCosmeticOptions().filter((o) => o.rep > repBefore && o.rep <= this.cos.rep).map((o) => o.name);
     const parts = PART_SLOTS.map((slot) => `<span class="${b.parts[slot].dur <= 0 ? 'bad' : ''}">${SLOT_NAMES[slot]} ${b.parts[slot].dur <= 0 ? 'BROKEN' : Math.round((100 * b.parts[slot].dur) / partMaxDur(b, b.parts[slot].id)) + '%'}</span>`).join(' · ');
     const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
     this.setUI(`<div class="screen results">
-      <h1 class="${ok ? 'good' : 'bad'}">${ordinal(p.place)} place: ${ok ? 'you survived' : 'strike ' + b.strikes + ' of ' + STRIKES_TO_LOSE}</h1>
-      <p class="muted">${ok ? 'Top 3 keeps the warden happy.' : 'Finish outside the top 3 three times and the run is over.'}</p>
+      <h1 class="${ok ? 'good' : 'bad'}">${ordinal(p.place)} place: ${ok ? (boss ? (boss.mustWin ? 'you won the Crown' : boss.name + ' beaten') : 'you survived') : 'strike ' + b.strikes + ' of ' + STRIKES_TO_LOSE}</h1>
+      <p class="muted">${boss ? (ok ? (boss.mustWin ? 'The upper city is on its feet.' : 'You qualify for the next act.') : `${boss.name} is still ahead of you. Patch up and face them again.`) : ok ? 'Top 3 keeps the warden happy.' : 'Finish outside the top 3 three times and the run is over.'}</p>
       <div class="results-grid">
         <table class="standings">${rows}</table>
         <div class="payout">
@@ -441,6 +593,8 @@ const Proto = {
           <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}</b></div>
           <div><span>Placing pay</span><b>${placePay} scrap</b></div>
           <div><span>Wreck bounties</span><b>${wreckPay} scrap</b></div>
+          ${bossPay ? `<div><span>Qualifier purse</span><b>${bossPay} scrap</b></div>` : ''}
+          ${betPay ? `<div><span>Bet winnings</span><b>${betPay} scrap</b></div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
           <div><span>Reputation</span><b>+${repGain} (${this.cos.rep})</b></div>
           ${unlocked.length ? `<div class="unlock small">Paint shop unlocked: ${unlocked.join(', ')}</div>` : ''}
@@ -448,7 +602,7 @@ const Proto = {
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn primary big" data-action="after-results">${b.strikes >= STRIKES_TO_LOSE ? 'Face the warden' : 'Collect reward ▶'}</button>
+        <button class="btn primary big" data-action="after-results">${b.strikes >= STRIKES_TO_LOSE ? 'Face the warden' : ok ? (boss && boss.mustWin ? 'Walk free ▶' : 'Collect reward ▶') : 'Back to the garage ▶'}</button>
       </div>
     </div>`);
   },
@@ -456,17 +610,16 @@ const Proto = {
   // ---------- Garage / shop / rewards ----------
 
   showGarage() {
-    const b = this.build, act = actOf(b.race);
+    const b = this.build, act = this.act;
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
-    const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(b.race) ? 'Concierge' : 'Commissary', 'Black market'], ['paint', 'Paint booth', 'Looks, kept between runs']];
+    const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(this.run.act) ? 'Concierge' : 'Commissary', this.shopOpen ? 'Open now' : 'Closed'], ['paint', 'Paint booth', 'Looks, kept between runs']];
     const nav = stations.map(([id, label, sub]) => `<button class="g-station ${this.tab === id ? 'on' : ''}" data-action="tab" data-arg="${id}"><b>${label}</b><small>${sub}</small></button>`).join('');
     const trinkets = b.trinkets.length ? b.trinkets.map((t) => `<span class="perk rarity-epic" title="${TRINKETS[t].desc}">${TRINKETS[t].name}</span>`).join('') : '<span class="muted small">No trinkets yet. They are the only things you keep for the whole run.</span>';
     const body = { car: () => this.garageCar(bar), weapons: () => this.garageWeapons(), market: () => this.garageMarket(), paint: () => this.garagePaint() }[this.tab]();
     const title = stations.find((st) => st[0] === this.tab);
     this.setUI(`<div class="screen garage proto-garage g3d">
       <div class="g-top">
-        <div><b>${act.name}</b> · ${act.title}</div>
-        <div>Race <b>${b.race + 1}</b>/${RUN_RACES}</div>
+        <div><b>Act ${ROMAN[this.run.act]}</b> · ${act.title}</div>
         <div class="cash">${b.scrap} scrap</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
@@ -479,17 +632,18 @@ const Proto = {
         ${body}
         <p class="small muted g-links"><a href="models.html">Model viewer</a> · <a href="index.html">Top-down game</a></p>
       </div>
-      <button class="btn primary big g-go" data-action="to-briefing">Roll out ▶</button>
+      <button class="btn primary big g-go" data-action="to-map">Route sheet ▶</button>
     </div>`);
     this.syncGarage();
   },
 
   syncGarage() {
     if (!this.preview) return;
-    const b = this.build, act = actOf(b.race);
+    const b = this.build, act = this.act, run = this.run;
+    const done = run.map.nodes.filter((n) => n.done && n.type !== 'boss').length;
     this.preview.sync({
-      build: b, shop: this.shop, cos: this.cos,
-      act: { luxury: ACT_LUXURY(b.race), label: `${act.name}: ${act.title}`, of: RUN_RACES, maxStrikes: STRIKES_TO_LOSE },
+      build: b, shop: this.shopOpen ? this.shop : [], cos: this.cos,
+      act: { luxury: ACT_LUXURY(run.act), label: `Act ${ROMAN[run.act]}: ${act.title}`, progress: `Stop ${done + 1} of ${MAP_ROWS + 1} this act`, maxStrikes: STRIKES_TO_LOSE },
     });
     this.preview.setStation(this.tab);
   },
@@ -572,6 +726,7 @@ const Proto = {
 
   garageMarket() {
     const b = this.build;
+    if (!this.shopOpen) return `<div class="panel"><h2>Shuttered</h2><p>The hatch is padlocked. The ${ACT_LUXURY(this.run.act) ? 'concierge only sees drivers at a Concierge stop' : 'commissary only opens at a Commissary stop'} on the route sheet (🛒).</p><p class="muted small">Repairs, ammo, grenades and spare parts are always available in the Workshop and Armory.</p></div>`;
     const shop = this.shop.map((c, i) => `<div class="shop-card ${c.sold ? 'sold' : ''}">
         <small class="muted">${c.type.toUpperCase()}${c.type === 'part' ? ' · ' + SLOT_NAMES[PARTS[c.id].slot] : ''}${c.type === 'mod' ? ' · fits ' + MODS[c.id].fits.map((f) => WEAPONS[f].name).join(', ') : ''}</small>
         <b>${c.name}</b><small>${c.desc}</small>
@@ -623,8 +778,8 @@ const Proto = {
       ${c.type === 'part' ? `<div class="up-desc"><i>Replaces your ${PARTS[this.build.parts[PARTS[c.id].slot].id].name}</i></div>` : ''}
     </button>`).join('');
     this.setUI(`<div class="screen reward">
-      <h1>Pick your cut</h1>
-      <p class="muted">${this.build.scrap} scrap · choose one</p>
+      <h1>${this.rewardKind === 'boss' ? 'Driver trait' : this.rewardKind === 'elite' ? 'Elite spoils' : 'Pick your cut'}</h1>
+      <p class="muted">${this.rewardKind === 'boss' ? `${BOSSES[this.run.act].name} is beaten. Your driver picked up a habit or two: choose one (it fills your chip slot, swappable in the garage).` : this.build.scrap + ' scrap · choose one'}</p>
       <div class="cards">${cards}</div>
       <button class="btn ghost" data-action="skip-reward">Skip (+50 scrap)</button>
     </div>`);
@@ -700,10 +855,10 @@ const Proto = {
   // The 3D garage fills the screen behind the clipboard (and behind the reward pick).
   renderPreview(dt) {
     const cv = this.previewCanvas;
-    const show = this.preview && (this.state === 'garage' || this.state === 'reward');
+    const show = this.preview && ['garage', 'reward', 'map', 'event'].includes(this.state);
     if (!show) { cv.style.display = 'none'; if (this.tip) this.tip.classList.add('hidden'); return; }
     cv.style.display = 'block';
-    if (this.state === 'reward') this.preview.setStation('overview');
+    if (this.state !== 'garage') this.preview.setStation('overview');
     const panel = this.state === 'garage' && this.W > 900 ? 500 : 0;
     this.preview.render(this.W, this.H, dt, this.time, panel);
   },

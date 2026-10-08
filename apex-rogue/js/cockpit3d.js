@@ -310,7 +310,11 @@ class CockpitView {
       const style = ['comet', 'brick', 'wasp', 'phantom'][k % 4];
       const livery = ['stencil', 'roundel', 'none', 'stripes', 'stencil', 'flames'][k % 6];
       const finish = ['gloss', 'matte', 'rusty', 'patched'][(k * 3) % 4];
-      const model = Models.car({ style, color: car.color, accent: car.accent, weapon: car.weapon, livery, finish, number: 10 + ((k * 37) % 89) });
+      // Bosses drive their own signature car.
+      const model = car.bossLook
+        ? Models.car(Object.assign({ color: car.color, accent: car.accent, weapon: car.weapon, number: 1 }, car.bossLook))
+        : Models.car({ style, color: car.color, accent: car.accent, weapon: car.weapon, livery, finish, number: 10 + ((k * 37) % 89) });
+      if (car.bossLook) model.scale.setScalar(1.08);
       g.add(model);
       const tag = canvasTex(256, 64);
       // Constant on-screen size so tags stay readable without filling the view up close.
@@ -551,7 +555,7 @@ class CockpitView {
       if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) continue;
       const d = Math.hypot(car.x - this.race.player.x, car.y - this.race.player.y);
       if (d > 1100) continue;
-      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${car.place}. ${car.name.split(' ')[0]}${car.hp <= 0 ? ' ✖' : ''}${car.markT > 0 ? ' ◎' : ''}`, armed: !!car.weapon, d });
+      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${car.place}. ${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}${car.markT > 0 ? ' ◎' : ''}`, armed: !!car.weapon, d });
     }
     return out;
   }
@@ -597,7 +601,7 @@ class CockpitView {
       m.bodyMat.emissive.set(flash ? '#ffffff' : car.burnT > 0 && Math.random() < 0.6 ? '#ff4a0a' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
       m.bodyMat.emissiveIntensity = flash ? 0.8 : 1;
       m.sprite.visible = !PSX.enabled;
-      const label = `${car.place}. ${car.name.split(' ')[0]}${car.hp <= 0 ? ' ✖' : ''}`;
+      const label = `${car.place}. ${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}`;
       if (label !== m.lastTag) {
         const c = m.tag.ctx;
         c.clearRect(0, 0, 256, 64);
