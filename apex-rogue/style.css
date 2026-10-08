@@ -313,7 +313,7 @@ body.proto #ui { z-index: 2; }
 .mapscreen .g-top, .eventscreen .g-top { right: 16px; }
 .mapscreen .g-go { left: 50%; right: auto; transform: translateX(-50%); width: min(660px, calc(100% - 32px)); }
 .garage-btn { background: rgba(10, 9, 8, 0.85); border: 2px solid #e8e0c8; color: #e8e0c8; font-family: 'Courier New', monospace; }
-.route-map { position: relative; height: calc(100% - 120px); min-height: 340px; margin: 6px 0; }
+.route-map { position: relative; height: calc(100% - 96px); min-height: 340px; margin: 6px 0; }
 .route-map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .route-map line { stroke: #6a5a44; stroke-width: 0.5; stroke-dasharray: 1.4 1.2; vector-effect: non-scaling-stroke; }
 .route-map line { stroke-width: 2px; }
@@ -341,3 +341,33 @@ body.proto #ui { z-index: 2; }
 .event-opt { display: block; width: 100%; text-align: left; margin: 8px 0; padding: 10px 14px; }
 .event-opt small { display: block; font-weight: 400; color: #5a4e3a; margin-top: 3px; }
 .boss-line { max-width: 640px; margin: 4px auto 10px; color: #e8c25a; }
+
+/* Gritty route sheet */
+.route.sheet { background: #e8ddc0; padding-top: 22px; }
+.form-head { font-family: 'Courier New', monospace; font-size: 12px; letter-spacing: 1px; color: #2a2620; border-bottom: 2px solid rgba(40,35,30,.6); padding-bottom: 6px; margin-bottom: 4px; }
+.form-head b { letter-spacing: 2px; }
+.route-canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 2px; }
+.stamp { position: absolute; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)); width: 66px; height: 66px; border-radius: 50%;
+  background: rgba(232,221,192,.55); border: 3px double rgba(35,45,90,.85); color: rgba(35,45,90,.9); font-family: 'Courier New', monospace;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; cursor: default; mix-blend-mode: multiply; }
+.stamp span { font-size: 22px; line-height: 1; filter: grayscale(1) contrast(1.4); opacity: .8; }
+.stamp small { font-size: 8px; font-weight: 900; letter-spacing: 1px; margin-top: 2px; max-width: 60px; text-align: center; line-height: 1.05; }
+.stamp.t-elite, .stamp.t-boss { border-color: rgba(150,25,20,.85); color: rgba(150,25,20,.95); }
+.stamp.t-boss { width: 86px; height: 86px; border-width: 4px; }
+.stamp.t-boss span { font-size: 30px; }
+.stamp.can { cursor: pointer; }
+.stamp.can:hover { background: rgba(255,240,200,.85); transform: translate(-50%, -50%) rotate(var(--rot, 0deg)) scale(1.08); }
+.stamp.done { opacity: .5; }
+.stamp.done::after { content: '✕'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 50px; color: rgba(178,34,28,.75); font-family: Arial, sans-serif; }
+.stamp[disabled] { pointer-events: auto; }
+.pushpin { position: absolute; width: 16px; height: 16px; border-radius: 50%; transform: translate(-30%, -150%); background: radial-gradient(circle at 35% 35%, #ff6a5a, #a8221a 60%, #5a100c);
+  box-shadow: 2px 3px 3px rgba(0,0,0,.35); pointer-events: none; }
+.pushpin::after { content: ''; position: absolute; left: 7px; top: 14px; width: 2px; height: 9px; background: #888; transform: rotate(18deg); }
+.mugshot { position: absolute; right: 2%; top: 1%; width: 100px; padding: 6px 6px 4px; background: #f4f0e6; box-shadow: 2px 3px 6px rgba(0,0,0,.35); transform: rotate(6deg); pointer-events: none; }
+.mugshot canvas { width: 100%; display: block; filter: sepia(.3) contrast(1.1); }
+.mugshot p { margin: 3px 0 0; font: 10px/1.1 "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive; color: #3a2a1a; text-align: center; }
+.mugshot .tape { position: absolute; left: 30%; top: -9px; width: 44px; height: 16px; background: rgba(230,225,200,.7); transform: rotate(-8deg); box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.approved { position: absolute; left: 3%; top: 4%; transform: rotate(-14deg); border: 3px solid rgba(178,34,28,.55); color: rgba(178,34,28,.6); padding: 2px 10px;
+  font: 900 18px/1 'Courier New', monospace; letter-spacing: 3px; text-align: center; pointer-events: none; mix-blend-mode: multiply; }
+.approved small { display: block; font-size: 8px; letter-spacing: 1px; font-weight: 700; }
+@media (max-width: 700px) { .mugshot { width: 70px; } .approved { font-size: 13px; } .stamp { width: 54px; height: 54px; } .stamp.t-boss { width: 70px; height: 70px; } }

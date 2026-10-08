@@ -131,6 +131,7 @@ const Proto = {
     this.c2d.width = Math.floor(this.W * dpr);
     this.c2d.height = Math.floor(this.H * dpr);
     if (this.cockpit) this.cockpit.resize(this.W, this.H);
+    if (this.state === 'map') this.showMap(); // redraw the route sheet at the new size
   },
 
   lock() {
@@ -244,14 +245,16 @@ const Proto = {
     this.shopOpen = false;
     const b = this.build, run = this.run, map = run.map, act = this.act, boss = BOSSES[run.act];
     const reach = reachableNodes(map, run.cur);
-    const X = (c) => 18 + c * 32, Y = (r) => 88 - (r / MAP_ROWS) * 76; // % positions; start at the bottom, boss on top
-    const lines = map.nodes.flatMap((n) => n.next.map((t) => { const m = mapNode(map, t); return `<line x1="${X(n.col)}" y1="${Y(n.row)}" x2="${X(m.col)}" y2="${Y(m.row)}" class="${n.done && (m.done || reach.includes(m.id)) ? 'walked' : ''}"/>`; })).join('');
+    const rng = mulberry32(map.seed + 3);
+    // Stops are rubber stamps; each sits at a slight angle, like it was thumped on by hand.
     const nodes = map.nodes.map((n) => {
-      const t = NODE_TYPES_RUN[n.type], can = reach.includes(n.id);
+      const t = NODE_TYPES_RUN[n.type], can = reach.includes(n.id), p = RouteSheet.pos(n);
       const tip = n.type === 'boss' ? `${boss.name}, ${boss.title}. ${boss.desc}` : t.desc;
-      return `<button class="map-node t-${n.type} ${n.done ? 'done' : ''} ${can ? 'can' : ''} ${run.cur === n.id ? 'here' : ''}" style="left:${X(n.col)}%;top:${Y(n.row)}%"
-        ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} title="${tip.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? boss.name : t.label}</small></button>`;
+      const rot = ((rng() - 0.5) * 16).toFixed(1);
+      return `<button class="stamp t-${n.type} ${n.done ? 'done' : ''} ${can ? 'can' : ''}" style="left:${p.x * 100}%;top:${p.y * 100}%;--rot:${rot}deg"
+        ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} title="${tip.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? 'QUALIFIER' : t.label.toUpperCase()}</small></button>`;
     }).join('');
+    const here = run.cur != null ? RouteSheet.pos(mapNode(map, run.cur)) : { x: 0.5, y: 1.0 };
     const legend = Object.entries(NODE_TYPES_RUN).filter(([k]) => k !== 'boss').map(([, t]) => `<span><b>${t.icon}</b> ${t.label}</span>`).join('');
     this.setUI(`<div class="screen mapscreen g3d">
       <div class="g-top">
@@ -261,15 +264,27 @@ const Proto = {
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
       </div>
-      <div class="route clipboard">
+      <div class="route clipboard sheet">
         <div class="clip"></div>
-        <h2 class="g-title">Route sheet · Act ${ROMAN[run.act]}</h2>
-        <p class="small muted">Pick your next stop. Lines show where each stop leads. At the top: <b>${boss.name}</b>, ${boss.title}.</p>
-        <div class="route-map"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${lines}</svg>${nodes}</div>
+        <div class="form-head">
+          <div><b>DEPT. OF CORRECTIONS</b> · RACE ASSIGNMENT</div>
+          <div>INMATE #${this.cos.inmate} · ACT ${ROMAN[run.act]}: ${act.title.toUpperCase()}</div>
+        </div>
+        <div class="route-map" id="routeMap">
+          <canvas class="route-canvas" id="routeCanvas"></canvas>
+          ${nodes}
+          ${run.cur != null ? `<div class="pushpin" style="left:${here.x * 100}%;top:${here.y * 100}%"></div>` : ''}
+          <div class="mugshot"><canvas id="mugshot" width="120" height="140"></canvas><div class="tape"></div><p>${boss.title}</p></div>
+          <div class="approved">APPROVED<small>by order of the warden</small></div>
+        </div>
         <div class="route-legend small">${legend}</div>
       </div>
       <button class="btn big g-go garage-btn" data-action="open-garage">Garage: repairs, loadout, paint</button>
     </div>`);
+    const cv = document.getElementById('routeCanvas');
+    if (cv) RouteSheet.draw(cv, map, reach, run.cur);
+    const mug = document.getElementById('mugshot');
+    if (mug) RouteSheet.mugshot(mug, boss);
     this.syncGarage();
     if (this.preview) this.preview.setStation('overview');
   },

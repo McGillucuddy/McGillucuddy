@@ -138,7 +138,7 @@ function genActMap(rng, act) {
   cap('event', 3);
   // Never two commissaries side by side in a row.
   for (const row of rows) { let seen = false; for (const n of row) { if (n.type === 'shop') { if (seen) n.type = 'race'; seen = true; } } }
-  return { act, rows, boss, nodes: [...all, boss] };
+  return { act, rows, boss, nodes: [...all, boss], seed: Math.floor(rng() * 1e9) };
 }
 
 const mapNode = (map, id) => map.nodes.find((n) => n.id === id);
