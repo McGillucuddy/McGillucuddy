@@ -39,6 +39,21 @@ One race, with a switchable first-person cockpit view and top-down view (press `
 
 The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor/` so it works offline.
 
+## Models (`models.html`, `models/`)
+
+All 3D models are low poly (flat-shaded, chamfered, mostly a few hundred triangles each) and built in
+code in `js/models.js`, so the game, the cockpit and the viewer share them. Open `models.html` to orbit
+around each one and download it as a `.glb`. Pre-exported copies live in `models/`
+(see `models/contact_sheet.png`); `.glb` files open in Blender, Windows 3D Viewer, or any glTF viewer.
+
+- **Cars:** Comet, Brick, Wasp and Phantom each have their own body shape; rivals add a rocket pod or
+  a mine dropper. Your own car is an open shell with the cockpit interior inside.
+- **Weapons:** SMG, rocket launcher, grenade, rocket, mine.
+- **Cabin and trinkets:** cockpit interior, fuzzy dice, bobblehead, grenade crate.
+- **Scenery:** tree, pine, cactus, rock, neon building.
+
+Scale: a car is 36 units long, so 1 unit is about 12.5 cm.
+
 ## How a run works
 
 1. **Garage**: spend cash on stat upgrades (Engine, Gearbox, Steering, Tyres, Nitro), repair
@@ -97,5 +112,6 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/combat.js` | Gunner prototype: weapons, armed rivals, projectiles, shield/parry, swerve |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
+| `js/models.js`, `js/modelviewer.js` | Low-poly model library and the model viewer / `.glb` exporter |
 | `js/hud.js` | Race HUD shared by both pages |
 | `tools/sim.js` | Headless balance simulator: `node tools/sim.js [races] [botSkill]` |

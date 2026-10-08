@@ -173,3 +173,23 @@ body.proto #hud { cursor: crosshair; }
 .tag.red { color: #ff8a6a; }
 .tag.yellow { color: var(--accent); }
 .ctl { font-size: 13px; color: var(--muted); margin: 5px 0; }
+
+/* Model viewer */
+body.mv { display: flex; overflow: hidden; }
+.mv-side { width: 230px; flex: none; height: 100vh; overflow-y: auto; padding: 16px; background: var(--panel); }
+.small-logo { font-size: 30px; margin: 0; letter-spacing: 1px; }
+.mv-side h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin: 14px 0 4px; }
+.mv-item { display: block; width: 100%; text-align: left; font: inherit; font-size: 14px; color: var(--text); background: transparent; border: 0; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.mv-item:hover { background: var(--panel-2); }
+.mv-item.active { background: var(--panel-2); color: var(--accent); font-weight: 700; }
+.mv-main { flex: 1; position: relative; min-width: 0; }
+#view { width: 100%; height: 100vh; display: block; cursor: grab; }
+.mv-info { position: absolute; left: 16px; bottom: 16px; max-width: 360px; }
+.mv-info h2 { margin: 0 0 4px; }
+.mv-info label { margin-right: 12px; }
+@media (max-width: 700px) {
+  body.mv { flex-direction: column; }
+  .mv-side { width: 100%; height: auto; max-height: 34vh; }
+  #view { height: 66vh; }
+  .mv-info { left: 8px; right: 8px; bottom: 8px; }
+}

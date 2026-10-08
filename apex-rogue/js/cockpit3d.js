@@ -2,7 +2,6 @@
 // First-person cockpit view (Three.js) of the same 2D race simulation.
 // Sim (x, y) maps to three (x, height, y). Car-local axes: +X forward, +Y up, +Z right.
 
-const EYE = { x: -2.6, y: 9.8, z: 4.2 }; // passenger seat; the driver's seat is empty
 const WALL_H = 14;
 
 function m3(color, opts) {
@@ -47,15 +46,19 @@ class CockpitView {
 
   resize(W, H) {
     this.renderer.setSize(W, H, false);
-    if (this.camera) {
-      this.camera.aspect = W / H;
-      this.camera.updateProjectionMatrix();
+    for (const cam of [this.camera, this.vmCamera]) {
+      if (!cam) continue;
+      cam.aspect = W / H;
+      cam.updateProjectionMatrix();
     }
   }
 
   dispose() {
     if (!this.scene) return;
-    this.scene.traverse((o) => {
+    const all = [];
+    this.scene.traverse((o) => all.push(o));
+    this.vmScene.traverse((o) => all.push(o));
+    all.forEach((o) => {
       if (o.geometry) o.geometry.dispose();
       const mats = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
       for (const m of mats) {
@@ -73,6 +76,13 @@ class CockpitView {
     this.camera = new THREE.PerspectiveCamera(74, 1, 0.3, 6000);
     this.rearCam = new THREE.PerspectiveCamera(50, 512 / 156, 1, 3000);
     this.scene.add(this.camera);
+    // Held weapons live in their own scene, drawn after clearing depth so they never clip into the cabin.
+    this.vmScene = new THREE.Scene();
+    this.vmCamera = new THREE.PerspectiveCamera(74, 1, 0.1, 100);
+    this.vmScene.add(this.vmCamera, new THREE.HemisphereLight(0xffffff, 0x444455, 1.2));
+    const vmSun = new THREE.DirectionalLight(0xffffff, 0.9);
+    vmSun.position.set(2, 4, 3);
+    this.vmScene.add(vmSun);
     this.look.yaw = 0;
     this.look.pitch = -0.05;
     this.shake = 0;
@@ -177,38 +187,22 @@ class CockpitView {
   buildDecos() {
     const tr = this.race.track, kind = tr.biome.deco, decos = tr.decos;
     if (!decos.length) return;
-    const dummy = new THREE.Object3D();
-    const parts = [];
+    const add = (tpl, list) => { if (list.length) for (const m of instanceTemplate(tpl, list)) this.scene.add(m); };
+    const T = (d) => ({ x: d.x, z: d.y, ry: d.r * 6, s: d.s });
     if (kind === 'tree') {
-      parts.push({ geo: new THREE.CylinderGeometry(2.5, 3.5, 18, 6), mat: m3('#5a3d22'), y: 9, s: [1, 1, 1] });
-      parts.push({ geo: new THREE.IcosahedronGeometry(20, 0), mat: m3('#2f6b2a', { flatShading: true }), y: 32, s: [1, 1, 1] });
+      add(Models.tree(3), decos.filter((d) => d.r < 0.5).map(T));
+      add(Models.tree(8), decos.filter((d) => d.r >= 0.5).map(T));
     } else if (kind === 'pine') {
-      parts.push({ geo: new THREE.CylinderGeometry(2, 3, 12, 6), mat: m3('#4a3320'), y: 6, s: [1, 1, 1] });
-      parts.push({ geo: new THREE.ConeGeometry(16, 46, 7), mat: m3('#2d5a45', { flatShading: true }), y: 34, s: [1, 1, 1] });
+      add(Models.pine(), decos.map(T));
     } else if (kind === 'cactus') {
-      parts.push({ geo: new THREE.CylinderGeometry(4, 4.5, 34, 7), mat: m3('#4f8a3c', { flatShading: true }), y: 17, s: [1, 1, 1] });
-      parts.push({ geo: new THREE.DodecahedronGeometry(12, 0), mat: m3('#a07a4d', { flatShading: true }), y: 4, s: [1, 0.6, 1], alt: true });
+      add(Models.cactus(), decos.filter((d) => d.r < 0.55).map(T));
+      add(Models.rock(11), decos.filter((d) => d.r >= 0.55 && d.r < 0.8).map(T));
+      add(Models.rock(23), decos.filter((d) => d.r >= 0.8).map(T));
     } else {
-      parts.push({ geo: new THREE.BoxGeometry(50, 1, 50), mat: m3('#0b0a14', { emissive: '#ff2fd0', emissiveIntensity: 0.25 }), y: 0, s: [1, 1, 1], building: true });
-    }
-    for (const part of parts) {
-      const inst = new THREE.InstancedMesh(part.geo, part.mat, decos.length);
-      decos.forEach((d, i) => {
-        let sc = d.s;
-        let sy = part.s[1];
-        if (part.building) sy = 60 + d.r * 140;
-        if (kind === 'cactus') {
-          // Half are cacti, half are rocks: hide the other part by scaling to zero.
-          const isRock = d.r >= 0.55;
-          if (!!part.alt !== isRock) sc = 0.0001;
-        }
-        dummy.position.set(d.x, part.building ? sy / 2 : part.y * sc, d.y);
-        dummy.rotation.set(0, d.r * 6, 0);
-        dummy.scale.set(sc * part.s[0], part.building ? sy : sc * sy, sc * part.s[2]);
-        dummy.updateMatrix();
-        inst.setMatrixAt(i, dummy.matrix);
-      });
-      this.scene.add(inst);
+      for (let v = 0; v < 3; v++) {
+        add(Models.building(v * 17 + 5), decos.filter((d) => Math.min(2, Math.floor(d.r * 3)) === v)
+          .map((d) => ({ x: d.x, z: d.y, ry: Math.round(d.r * 4) * (Math.PI / 2), s: 1 })));
+      }
     }
   }
 
@@ -237,31 +231,17 @@ class CockpitView {
   buildCars() {
     this.carMeshes = new Map();
     for (const car of this.race.cars) {
-      const g = new THREE.Group();
       if (car === this.race.player) {
-        this.playerGroup = g;
-        // Your own hood, seen through the windshield.
-        g.add(box(10, 1.6, 17, m3(car.color, { metalness: 0.3, roughness: 0.4 }), 13.5, 6.2, 0));
-        this.scene.add(g);
+        // Your own car is just a shell (hood, rear deck, wheels); the cockpit interior fills the middle.
+        this.playerGroup = new THREE.Group();
+        this.playerGroup.add(Models.car({ color: car.color, accent: car.accent, shell: true }));
+        this.scene.add(this.playerGroup);
         continue;
       }
-      const bodyMat = m3(car.color, { metalness: 0.3, roughness: 0.45 });
-      g.add(box(36, 7, 18, bodyMat, 0, 6, 0));
-      g.add(box(16, 6, 15, m3('#1c2633', { metalness: 0.5, roughness: 0.2 }), -3, 12, 0));
-      g.add(box(3, 1.2, 18, m3(car.accent), -17, 10.5, 0));
-      const wm = m3('#111');
-      for (const [x, z] of [[11, 9], [11, -9], [-11, 9], [-11, -9]]) {
-        const w = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 3, 12), wm);
-        w.rotation.x = Math.PI / 2;
-        w.position.set(x, 4, z);
-        g.add(w);
-      }
-      if (car.weapon === 'rocket') {
-        g.add(box(10, 3, 6, m3('#222'), -3, 16.5, 0));
-        g.add(box(12, 2.6, 2.6, m3('#ff5a3c'), 0, 18.5, 0));
-      } else if (car.weapon === 'mine') {
-        g.add(box(6, 4, 12, m3('#ffd23f'), -16, 9, 0));
-      }
+      const g = new THREE.Group();
+      const style = ['comet', 'brick', 'wasp', 'phantom'][this.carMeshes.size % 4];
+      const model = Models.car({ style, color: car.color, accent: car.accent, weapon: car.weapon });
+      g.add(model);
       const tag = canvasTex(256, 64);
       // Constant on-screen size so tags stay readable without filling the view up close.
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tag.tex, depthTest: false, transparent: true, sizeAttenuation: false }));
@@ -269,209 +249,57 @@ class CockpitView {
       sprite.position.set(0, 30, 0);
       g.add(sprite);
       this.scene.add(g);
-      this.carMeshes.set(car, { g, bodyMat, tag, lastTag: '' });
+      this.carMeshes.set(car, { g, bodyMat: model.userData.bodyMat, wheels: model.userData.wheels, tag, lastTag: '' });
     }
   }
 
   // ---------- Interior ----------
 
   buildInterior() {
-    const I = new THREE.Group();
-    const p = this.race.player;
-    const dark = m3('#1b1d22'), trim = m3('#2a2d33'), seat = m3('#3b2a24'), body = m3(p.color, { metalness: 0.3, roughness: 0.5 });
-    I.add(box(34, 1, 17, m3('#15161a'), -1, 1, 0)); // floor
-    I.add(box(5, 2.6, 17.2, dark, 6.5, 5, 0)); // dashboard
-    I.add(box(3.5, 0.6, 17.2, trim, 5.6, 6.5, 0)); // dash top lip
-    for (const s of [-1, 1]) {
-      I.add(beam([8.4, 6.6, 8.6 * s], [2.5, 12.6, 8.2 * s], 1.1, body)); // A-pillars
-      I.add(beam([-4, 5.5, 8.6 * s], [-4, 12.6, 8.6 * s], 1.4, body)); // B-pillars
-      I.add(beam([-12, 12.6, 8.4 * s], [-16.5, 7, 8.6 * s], 1.3, body)); // C-pillars
-      I.add(box(22, 5.5, 0.8, trim, -3.5, 3.6, 8.9 * s)); // doors
-      I.add(box(22, 0.8, 1.6, dark, -3.5, 6.4, 8.4 * s)); // window sill
-    }
-    I.add(box(14.6, 0.8, 17.4, body, -4.75, 12.95, 0)); // roof
-    I.add(box(14.6, 0.3, 16, m3('#4a4740'), -4.75, 12.5, 0)); // headliner
-    I.add(box(2, 2, 17.2, body, -17.2, 6.5, 0)); // rear deck
-    I.add(box(4.5, 0.6, 17, body, 8.8, 6.6, 0)); // cowl under windshield
-    // Seats: rear bench, the empty driver's seat, your seat.
-    I.add(box(5, 4, 16, seat, -9.5, 4, 0));
-    I.add(box(1.5, 4.5, 16, seat, -12, 6.8, 0)); // low bench back keeps the rear window clear
-    for (const z of [-4.5, 4.5]) {
-      I.add(box(6, 1.6, 6, seat, -1.5, 3.6, z));
-      if (z > 0) continue; // you're sitting in this one; its back would fill the view when you turn around
-      const back = box(1.6, 8, 6, seat, -4.6, 8, z);
-      back.rotation.z = 0.12;
-      I.add(back);
-      I.add(box(1.4, 2.2, 4, seat, -5.2, 13, z).translateY(-1.8));
-    }
-    I.add(box(10, 3.6, 3, dark, 0.5, 3.7, 0)); // center console
-
-    // Steering wheel turning on its own.
-    const col = beam([6, 5.6, -4.5], [3.6, 7.5, -4.5], 0.8, dark);
-    I.add(col);
-    const wheelTilt = new THREE.Group();
-    wheelTilt.position.set(3.4, 7.7, -4.5);
-    wheelTilt.rotation.z = 0.45;
-    const wheelFace = new THREE.Group();
-    wheelFace.rotation.y = Math.PI / 2;
-    const wheel = new THREE.Group();
-    wheel.add(new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.32, 8, 24), m3('#111')));
-    wheel.add(box(5, 0.5, 0.4, m3('#222')));
-    wheel.add(box(0.5, 2.6, 0.4, m3('#222'), 0, -1.3, 0));
-    wheelFace.add(wheel);
-    wheelTilt.add(wheelFace);
-    I.add(wheelTilt);
-    this.wheel = wheel;
-
-    // Rear-view mirror with a live feed.
+    const { group: I, refs } = Models.interior(this.race.player.color);
+    this.wheel = refs.wheel;
+    this.dicePivot = refs.dice;
+    this.bobNeck = refs.bobNeck;
+    this.nadeMeshes = refs.nades;
+    this.rackGuns = refs.rackGuns;
+    // Live textures: mirror feed, dashboard screens, windshield cracks.
     const mirTex = this.mirrorRT.texture;
     mirTex.wrapS = THREE.RepeatWrapping;
     mirTex.repeat.x = -1;
     mirTex.offset.x = 1;
-    const mirror = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.35), new THREE.MeshBasicMaterial({ map: mirTex }));
-    mirror.position.set(3.1, 11.6, 0);
-    mirror.lookAt(EYE.x, EYE.y + 0.6, EYE.z);
-    const frame = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 1.7), new THREE.MeshBasicMaterial({ color: '#111' }));
-    frame.position.copy(mirror.position);
-    frame.quaternion.copy(mirror.quaternion);
-    frame.translateZ(-0.08);
-    I.add(frame, mirror);
-    I.add(beam([3.4, 12.5, 0], [3.4, 11.6, 0], 0.4, m3('#111')));
-
-    // Fuzzy dice hanging from the mirror (a trinket).
-    const dicePivot = new THREE.Group();
-    dicePivot.position.set(3.2, 10.8, 0.9);
-    const string = beam([0, 0, 0], [0, -2.3, 0], 0.06, m3('#eee'));
-    dicePivot.add(string);
-    const dm = m3('#f2f2f2', { roughness: 1 });
-    const d1 = box(0.7, 0.7, 0.7, dm, 0, -2.6, -0.35), d2 = box(0.7, 0.7, 0.7, m3('#ff3b6b', { roughness: 1 }), 0.1, -2.8, 0.4);
-    d1.rotation.set(0.4, 0.3, 0.2); d2.rotation.set(-0.3, 0.6, 0.1);
-    dicePivot.add(d1, d2);
-    I.add(dicePivot);
-    this.dicePivot = dicePivot;
-
-    // Bobblehead on the dash (a trinket).
-    const bob = new THREE.Group();
-    bob.position.set(6.2, 6.8, 7.2);
-    bob.scale.setScalar(0.6);
-    bob.add(box(0.9, 1.2, 0.9, m3('#2a62c9'), 0, 0.6, 0));
-    const neck = new THREE.Group();
-    neck.position.y = 1.3;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.85, 12, 10), m3('#f1c27d'));
-    head.position.y = 0.7;
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.88, 12, 6, 0, TAU, 0, Math.PI / 2), m3('#e8423f'));
-    cap.position.y = 0.8;
-    neck.add(head, cap);
-    bob.add(neck);
-    I.add(bob);
-    this.bobNeck = neck;
-
-    // Dashboard screens: radar + status.
-    this.radar = canvasTex(256, 256);
-    const radar = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 4.6), new THREE.MeshBasicMaterial({ map: this.radar.tex }));
-    radar.geometry.dispose();
-    radar.geometry = new THREE.PlaneGeometry(2.6, 2.6);
-    radar.position.set(5.6, 7.75, 0.4);
-    radar.lookAt(EYE.x, EYE.y, EYE.z);
-    I.add(radar);
-    const bezel = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 3.0), new THREE.MeshBasicMaterial({ color: '#0a0a0a' }));
-    bezel.position.copy(radar.position);
-    bezel.quaternion.copy(radar.quaternion);
-    bezel.translateZ(-0.05);
-    I.add(bezel);
-    this.status = canvasTex(256, 128);
-    const status = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4), new THREE.MeshBasicMaterial({ map: this.status.tex }));
-    status.position.set(5.6, 7.35, -2.6);
-    status.lookAt(EYE.x, EYE.y, EYE.z);
-    I.add(status);
-
-    // Grenade crate on the console: ammo you can count.
-    I.add(box(4.2, 1.4, 3.6, m3('#4a5a2a'), -1.4, 6.2, 0));
-    this.nadeMeshes = [];
-    for (let k = 0; k < 3; k++) {
-      const n = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), m3('#3d5a22', { roughness: 0.6 }));
-      n.position.set(-2.5 + k * 1.1, 7.2, 0);
-      I.add(n);
-      this.nadeMeshes.push(n);
-    }
-
-    // Gun rack on the empty driver's door: the weapon in your hands is missing from it.
-    const steel = m3('#777', { metalness: 0.8, roughness: 0.3 });
-    for (const x of [-2.5, 3]) {
-      I.add(box(0.5, 0.5, 1.6, steel, x, 6.2, -7.9));
-      I.add(box(0.5, 0.5, 1.6, steel, x, 4.6, -7.9));
-    }
-    this.rackGuns = {
-      smg: this.makeSmg(),
-      rocket: this.makeLauncher(),
+    const live = (mesh, tex, extra) => {
+      mesh.material.map = tex;
+      mesh.material.color.set('#ffffff');
+      Object.assign(mesh.material, extra || {});
+      mesh.material.needsUpdate = true;
     };
-    this.rackGuns.smg.position.set(0.3, 6.9, -7.6);
-    this.rackGuns.smg.rotation.y = -Math.PI / 2;
-    this.rackGuns.rocket.scale.setScalar(0.8);
-    this.rackGuns.rocket.position.set(0.2, 5.0, -7.6);
-    this.rackGuns.rocket.rotation.y = -Math.PI / 2;
-    I.add(this.rackGuns.smg, this.rackGuns.rocket);
-
-    // Windshield crack layer.
+    live(refs.mirror, mirTex);
+    this.radar = canvasTex(256, 256);
+    live(refs.radar, this.radar.tex);
+    this.status = canvasTex(256, 128);
+    live(refs.status, this.status.tex);
     this.cracks = canvasTex(512, 256);
-    const ws = new THREE.Mesh(new THREE.PlaneGeometry(17, 8.4), new THREE.MeshBasicMaterial({ map: this.cracks.tex, transparent: true, depthWrite: false, side: THREE.DoubleSide }));
-    const u = new THREE.Vector3(0, 0, 1), v = new THREE.Vector3(-5.9, 6, 0).normalize(), n = new THREE.Vector3().crossVectors(u, v);
-    ws.matrixAutoUpdate = false;
-    ws.matrix.makeBasis(u, v, n).setPosition(5.45, 9.6, 0);
-    I.add(ws);
+    live(refs.windshield, this.cracks.tex, { opacity: 1 });
 
     const cabinLight = new THREE.PointLight(0xffe2c0, 0.6, 40, 1.5);
     cabinLight.position.set(-2, 11.5, 0);
     I.add(cabinLight);
-
     this.interior = I;
     this.playerGroup.add(I);
   }
 
-  makeSmg() {
-    const g = new THREE.Group();
-    const gun = m3('#2b2b2b', { metalness: 0.6, roughness: 0.4 });
-    g.add(box(1.1, 1.5, 5.5, gun, 0, 0, 0));
-    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 3, 8), gun);
-    barrel.rotation.x = Math.PI / 2;
-    barrel.position.set(0, 0.3, -4.2);
-    g.add(barrel);
-    g.add(box(0.8, 2.6, 1, m3('#1a1a1a'), 0, -1.6, -0.8));
-    g.add(box(0.9, 1.6, 1.6, m3('#3a2a1e'), 0, -1.1, 2));
-    return g;
-  }
-
-  makeLauncher() {
-    const g = new THREE.Group();
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 10, 12, 1, true), m3('#4b5a2e', { side: THREE.DoubleSide }));
-    tube.rotation.x = Math.PI / 2;
-    g.add(tube);
-    g.add(box(0.8, 2.2, 1, m3('#222'), 0, -1.6, 0.5));
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.9, 2, 10), m3('#ff5a3c'));
-    tip.rotation.x = -Math.PI / 2;
-    tip.position.z = -5.6;
-    g.add(tip);
-    g.userData.tip = tip;
-    return g;
-  }
-
   buildViewmodels() {
     const vm = new THREE.Group();
-    this.camera.add(vm);
-    const smg = this.makeSmg();
+    this.vmCamera.add(vm);
+    const smg = Models.smg();
     smg.position.set(2.1, -2.2, -6);
-    const launcher = this.makeLauncher();
+    const launcher = Models.launcher();
     launcher.scale.setScalar(0.75);
     launcher.position.set(3.0, -2.3, -5.5);
     const glove = box(1.6, 1.4, 2.4, m3('#2e231b'), 2.1, -3.6, -5.2);
     vm.add(smg, launcher, glove);
-    vm.traverse((o) => {
-      if (o.material) { o.material = o.material.clone(); o.material.depthTest = false; o.material.fog = false; }
-      o.renderOrder = 10;
-    });
-    const flash = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, depthTest: false, blending: THREE.AdditiveBlending }));
-    flash.renderOrder = 11;
-    this.camera.add(flash);
+    const flash = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.vmCamera.add(flash);
     this.vm = { root: vm, smg, launcher, glove, flash };
   }
 
@@ -486,27 +314,9 @@ class CockpitView {
     };
     this.pools = {
       bullet: pool(80, () => new THREE.Mesh(new THREE.BoxGeometry(16, 0.5, 0.5), new THREE.MeshBasicMaterial({ color: '#ffe680' }))),
-      rocket: pool(24, () => {
-        const g = new THREE.Group();
-        const body = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 9, 8), m3('#ddd'));
-        body.rotation.z = Math.PI / 2;
-        const glow = new THREE.Mesh(new THREE.SphereGeometry(2.2, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffb13b' }));
-        glow.position.x = -5.5;
-        g.add(body, glow);
-        g.userData.body = body;
-        return g;
-      }),
-      mine: pool(40, () => {
-        const g = new THREE.Group();
-        const disc = new THREE.Mesh(new THREE.CylinderGeometry(7, 8, 2.5, 14), m3('#2a2a2a', { metalness: 0.6 }));
-        disc.position.y = 1.3;
-        const led = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff2a2a' }));
-        led.position.y = 3;
-        g.add(disc, led);
-        g.userData.led = led;
-        return g;
-      }),
-      nade: pool(10, () => new THREE.Mesh(new THREE.SphereGeometry(2.4, 10, 8), m3('#3d5a22'))),
+      rocket: pool(24, () => Models.rocket()),
+      mine: pool(40, () => Models.mine()),
+      nade: pool(10, () => { const g = Models.grenade(); g.scale.setScalar(2.4); return g; }),
       boom: pool(24, () => new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffb13b', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))),
       puff: pool(160, () => new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), new THREE.MeshBasicMaterial({ color: '#cccccc', transparent: true, opacity: 0.5, depthWrite: false }))),
     };
@@ -595,6 +405,7 @@ class CockpitView {
     for (const [car, m] of this.carMeshes) {
       m.g.position.set(car.x, 0, car.y);
       m.g.rotation.y = -car.heading;
+      for (const w of m.wheels) w.rotation.z -= (car.forwardSpeed * dt) / 3.8;
       const flash = car.hitFlash > 0;
       m.bodyMat.emissive.set(flash ? '#ffffff' : car.hp <= 0 ? '#331100' : '#000000');
       m.bodyMat.emissiveIntensity = flash ? 0.8 : 1;
@@ -634,8 +445,7 @@ class CockpitView {
       g.position.z = (g === vm.smg ? -6 : -5.5) + this.recoil * 0.8;
       g.position.y = (g === vm.smg ? -2.2 : -2.3) + sway;
     }
-    if (combat.smg.overheated) vm.smg.children[1].material.emissive.set('#ff3300');
-    else vm.smg.children[1].material.emissive.set(combat.smg.heat > 0.6 ? '#661100' : '#000000');
+    vm.smg.userData.barrel.material.emissive.set(combat.smg.overheated ? '#ff3300' : combat.smg.heat > 0.6 ? '#661100' : '#000000');
     vm.flash.visible = this.flash > 0;
     vm.flash.position.set(combat.weapon === 'smg' ? 2.4 : 3.0, combat.weapon === 'smg' ? -1.9 : -2.3, combat.weapon === 'smg' ? -12 : -10.5);
     vm.flash.rotation.z = Math.random() * TAU;
@@ -821,5 +631,9 @@ class CockpitView {
       this.vm.flash.visible = flashVis;
     }
     r.render(this.scene, this.camera);
+    r.autoClear = false;
+    r.clearDepth();
+    r.render(this.vmScene, this.vmCamera);
+    r.autoClear = true;
   }
 }
