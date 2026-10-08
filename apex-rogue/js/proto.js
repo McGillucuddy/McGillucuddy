@@ -1,5 +1,6 @@
 'use strict';
-// Gunner prototype: one race, the car drives itself, you handle weapons and defence.
+// Gunner prototype: the car drives itself, you handle weapons and defence.
+// A run is a string of races with a garage between them: build your car, survive, earn scrap.
 // Press V to swap between the first-person cockpit and the top-down view.
 
 const LOOK_SENS = 0.0024;
@@ -7,7 +8,7 @@ const PROTO_BIOMES = ['meadow', 'desert', 'tundra', 'neon'];
 
 const Proto = {
   view: 'cockpit',
-  state: 'briefing',
+  state: 'garage',
   biomeIdx: 0,
   mouse: { x: 0, y: 0, down: false, pressed: false },
   cam: { x: 0, y: 0, zoom: 1 },
@@ -56,10 +57,10 @@ const Proto = {
       const el = e.target.closest('[data-action]');
       if (!el) return;
       Sound.resume();
-      this.action(el.dataset.action);
+      this.action(el.dataset.action, el.dataset.arg);
     });
 
-    this.newRace();
+    this.newRun();
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
   },
@@ -83,21 +84,92 @@ const Proto = {
     this.ui.classList.toggle('hidden', !html);
   },
 
-  action(a) {
+  action(a, arg) {
+    const b = this.build;
+    const buy = (cost) => { if (b.scrap < cost) return false; b.scrap -= cost; Sound.play({ type: 'buy' }); return true; };
     switch (a) {
       case 'start': this.startRace(); break;
       case 'resume': this.resume(); break;
       case 'view-cockpit': this.setView('cockpit'); this.refresh(); break;
       case 'view-top': this.setView('top'); this.refresh(); break;
-      case 'next': this.newRace(); break;
-      case 'restart': this.newRace(this.seed); break;
       case 'retro': this.toggleRetro(); this.refresh(); break;
+      case 'to-briefing': this.newRace(); break;
+      case 'new-run': this.newRun(); break;
+      case 'abandon': this.gameOver(false); break;
+      case 'after-results': this.afterResults(); break;
+      // Garage & shop
+      case 'repair-hull': { const c = repairHullCost(b); if (c > 0 && buy(c)) b.hull = b.maxHull; this.showGarage(); break; }
+      case 'repair-part': { const c = repairPartCost(b, arg); if (c > 0 && buy(c)) b.parts[arg].dur = partMaxDur(b, b.parts[arg].id); this.showGarage(); break; }
+      case 'buy-spare': if (!b.spare && buy(spareCost(b, arg))) b.spare = { id: b.parts[arg].id }; this.showGarage(); break;
+      case 'buy-ammo': { const w = b.rack[+arg], d = WEAPONS[w.id]; if (buy(d.packPrice)) w.reserve += d.pack; this.showGarage(); break; }
+      case 'buy-nade': if (b.grenades < MAX_GRENADES && buy(GRENADE_PRICE)) b.grenades++; this.showGarage(); break;
+      case 'buy-item': {
+        const card = this.shop[+arg];
+        if (!card || card.sold || b.scrap < card.price) break;
+        this.pending = { card, source: 'shop', index: +arg };
+        this.tryApply();
+        break;
+      }
+      case 'pick-reward': this.pending = { card: this.rewards[+arg], source: 'reward' }; this.tryApply(); break;
+      case 'skip-reward': b.scrap += 50; this.toGarage(); break;
+      case 'replace': this.tryApply(+arg); break;
+      case 'cancel-replace': this.pending = null; this.state === 'reward' ? this.showReward() : this.showGarage(); break;
     }
   },
 
   refresh() {
     if (this.state === 'briefing') this.showBriefing();
     else if (this.state === 'paused') this.showPause();
+    else if (this.state === 'garage') this.showGarage();
+  },
+
+  // ---------- Run flow ----------
+
+  newRun() {
+    if (this.locked) document.exitPointerLock();
+    this.build = newBuild();
+    this.runRng = mulberry32((Math.random() * 2 ** 31) | 0);
+    this.race = null;
+    this.toGarage();
+  },
+
+  toGarage() {
+    this.state = 'garage';
+    this.shop = rollShop(this.build, this.runRng);
+    this.pending = null;
+    this.showGarage();
+  },
+
+  // Apply the pending reward/purchase; may first ask which weapon or ability to replace.
+  tryApply(replaceIndex) {
+    const b = this.build, pend = this.pending;
+    if (!pend) return;
+    const ok = applyItem(b, pend.card, replaceIndex);
+    if (!ok) { this.showReplace(pend.card); return; }
+    if (pend.source === 'shop') { b.scrap -= pend.card.price; this.shop[pend.index].sold = true; Sound.play({ type: 'buy' }); }
+    this.pending = null;
+    if (pend.source === 'reward') this.toGarage();
+    else this.showGarage();
+  },
+
+  afterResults() {
+    const b = this.build;
+    if (b.strikes >= STRIKES_TO_LOSE) { this.gameOver(false); return; }
+    this.state = 'reward';
+    this.rewards = rollRewards(b, this.runRng, 3);
+    this.showReward();
+  },
+
+  gameOver() {
+    if (this.locked) document.exitPointerLock();
+    const b = this.build;
+    this.state = 'over';
+    this.setUI(`<div class="screen end lost">
+      <h1>Escape failed</h1>
+      <p>Three strikes. The warden sends you back to your cell after ${b.race} race${b.race === 1 ? '' : 's'} and ${b.wins} win${b.wins === 1 ? '' : 's'}.</p>
+      <p class="muted">Trinkets collected: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
+      <button class="btn primary big" data-action="new-run">New run ▶</button>
+    </div>`);
   },
 
   toggleRetro() {
@@ -113,26 +185,32 @@ const Proto = {
 
   // ---------- Race setup ----------
 
-  newRace(seed) {
+  newRace() {
     if (this.locked) document.exitPointerLock();
-    this.seed = seed || (Math.random() * 2 ** 31) | 0;
-    if (!seed) this.biomeIdx = (this.biomeIdx + 1) % PROTO_BIOMES.length;
+    const b = this.build;
+    this.seed = (this.runRng() * 2 ** 31) | 0;
+    this.biomeIdx = (this.biomeIdx + 1) % PROTO_BIOMES.length;
     const rng = mulberry32(this.seed);
     const biome = PROTO_BIOMES[this.biomeIdx];
     const track = generateTrack(this.seed, biome, { hazardLevel: 1 });
     renderTrack(track);
     const base = CARS.comet;
-    const stats = computeStats(newRun('comet', 1));
-    const player = new Car({ name: 'You', color: base.color, accent: base.accent, isPlayer: true, stats });
+    // Stats come from the parts you have fitted; the driver chip changes how the AI drives.
+    const stats = buildStats(b);
+    if (biome === 'tundra') stats.grip *= stats.iceGrip;
+    const chipLat = { cautious: 0.85, hothead: 1.08, daredevil: 1.04 }[b.chip] || 1;
+    stats.aLat = (1050 + 650 * 0.15) * Math.sqrt(track.biome.grip) * chipLat;
+    const player = new Car({ name: 'You', color: base.color, accent: base.accent, isPlayer: true, stats, hp: b.hull });
     const driver = new AIDriver(player, 0.95, rng);
-    stats.aLat = (1050 + 650 * 0.15) * Math.sqrt(track.biome.grip);
+    driver.rammer = b.chip === 'hothead';
+    driver.insideMul = b.chip === 'daredevil' ? 2.2 : 1;
     this.race = new Race({
       track, laps: 3, playerCar: player, rng, qualify: 3,
-      opponents: buildOpponents(rng, 3, { aiBonus: 0 }, false),
+      opponents: buildOpponents(rng, Math.min(7, 1 + b.race), { aiBonus: 0 }, false),
       playerGrid: 4,
     });
     this.driver = driver;
-    this.combat = new Combat(this.race, { driver });
+    this.combat = new Combat(this.race, { driver, build: b });
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
     if (this.cockpit) this.cockpit.load(this.race, this.combat);
     this.cam.x = player.x;
@@ -199,7 +277,7 @@ const Proto = {
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
       <h1>Race Briefing</h1>
-      <p class="muted">Gunner prototype · the car drives itself. Survive, shoot, defend.</p>
+      <p class="muted">Race ${this.build.race + 1} · ${this.build.scrap} scrap · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
       <div class="brief-grid">
         <div class="panel"><canvas id="preview" width="320" height="320"></canvas>
           <h2>${bio.name}</h2><p class="muted">${bio.blurb}</p>
@@ -209,9 +287,9 @@ const Proto = {
         <div class="panel"><h2>Rivals</h2>${rivals}
           <h2>Controls</h2>
           <div class="ctl"><kbd>Mouse</kbd> Aim / look around · <kbd>LMB</kbd> Fire</div>
-          <div class="ctl"><kbd>1</kbd> SMG (overheats) · <kbd>2</kbd> Rocket launcher · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
+          <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch · <kbd>R</kbd> Reload</div>
           <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further)</div>
-          <div class="ctl"><kbd>Space</kbd> Shield: block right as a rocket hits to <b>parry</b> it back</div>
+          <div class="ctl"><kbd>Space</kbd> / <kbd>E</kbd> Abilities · <kbd>B</kbd> Fit your spare part when one breaks</div>
           <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
           <div class="ctl"><kbd>V</kbd> Switch view · <kbd>F</kbd> Retro filter · <kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
           <p class="muted small">Shoot rockets and mines out of the air with the SMG. Red laser = a gunner is locking on to you.</p>
@@ -234,18 +312,26 @@ const Proto = {
       <button class="btn primary big" data-action="resume">${this.view === 'cockpit' ? 'Click to resume aiming' : 'Resume'}</button>
       ${this.cockpit ? `<button class="btn" data-action="${this.view === 'cockpit' ? 'view-top' : 'view-cockpit'}">Switch to ${this.view === 'cockpit' ? 'top-down' : 'cockpit'} view</button>` : ''}
       ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'} (F)</button>` : ''}
-      <button class="btn" data-action="restart">Restart this race</button>
-      <button class="btn ghost" data-action="next">New track</button>
+      <button class="btn ghost" data-action="abandon">Abandon run</button>
     </div>`);
   },
 
   showResults() {
-    const race = this.race, p = race.player, s = this.combat.stats;
+    const race = this.race, p = race.player, s = this.combat.stats, b = this.build;
     race.rankCars();
     const ok = p.place <= race.qualify;
+    // Bank the race: hull carries over, scrap paid out, strikes for missing the cut.
+    const placePay = PLACE_SCRAP[p.place - 1] || 0, wreckPay = s.wrecked * WRECK_SCRAP + s.scrapBonus;
+    b.scrap += placePay + wreckPay;
+    b.hull = Math.max(1, Math.round(p.hp));
+    b.race++;
+    if (p.place === 1) b.wins++;
+    if (!ok) b.strikes++;
+    const parts = PART_SLOTS.map((slot) => `<span class="${b.parts[slot].dur <= 0 ? 'bad' : ''}">${SLOT_NAMES[slot]} ${b.parts[slot].dur <= 0 ? 'BROKEN' : Math.round((100 * b.parts[slot].dur) / partMaxDur(b, b.parts[slot].id)) + '%'}</span>`).join(' · ');
     const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
     this.setUI(`<div class="screen results">
-      <h1 class="${ok ? 'good' : 'bad'}">${ordinal(p.place)} place: ${ok ? 'you survived' : 'not good enough'}</h1>
+      <h1 class="${ok ? 'good' : 'bad'}">${ordinal(p.place)} place: ${ok ? 'you survived' : 'strike ' + b.strikes + ' of ' + STRIKES_TO_LOSE}</h1>
+      <p class="muted">${ok ? 'Top 3 keeps the warden happy.' : 'Finish outside the top 3 three times and the run is over.'}</p>
       <div class="results-grid">
         <table class="standings">${rows}</table>
         <div class="payout">
@@ -254,13 +340,108 @@ const Proto = {
           <div><span>Rockets &amp; mines shot down</span><b>${s.shotDown}</b></div>
           <div><span>Parries</span><b>${s.parries}</b></div>
           <div><span>Damage taken</span><b>${Math.round(s.taken)}</b></div>
-          <div class="total"><span>Hull left</span><b>${Math.ceil(p.hp)} / ${p.stats.maxHp}</b></div>
+          <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}</b></div>
+          <div><span>Placing pay</span><b>${placePay} scrap</b></div>
+          <div><span>Wreck bounties</span><b>${wreckPay} scrap</b></div>
+          <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
+          <p class="small">${parts}</p>
         </div>
       </div>
       <div class="btn-row">
-        <button class="btn primary big" data-action="next">Next track ▶</button>
-        <button class="btn" data-action="restart">Retry this track</button>
+        <button class="btn primary big" data-action="after-results">${b.strikes >= STRIKES_TO_LOSE ? 'Face the warden' : 'Collect reward ▶'}</button>
       </div>
+    </div>`);
+  },
+
+  // ---------- Garage / shop / rewards ----------
+
+  showGarage() {
+    const b = this.build, money = (n) => `${n} scrap`;
+    const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
+    const parts = PART_SLOTS.map((slot) => {
+      const part = b.parts[slot], def = PARTS[part.id], max = partMaxDur(b, part.id), broken = part.dur <= 0;
+      const cost = repairPartCost(b, slot);
+      return `<div class="gp-row">
+        <div class="gp-name"><small>${SLOT_NAMES[slot]}</small><b>${def.name}</b><small class="muted">${def.desc}</small></div>
+        <div class="gp-bar">${bar(part.dur / max, broken)}<small>${broken ? '<span class="bad">BROKEN</span>' : Math.round(part.dur) + ' / ' + max}</small></div>
+        <button class="btn small" data-action="repair-part" data-arg="${slot}" ${cost <= 0 || b.scrap < cost ? 'disabled' : ''}>${cost <= 0 ? 'OK' : 'Fix ' + cost}</button>
+        <button class="btn small" data-action="buy-spare" data-arg="${slot}" ${b.spare || b.scrap < spareCost(b, slot) ? 'disabled' : ''} title="Carry a spare ${def.name} to fit mid-race">Spare ${spareCost(b, slot)}</button>
+      </div>`;
+    }).join('');
+    const rack = b.rack.map((w, i) => {
+      const d = WEAPONS[w.id];
+      return `<div class="gp-row"><div class="gp-name"><small>Rack ${i + 1}</small><b>${d.name}</b><small class="muted">${d.desc}</small></div>
+        <div class="gp-ammo">${w.mag} / ${w.reserve}</div>
+        <button class="btn small" data-action="buy-ammo" data-arg="${i}" ${b.scrap < d.packPrice ? 'disabled' : ''}>+${d.pack} for ${d.packPrice}</button></div>`;
+    }).join('') + (b.rack.length < rackSlots(b) ? `<div class="gp-row muted small">Empty rack slot</div>` : '');
+    const abil = b.abilities.map((id, i) => `<div class="gp-chip"><kbd>${i === 0 ? 'Space' : 'E'}</kbd> ${id ? `<b>${ABILITIES[id].name}</b> <small class="muted">${ABILITIES[id].desc}</small>` : '<span class="muted">Empty</span>'}</div>`).join('');
+    const trinkets = b.trinkets.length ? b.trinkets.map((t) => `<span class="perk rarity-rare" title="${TRINKETS[t].desc}">${TRINKETS[t].name}</span>`).join('') : '<span class="muted small">None yet: they hang in your cabin once you find them.</span>';
+    const shop = this.shop.map((c, i) => `<div class="shop-card ${c.sold ? 'sold' : ''}">
+        <small class="muted">${c.type.toUpperCase()}${c.type === 'part' ? ' · replaces your ' + SLOT_NAMES[PARTS[c.id].slot].toLowerCase() : ''}</small>
+        <b>${c.name}</b><small>${c.desc}</small>
+        <button class="btn small" data-action="buy-item" data-arg="${i}" ${c.sold || b.scrap < c.price ? 'disabled' : ''}>${c.sold ? 'Sold' : 'Buy ' + c.price}</button>
+      </div>`).join('');
+    const hullCost = repairHullCost(b);
+    this.setUI(`<div class="screen garage proto-garage">
+      <div class="topbar">
+        <div><b>THE GARAGE</b></div>
+        <div>Race <b>${b.race + 1}</b></div>
+        <div class="cash">${money(b.scrap)}</div>
+        <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
+        <div>Wins <b>${b.wins}</b></div>
+      </div>
+      <div class="garage-grid">
+        <div class="panel">
+          <h2>Car</h2>
+          <div class="gp-row"><div class="gp-name"><small>Hull</small><b>${Math.ceil(b.hull)} / ${b.maxHull}</b></div>
+            <div class="gp-bar">${bar(b.hull / b.maxHull)}</div>
+            <button class="btn small" data-action="repair-hull" ${hullCost <= 0 || b.scrap < hullCost ? 'disabled' : ''}>${hullCost <= 0 ? 'OK' : 'Repair ' + hullCost}</button></div>
+          ${parts}
+          <p class="small">Spare part: <b>${b.spare ? PARTS[b.spare.id].name : 'none'}</b> <span class="muted">(press <kbd>B</kbd> mid-race to fit it when that part breaks)</span></p>
+          <h3>Driver chip</h3>
+          <div class="gp-chip">${b.chip ? `<b>${CHIPS[b.chip].name}</b> <small class="muted">${CHIPS[b.chip].desc}</small>` : '<span class="muted small">Stock driver AI</span>'}</div>
+        </div>
+        <div class="panel">
+          <h2>Weapons</h2>
+          ${rack}
+          <div class="gp-row"><div class="gp-name"><small>Throwable</small><b>Grenades</b></div><div class="gp-ammo">${b.grenades} / ${MAX_GRENADES}</div>
+            <button class="btn small" data-action="buy-nade" ${b.grenades >= MAX_GRENADES || b.scrap < GRENADE_PRICE ? 'disabled' : ''}>+1 for ${GRENADE_PRICE}</button></div>
+          <h3>Abilities</h3>${abil}
+          <h3>Trinkets</h3><div class="perks">${trinkets}</div>
+          <h3>Black market</h3>
+          <div class="shop-grid">${shop}</div>
+        </div>
+      </div>
+      <button class="btn primary big" data-action="to-briefing">Next race ▶</button>
+      <p class="small"><a class="muted" href="models.html">Model viewer</a> · <a class="muted" href="index.html">Top-down game</a></p>
+    </div>`);
+  },
+
+  showReward() {
+    const cards = this.rewards.map((c, i) => `<button class="up-card rarity-${c.type === 'trinket' || c.type === 'chip' ? 'epic' : c.type === 'part' ? 'common' : 'rare'}" data-action="pick-reward" data-arg="${i}">
+      <div class="up-rarity">${c.type}</div>
+      <div class="up-name">${c.name}</div>
+      <div class="up-desc">${c.desc}</div>
+      ${c.type === 'part' ? `<div class="up-desc"><i>Replaces your ${PARTS[this.build.parts[PARTS[c.id].slot].id].name}</i></div>` : ''}
+    </button>`).join('');
+    this.setUI(`<div class="screen reward">
+      <h1>Pick your cut</h1>
+      <p class="muted">${this.build.scrap} scrap · choose one</p>
+      <div class="cards">${cards}</div>
+      <button class="btn ghost" data-action="skip-reward">Skip (+50 scrap)</button>
+    </div>`);
+  },
+
+  showReplace(card) {
+    const b = this.build;
+    const opts = card.type === 'weapon'
+      ? b.rack.map((w, i) => `<button class="btn" data-action="replace" data-arg="${i}">Drop ${WEAPONS[w.id].name}</button>`).join('')
+      : b.abilities.map((id, i) => `<button class="btn" data-action="replace" data-arg="${i}">Replace ${id ? ABILITIES[id].name : 'empty'}</button>`).join('');
+    this.setUI(`<div class="screen pause">
+      <h1>${card.type === 'weapon' ? 'Rack is full' : 'No free ability slot'}</h1>
+      <p>Make room for <b>${card.name}</b>:</p>
+      ${opts}
+      <button class="btn ghost" data-action="cancel-replace">Cancel</button>
     </div>`);
   },
 
@@ -286,10 +467,14 @@ const Proto = {
 
   updateRace(dt) {
     const race = this.race, combat = this.combat, p = race.player;
-    if (Input.consume('Digit1')) combat.select('smg');
-    if (Input.consume('Digit2')) combat.select('rocket');
+    if (Input.consume('Digit1')) combat.select(0);
+    if (Input.consume('Digit2')) combat.select(1);
+    if (Input.consume('Digit3')) combat.select(2);
     if (Input.consume('KeyQ')) combat.cycle(1);
-    if (Input.consume('Space')) combat.activateShield();
+    if (Input.consume('KeyR')) combat.reload();
+    if (Input.consume('Space')) combat.activateAbility(0);
+    if (Input.consume('KeyE')) combat.activateAbility(1);
+    if (Input.consume('KeyB')) combat.fitSpare();
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
     if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
     if (Input.consume('KeyG')) this.throwGrenade();
@@ -329,7 +514,9 @@ const Proto = {
   render(dt) {
     const ctx = this.ctx, W = this.W, H = this.H, race = this.race;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    if (!race) return;
+    const offTrack = ['garage', 'reward', 'over'].includes(this.state);
+    this.c3d.style.visibility = offTrack ? 'hidden' : 'visible';
+    if (!race || offTrack) { ctx.fillStyle = '#100f0c'; ctx.fillRect(0, 0, W, H); return; }
     const live = this.state !== 'briefing';
     if (this.view === 'cockpit') {
       this.cockpit.render(this.state === 'race' ? dt : 0, this.time);
@@ -391,32 +578,74 @@ function drawTrackPreview(canvas, race) {
 }
 
 function drawWeaponPanel(ctx, P, W, H) {
-  const c = P.combat;
-  const x = W - 250, y = H - 150;
-  hudPanel(ctx, x, y, 238, 138);
+  const c = P.combat, b = c.build;
+  const rows = b.rack.length + 1 + 2 + 1;
+  const h = 26 + rows * 24 + 34;
+  const x = W - 262, y = H - h - 12;
+  hudPanel(ctx, x, y, 250, h);
   ctx.textAlign = 'left';
-  const row = (yy, active, label, right, frac, col) => {
-    ctx.fillStyle = active ? '#ffd23f' : 'rgba(255,255,255,0.6)';
+  let yy = y + 22;
+  const line = (active, label, right, frac, col) => {
+    ctx.fillStyle = active ? '#ffd23f' : 'rgba(255,255,255,0.65)';
     ctx.font = `${active ? 'bold ' : ''}14px ${hudFont()}`;
     ctx.fillText(label, x + 12, yy);
     ctx.textAlign = 'right';
-    ctx.fillText(right, x + 226, yy);
+    ctx.fillText(right, x + 238, yy);
     ctx.textAlign = 'left';
     if (frac != null) {
       ctx.fillStyle = 'rgba(255,255,255,0.12)';
-      ctx.fillRect(x + 12, yy + 5, 214, 5);
+      ctx.fillRect(x + 12, yy + 5, 226, 4);
       ctx.fillStyle = col;
-      ctx.fillRect(x + 12, yy + 5, 214 * clamp(frac, 0, 1), 5);
+      ctx.fillRect(x + 12, yy + 5, 226 * clamp(frac, 0, 1), 4);
     }
+    yy += 24;
   };
-  const g = c.smg, r = c.rockets, n = c.nades, s = c.shield;
-  row(y + 22, c.weapon === 'smg', '1  SMG', g.overheated ? 'OVERHEATED' : `heat ${Math.round(g.heat * 100)}%`, g.heat, g.overheated ? '#ff3b1f' : '#ff9f1c');
-  row(y + 50, c.weapon === 'rocket', '2  Rockets', `${r.ammo}/${r.max}`, r.ammo < r.max ? r.reload / 3.5 : 1, '#5ad8ff');
-  row(y + 78, false, 'G  Grenades', `${n.ammo}/${n.max}`, n.ammo < n.max ? n.regen / 9 : 1, '#7cfc00');
-  row(y + 106, s.t > 0, '␣  Shield', s.t > 0 ? 'ACTIVE' : s.cd > 0 ? `${s.cd.toFixed(1)}s` : 'READY', s.cd > 0 ? 1 - s.cd / s.cooldown : 1, '#5ad8ff');
-  ctx.fillStyle = c.swerveCd > 0 ? 'rgba(255,255,255,0.5)' : '#fff';
-  ctx.font = `13px ${hudFont()}`;
-  ctx.fillText(`A/D  Swerve ${c.swerveCd > 0 ? c.swerveCd.toFixed(1) + 's' : 'ready'}`, x + 12, y + 130);
+  b.rack.forEach((w, i) => {
+    const d = WEAPONS[w.id], st = c.wstate[i];
+    const reloading = st.reloadT > 0;
+    line(i === c.wi, `${i + 1} ${d.name}`, reloading ? 'RELOADING' : `${w.mag} | ${w.reserve}`, reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag, reloading ? '#ff9f1c' : '#5ad8ff');
+  });
+  line(false, 'G Grenades', `${b.grenades}`, null);
+  c.abil.forEach((a, i) => {
+    if (!a) { line(false, `${i === 0 ? '␣' : 'E'} —`, '', null); return; }
+    const def = ABILITIES[a.id];
+    const active = a.id === 'shield' && c.shield.t > 0;
+    line(active, `${i === 0 ? '␣' : 'E'} ${def.name}`, active ? 'ACTIVE' : a.cd > 0 ? `${a.cd.toFixed(1)}s` : 'READY', a.cd > 0 ? 1 - a.cd / def.cooldown : 1, '#7cfc00');
+  });
+  line(false, 'A/D Swerve', c.swerveCd > 0 ? `${c.swerveCd.toFixed(1)}s` : 'ready', null);
+  // Parts strip
+  PART_SLOTS.forEach((slot, i) => {
+    const part = b.parts[slot], f = clamp(part.dur / partMaxDur(b, part.id), 0, 1), broken = part.dur <= 0;
+    const px = x + 12 + i * 58;
+    ctx.fillStyle = broken ? '#ff3b1f' : 'rgba(255,255,255,0.65)';
+    ctx.font = `bold 11px ${hudFont()}`;
+    ctx.fillText(['ENG', 'TYR', 'ARM', 'NOS'][i], px, yy - 4);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.fillRect(px, yy, 50, 5);
+    ctx.fillStyle = broken ? (Math.floor(P.time * 4) % 2 ? '#ff3b1f' : '#551008') : f < 0.3 ? '#ff7a1f' : '#ffd23f';
+    ctx.fillRect(px, yy, 50 * (broken ? 1 : f), 5);
+  });
+  if (b.spare) {
+    const canFit = partBroken(b, PARTS[b.spare.id].slot);
+    ctx.fillStyle = canFit ? (Math.floor(P.time * 3) % 2 ? '#ffd23f' : '#fff') : 'rgba(255,255,255,0.5)';
+    ctx.font = `bold 11px ${hudFont()}`;
+    ctx.fillText(canFit ? `B: FIT SPARE ${PARTS[b.spare.id].name.toUpperCase()}` : `Spare: ${PARTS[b.spare.id].name}`, x + 12, yy + 20);
+  }
+}
+
+// Fitting a spare: a progress bar in the middle of the screen.
+function drawFitProgress(ctx, P, W, H) {
+  const c = P.combat;
+  if (!c.busy) return;
+  const f = 1 - c.fitT / FIT_TIME;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(W / 2 - 140, H * 0.62, 280, 44);
+  ctx.fillStyle = '#ffd23f';
+  ctx.fillRect(W / 2 - 128, H * 0.62 + 28, 256 * f, 8);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.font = `bold 15px ${hudFont()}`;
+  ctx.fillText('FITTING SPARE PART…', W / 2, H * 0.62 + 20);
 }
 
 function drawMessages(ctx, race, W, H) {
@@ -489,22 +718,32 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     }
   }
 
-  // Crosshair
-  const cx = W / 2, cy = H / 2;
-  ctx.strokeStyle = c.smg.overheated && c.weapon === 'smg' ? '#ff3b1f' : 'rgba(255,255,255,0.9)';
+  // Crosshair: shape depends on the weapon; a ring fills while reloading.
+  const cx = W / 2, cy = H / 2, wd = c.weaponDef, wst = c.wstate[c.wi];
+  ctx.strokeStyle = c.weapon.mag <= 0 && c.weapon.reserve <= 0 ? '#ff3b1f' : 'rgba(255,255,255,0.9)';
   ctx.lineWidth = 2;
-  if (c.weapon === 'smg') {
-    const gap = 6 + c.smg.heat * 8;
+  if (c.weapon.id === 'smg') {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      ctx.beginPath(); ctx.moveTo(cx + dx * gap, cy + dy * gap); ctx.lineTo(cx + dx * (gap + 8), cy + dy * (gap + 8)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + dx * 6, cy + dy * 6); ctx.lineTo(cx + dx * 14, cy + dy * 14); ctx.stroke();
     }
-    ctx.strokeStyle = 'rgba(255,159,28,0.8)';
-    ctx.beginPath(); ctx.arc(cx, cy, 22, -Math.PI / 2, -Math.PI / 2 + TAU * c.smg.heat); ctx.stroke();
+  } else if (c.weapon.id === 'shotgun') {
+    ctx.beginPath(); ctx.arc(cx, cy, 26, 0, TAU); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+  } else if (c.weapon.id === 'flare') {
+    ctx.beginPath(); ctx.moveTo(cx, cy - 10); ctx.lineTo(cx + 10, cy); ctx.lineTo(cx, cy + 10); ctx.lineTo(cx - 10, cy); ctx.closePath(); ctx.stroke();
   } else {
     ctx.beginPath(); ctx.arc(cx, cy, 14, 0, TAU); ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+    ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
   }
+  if (wst.reloadT > 0) {
+    ctx.strokeStyle = '#ff9f1c';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, 34, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - wst.reloadT / wd.reload)); ctx.stroke();
+  }
+  ctx.textAlign = 'center';
+  ctx.font = `bold 12px ${hudFont()}`;
+  ctx.fillStyle = c.weapon.mag === 0 ? '#ff6b6b' : 'rgba(255,255,255,0.8)';
+  ctx.fillText(wst.reloadT > 0 ? 'RELOADING' : c.weapon.mag === 0 ? (c.weapon.reserve > 0 ? 'R TO RELOAD' : 'NO AMMO') : `${c.weapon.mag}`, cx, cy + 48);
 
   // Minimal race info (the rest lives on the dashboard).
   hudPanel(ctx, 12, 12, 190, 56);
@@ -533,6 +772,7 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     ctx.globalAlpha = 1;
   }
   drawWeaponPanel(ctx, P, W, H);
+  drawFitProgress(ctx, P, W, H);
   if (race.state === 'countdown') {
     const n = Math.ceil(race.countdown);
     if (n <= 3) {
@@ -564,12 +804,13 @@ function drawTopdownCombatHUD(ctx, P, W, H, t) {
   drawDamageVignette(ctx, P, W, H, -Math.PI / 2);
   // Cursor crosshair
   const mx = P.mouse.x, my = P.mouse.y;
-  ctx.strokeStyle = c.smg.overheated && c.weapon === 'smg' ? '#ff3b1f' : '#fff';
+  ctx.strokeStyle = c.weapon.mag <= 0 ? '#ff3b1f' : '#fff';
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(mx, my, 10, 0, TAU); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(mx - 16, my); ctx.lineTo(mx - 6, my); ctx.moveTo(mx + 6, my); ctx.lineTo(mx + 16, my);
   ctx.moveTo(mx, my - 16); ctx.lineTo(mx, my - 6); ctx.moveTo(mx, my + 6); ctx.lineTo(mx, my + 16); ctx.stroke();
   drawWeaponPanel(ctx, P, W, H);
+  drawFitProgress(ctx, P, W, H);
 }
 
 window.addEventListener('load', () => Proto.init());

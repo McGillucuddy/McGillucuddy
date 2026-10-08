@@ -118,6 +118,15 @@ const Sound = {
       case 'swerve': this.noiseBurst(0.3, 500, 0.15, 300); break;
       case 'mine': this.tone(180, 0.1, 'square', 0.08); break;
       case 'switch': this.tone(900, 0.04, 'square', 0.06); break;
+      case 'shotgun': this.noiseBurst(0.25, 900, 0.4, 150); break;
+      case 'flare': this.noiseBurst(0.3, 1800, 0.18, 600); this.tone(300, 0.2, 'sine', 0.1); break;
+      case 'reload': this.tone(320, 0.05, 'square', 0.08); setTimeout(() => this.tone(260, 0.05, 'square', 0.08), 120); break;
+      case 'reloaded': this.tone(520, 0.05, 'square', 0.08); break;
+      case 'smoke': this.noiseBurst(0.8, 300, 0.2, 120); break;
+      case 'emp': this.tone(90, 0.6, 'sawtooth', 0.15); this.noiseBurst(0.5, 3000, 0.15, 400); break;
+      case 'partBreak': this.noiseBurst(0.4, 200, 0.5, 60); this.tone(140, 0.4, 'square', 0.12); break;
+      case 'fit': this.tone(400, 0.08, 'square', 0.08); break;
+      case 'fitted': this.tone(660, 0.1, 'triangle', 0.15); setTimeout(() => this.tone(880, 0.12, 'triangle', 0.15), 90); break;
       case 'click': this.tone(660, 0.06, 'triangle', 0.1); break;
       case 'buy': this.tone(880, 0.08, 'triangle', 0.12); setTimeout(() => this.tone(1320, 0.1, 'triangle', 0.12), 70); break;
     }

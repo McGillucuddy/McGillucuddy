@@ -193,3 +193,22 @@ body.mv { display: flex; overflow: hidden; }
   #view { height: 66vh; }
   .mv-info { left: 8px; right: 8px; bottom: 8px; }
 }
+
+/* Prototype garage */
+.proto-garage .garage-grid { text-align: left; }
+.gp-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.gp-name { flex: 1; min-width: 0; }
+.gp-name small { display: block; font-size: 11px; }
+.gp-name b { display: block; }
+.gp-bar { width: 120px; }
+.gp-bar small { font-size: 11px; color: var(--muted); }
+.gp-ammo { width: 70px; text-align: right; font-family: monospace; }
+.gp-chip { padding: 6px 0; font-size: 14px; }
+.gp-row .btn.small { min-width: 64px; }
+.bad { color: var(--bad); }
+.shop-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.shop-card { background: var(--panel-2); border-radius: 10px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; }
+.shop-card small { font-size: 12px; }
+.shop-card .btn { align-self: flex-start; margin-top: 4px; }
+.shop-card.sold { opacity: .45; }
+@media (max-width: 600px) { .shop-grid { grid-template-columns: 1fr; } .gp-bar { width: 80px; } }

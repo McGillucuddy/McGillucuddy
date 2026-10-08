@@ -1,41 +1,47 @@
 'use strict';
-// Gunplay layer on top of a Race: the player's arsenal, armed rivals,
-// projectiles, mines, grenades, explosions, shield/parry and swerve orders.
+// Gunplay layer on top of a Race: the player's build (ammo weapons, abilities, trinkets,
+// parts that wear and break), armed rivals, projectiles, mines, grenades, explosions.
 // Pure simulation (2D world units); views read its state to draw it.
 
-const ARSENAL = {
-  smg: { name: 'SMG', slot: 1 },
-  rocket: { name: 'Rocket Launcher', slot: 2 },
-};
-
-const SMG_RATE = 0.085;
-const SMG_HEAT = 0.06;
-const BULLET_SPEED = 1500;
 const ROCKET_SPEED = 820;
-const PLAYER_ROCKET_SPEED = 950;
 const LOCK_TIME = 1.35;
 const PARRY_WINDOW = 0.3;
 const GRENADE_G = 700;
+const FIT_TIME = 2.5;
 
 class Combat {
   constructor(race, opts) {
     this.race = race;
     this.player = race.player;
     this.driver = opts.driver;
+    this.build = opts.build;
     this.rng = race.rng;
     this.projectiles = [];
     this.mines = [];
     this.grenades = [];
     this.explosions = [];
+    this.clouds = [];
     this.hits = []; // recent hits on the player: {ang (world), t}
     this.events = [];
-    this.weapon = 'smg';
-    this.smg = { heat: 0, overheated: false, cd: 0 };
-    this.rockets = { ammo: 3, max: 3, reload: 0, cd: 0 };
-    this.nades = { ammo: 3, max: 3, regen: 0 };
-    this.shield = { t: 0, age: 0, cd: 0, dur: 1.1, cooldown: 7 };
+    const b = this.build;
+    this.wi = 0;
+    this.wstate = b.rack.map(() => ({ cd: 0, reloadT: 0 }));
+    this.abil = b.abilities.map((id) => (id ? { id, cd: 0 } : null));
+    this.shield = { t: 0, age: 0 };
     this.swerveCd = 0;
-    this.stats = { dealt: 0, parries: 0, shotDown: 0, taken: 0, wrecked: 0 };
+    this.invulnT = 0;
+    this.fitT = 0;
+    this.footUsed = false;
+    this.lastFire = 9;
+    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1);
+    this.stats = { dealt: 0, parries: 0, shotDown: 0, taken: 0, wrecked: 0, scrapBonus: 0 };
+
+    // The player's car runs every hit through the build (armour, parts, trinkets).
+    const p = this.player;
+    p.damageFilter = (amount, info) => this.filterDamage(amount, info);
+    p.ramMul = p.stats.ram * (has(b, 'horseshoe') ? 3 : 1) * (b.chip === 'hothead' ? 1.5 : 1);
+    p.ramTakenMul = has(b, 'horseshoe') ? 1.5 : 1;
+    p.oilMul = b.chip === 'daredevil' ? 2 : 1;
 
     // Arm some rivals: two rocket gunners and a mine layer.
     const rivals = shuffle(this.rng, race.cars.filter((c) => c !== this.player));
@@ -46,42 +52,76 @@ class Combat {
     });
   }
 
+  get weapon() { return this.build.rack[this.wi]; }
+  get weaponDef() { return WEAPONS[this.weapon.id]; }
+  get busy() { return this.fitT > 0; }
+
   // ---------- Player actions ----------
 
-  select(weapon) {
-    if (ARSENAL[weapon] && weapon !== this.weapon) {
-      this.weapon = weapon;
-      this.events.push({ type: 'switch' });
-    }
+  select(i) {
+    if (i < 0 || i >= this.build.rack.length || i === this.wi || this.busy) return;
+    this.wi = i;
+    this.events.push({ type: 'switch' });
   }
 
   cycle(dir) {
-    const keys = Object.keys(ARSENAL);
-    this.select(keys[(keys.indexOf(this.weapon) + dir + keys.length) % keys.length]);
+    const n = this.build.rack.length;
+    this.select((this.wi + dir + n) % n);
   }
 
-  activateShield() {
-    const s = this.shield;
-    if (s.cd > 0 || this.player.finished) return false;
-    s.t = s.dur;
-    s.age = 0;
-    s.cd = s.cooldown;
-    this.events.push({ type: 'shield' });
+  reload() {
+    const w = this.weapon, def = this.weaponDef, st = this.wstate[this.wi];
+    if (st.reloadT > 0 || w.mag >= def.mag || w.reserve <= 0 || this.busy) return;
+    st.reloadT = def.reload;
+    this.events.push({ type: 'reload' });
+  }
+
+  activateAbility(slot) {
+    const a = this.abil[slot], p = this.player;
+    if (!a || a.cd > 0 || p.finished || this.race.state !== 'racing') return false;
+    a.cd = ABILITIES[a.id].cooldown;
+    if (a.id === 'shield') {
+      this.shield.t = 1.1;
+      this.shield.age = 0;
+      this.events.push({ type: 'shield' });
+    } else if (a.id === 'nitro_burst') {
+      p.boostT = Math.max(p.boostT, 2.0);
+      this.events.push({ type: 'boost' });
+    } else if (a.id === 'smoke') {
+      const c = Math.cos(p.heading), s = Math.sin(p.heading);
+      this.clouds.push({ x: p.x - c * 30, y: p.y - s * 30, r: 100, t: 0, life: 6 });
+      this.events.push({ type: 'smoke' });
+    } else if (a.id === 'emp') {
+      this.emp(p.x, p.y, 230);
+    }
     return true;
   }
 
   swerve(side) {
     if (this.swerveCd > 0 || this.player.finished) return false;
     this.driver.swerve(side, 0.9);
-    this.swerveCd = 2.2;
+    const medal = has(this.build, 'medal');
+    this.swerveCd = medal ? 1.1 : 2.2;
+    if (medal) this.invulnT = 0.4;
     this.events.push({ type: 'swerve' });
     return true;
   }
 
+  // Fit the spare part in place of a broken one: hands busy for a few seconds.
+  fitSpare() {
+    const b = this.build;
+    if (!b.spare || this.busy || this.player.finished) return false;
+    const slot = PARTS[b.spare.id].slot;
+    if (!partBroken(b, slot)) { this.race.message(`Your ${SLOT_NAMES[slot].toLowerCase()} isn't broken`, '#ccc'); return false; }
+    this.fitT = FIT_TIME;
+    this.events.push({ type: 'fit' });
+    return true;
+  }
+
   throwGrenade(aim, dist) {
-    const n = this.nades, p = this.player;
-    if (n.ammo <= 0 || p.finished) { this.events.push({ type: 'empty' }); return false; }
-    n.ammo--;
+    const b = this.build, p = this.player;
+    if (b.grenades <= 0 || p.finished || this.busy) { this.events.push({ type: 'empty' }); return false; }
+    b.grenades--;
     const d = clamp(dist, 80, 380);
     const fuse = 0.8;
     this.grenades.push({
@@ -93,43 +133,109 @@ class Combat {
     return true;
   }
 
+  // Rebuild the player's stats after a part breaks or is replaced.
+  refreshStats() {
+    const p = this.player, s = buildStats(this.build);
+    s.aLat = p.stats.aLat;
+    if (this.race.track.biomeKey === 'tundra') s.grip *= s.iceGrip;
+    p.stats = s;
+    p.nitro = Math.min(p.nitro, s.nitroCap);
+    p.ramMul = s.ram * (has(this.build, 'horseshoe') ? 3 : 1) * (this.build.chip === 'hothead' ? 1.5 : 1);
+  }
+
+  breakPart(slot) {
+    const b = this.build;
+    b.parts[slot].dur = 0;
+    this.refreshStats();
+    this.race.message(`${SLOT_NAMES[slot].toUpperCase()} BROKEN`, '#ff6b3c', true);
+    this.race.message(BROKEN_TEXT[slot].split(': ')[1], '#ff9f7a');
+    this.events.push({ type: 'partBreak', slot });
+    if (b.spare && PARTS[b.spare.id].slot === slot) this.race.message('Press B to fit your spare', '#ffd23f');
+  }
+
+  // Every hit on the player passes through here: invulnerability, armour, part wear, trinkets.
+  filterDamage(amount, info) {
+    const b = this.build, p = this.player, s = p.stats;
+    if (this.invulnT > 0) return 0;
+    if (info.kind === 'wall' && b.chip === 'cautious') amount *= 0.3;
+    const arm = b.parts.armour;
+    if (arm.dur > 0) {
+      const a = info.kind === 'blast' && s.blastAbsorb ? s.blastAbsorb : s.absorb;
+      const absorbed = amount * a;
+      arm.dur -= absorbed;
+      amount -= absorbed;
+      if (arm.dur <= 0) this.breakPart('armour');
+    }
+    const rel = info.ang != null ? Math.abs(wrapAngle(info.ang - p.heading)) : Math.PI / 2;
+    const slot = rel < 0.8 ? 'engine' : rel > 2.3 && info.kind !== 'wall' ? 'nitro' : 'tyres';
+    const part = b.parts[slot];
+    if (part.dur > 0) {
+      part.dur -= amount * 1.4; // parts wear faster than the hull, so breakdowns come before wrecks
+      if (part.dur <= 0) this.breakPart(slot);
+    }
+    if (has(b, 'rabbit_foot') && !this.footUsed && p.hp > 1 && p.hp - amount <= 0) {
+      this.footUsed = true;
+      amount = p.hp - 1;
+      this.race.message("Rabbit's foot: still alive", '#7CFC00', true);
+    }
+    this.stats.taken += amount;
+    return amount;
+  }
+
   // ctl: { aim (world angle), firing (held), pressed (edge) }
   updatePlayerWeapons(dt, ctl) {
-    const p = this.player;
-    const g = this.smg;
-    g.cd -= dt;
-    g.heat = Math.max(0, g.heat - (g.overheated ? 0.55 : 0.4) * dt);
-    if (g.overheated && g.heat < 0.25) g.overheated = false;
-
-    const r = this.rockets;
-    r.cd -= dt;
-    if (r.ammo < r.max) {
-      r.reload += dt;
-      if (r.reload >= 3.5) { r.ammo++; r.reload = 0; }
-    }
-    const n = this.nades;
-    if (n.ammo < n.max) {
-      n.regen += dt;
-      if (n.regen >= 9) { n.ammo++; n.regen = 0; }
-    }
-
-    if (p.finished || this.race.state !== 'racing') return;
-    if (this.weapon === 'smg' && ctl.firing && !g.overheated && g.cd <= 0) {
-      g.cd = SMG_RATE;
-      g.heat += SMG_HEAT;
-      if (g.heat >= 1) { g.overheated = true; this.events.push({ type: 'overheat' }); }
-      const a = ctl.aim + randRange(this.rng, -0.035, 0.035);
-      this.spawn('bullet', p, a, BULLET_SPEED, 1, { dmg: 3.2, life: 0.6 });
-      this.events.push({ type: 'shoot' });
-    } else if (this.weapon === 'rocket' && ctl.pressed) {
-      if (r.ammo > 0 && r.cd <= 0) {
-        r.ammo--;
-        r.cd = 0.6;
-        this.spawn('rocket', p, ctl.aim, PLAYER_ROCKET_SPEED, 1, { dmg: 26, radius: 62, life: 2.2 });
-        this.events.push({ type: 'rocket' });
-      } else {
-        this.events.push({ type: 'empty' });
+    const p = this.player, b = this.build;
+    const speed = b.chip === 'gun_nut' ? 1.4 : 1;
+    for (const st of this.wstate) st.cd -= dt;
+    const w = this.weapon, def = this.weaponDef, st = this.wstate[this.wi];
+    if (st.reloadT > 0) {
+      st.reloadT -= dt * speed;
+      if (st.reloadT <= 0) {
+        const take = Math.min(def.mag - w.mag, w.reserve);
+        w.mag += take;
+        w.reserve -= take;
+        this.events.push({ type: 'reloaded' });
       }
+    }
+    this.lastFire += dt;
+    if (this.driver) this.driver.shaky = b.chip === 'gun_nut' && this.lastFire < 0.4;
+    if (p.finished || this.race.state !== 'racing' || this.busy) return;
+    const trigger = def.auto ? ctl.firing : ctl.pressed;
+    if (!trigger || st.cd > 0 || st.reloadT > 0) return;
+    if (w.mag <= 0) {
+      if (w.reserve > 0) this.reload();
+      else if (ctl.pressed) { this.events.push({ type: 'empty' }); this.race.message(`Out of ${def.name} ammo`, '#ccc'); }
+      return;
+    }
+    st.cd = def.rate;
+    w.mag--;
+    this.lastFire = 0;
+    if (def.kind === 'bullet') {
+      for (let k = 0; k < def.pellets; k++) {
+        const a = ctl.aim + randRange(this.rng, -def.spread, def.spread);
+        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0 });
+      }
+      this.events.push({ type: def.pellets > 1 ? 'shotgun' : 'shoot' });
+    } else if (def.kind === 'rocket') {
+      this.spawn('rocket', p, ctl.aim, def.speed, 1, { dmg: def.dmg, radius: def.radius, life: def.life });
+      this.events.push({ type: 'rocket' });
+    } else if (def.kind === 'flare') {
+      this.spawn('flare', p, ctl.aim, def.speed, 1, { dmg: def.dmg, life: def.life, blind: def.blind });
+      this.events.push({ type: 'flare' });
+    }
+    if (w.mag === 0 && w.reserve > 0) this.reload();
+  }
+
+  emp(x, y, r) {
+    const p = this.player;
+    this.explosions.push({ x, y, r, t: 0, kind: 'emp' });
+    this.events.push({ type: 'emp' });
+    for (const o of this.projectiles) if (o.owner !== p && o.type === 'rocket' && Math.hypot(o.x - x, o.y - y) < r) { o.dead = true; this.stats.shotDown++; }
+    for (const m of this.mines) if (Math.hypot(m.x - x, m.y - y) < r) { m.dead = true; this.stats.shotDown++; }
+    for (const c of this.race.cars) {
+      if (c === p || Math.hypot(c.x - x, c.y - y) > r) continue;
+      c.empT = 4;
+      if (c.wpn) { c.wpn.lock = 0; c.wpn.cd = Math.max(c.wpn.cd, 4); }
     }
   }
 
@@ -151,8 +257,38 @@ class Combat {
     this.updatePlayerWeapons(dt, ctl);
     const s = this.shield;
     if (s.t > 0) { s.t -= dt; s.age += dt; }
-    s.cd -= dt;
+    for (const a of this.abil) if (a) a.cd -= dt;
     this.swerveCd -= dt;
+    this.invulnT -= dt;
+    if (this.fitT > 0) {
+      this.fitT -= dt;
+      if (this.fitT <= 0) {
+        const b = this.build;
+        installPart(b, b.spare.id);
+        b.spare = null;
+        this.refreshStats();
+        this.race.message('Spare fitted!', '#7CFC00', true);
+        this.events.push({ type: 'fitted' });
+      }
+    }
+    for (const c of race.cars) {
+      if (c.empT > 0) c.empT -= dt;
+      if (c.blindT > 0) c.blindT -= dt;
+    }
+    // Smoke clouds: rivals inside lose their lock and choke; rockets lose their target.
+    for (const cl of this.clouds) {
+      cl.t += dt;
+      const k = Math.min(1, cl.t * 3) * (1 - Math.max(0, (cl.t - cl.life + 1)));
+      cl.cur = cl.r * k;
+      for (const c of race.cars) {
+        if (c === p || Math.hypot(c.x - cl.x, c.y - cl.y) > cl.cur) continue;
+        if (c.wpn) c.wpn.lock = 0;
+        c.vx *= 1 - dt * 0.9;
+        c.vy *= 1 - dt * 0.9;
+      }
+      for (const o of this.projectiles) if (o.target === p && Math.hypot(o.x - cl.x, o.y - cl.y) < cl.cur) o.target = null;
+    }
+    this.clouds = this.clouds.filter((cl) => cl.t < cl.life);
     for (const h of this.hits) h.t += dt;
     this.hits = this.hits.filter((h) => h.t < 1.2);
 
@@ -169,7 +305,7 @@ class Combat {
     for (const c of this.race.cars) {
       if (!c.weapon || c === p) continue;
       const w = c.wpn;
-      const disabled = c.hp <= 0 || c.finished || p.finished;
+      const disabled = c.hp <= 0 || c.finished || p.finished || c.empT > 0 || c.blindT > 0;
       w.cd -= dt;
       const dx = p.x - c.x, dy = p.y - c.y;
       const d = Math.hypot(dx, dy);
@@ -181,7 +317,7 @@ class Combat {
             continue;
           }
           w.lock += dt;
-          if (w.lock >= LOCK_TIME) {
+          if (w.lock >= this.lockTime) {
             w.lock = 0;
             w.cd = randRange(this.rng, 5, 8);
             const lead = d / ROCKET_SPEED;
@@ -260,7 +396,7 @@ class Combat {
       const armed = pr.t > 0.12;
       for (const c of cars) {
         if (c === pr.owner && !armed) continue;
-        if (c === pr.owner && pr.type === 'bullet') continue;
+        if (c === pr.owner && pr.type !== 'rocket') continue;
         const r = CAR_RADIUS + (pr.type === 'rocket' ? 6 : 2);
         if ((c.x - pr.x) ** 2 + (c.y - pr.y) ** 2 > r * r) continue;
         if (c === p && this.shield.t > 0) {
@@ -269,7 +405,19 @@ class Combat {
         }
         pr.dead = true;
         if (pr.type === 'rocket') this.explode(pr.x, pr.y, pr.radius, pr.dmg, pr.owner, pr);
-        else this.hitCar(c, pr.dmg, pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985);
+        else {
+          this.hitCar(c, pr.dmg, pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, 'bullet');
+          if (pr.knock) {
+            const a = Math.atan2(pr.vy, pr.vx);
+            c.vx += Math.cos(a) * pr.knock;
+            c.vy += Math.sin(a) * pr.knock;
+          }
+          if (pr.type === 'flare') {
+            c.blindT = pr.blind;
+            if (c.wpn) c.wpn.lock = 0;
+            if (pr.owner === p) this.race.message(`${c.name.split(' ')[0]} is blinded!`, '#ff8a3c');
+          }
+        }
         break;
       }
     }
@@ -290,6 +438,13 @@ class Combat {
       pr.vy = -pr.vy * 1.2;
       this.stats.parries++;
       this.race.message('PARRY!', '#5ad8ff', true);
+      if (has(this.build, 'dice')) {
+        // Fuzzy dice: a parry tops up the magazine in your hands.
+        const w = this.weapon, def = this.weaponDef, take = Math.min(def.mag - w.mag, w.reserve);
+        w.mag += take;
+        w.reserve -= take;
+        this.wstate[this.wi].reloadT = 0;
+      }
       this.events.push({ type: 'parry' });
     } else {
       pr.dead = true;
@@ -332,6 +487,9 @@ class Combat {
     const p = this.player;
     this.explosions.push({ x, y, r: radius, t: 0 });
     this.events.push({ type: 'explode', x, y, big: radius > 55 });
+    if (has(this.build, 'rosary') && Math.hypot(p.x - x, p.y - y) < 150) {
+      for (const a of this.abil) if (a) a.cd = Math.max(0, a.cd - 2);
+    }
     for (const c of this.race.cars) {
       const d = Math.hypot(c.x - x, c.y - y);
       if (d > radius + CAR_RADIUS) continue;
@@ -339,7 +497,7 @@ class Combat {
       if (c === p && this.shield.t > 0) { this.events.push({ type: 'block' }); continue; }
       const f = 1 - clamp(d / (radius + CAR_RADIUS), 0, 1) * 0.6;
       const ang = Math.atan2(y - c.y, x - c.x);
-      this.hitCar(c, dmg * f, owner, ang, 0.75);
+      this.hitCar(c, dmg * f, owner, ang, 0.75, 'blast');
       // Knockback + spin.
       c.vx -= Math.cos(ang) * 220 * f;
       c.vy -= Math.sin(ang) * 220 * f;
@@ -353,20 +511,23 @@ class Combat {
   }
 
   // ang: world angle from the victim toward the damage source.
-  hitCar(c, dmg, owner, ang, slow) {
+  hitCar(c, dmg, owner, ang, slow, kind) {
     const p = this.player;
     const before = c.hp;
-    this.race.damage(c, dmg);
+    this.race.damage(c, dmg, { kind: kind || 'bullet', ang });
     c.vx *= slow;
     c.vy *= slow;
     if (c === p) {
-      this.stats.taken += dmg;
-      this.hits.push({ ang, t: 0, dmg });
-      this.events.push({ type: 'hurt', ang, dmg });
+      const taken = before - c.hp;
+      if (taken > 0) {
+        this.hits.push({ ang, t: 0, dmg: taken });
+        this.events.push({ type: 'hurt', ang, dmg: taken });
+      }
     } else if (owner === p) {
       this.stats.dealt += Math.min(dmg, before);
       if (before > 0 && c.hp <= 0) {
         this.stats.wrecked++;
+        if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
         this.race.message(`${c.name.split(' ')[0]} wrecked!`, '#ffd23f');
       }
     }
@@ -376,7 +537,7 @@ class Combat {
   threats() {
     const p = this.player, out = [];
     for (const c of this.race.cars) {
-      if (c.wpn && c.wpn.lock > 0) out.push({ x: c.x, y: c.y, kind: 'lock', k: c.wpn.lock / LOCK_TIME });
+      if (c.wpn && c.wpn.lock > 0) out.push({ x: c.x, y: c.y, kind: 'lock', k: c.wpn.lock / this.lockTime });
     }
     for (const pr of this.projectiles) {
       if (pr.type !== 'rocket' || pr.owner === p) continue;
@@ -392,7 +553,7 @@ class Combat {
     const p = this.player;
     for (const c of this.race.cars) {
       if (!c.wpn || !(c.wpn.lock > 0)) continue;
-      const k = c.wpn.lock / LOCK_TIME;
+      const k = c.wpn.lock / this.lockTime;
       ctx.strokeStyle = `rgba(255,40,40,${0.35 + 0.6 * k})`;
       ctx.lineWidth = 1 + k * 3;
       ctx.setLineDash([10, 8]);
@@ -411,8 +572,24 @@ class Combat {
       ctx.fillStyle = m.t < m.arm || Math.floor(t * 4) % 2 ? '#ff2a2a' : '#661010';
       ctx.beginPath(); ctx.arc(m.x, m.y, 4, 0, TAU); ctx.fill();
     }
+    for (const cl of this.clouds) {
+      ctx.fillStyle = `rgba(150,150,145,${0.55 * Math.min(1, (cl.life - cl.t) / 1.5)})`;
+      for (let k = 0; k < 6; k++) {
+        const a = k * 1.05 + cl.t * 0.3;
+        ctx.beginPath(); ctx.arc(cl.x + Math.cos(a) * cl.cur * 0.4, cl.y + Math.sin(a) * cl.cur * 0.4, cl.cur * 0.6, 0, TAU); ctx.fill();
+      }
+    }
+    for (const c of this.race.cars) {
+      if (c.blindT > 0) { ctx.fillStyle = 'rgba(255,90,40,0.35)'; ctx.beginPath(); ctx.arc(c.x, c.y, 26, 0, TAU); ctx.fill(); }
+      if (c.empT > 0 && Math.floor(t * 10) % 2) { ctx.strokeStyle = '#7fd8ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x, c.y, 20, 0, TAU); ctx.stroke(); }
+    }
     for (const pr of this.projectiles) {
-      if (pr.type === 'bullet') {
+      if (pr.type === 'flare') {
+        ctx.fillStyle = '#ff6a2a';
+        ctx.beginPath(); ctx.arc(pr.x, pr.y, 5, 0, TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(255,120,60,0.3)';
+        ctx.beginPath(); ctx.arc(pr.x, pr.y, 14, 0, TAU); ctx.fill();
+      } else if (pr.type === 'bullet') {
         ctx.strokeStyle = '#ffe680';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -441,6 +618,12 @@ class Combat {
     }
     for (const e of this.explosions) {
       const k = e.t / 0.5;
+      if (e.kind === 'emp') {
+        ctx.strokeStyle = `rgba(127,216,255,${1 - k})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r * k, 0, TAU); ctx.stroke();
+        continue;
+      }
       ctx.fillStyle = `rgba(255,${Math.round(200 - 150 * k)},60,${0.75 * (1 - k)})`;
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.4 + 0.6 * k), 0, TAU); ctx.fill();
     }

@@ -241,7 +241,7 @@ class Race {
         car.vy *= keep;
         if (vn > 70) {
           const dmg = bumpers ? 0 : (vn - 70) * 0.05;
-          this.damage(car, dmg);
+          this.damage(car, dmg, { kind: 'wall', ang: Math.atan2(ny, nx) });
           car.wallHits++;
           this.spark(car.x + nx * CAR_RADIUS, car.y + ny * CAR_RADIUS, vn);
           if (car === this.player) this.events.push({ type: 'hit', power: vn });
@@ -262,14 +262,16 @@ class Race {
         car.boostT = junkie ? 2.0 : 1.0;
       } else if (h.type === 'oil' && car.oilT <= 0) {
         car.oilT = 0.9;
-        car.spinT = 0.35;
+        car.spinT = 0.35 * (car.oilMul || 1);
         car.spinDir = this.rng() < 0.5 ? -1 : 1;
         if (car === this.player) this.message('Oil!', '#ccc');
       }
     }
   }
 
-  damage(car, amount) {
+  // info: { kind: 'wall'|'ram'|'bullet'|'blast', ang: world angle toward the source }
+  damage(car, amount, info) {
+    if (car.damageFilter) amount = car.damageFilter(amount, info || {});
     if (amount <= 0) return;
     const wasAlive = car.hp > 0;
     car.hp = Math.max(0, car.hp - amount);
@@ -309,8 +311,9 @@ class Race {
           const dmgA = base * (mB / tot) * 2, dmgB = base * (mA / tot) * 2;
           const ramA = A.isPlayer && A.perks.has('ramplates');
           const ramB = B.isPlayer && B.perks.has('ramplates');
-          this.damage(A, dmgA * (ramA ? 0.5 : 1) * (ramB ? 3 : 1));
-          this.damage(B, dmgB * (ramB ? 0.5 : 1) * (ramA ? 3 : 1));
+          const toB = Math.atan2(B.y - A.y, B.x - A.x);
+          this.damage(A, dmgA * (ramA ? 0.5 : 1) * (ramB ? 3 : 1) * (B.ramMul || 1) * (A.ramTakenMul || 1), { kind: 'ram', ang: toB });
+          this.damage(B, dmgB * (ramB ? 0.5 : 1) * (ramA ? 3 : 1) * (A.ramMul || 1) * (B.ramTakenMul || 1), { kind: 'ram', ang: toB + Math.PI });
           this.spark((A.x + B.x) / 2, (A.y + B.y) / 2, rel);
           if (A.isPlayer || B.isPlayer) this.events.push({ type: 'hit', power: rel * 0.8 });
         }

@@ -41,13 +41,38 @@ One race, with a switchable first-person cockpit view and top-down view (press `
 | --- | --- |
 | Aim / look around | Mouse (click to capture it) |
 | Fire | Left click |
-| SMG / rockets | `1` / `2`, `Q` or mouse wheel to switch |
+| Weapons | `1` / `2` / `3`, `Q` or mouse wheel to switch |
+| Reload | `R` |
 | Grenade | Right click or `G` |
-| Shield / parry | `Space` |
+| Abilities | `Space` / `E` |
+| Fit spare part | `B` |
 | Swerve left / right | `A` / `D` |
 | Switch view | `V` |
 
 The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor/` so it works offline.
+
+### Build system (prototype)
+
+A run is a string of races with **the garage** in between. Finish outside the top 3 and you get a
+strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
+
+- **Parts** (engine, tyres, armour, nitro) set your stats and each has trade-offs. They can't be swapped
+  freely: a new part replaces the old one for good. Every hit is absorbed partly by armour, then hits
+  the hull, and also **wears the part facing the hit** (front: engine, sides: tyres, rear: nitro).
+  Broken parts cripple the car until repaired in the garage.
+- **One spare part:** carry a spare of one fitted part; if that part breaks mid-race press `B` to fit
+  it (your hands are busy for 2.5s, so no shooting).
+- **Weapons use ammo** (magazines, `R` to reload, ammo bought with scrap): SMG, pump shotgun, rocket
+  launcher, flare gun (blinds the driver it hits). Two rack slots, three with the Warden's Keys.
+  Grenades are a separate consumable.
+- **Abilities** on `Space` and `E`: shield/parry, nitro burst, smoke screen, EMP pulse.
+- **Trinkets** change the rules and physically appear in your cabin (hanging from the mirror or on the
+  dash): fuzzy dice, rabbit's foot, rusty horseshoe, warden's keys, burnt rosary, bobblehead, pine air
+  freshener, St. Christopher medal.
+- **Driver chips** change how the AI drives your car, each with a downside: Hothead, Cautious,
+  Daredevil, Gun Nut.
+
+All the data lives in `js/build.js`.
 
 ## Models (`models.html`, `models/`)
 
@@ -122,7 +147,8 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/campaign.js` | Run structure, route choices, opponents, prize money |
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
 | `js/input.js`, `js/audio.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound |
-| `js/combat.js` | Gunner prototype: weapons, armed rivals, projectiles, shield/parry, swerve |
+| `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
+| `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
 | `js/psx.js` | Retro PS1-style rendering: low-res dithered post pass, vertex snapping, grimy pixel textures |

@@ -298,10 +298,8 @@ class CockpitView {
   buildInterior() {
     const { group: I, refs } = Models.interior(this.race.player.color);
     this.wheel = refs.wheel;
-    this.dicePivot = refs.dice;
-    this.bobNeck = refs.bobNeck;
     this.nadeMeshes = refs.nades;
-    this.rackGuns = refs.rackGuns;
+    this.buildLoadout(I);
     // Live textures: mirror feed, dashboard screens, windshield cracks.
     const mirTex = this.mirrorRT.texture;
     mirTex.wrapS = THREE.RepeatWrapping;
@@ -340,19 +338,61 @@ class CockpitView {
     this.playerGroup.add(I);
   }
 
+  // Your build, made physical: weapons on the door rack, trinkets hanging from the mirror or on the dash.
+  buildLoadout(I) {
+    const b = this.combat.build;
+    const hooks = [7.3, 6.1, 4.9];
+    this.rackGuns = b.rack.map((w, i) => {
+      const m = Models.weapon(w.id);
+      if (w.id === 'rocket') m.scale.setScalar(0.8);
+      m.position.set(-1.2, hooks[i] || 4.9, -7.4);
+      m.rotation.y = -Math.PI / 2;
+      I.add(m);
+      return m;
+    });
+    this.hangers = [];
+    this.bobNecks = [];
+    const hang = [[3.2, 10.8, 0.9], [3.2, 10.8, 0.25], [3.2, 10.8, -0.45], [3.2, 10.8, -1.1], [3.2, 10.8, 1.55]];
+    const dash = { bobblehead: [[6.2, 6.8, 7.2], Math.PI, 0.55], horseshoe: [[5.9, 6.95, 5.0], 0, 1], medal: [[5.5, 6.9, -1.4], 0, 1] };
+    let hi = 0;
+    for (const id of b.trinkets) {
+      const m = Models.trinket(id);
+      if (dash[id]) {
+        const [pos, ry, sc] = dash[id];
+        m.position.set(...pos);
+        m.rotation.y = ry;
+        m.scale.setScalar(sc);
+        if (id === 'horseshoe' || id === 'medal') { m.rotation.x = -Math.PI / 2 + 0.35; m.rotation.z = Math.PI / 2; }
+        if (id === 'bobblehead') this.bobNecks.push(m.userData.neck);
+      } else {
+        m.position.set(...hang[hi++ % hang.length]);
+        m.scale.setScalar(id === 'dice' ? 0.65 : 0.8);
+        m.userData.swing = 0.8 + 0.4 * ((hi * 37) % 10) / 10;
+        this.hangers.push(m);
+      }
+      I.add(m);
+    }
+  }
+
   buildViewmodels() {
     const vm = new THREE.Group();
     this.vmCamera.add(vm);
-    const smg = Models.smg();
-    smg.position.set(2.1, -2.2, -6);
-    const launcher = Models.launcher();
-    launcher.scale.setScalar(0.75);
-    launcher.position.set(3.0, -2.3, -5.5);
+    // One held model per weapon on your rack; the active one is shown.
+    const HOLD = { smg: [2.1, -2.2, -6, 1], shotgun: [2.0, -2.2, -4.6, 0.9], rocket: [3.0, -2.3, -5.5, 0.75], flare: [2.0, -2.0, -5.2, 1] };
+    const guns = this.combat.build.rack.map((w) => {
+      const m = Models.weapon(w.id);
+      const [x, y, z, sc] = HOLD[w.id];
+      m.position.set(x, y, z);
+      m.scale.setScalar(sc);
+      m.userData.hold = [x, y, z];
+      vm.add(m);
+      return m;
+    });
     const glove = box(1.6, 1.4, 2.4, m3('#2e231b'), 2.1, -3.6, -5.2);
-    vm.add(smg, launcher, glove);
+    vm.add(glove);
     const flash = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     this.vmCamera.add(flash);
-    this.vm = { root: vm, smg, launcher, glove, flash };
+    this.vm = { root: vm, guns, glove, flash };
   }
 
   // ---------- Effects pools ----------
@@ -369,6 +409,8 @@ class CockpitView {
       rocket: pool(24, () => Models.rocket()),
       mine: pool(40, () => Models.mine()),
       nade: pool(10, () => { const g = Models.grenade(); g.scale.setScalar(2.4); return g; }),
+      flare: pool(8, () => new THREE.Mesh(new THREE.OctahedronGeometry(1.4, 0), new THREE.MeshBasicMaterial({ color: '#ff7a2a' }))),
+      cloud: pool(48, () => new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: '#8f8f8a', transparent: true, opacity: 0.8, depthWrite: false }))),
       boom: pool(24, () => new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffb13b', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))),
       puff: pool(160, () => new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), new THREE.MeshBasicMaterial({ color: '#cccccc', transparent: true, opacity: 0.5, depthWrite: false }))),
     };
@@ -393,6 +435,9 @@ class CockpitView {
   onEvent(ev) {
     if (ev.type === 'shoot') { this.recoil = Math.min(1, this.recoil + 0.35); this.flash = 0.05; }
     else if (ev.type === 'rocket') { this.recoil = 1.4; this.flash = 0.08; this.shake = Math.max(this.shake, 0.4); }
+    else if (ev.type === 'shotgun') { this.recoil = 1.5; this.flash = 0.07; this.shake = Math.max(this.shake, 0.3); }
+    else if (ev.type === 'flare') { this.recoil = 0.9; this.flash = 0.06; }
+    else if (ev.type === 'partBreak') this.shake = Math.max(this.shake, 0.7);
     else if (ev.type === 'hurt') {
       this.shake = Math.max(this.shake, Math.min(1.5, ev.dmg / 12));
       const p = this.race.player;
@@ -500,8 +545,8 @@ class CockpitView {
     };
     spring(this.dice, -this.acc.lat * 0.0012, this.acc.fwd * 0.0012, 30, 2.5);
     spring(this.bob, -this.acc.lat * 0.0016, this.acc.fwd * 0.0016, 90, 3);
-    this.dicePivot.rotation.set(clamp(this.dice.a, -1, 1), 0, clamp(this.dice.b, -1, 1));
-    this.bobNeck.rotation.set(clamp(this.bob.a, -0.8, 0.8), 0, clamp(this.bob.b, -0.8, 0.8));
+    for (const h of this.hangers) h.rotation.set(clamp(this.dice.a * h.userData.swing, -1, 1), 0, clamp(this.dice.b * h.userData.swing, -1, 1));
+    for (const n of this.bobNecks) n.rotation.set(clamp(this.bob.a, -0.8, 0.8), 0, clamp(this.bob.b, -0.8, 0.8));
 
     // Cars
     this.playerGroup.position.set(p.x, 0, p.y);
@@ -512,7 +557,7 @@ class CockpitView {
       m.g.rotation.y = -car.heading;
       for (const w of m.wheels) w.rotation.z -= (car.forwardSpeed * dt) / 3.8;
       const flash = car.hitFlash > 0;
-      m.bodyMat.emissive.set(flash ? '#ffffff' : car.hp <= 0 ? '#331100' : '#000000');
+      m.bodyMat.emissive.set(flash ? '#ffffff' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
       m.bodyMat.emissiveIntensity = flash ? 0.8 : 1;
       m.sprite.visible = !PSX.enabled;
       const label = `${car.place}. ${car.name.split(' ')[0]}${car.hp <= 0 ? ' ✖' : ''}`;
@@ -551,27 +596,31 @@ class CockpitView {
     this.bulb.rotation.x = clamp(this.dice.b, -1, 1) * 0.6;
 
     // Interior props reflect combat state.
-    for (let k = 0; k < 3; k++) this.nadeMeshes[k].visible = k < combat.nades.ammo;
-    this.rackGuns.smg.visible = combat.weapon !== 'smg';
-    this.rackGuns.rocket.visible = combat.weapon !== 'rocket';
-    this.rackGuns.rocket.userData.tip.visible = combat.rockets.ammo > 0;
+    const b = combat.build;
+    for (let k = 0; k < 3; k++) this.nadeMeshes[k].visible = k < b.grenades;
+    this.rackGuns.forEach((m, i) => {
+      m.visible = i !== combat.wi;
+      if (m.userData.tip) m.userData.tip.visible = b.rack[i].mag > 0;
+    });
 
-    // Viewmodel
+    // Viewmodel: the active weapon; dips out of view while reloading or fitting a spare.
     this.recoil = Math.max(0, this.recoil - dt * 6);
     this.flash -= dt;
     const vm = this.vm;
-    vm.smg.visible = combat.weapon === 'smg';
-    vm.launcher.visible = combat.weapon === 'rocket';
-    vm.launcher.userData.tip.visible = combat.rockets.ammo > 0;
+    const st = combat.wstate[combat.wi];
+    const dip = combat.busy ? 4 : st.reloadT > 0 ? 1.6 : 0;
+    this.dip = lerp(this.dip || 0, dip, Math.min(1, dt * 10));
     const sway = Math.sin(t * 9) * Math.min(1, p.speed / 500) * 0.05;
-    for (const g of [vm.smg, vm.launcher]) {
-      g.rotation.x = this.recoil * 0.12;
-      g.position.z = (g === vm.smg ? -6 : -5.5) + this.recoil * 0.8;
-      g.position.y = (g === vm.smg ? -2.2 : -2.3) + sway;
-    }
-    vm.smg.userData.barrel.material.emissive.set(combat.smg.overheated ? '#ff3300' : combat.smg.heat > 0.6 ? '#661100' : '#000000');
+    vm.guns.forEach((g, i) => {
+      g.visible = i === combat.wi;
+      const [x, y, z] = g.userData.hold;
+      g.rotation.x = this.recoil * 0.12 - this.dip * 0.15;
+      g.position.set(x, y + sway - this.dip, z + this.recoil * 0.8);
+      if (g.userData.tip) g.userData.tip.visible = b.rack[i].mag > 0;
+    });
+    const held = vm.guns[combat.wi];
     vm.flash.visible = this.flash > 0;
-    vm.flash.position.set(combat.weapon === 'smg' ? 2.4 : 3.0, combat.weapon === 'smg' ? -1.9 : -2.3, combat.weapon === 'smg' ? -12 : -10.5);
+    vm.flash.position.set(held.userData.hold[0] + 0.2, held.userData.hold[1] + 0.3, held.userData.hold[2] - 6.5);
     vm.flash.rotation.z = Math.random() * TAU;
 
     this.updateFx(dt, t);
@@ -621,9 +670,33 @@ class CockpitView {
     show(this.pools.boom, c.explosions, (o, e) => {
       const k = e.t / 0.5;
       o.position.set(e.x, 8, e.y);
+      if (e.kind === 'emp') {
+        o.scale.set(e.r * k, 6, e.r * k);
+        o.material.opacity = 0.6 * (1 - k);
+        o.material.color.set('#7fd8ff');
+        return;
+      }
       o.scale.setScalar(e.r * (0.4 + 0.7 * k));
       o.material.opacity = 0.85 * (1 - k);
       o.material.color.setHSL(0.08 - 0.06 * k, 1, 0.55);
+    });
+    show(this.pools.flare, c.projectiles.filter((q) => q.type === 'flare'), (o, q) => {
+      o.position.set(q.x, 8, q.y);
+      o.rotation.y += dt * 10;
+      if (this.puffs.length < this.pools.puff.length) this.puffs.push({ x: q.x, y: q.y, t: 0 });
+    });
+    const blobs = [];
+    for (const cl of c.clouds) {
+      const fade = Math.min(1, (cl.life - cl.t) / 1.5);
+      for (let k = 0; k < 8; k++) {
+        const a = k * 0.785 + cl.t * 0.2;
+        blobs.push({ x: cl.x + Math.cos(a) * cl.cur * 0.45, y: cl.y + Math.sin(a) * cl.cur * 0.45, h: 6 + (k % 3) * 5, r: cl.cur * 0.5, fade });
+      }
+    }
+    show(this.pools.cloud, blobs, (o, bl) => {
+      o.position.set(bl.x, bl.h, bl.y);
+      o.scale.setScalar(Math.max(1, bl.r));
+      o.material.opacity = 0.85 * bl.fade;
     });
     for (const pf of this.puffs) pf.t += dt;
     this.puffs = this.puffs.filter((pf) => pf.t < 0.8);
@@ -636,7 +709,7 @@ class CockpitView {
       const lock = car.wpn && car.wpn.lock > 0;
       line.visible = lock;
       if (!lock) continue;
-      const k = car.wpn.lock / LOCK_TIME;
+      const k = car.wpn.lock / this.combat.lockTime;
       const pos = line.geometry.attributes.position;
       pos.setXYZ(0, car.x, 18, car.y);
       pos.setXYZ(1, p.x, 8, p.y);
@@ -728,10 +801,23 @@ class CockpitView {
     ctx.fillRect(70, 52, 170, 16);
     ctx.fillStyle = hpf < 0.3 ? '#ff3b1f' : '#ffb000';
     ctx.fillRect(70, 52, 170 * clamp(hpf, 0, 1), 16);
+    // Part wear: four little bars, blinking when broken.
+    const b = c.build;
+    ctx.font = 'bold 13px monospace';
+    PART_SLOTS.forEach((slot, i) => {
+      const part = b.parts[slot], f = clamp(part.dur / partMaxDur(b, part.id), 0, 1);
+      const x = 12 + i * 60;
+      const broken = part.dur <= 0;
+      ctx.fillStyle = broken ? (Math.floor(t * 4) % 2 ? '#ff3b1f' : '#5a1408') : '#ffb000';
+      ctx.fillText(['ENG', 'TYR', 'ARM', 'NOS'][i], x, 92);
+      ctx.fillStyle = 'rgba(255,176,0,0.2)';
+      ctx.fillRect(x, 98, 48, 9);
+      ctx.fillStyle = broken ? '#ff3b1f' : f < 0.3 ? '#ff7a1f' : '#ffb000';
+      ctx.fillRect(x, 98, 48 * (broken ? 1 : f), 9);
+    });
     ctx.fillStyle = '#ffb000';
-    const sh = c.shield;
-    ctx.fillText(sh.t > 0 ? 'SHIELD  ACTIVE' : sh.cd > 0 ? `SHIELD  ${sh.cd.toFixed(1)}s` : 'SHIELD  READY', 12, 94);
-    ctx.fillText(c.swerveCd > 0 ? `SWERVE  ${c.swerveCd.toFixed(1)}s` : 'SWERVE  READY', 12, 118);
+    ctx.font = '12px monospace';
+    ctx.fillText(b.spare ? `SPARE: ${PARTS[b.spare.id].name.toUpperCase()}` : 'NO SPARE', 12, 122);
     tex.needsUpdate = true;
   }
 

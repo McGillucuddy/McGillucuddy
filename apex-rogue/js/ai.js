@@ -69,7 +69,7 @@ class AIDriver {
     let curvAhead = 0;
     for (let k = ahead; k < ahead + 20; k++) curvAhead += tr.curv[(i + k) % N];
     curvAhead /= 20;
-    const inside = clamp(curvAhead * 110, -1, 1) * 0.5;
+    const inside = clamp(curvAhead * 110, -1, 1) * 0.5 * (this.insideMul || 1);
 
     let avoid = 0;
     for (const o of race.cars) {
@@ -82,7 +82,17 @@ class AIDriver {
       const side = o.lat - car.lat;
       if (Math.abs(side) < 30) avoid += (side > 0 ? -1 : 1) * (1 - Math.sqrt(d2) / 140);
     }
-    let lane = clamp(this.laneTarget + inside + avoid * 0.6, -0.7, 0.7);
+    const laneMax = this.insideMul > 1 ? 1.15 : 0.7; // a daredevil happily cuts through the dirt
+    let lane = clamp(this.laneTarget + inside + avoid * (this.rammer ? -0.4 : 0.6), -laneMax, laneMax);
+    // Hothead: line up on whoever is close alongside or just ahead.
+    if (this.rammer) {
+      for (const o of race.cars) {
+        if (o === car || o.finished) continue;
+        const dx = o.x - car.x, dy = o.y - car.y;
+        const fwd = dx * Math.cos(car.heading) + dy * Math.sin(car.heading);
+        if (fwd > -10 && fwd < 120 && Math.abs(o.lat - car.lat) < tr.hw) { lane = clamp(o.lat / tr.hw, -0.8, 0.8); break; }
+      }
+    }
     // An ordered swerve overrides the racing line for a moment.
     if (this.forceT > 0) {
       this.forceT -= dt;
@@ -94,7 +104,9 @@ class AIDriver {
     const lat = this.lane * tr.hw;
     const tx = tr.pts[j].x + tr.nx[j] * lat, ty = tr.pts[j].y + tr.ny[j] * lat;
     this.wobblePhase += dt * 1.7;
-    const noise = Math.sin(this.wobblePhase) * (1.05 - this.skill) * 0.25;
+    let noise = Math.sin(this.wobblePhase) * (1.05 - this.skill) * 0.25;
+    if (this.shaky) noise += Math.sin(this.wobblePhase * 7.3) * 0.12; // gun nut: distracted by the shooting
+    if (car.blindT > 0) noise += Math.sin(this.wobblePhase * 3.1) * 0.9; // blinded by a flare
     const err = wrapAngle(Math.atan2(ty - car.y, tx - car.x) - car.heading) + noise;
     const steer = clamp(err * 2.8, -1, 1);
 
@@ -110,6 +122,7 @@ class AIDriver {
     if (speed > target + 25) { throttle = 0; brake = clamp((speed - target) / 120, 0.2, 1); }
     else if (speed > target) throttle = 0.3;
     if (car.offroad) throttle = Math.max(throttle, 0.6);
+    if (car.blindT > 0) { throttle *= 0.4; brake = Math.max(brake, 0.25); }
 
     // Nitro on long straights.
     let nitro = false;

@@ -554,6 +554,137 @@ const Models = {
     return g;
   },
 
+  // Pump shotgun: long barrel over a tube magazine, wooden pump and stock.
+  shotgun() {
+    const g = new THREE.Group();
+    g.name = 'shotgun';
+    const steel = LP.mat('#2d2f31', { metalness: 0.6, roughness: 0.45 });
+    const wood = LP.mat('#6e4526');
+    g.add(LP.sideZ([[-2.2, -0.45], [1.4, -0.45], [1.4, 0.55], [-2.2, 0.55]], 0.9, steel, 0.08)); // receiver
+    const barrel = LP.cyl(0.26, 0.26, 6.4, 8, steel, 0, 0.3, -4.6);
+    barrel.rotation.x = Math.PI / 2;
+    const tube = LP.cyl(0.22, 0.22, 4.6, 8, steel, 0, -0.25, -3.7);
+    tube.rotation.x = Math.PI / 2;
+    g.add(barrel, tube);
+    const pump = LP.cyl(0.42, 0.42, 2, 8, wood, 0, -0.25, -3.2);
+    pump.rotation.x = Math.PI / 2;
+    g.add(pump);
+    g.add(LP.sideZ([[-2.2, 0.4], [-6.2, -0.6], [-6.2, -1.7], [-5.6, -1.7], [-2.2, -0.6]], 0.75, wood, 0.12)); // stock
+    g.add(LP.sideZ([[-1.4, -0.45], [-0.6, -0.45], [-1.0, -1.6], [-1.8, -1.6]], 0.65, wood, 0.08)); // grip
+    g.add(LP.box(0.15, 0.3, 0.2, steel, 0, 0.65, -7.6)); // bead sight
+    g.userData.barrel = barrel;
+    return g;
+  },
+
+  // Orange flare pistol with a fat barrel.
+  flareGun() {
+    const g = new THREE.Group();
+    g.name = 'flare gun';
+    const orange = LP.mat('#d9601e', { roughness: 0.6 });
+    const black = LP.mat('#1a1a1a');
+    const barrel = LP.cyl(0.55, 0.55, 3.4, 8, orange, 0, 0.2, -1.6);
+    barrel.rotation.x = Math.PI / 2;
+    g.add(barrel);
+    g.add(LP.cyl(0.4, 0.4, 0.2, 8, black, 0, 0.2, -3.35).rotateX(Math.PI / 2));
+    g.add(LP.sideZ([[-0.5, -0.3], [0.5, -0.3], [0.1, -2.0], [-0.8, -2.0]], 0.8, orange, 0.1)); // grip
+    g.add(LP.box(0.5, 0.5, 0.8, black, 0, 0.5, 0.4)); // hammer
+    g.userData.barrel = barrel;
+    return g;
+  },
+
+  weapon(id) {
+    return id === 'shotgun' ? Models.shotgun() : id === 'rocket' ? Models.launcher() : id === 'flare' ? Models.flareGun() : Models.smg();
+  },
+
+  // ---------- Trinkets (each hangs or sits somewhere in the cabin) ----------
+
+  rabbitFoot() {
+    const g = new THREE.Group();
+    g.name = "rabbit's foot";
+    g.add(LP.box(0.05, 1.8, 0.05, LP.mat('#888'), 0, -0.9, 0));
+    g.add(LP.mesh(new THREE.TorusGeometry(0.18, 0.05, 4, 8), LP.mat('#c9b26a', { metalness: 0.7 }), 0, -1.9, 0));
+    const fur = LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(0.4, 0), 0.12, 5), LP.mat('#d8cfc0', { roughness: 1 }), 0, -2.5, 0);
+    fur.scale.set(0.8, 1.6, 0.8);
+    g.add(fur);
+    return g;
+  },
+
+  horseshoe() {
+    const g = new THREE.Group();
+    g.name = 'horseshoe';
+    const shoe = LP.mesh(new THREE.TorusGeometry(0.8, 0.16, 4, 10, Math.PI * 1.35), LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.8 }));
+    shoe.rotation.z = -Math.PI * 0.175;
+    g.add(shoe);
+    for (const a of [0.4, 1.2, 2.0, 2.8, 3.6]) g.add(LP.box(0.08, 0.08, 0.3, LP.mat('#999', { metalness: 0.8 }), Math.cos(a - 0.55) * 0.8, Math.sin(a - 0.55) * 0.8, 0.12));
+    return g;
+  },
+
+  keyRing() {
+    const g = new THREE.Group();
+    g.name = "warden's keys";
+    const brass = LP.mat('#b8963a', { metalness: 0.8, roughness: 0.35 });
+    g.add(LP.box(0.05, 1.4, 0.05, LP.mat('#888'), 0, -0.7, 0));
+    const ring = LP.mesh(new THREE.TorusGeometry(0.4, 0.05, 4, 10), LP.mat('#9aa0a6', { metalness: 0.8 }), 0, -1.75, 0);
+    g.add(ring);
+    for (const [a, len] of [[-0.5, 1.1], [0.1, 1.4], [0.6, 0.9]]) {
+      const k = new THREE.Group();
+      k.position.set(Math.sin(a) * 0.35, -2.1, 0);
+      k.rotation.z = a;
+      k.add(LP.mesh(new THREE.TorusGeometry(0.2, 0.07, 4, 6), brass, 0, 0, 0));
+      k.add(LP.box(0.1, len, 0.08, brass, 0, -len / 2 - 0.2, 0));
+      k.add(LP.box(0.3, 0.14, 0.08, brass, 0.15, -len - 0.1, 0));
+      g.add(k);
+    }
+    return g;
+  },
+
+  rosary() {
+    const g = new THREE.Group();
+    g.name = 'rosary';
+    const bead = LP.mat('#3a2418', { roughness: 0.6 });
+    const n = 14;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * TAU;
+      g.add(LP.mesh(new THREE.OctahedronGeometry(0.11, 0), bead, Math.sin(a) * 0.5, -1.0 + Math.cos(a) * 0.9, 0));
+    }
+    const cross = LP.mat('#2a2a2a', { metalness: 0.5 });
+    g.add(LP.box(0.1, 0.7, 0.06, cross, 0, -2.35, 0));
+    g.add(LP.box(0.4, 0.1, 0.06, cross, 0, -2.2, 0));
+    g.add(LP.box(0.05, 0.4, 0.05, bead, 0, -2.0 + 0.0, 0));
+    return g;
+  },
+
+  airFreshener() {
+    const g = new THREE.Group();
+    g.name = 'air freshener';
+    g.add(LP.box(0.04, 1.2, 0.04, LP.mat('#ddd'), 0, -0.6, 0));
+    const tree = new THREE.Shape([[0, 0], [0.55, -0.6], [0.3, -0.6], [0.7, -1.1], [0.4, -1.1], [0.8, -1.6], [0.1, -1.6], [0.1, -1.9], [-0.1, -1.9], [-0.1, -1.6], [-0.8, -1.6], [-0.4, -1.1], [-0.7, -1.1], [-0.3, -0.6], [-0.55, -0.6]].map(([x, y]) => new THREE.Vector2(x, y)));
+    const card = new THREE.Mesh(new THREE.ExtrudeGeometry(tree, { depth: 0.04, bevelEnabled: false }), LP.mat('#2f7a3a', { roughness: 1 }));
+    card.position.y = -1.2;
+    g.add(card);
+    return g;
+  },
+
+  medal() {
+    const g = new THREE.Group();
+    g.name = 'st christopher medal';
+    const gold = LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 });
+    const disc = LP.cyl(0.55, 0.55, 0.1, 10, gold);
+    disc.rotation.x = Math.PI / 2;
+    g.add(disc);
+    g.add(LP.mesh(new THREE.TorusGeometry(0.55, 0.06, 4, 10), gold));
+    g.add(LP.box(0.12, 0.6, 0.05, LP.mat('#8a6a20', { metalness: 0.8 }), 0, 0.05, 0.06)); // figure
+    g.add(LP.box(0.35, 0.12, 0.05, LP.mat('#8a6a20', { metalness: 0.8 }), 0, 0.15, 0.06));
+    return g;
+  },
+
+  trinket(id) {
+    return {
+      dice: Models.fuzzyDice, rabbit_foot: Models.rabbitFoot, horseshoe: Models.horseshoe, keys: Models.keyRing,
+      rosary: Models.rosary, bobblehead: Models.bobblehead, freshener: Models.airFreshener, medal: Models.medal,
+    }[id]();
+  },
+
   rocket(color) {
     const g = new THREE.Group();
     g.name = 'rocket';
@@ -728,21 +859,6 @@ const Models = {
     I.add(frame, mirror);
     I.add(beam([3.4, 12.5, 0], [3.4, 11.6, 0], 0.4, m3('#111')));
 
-    // Fuzzy dice hanging from the mirror (a trinket).
-    const dicePivot = Models.fuzzyDice();
-    dicePivot.position.set(3.2, 10.8, 0.9);
-    dicePivot.scale.setScalar(0.75);
-    I.add(dicePivot);
-    refs.dice = dicePivot;
-
-    // Bobblehead on the dash (a trinket).
-    const bob = Models.bobblehead();
-    bob.position.set(6.2, 6.8, 7.2);
-    bob.rotation.y = Math.PI; // facing you
-    bob.scale.setScalar(0.55);
-    I.add(bob);
-    refs.bobNeck = bob.userData.neck;
-
     // Dashboard screens: radar + status.
     const radar = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), new THREE.MeshBasicMaterial({ color: '#0b3a1a' }));
     refs.radar = radar;
@@ -768,20 +884,10 @@ const Models = {
 
     // Gun rack on the empty driver's door: the weapon in your hands is missing from it.
     const steel = m3('#777', { metalness: 0.8, roughness: 0.3 });
-    for (const x of [-2.5, 3]) {
-      I.add(box(0.5, 0.5, 1.6, steel, x, 6.2, -7.9));
-      I.add(box(0.5, 0.5, 1.6, steel, x, 4.6, -7.9));
+    for (const x of [-3.6, 1.4]) {
+      for (const y of [6.7, 5.5, 4.3]) I.add(box(0.4, 0.4, 1.4, steel, x, y, -7.9));
     }
-    refs.rackGuns = {
-      smg: Models.smg(),
-      rocket: Models.launcher(),
-    };
-    refs.rackGuns.smg.position.set(0.3, 6.9, -7.6);
-    refs.rackGuns.smg.rotation.y = -Math.PI / 2;
-    refs.rackGuns.rocket.scale.setScalar(0.8);
-    refs.rackGuns.rocket.position.set(0.2, 5.0, -7.6);
-    refs.rackGuns.rocket.rotation.y = -Math.PI / 2;
-    I.add(refs.rackGuns.smg, refs.rackGuns.rocket);
+    // (The weapons themselves are hung on these hooks by the cockpit, from your build.)
 
     // Windshield (cracks get painted onto it in the cockpit view).
     const ws = new THREE.Mesh(new THREE.PlaneGeometry(17, 8.4), new THREE.MeshBasicMaterial({ color: '#9fd3ff', transparent: true, opacity: 0.06, depthWrite: false, side: THREE.DoubleSide }));
