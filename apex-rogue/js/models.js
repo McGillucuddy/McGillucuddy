@@ -18,8 +18,36 @@ const LP = {
     m.position.set(x || 0, y || 0, z || 0);
     return m;
   },
+  // Boxes get softly rounded edges (cached per size). Decal-mapped boxes stay sharp so their textures map 1:1.
   box(w, h, d, mat, x, y, z) {
-    return LP.mesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+    if (mat && mat.map && !mat.userData.psxTex) return LP.mesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+    return LP.mesh(LP.roundBoxGeo(w, h, d), mat, x, y, z);
+  },
+  _rbCache: new Map(),
+  roundBoxGeo(w, h, d, radius) {
+    const r = Math.min(radius || Math.min(w, h, d) * 0.22, 0.35);
+    const key = `${w.toFixed(3)}|${h.toFixed(3)}|${d.toFixed(3)}|${r.toFixed(3)}`;
+    let geo = LP._rbCache.get(key);
+    if (geo) return geo;
+    if (r < 0.015) geo = new THREE.BoxGeometry(w, h, d);
+    else {
+      const s = new THREE.Shape(), hw = Math.max(0.001, w / 2 - r), hh = Math.max(0.001, h / 2 - r);
+      s.moveTo(-hw, -hh); s.lineTo(hw, -hh); s.lineTo(hw, hh); s.lineTo(-hw, hh); s.lineTo(-hw, -hh);
+      geo = new THREE.ExtrudeGeometry(s, { depth: Math.max(0.001, d - 2 * r), bevelEnabled: true, bevelThickness: r, bevelSize: r, bevelSegments: 2, curveSegments: 1 });
+      geo.translate(0, 0, -Math.max(0.001, d - 2 * r) / 2);
+      geo = LP.smooth(geo, 50);
+      // Box-style UVs (0..1 across each face direction) so tiling textures behave like on a plain box.
+      const pos = geo.attributes.position, nrm = geo.attributes.normal, uv = new Float32Array(pos.count * 2);
+      for (let i = 0; i < pos.count; i++) {
+        const ax = Math.abs(nrm.getX(i)), ay = Math.abs(nrm.getY(i)), az = Math.abs(nrm.getZ(i));
+        const px = pos.getX(i) / w + 0.5, py = pos.getY(i) / h + 0.5, pz = pos.getZ(i) / d + 0.5;
+        if (ax >= ay && ax >= az) { uv[i * 2] = pz; uv[i * 2 + 1] = py; } else if (ay >= az) { uv[i * 2] = px; uv[i * 2 + 1] = pz; } else { uv[i * 2] = px; uv[i * 2 + 1] = py; }
+      }
+      geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    }
+    geo.userData.shared = true;
+    LP._rbCache.set(key, geo);
+    return geo;
   },
   // Side profile (x forward, y up) extruded across the width, with rounded edges.
   // steps: slices across the width (lets LP.warp bend the shape in plan view).
@@ -93,7 +121,7 @@ const LP = {
   // A box stretched between two points (pillars, struts).
   beam(a, b, thick, mat) {
     const va = new THREE.Vector3(a[0], a[1], a[2]), vb = new THREE.Vector3(b[0], b[1], b[2]);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(thick, thick, va.distanceTo(vb)), mat);
+    const m = new THREE.Mesh(LP.roundBoxGeo(thick, thick, va.distanceTo(vb)), mat);
     m.position.copy(va).add(vb).multiplyScalar(0.5);
     m.lookAt(vb);
     return m;
@@ -146,6 +174,71 @@ const LP = {
     }
     geo.computeVertexNormals();
     return geo;
+  },
+};
+
+// Gun surfaces: near-white detail maps multiplied with each material's colour (so gun finishes still recolour them).
+const GUNTEX = {
+  cache: {},
+  get(kind) {
+    if (this.cache[kind]) return this.cache[kind];
+    const S = 128, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const g = c.getContext('2d'), rng = mulberry32(kind.length * 131 + 7);
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, S, S);
+    if (kind === 'wood') {
+      // Long grain running along the stock, a few darker streaks and a knot.
+      for (let y = 0; y < S; y++) {
+        const v = 0.86 + 0.08 * Math.sin(y * 0.55 + Math.sin(y * 0.09) * 4) + (rng() - 0.5) * 0.04;
+        const k = Math.round(v * 255); g.fillStyle = `rgb(${k},${Math.round(k * 0.96)},${Math.round(k * 0.9)})`; g.fillRect(0, y, S, 1);
+      }
+      for (let k = 0; k < 14; k++) {
+        g.strokeStyle = `rgba(60,30,10,${0.12 + rng() * 0.15})`; g.lineWidth = 1;
+        let y = rng() * S; g.beginPath(); g.moveTo(0, y);
+        for (let x = 0; x <= S; x += 16) { y += (rng() - 0.5) * 3; g.lineTo(x, y); }
+        g.stroke();
+      }
+      g.strokeStyle = 'rgba(60,30,10,0.3)';
+      for (let r = 2; r < 9; r += 2) { g.beginPath(); g.ellipse(80, 60, r * 2.2, r * 0.8, 0, 0, TAU); g.stroke(); }
+    } else if (kind === 'steel') {
+      // Blued / parkerised steel: fine speckle and faint machining lines.
+      for (let k = 0; k < 2600; k++) { const v = 215 + Math.floor(rng() * 40); g.fillStyle = `rgb(${v},${v},${v + 3})`; g.fillRect(rng() * S, rng() * S, 1, 1); }
+      g.fillStyle = 'rgba(255,255,255,0.25)'; for (let y = 0; y < S; y += 3) g.fillRect(0, y, S, 1);
+    } else if (kind === 'polymer') {
+      // Stippled grip texture.
+      g.fillStyle = '#e8e8e8'; g.fillRect(0, 0, S, S);
+      for (let k = 0; k < 1400; k++) { g.fillStyle = rng() < 0.5 ? '#ffffff' : '#bdbdbd'; g.beginPath(); g.arc(rng() * S, rng() * S, 0.9 + rng(), 0, TAU); g.fill(); }
+    } else if (kind === 'checker') {
+      // Checkering on grips and pumps.
+      g.fillStyle = '#d0d0d0'; g.fillRect(0, 0, S, S);
+      g.strokeStyle = '#ffffff'; g.lineWidth = 2;
+      for (let i = -S; i < S * 2; i += 8) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + S, S); g.stroke(); g.beginPath(); g.moveTo(i, S); g.lineTo(i + S, 0); g.stroke(); }
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(0.35, 0.35);
+    tex.magFilter = THREE.NearestFilter;
+    this.cache[kind] = tex;
+    return tex;
+  },
+  // Gun materials: steel, worn steel edges, polymer, wood, checkered wood.
+  mats(colors) {
+    const c = Object.assign({ steel: '#2b2d30', worn: '#4a4d52', poly: '#1c1d1f', wood: '#6e4526' }, colors);
+    return {
+      steel: LP.mat(c.steel, { map: this.get('steel'), metalness: 0.65, roughness: 0.42 }),
+      worn: LP.mat(c.worn, { map: this.get('steel'), metalness: 0.8, roughness: 0.3 }),
+      poly: LP.mat(c.poly, { map: this.get('polymer'), roughness: 0.85 }),
+      wood: LP.mat(c.wood, { map: this.get('wood'), roughness: 0.6 }),
+      checker: LP.mat(c.wood, { map: this.get('checker'), roughness: 0.7 }),
+      hole: LP.mat('#050505', { roughness: 1 }),
+    };
+  },
+  // Small round hardware: screws and pins, seen side-on on a gun (axis along X).
+  screw(mat, x, y, z, r) {
+    const m = LP.cyl(r || 0.09, r || 0.09, 0.06, 12, mat, x, y, z);
+    m.rotation.z = Math.PI / 2;
+    return m;
   },
 };
 
@@ -481,6 +574,7 @@ function bakeGrime(root, height, strength) {
   const v = new THREE.Vector3();
   root.traverse((o) => {
     if (!o.isMesh || o.userData.noGrime) return;
+    if (o.geometry.userData.shared) o.geometry = o.geometry.clone(); // cached shapes are shared; grime is per mesh
     const geo = o.geometry, pos = geo.attributes.position;
     const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
     const col = new Float32Array(pos.count * 3);
@@ -818,10 +912,14 @@ const Models = {
   smg() {
     const g = new THREE.Group();
     g.name = 'smg';
-    const steel = LP.mat('#2b2d30', { metalness: 0.6, roughness: 0.45 });
-    const worn = LP.mat('#4a4d52', { metalness: 0.7, roughness: 0.35 });
-    const poly = LP.mat('#18191b', { roughness: 0.8 });
-    const hole = LP.mat('#050505');
+    const { steel, worn, poly, hole } = GUNTEX.mats();
+    // Rivets/screws down the receiver, mag release, fire selector, ribbed top cover.
+    for (const x of [-0.54, 0.54]) for (const [y, z] of [[-0.3, 2.0], [-0.3, -1.6], [0.45, 2.1], [0.45, -1.9]]) g.add(GUNTEX.screw(worn, x, y, z, 0.08));
+    g.add(LP.cyl(0.13, 0.13, 0.12, 12, worn, -0.5, -1.0, 0.0).rotateZ(Math.PI / 2)); // mag release
+    const sel = LP.box(0.08, 0.16, 0.55, worn, 0.58, 0.35, 1.05);
+    sel.rotation.x = 0.4;
+    g.add(sel, LP.cyl(0.12, 0.12, 0.08, 12, worn, 0.57, 0.35, 1.25).rotateZ(Math.PI / 2)); // selector
+    for (const z of [-0.9, -0.3, 0.3, 0.9]) g.add(LP.box(0.5, 0.05, 0.08, hole, 0, 0.96, z)); // cover ribs
     g.add(LP.sideZ([[-2.6, -0.55], [2.3, -0.55], [2.5, -0.3], [2.5, 0.55], [2.2, 0.75], [-2.4, 0.75], [-2.6, 0.5]], 1.05, steel, 0.08)); // receiver
     g.add(LP.sideZ([[-2.2, 0.75], [1.8, 0.75], [1.7, 0.95], [-2.1, 0.95]], 0.62, worn, 0.04)); // top cover
     g.add(LP.box(0.05, 0.42, 1.3, hole, 0.54, 0.18, -0.4)); // ejection port
@@ -835,7 +933,7 @@ const Models = {
     // Barrel shroud with cooling holes, then the bare barrel and a muzzle nut.
     g.add(LP.lathe([[0.36, -2.5], [0.36, -3.6], [0.3, -3.68]], 8, steel, 0, 0.1, 0));
     for (const z of [-2.75, -3.05, -3.35]) for (const x of [-0.34, 0.34]) g.add(LP.box(0.06, 0.16, 0.18, hole, x, 0.1, z));
-    g.add(LP.lathe([[0.19, -3.6], [0.19, -4.0], [0.27, -4.02], [0.27, -4.32], [0.15, -4.34]], 8, worn, 0, 0.1, 0));
+    g.add(LP.lathe([[0.19, -3.6], [0.19, -4.0], [0.27, -4.02], [0.29, -4.07], [0.27, -4.12], [0.29, -4.17], [0.27, -4.22], [0.29, -4.27], [0.27, -4.32], [0.15, -4.34]], 8, worn, 0, 0.1, 0)); // knurled muzzle nut
     const barrel = new THREE.Object3D(); // muzzle marker
     barrel.position.set(0, 0.1, -4.3);
     g.add(barrel);
@@ -865,9 +963,12 @@ const Models = {
   launcher() {
     const g = new THREE.Group();
     g.name = 'launcher';
-    const steel = LP.mat('#3a3d3a', { metalness: 0.6, roughness: 0.5 });
-    const dark = LP.mat('#1c1d1c', { metalness: 0.4, roughness: 0.7 });
-    const wood = LP.mat('#7a4e2a');
+    const M = GUNTEX.mats({ steel: '#3a3d3a', wood: '#7a4e2a', poly: '#1c1d1c' });
+    const steel = M.steel, dark = M.poly, wood = M.wood;
+    for (const z of [-0.45, 0.8, 2.05]) for (const a of [0, Math.PI]) g.add(GUNTEX.screw(M.worn, Math.cos(a) * 0.95, 0, z, 0.07)); // band screws
+    const safety = LP.box(0.08, 0.2, 0.5, M.worn, 0.4, -0.75, 0.35);
+    safety.rotation.x = -0.3;
+    g.add(safety);
     const olive = LP.mat('#4b5a2e', { metalness: 0.3, roughness: 0.6 });
     g.add(LP.lathe([[0.62, -5.05], [0.55, -4.9], [0.52, -4.6], [0.52, 4.4], [0.6, 4.6]], 10, steel)); // main tube
     g.add(LP.lathe([[0.6, 4.6], [0.72, 5.0], [1.05, 5.9], [1.12, 6.2], [0.95, 6.2], [0.6, 5.2]], 10, dark)); // venturi bell
@@ -925,10 +1026,13 @@ const Models = {
   shotgun() {
     const g = new THREE.Group();
     g.name = 'shotgun';
-    const steel = LP.mat('#2d2f31', { metalness: 0.6, roughness: 0.45 });
-    const worn = LP.mat('#4a4d52', { metalness: 0.7, roughness: 0.35 });
-    const wood = LP.mat('#6e4526');
-    const hole = LP.mat('#050505');
+    const M = GUNTEX.mats({ steel: '#2d2f31' });
+    const steel = M.steel, worn = M.worn, wood = M.wood, hole = M.hole;
+    // Receiver pins, slide release, cross-bolt safety, grip checkering panels.
+    for (const x of [-0.49, 0.49]) for (const z of [0.9, -0.9]) g.add(GUNTEX.screw(worn, x, -0.25, z, 0.08));
+    g.add(LP.box(0.08, 0.25, 0.35, worn, -0.5, -0.38, 1.25)); // slide release
+    g.add(LP.cyl(0.1, 0.1, 0.6, 12, worn, 0, -0.62, 0.25).rotateZ(Math.PI / 2)); // safety
+    for (const x of [-0.42, 0.42]) g.add(LP.sideZ([[-2.35, -0.75], [-2.0, -0.7], [-2.15, -1.5], [-2.45, -1.5]], 0.04, M.checker, 0).translateX(x));
     g.add(LP.sideZ([[-2.2, -0.5], [1.5, -0.5], [1.5, 0.48], [1.2, 0.62], [-1.9, 0.62], [-2.2, 0.38]], 0.95, steel, 0.08)); // receiver
     g.add(LP.box(0.05, 0.45, 1.4, hole, 0.48, 0.15, -0.3)); // ejection port
     g.add(LP.box(0.5, 0.05, 1.6, hole, 0, -0.52, -0.3)); // loading port
@@ -943,7 +1047,7 @@ const Models = {
     // Ribbed pump.
     const pump = [];
     for (let k = 0; k <= 8; k++) pump.push([k % 2 ? 0.43 : 0.48, -2.3 - k * 0.27]);
-    g.add(LP.lathe([[0.32, -2.2], ...pump, [0.32, -4.6]], 8, wood, 0, -0.26, 0));
+    g.add(LP.lathe([[0.32, -2.2], ...pump, [0.32, -4.6]], 8, M.checker, 0, -0.26, 0));
     // Stock: wrist and pistol grip flowing into the comb and butt, rubber butt pad.
     g.add(LP.sideZ([[-2.2, 0.48], [-3.1, 0.3], [-6.5, 0.1], [-6.75, 0.05], [-6.8, -1.85], [-6.5, -1.95], [-3.6, -0.85], [-2.9, -1.05], [-2.55, -1.75], [-1.75, -1.7], [-2.0, -0.5]], 0.82, wood, 0.12));
     g.add(LP.sideZ([[-6.8, 0.1], [-7.1, 0.1], [-7.1, -1.95], [-6.8, -1.95]], 0.86, LP.mat('#111'), 0.05));
@@ -963,9 +1067,11 @@ const Models = {
   flareGun() {
     const g = new THREE.Group();
     g.name = 'flare gun';
-    const orange = LP.mat('#d9601e', { roughness: 0.55 });
-    const black = LP.mat('#1a1a1a');
-    const steel = LP.mat('#6a6c6e', { metalness: 0.7, roughness: 0.35 });
+    const orange = LP.mat('#d9601e', { map: GUNTEX.get('steel'), roughness: 0.5 });
+    const black = LP.mat('#1a1a1a', { map: GUNTEX.get('checker'), roughness: 0.8 });
+    const steel = LP.mat('#6a6c6e', { map: GUNTEX.get('steel'), metalness: 0.7, roughness: 0.35 });
+    for (const x of [-0.5, 0.5]) g.add(GUNTEX.screw(steel, x, -1.3, 0.35, 0.09)); // grip screws
+    g.add(LP.box(0.3, 0.35, 0.5, steel, 0, 0.55, -0.15)); // barrel latch
     g.add(LP.lathe([[0.62, 0.0], [0.58, -0.2], [0.55, -3.1], [0.66, -3.15], [0.66, -3.45], [0.42, -3.48]], 10, orange, 0, 0.3, 0)); // barrel
     g.add(LP.mesh(new THREE.CircleGeometry(0.42, 10), black, 0, 0.3, -3.47).rotateY(Math.PI)); // bore
     g.add(LP.box(0.2, 0.2, 2.8, orange, 0, 0.9, -1.6)); // top rib
