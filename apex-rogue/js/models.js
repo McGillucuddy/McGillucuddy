@@ -94,6 +94,14 @@ const LP = {
     g.setAttribute('normal', new THREE.BufferAttribute(out, 3));
     return g;
   },
+  // Gather meshes into a group that pivots about `pivot` (for parts that move: mags, pumps, hinged barrels).
+  pivot(parent, meshes, pivot) {
+    const grp = new THREE.Group();
+    grp.position.set(...pivot);
+    for (const m of meshes) { parent.remove(m); m.position.sub(grp.position); grp.add(m); }
+    parent.add(grp);
+    return grp;
+  },
   // Smooth round rod along a curve through points (trigger guards, hoses, bent wire).
   path(points, r, mat, closed) {
     const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)), !!closed, 'centripetal');
@@ -945,8 +953,10 @@ const Models = {
     // Grip with moulded panels, magazine running through it, trigger and guard.
     g.add(LP.sideZ([[-0.55, -0.55], [0.45, -0.55], [0.25, -2.7], [-0.85, -2.7]], 0.9, poly, 0.1));
     for (const y of [-1.2, -1.6, -2.0]) for (const x of [-0.47, 0.47]) g.add(LP.box(0.05, 0.08, 0.85, hole, x, y, 0.15 + (y + 1.2) * -0.1));
-    g.add(LP.sideZ([[-0.42, -2.7], [0.18, -2.7], [0.02, -4.5], [-0.6, -4.5]], 0.62, steel, 0.05)); // magazine
-    g.add(LP.sideZ([[-0.5, -4.5], [0.12, -4.5], [0.1, -4.75], [-0.66, -4.75]], 0.78, worn, 0.05)); // base plate
+    const magBody = LP.sideZ([[-0.42, -2.7], [0.18, -2.7], [0.02, -4.5], [-0.6, -4.5]], 0.62, steel, 0.05); // magazine
+    const magBase = LP.sideZ([[-0.5, -4.5], [0.12, -4.5], [0.1, -4.75], [-0.66, -4.75]], 0.78, worn, 0.05); // base plate
+    g.add(magBody, magBase);
+    g.userData.mag = LP.pivot(g, [magBody, magBase], [0, -2.7, 0.2]);
     g.add(LP.sideZ([[0.6, -0.55], [1.55, -0.55], [1.5, -1.3], [0.55, -1.38], [0.55, -1.25], [1.36, -1.18], [1.42, -0.62], [0.6, -0.62]], 0.18, steel, 0)); // trigger guard
     const trig = LP.box(0.14, 0.55, 0.16, worn, 0, -0.85, -0.95);
     trig.rotation.x = 0.35;
@@ -1063,7 +1073,9 @@ const Models = {
     const fore = LP.lathe(pump, 20, M.checker, 0, -0.24, 0);
     fore.scale.x = 0.86;
     g.add(fore);
-    for (const x of [-0.3, 0.3]) g.add(LP.rbox(0.06, 0.12, 2.3, 0.02, worn, x, -0.12, -1.1));
+    const bars = [-0.3, 0.3].map((x) => LP.rbox(0.06, 0.12, 2.3, 0.02, worn, x, -0.12, -1.1));
+    g.add(...bars);
+    g.userData.pump = LP.pivot(g, [fore, ...bars], [0, 0, 0]);
     // Stock: smooth straight stock with a comb, narrowing at the wrist; rubber recoil pad.
     const stockPts = chaikin([[-2.25, 0.5], [-3.2, 0.32], [-5.4, 0.22], [-6.85, 0.18], [-6.95, -0.6], [-6.9, -1.95], [-5.6, -1.62], [-3.6, -0.9], [-2.7, -0.62], [-2.3, -0.5]], 2, 0.2);
     const stock = LP.side(stockPts, 0.86, wood, 0.12, 6);
@@ -1095,13 +1107,23 @@ const Models = {
     const black = LP.mat('#161616', { roughness: 0.55 });
     const steel = LP.mat('#7a7c7e', { map: GUNTEX.get('steel'), metalness: 0.7, roughness: 0.35 });
     // Barrel: breech end hidden in the housing, swelling muzzle, dark bore, low sight blade.
-    g.add(LP.lathe([[0.48, 0.6], [0.48, -2.85], [0.53, -2.95], [0.58, -3.3], [0.5, -3.42]], 24, orange, 0, 0.3, 0));
-    g.add(LP.mesh(new THREE.CircleGeometry(0.38, 20), LP.mat('#050505'), 0, 0.3, -3.41).rotateY(Math.PI));
-    g.add(LP.rbox(0.08, 0.16, 0.45, 0.03, orange, 0, 0.82, -3.0));
-    g.add(LP.rbox(0.1, 0.08, 2.4, 0.03, orange, 0, 0.8, -1.65)); // sight rib
+    const fb = [
+      LP.lathe([[0.48, 0.6], [0.48, -2.85], [0.53, -2.95], [0.58, -3.3], [0.5, -3.42]], 24, orange, 0, 0.3, 0),
+      LP.mesh(new THREE.CircleGeometry(0.38, 20), LP.mat('#050505'), 0, 0.3, -3.41).rotateY(Math.PI),
+      LP.rbox(0.08, 0.16, 0.45, 0.03, orange, 0, 0.82, -3.0),
+      LP.rbox(0.1, 0.08, 2.4, 0.03, orange, 0, 0.8, -1.65), // sight rib
+    ];
+    g.add(...fb);
     // Housing round the breech: rounded block that the barrel and grip grow out of.
     g.add(LP.rbox(1.1, 1.22, 1.8, 0.42, frameMat, 0, 0.26, 0.55));
     g.add(LP.lathe([[0.5, -0.36], [0.5, -0.3]], 24, LP.mat('#0a0a0a'), 0, 0.3, 0)); // hinge seam
+    g.userData.barrelGrp = LP.pivot(g, fb, [0, -0.1, -0.15]); // tips down about the hinge pin
+    // A spent cartridge, shown while reloading.
+    const shell = LP.cyl(0.36, 0.36, 1.1, 16, LP.mat('#c9a443', { metalness: 0.7, roughness: 0.3 }));
+    shell.rotation.x = Math.PI / 2;
+    shell.visible = false;
+    g.add(shell);
+    g.userData.shell = shell;
     // Raked grip, slightly narrower than the housing, rounded all round; flared butt.
     const gripBody = LP.rbox(0.86, 2.5, 1.12, 0.4, frameMat, 0, -1.25, 0.95);
     gripBody.rotation.x = -0.32;
@@ -1412,6 +1434,8 @@ const Models = {
       if (mirror) h.scale.x = -1;
       h.position.set(...pos);
       h.rotation.x = tilt;
+      h.userData.rest = { pos: h.position.clone(), rot: tilt };
+      (gun.userData.hands = gun.userData.hands || []).push(h);
       gun.add(h);
     }
     return gun;

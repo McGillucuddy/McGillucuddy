@@ -423,9 +423,21 @@ class CockpitView {
       vm.add(m);
       return m;
     });
+    // Props the hands use while reloading: a shotgun shell carried to the loading port.
+    guns.forEach((g, i) => {
+      if (this.combat.build.rack[i].id === 'shotgun') {
+        const shell = LP.cyl(0.24, 0.24, 0.8, 14, LP.mat('#a8221a', { roughness: 0.6 }));
+        shell.add(LP.cyl(0.25, 0.25, 0.18, 14, LP.mat('#c9a443', { metalness: 0.7 }), 0, -0.35, 0));
+        shell.rotation.x = Math.PI / 2;
+        shell.visible = false;
+        g.add(shell);
+        g.userData.shell = shell;
+      }
+    });
     const flash = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     this.vmCamera.add(flash);
     this.vm = { root: vm, guns, flash };
+    this.anim = { switchT: 0, pumpT: 0, dry: 0, sway: { x: 0, vx: 0, y: 0, vy: 0, r: 0, vr: 0 }, lastYaw: 0, lastPitch: 0, rl: null };
   }
 
   // ---------- Effects pools ----------
@@ -466,6 +478,9 @@ class CockpitView {
   // ---------- Per-frame ----------
 
   onEvent(ev) {
+    if (ev.type === 'switch') this.anim.switchT = 0.38;
+    else if (ev.type === 'empty') this.anim.dry = 0.14;
+    if (ev.type === 'shotgun') this.anim.pumpT = 0.55;
     if (ev.type === 'shoot') { this.recoil = Math.min(1, this.recoil + 0.35); this.flash = 0.05; }
     else if (ev.type === 'rocket') { this.recoil = 1.4; this.flash = 0.08; this.shake = Math.max(this.shake, 0.4); }
     else if (ev.type === 'shotgun') { this.recoil = 1.5; this.flash = 0.07; this.shake = Math.max(this.shake, 0.3); }
@@ -644,26 +659,7 @@ class CockpitView {
       if (m.userData.tip) m.userData.tip.visible = b.rack[i].mag > 0;
     });
 
-    // Viewmodel: the active weapon; dips out of view while reloading or fitting a spare.
-    this.recoil = Math.max(0, this.recoil - dt * 6);
-    this.flash -= dt;
-    const vm = this.vm;
-    const st = combat.wstate[combat.wi];
-    const dip = combat.busy ? 4 : st.reloadT > 0 ? 1.6 : 0;
-    this.dip = lerp(this.dip || 0, dip, Math.min(1, dt * 10));
-    const sway = Math.sin(t * 9) * Math.min(1, p.speed / 500) * 0.05;
-    vm.guns.forEach((g, i) => {
-      g.visible = i === combat.wi;
-      const [x, y, z] = g.userData.hold;
-      g.rotation.x = this.recoil * 0.12 - this.dip * 0.15;
-      g.position.set(x, y + sway - this.dip, z + this.recoil * 0.8);
-      if (g.userData.tip) g.userData.tip.visible = b.rack[i].mag > 0;
-    });
-    const held = vm.guns[combat.wi];
-    vm.flash.visible = this.flash > 0;
-    vm.flash.position.set(held.userData.hold[0] + 0.2, held.userData.hold[1] + 0.3, held.userData.hold[2] - 6.5);
-    vm.flash.rotation.z = Math.random() * TAU;
-
+    this.animateViewmodel(dt, t);
     this.updateFx(dt, t);
     this.drawRadar(t);
     this.drawStatus(t);
@@ -681,6 +677,127 @@ class CockpitView {
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(eye.clone().add(dir));
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(this.look.yaw));
+  }
+
+  // Held-weapon animation: reloads (per weapon), shotgun pump after each shot, switch raise, inertia sway
+  // from the car and your look, breathing, recoil and a dry-fire twitch.
+  animateViewmodel(dt, t) {
+    const combat = this.combat, p = this.race.player, b = combat.build, vm = this.vm, A = this.anim;
+    const st = combat.wstate[combat.wi], id = b.rack[combat.wi].id;
+    const ss = (a, c, x) => { const k = clamp((x - a) / (c - a), 0, 1); return k * k * (3 - 2 * k); }; // smoothstep a..c
+    const bump = (a, c, x) => Math.sin(Math.PI * clamp((x - a) / (c - a), 0, 1)); // 0 -> 1 -> 0 over a..c
+    this.recoil = Math.max(0, this.recoil - dt * 6);
+    this.flash -= dt;
+    A.switchT = Math.max(0, A.switchT - dt);
+    A.pumpT = Math.max(0, A.pumpT - dt);
+    A.dry = Math.max(0, A.dry - dt);
+    // Reload progress 0..1 for the held weapon.
+    let rp = -1;
+    if (st.reloadT > 0) {
+      if (!A.rl || A.rl.wi !== combat.wi) A.rl = { wi: combat.wi, dur: st.reloadT };
+      rp = 1 - st.reloadT / A.rl.dur;
+    } else A.rl = null;
+    // Inertia: the gun lags behind the car's lurches and your mouse movements, on springs.
+    const dyaw = wrapAngle(this.look.yaw - A.lastYaw), dpitch = this.look.pitch - A.lastPitch;
+    A.lastYaw = this.look.yaw; A.lastPitch = this.look.pitch;
+    const sw = A.sway, k = 120, d = 14;
+    const tx = clamp(-this.acc.lat * 0.0009 - dyaw * 6, -1.2, 1.2), ty = clamp(-this.acc.fwd * 0.0005 - dpitch * 6, -0.8, 0.8);
+    sw.vx += ((tx - sw.x) * k - sw.vx * d) * dt; sw.x += sw.vx * dt;
+    sw.vy += ((ty - sw.y) * k - sw.vy * d) * dt; sw.y += sw.vy * dt;
+    sw.vr += ((-dyaw * 4 - sw.r) * k - sw.vr * d) * dt; sw.r += sw.vr * dt;
+    const spd = Math.min(1, p.speed / 500);
+    const bob = Math.sin(t * 9) * spd * 0.05 + Math.sin(t * 1.7) * 0.03; // road vibration + breathing
+    const busyDip = combat.busy ? 4 : 0;
+    this.dip = lerp(this.dip || 0, busyDip, Math.min(1, dt * 10));
+    const sw01 = A.switchT / 0.38, raise = sw01 * sw01 * 5;
+    vm.guns.forEach((g, i) => {
+      g.visible = i === combat.wi;
+      if (!g.visible) return;
+      const [x, y, z] = g.userData.hold, u = g.userData, hands = u.hands || [];
+      // Reset moving parts to rest.
+      for (const h of hands) { h.position.copy(h.userData.rest.pos); h.rotation.set(h.userData.rest.rot, 0, 0); h.visible = true; }
+      if (u.mag) u.mag.position.set(0, -2.7, 0.2), (u.mag.visible = true);
+      if (u.pump) u.pump.position.set(0, 0, 0);
+      if (u.barrelGrp) u.barrelGrp.rotation.x = 0;
+      if (u.shell) u.shell.visible = false;
+      if (u.tip) { u.tip.position.z = -6.3; u.tip.visible = b.rack[i].mag > 0; }
+      let ox = 0, oy = 0, oz = 0, rx = 0, ry = 0, rz = 0;
+      if (rp >= 0) {
+        const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp));
+        if (id === 'smg') {
+          // Tilt, drop the mag, the support hand fetches a fresh one, slaps it in, racks the bolt.
+          ry = 0.95 * tilt; rz = 0.25 * tilt; rx = 0.1 * tilt; ox = -1.4 * tilt; oy = 2.6 * tilt; oz = 0.2 * tilt; // turned side-on so you see the mag well
+          const out = ss(0.15, 0.32, rp), back = ss(0.55, 0.8, rp);
+          const drop = out * (1 - back);
+          u.mag.position.y -= drop * 7;
+          u.mag.position.x -= drop * 1.5;
+          const hand = hands[1];
+          if (hand) {
+            const away = ss(0.12, 0.3, rp) * (1 - ss(0.8, 0.92, rp));
+            // Down and away to the mag pouch, then cupping the mag base on the way back up.
+            const toMag = ss(0.55, 0.8, rp);
+            hand.position.lerp(new THREE.Vector3(-0.4, -5.2, 0.4), away * (1 - toMag) + 0);
+            if (toMag > 0 && rp < 0.92) hand.position.lerp(new THREE.Vector3(-0.2, -5.0 + 2.3 * toMag - drop * 7, 0.3), Math.min(1, toMag * 1.5) * (1 - ss(0.8, 0.92, rp)));
+          }
+          oz += bump(0.78, 0.84, rp) * 0.4; // slap
+          rx -= bump(0.86, 0.94, rp) * 0.12; // bolt rack kick
+        } else if (id === 'shotgun') {
+          // Roll it over, thumb four shells into the loading port, rack the pump.
+          rz = -0.7 * tilt; ry = 0.25 * tilt; oy = 0.9 * tilt; ox = -0.5 * tilt;
+          const hand = hands[1], port = new THREE.Vector3(0, -0.9, -0.3);
+          const load = ss(0.12, 0.2, rp) * (1 - ss(0.78, 0.85, rp));
+          if (hand) {
+            const cyc = clamp((rp - 0.2) / 0.58, 0, 1) * 4, f = cyc % 1, inLoad = rp > 0.2 && rp < 0.78;
+            const reach = inLoad ? Math.sin(Math.PI * f) : 0; // down to the shell carrier and back
+            hand.position.lerp(port, load);
+            hand.position.y -= reach * 2.4;
+            hand.rotation.x = hand.userData.rest.rot + load * 0.5;
+            if (u.shell && inLoad && f > 0.15 && f < 0.85) {
+              u.shell.visible = true;
+              u.shell.position.set(hand.position.x, hand.position.y + 0.55, hand.position.z + (f > 0.5 ? (0.85 - f) * 1.2 : 0));
+            }
+          }
+          const rack = bump(0.86, 0.98, rp);
+          u.pump.position.z = rack * 1.2;
+          if (hand && rp > 0.85) hand.position.z += rack * 1.2;
+        } else if (id === 'rocket') {
+          // Lower the launcher, the front hand fetches a warhead and slides it into the muzzle.
+          ry = 0.55 * tilt; rx = -0.1 * tilt; ox = -1.2 * tilt; oy = 0.3 * tilt; oz = 1.5 * tilt; rz = 0.15 * tilt;
+          const hand = hands[1];
+          const fetch = ss(0.12, 0.35, rp) * (1 - ss(0.45, 0.6, rp));
+          const slide = ss(0.45, 0.82, rp);
+          if (u.tip) { u.tip.visible = rp > 0.45; u.tip.position.z = -6.3 - (1 - slide) * 6; }
+          if (hand) {
+            hand.position.lerp(new THREE.Vector3(-0.8, -4.5, -3), fetch);
+            if (rp > 0.45 && rp < 0.9) hand.position.lerp(new THREE.Vector3(0, -0.9, u.tip.position.z + 1.2), 1 - ss(0.82, 0.9, rp));
+          }
+        } else if (id === 'flare') {
+          // Break the barrel open, the spent case flips out, a fresh one goes in, snap it shut.
+          ry = 1.0 * tilt; rx = 0.1 * tilt; rz = 0.15 * tilt; ox = -1.0 * tilt; oy = 1.2 * tilt; oz = 1.3 * tilt;
+          const open = ss(0.08, 0.25, rp) * (1 - ss(0.78, 0.9, rp));
+          u.barrelGrp.rotation.x = -0.75 * open;
+          if (u.shell) {
+            if (rp > 0.25 && rp < 0.45) { const f = (rp - 0.25) / 0.2; u.shell.visible = true; u.shell.position.set(0.3 * f, 0.4 + 2.5 * f, 0.6 + 2 * f); u.shell.rotation.set(Math.PI / 2 + f * 3, 0, f * 2); }
+            else if (rp > 0.5 && rp < 0.75) { const f = ss(0.5, 0.72, rp); u.shell.visible = true; u.shell.position.set(0, 0.3 - (1 - f) * 2.5, 0.2 + (1 - f) * 1.5); u.shell.rotation.set(Math.PI / 2, 0, 0); }
+          }
+          oz += bump(0.86, 0.92, rp) * 0.3; // snap shut
+        }
+      }
+      // Pump-action after every shotgun blast.
+      if (id === 'shotgun' && A.pumpT > 0 && u.pump) {
+        const f = 1 - A.pumpT / 0.55, rack = bump(0.25, 0.95, f);
+        u.pump.position.z = rack * 1.2;
+        if (hands[1]) hands[1].position.z += rack * 1.2;
+        rx += rack * 0.05;
+      }
+      const dry = A.dry > 0 ? Math.sin((A.dry / 0.14) * Math.PI) * 0.05 : 0;
+      g.position.set(x + sw.x * 0.5 + ox, y + bob + sw.y * 0.4 - this.dip - raise + oy, z + this.recoil * 0.8 + oz);
+      g.rotation.set(this.recoil * 0.12 - this.dip * 0.15 + sw.y * 0.06 + rx + dry, sw.r * 0.3 + ry, -sw.x * 0.1 + rz);
+    });
+    const held = vm.guns[combat.wi];
+    vm.flash.visible = this.flash > 0;
+    vm.flash.position.set(held.userData.hold[0] + 0.2, held.userData.hold[1] + 0.3, held.userData.hold[2] - 6.5);
+    vm.flash.rotation.z = Math.random() * TAU;
   }
 
   updateFx(dt, t) {
