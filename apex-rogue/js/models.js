@@ -1680,19 +1680,19 @@ const Models = {
   // shoulder, and whether it is a mirrored (left) pistol hand.
   GRIPS: {
     smg: [
-      { kind: 'pistol', pos: [0, -1.45, 0.15], tilt: -0.12, grip: [0.45, 0.52], trigger: [0, -0.82, -1.1], arm: [1.6, -2.6, 6.2] },
-      { kind: 'support', pos: [0, -0.74, -1.95], tilt: 0, tube: 0.53, arm: [-3.4, -2.6, 7.5] },
+      { kind: 'pistol', pos: [0, -1.45, 0.15], tilt: -0.12, grip: [0.45, 0.52], trigger: [0, -0.82, -1.1], arm: [-0.6, -2.6, 5.6] },
+      { kind: 'support', pos: [0, -0.74, -1.95], tilt: 0, tube: 0.53, arm: [-6.8, -3.2, 5.0] },
     ],
     shotgun: [
-      { kind: 'pistol', pos: [0, -1.25, 2.98], tilt: -0.2, grip: [0.35, 0.46], trigger: [0, -0.92, 1.74], arm: [1.3, -2.6, 3.9] },
-      { kind: 'support', pos: [0, -0.24, -3.5], tilt: 0, tube: 0.5, arm: [-3.6, -3.2, 8] },
+      { kind: 'pistol', pos: [0, -1.25, 2.98], tilt: -0.2, grip: [0.35, 0.46], trigger: [0, -0.92, 1.74], arm: [-0.6, -3.6, 4.0] },
+      { kind: 'support', pos: [0, -0.24, -3.5], tilt: 0, tube: 0.5, arm: [-7.2, -3.4, 5.4] },
     ],
     rocket: [
-      { kind: 'pistol', pos: [0, -1.45, 0.95], tilt: -0.15, grip: [0.36, 0.46], trigger: [0, -0.9, -0.3], arm: [0.8, -2.8, 7] },
-      { kind: 'pistol', pos: [0, -1.35, -1.95], tilt: -0.15, grip: [0.35, 0.42], arm: [-4.8, -2.8, 8.5], mirror: true },
+      { kind: 'pistol', pos: [0, -1.45, 0.95], tilt: -0.15, grip: [0.36, 0.46], trigger: [0, -0.9, -0.3], arm: [-0.6, -2.8, 6.0] },
+      { kind: 'pistol', pos: [0, -1.35, -1.95], tilt: -0.15, grip: [0.35, 0.42], arm: [-7.4, -3.0, 5.6], mirror: true },
     ],
     flare: [
-      { kind: 'pistol', pos: [0, -1.35, 0.95], tilt: -0.32, grip: [0.45, 0.57], trigger: [0, -0.62, -0.44], arm: [1.4, -2.4, 5.4] },
+      { kind: 'pistol', pos: [0, -1.35, 0.95], tilt: -0.32, grip: [0.45, 0.57], trigger: [0, -0.62, -0.44], arm: [-0.5, -3.0, 5.0] },
     ],
   },
 
