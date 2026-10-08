@@ -62,15 +62,19 @@ const Proto = {
         }
       }
       const r = this.previewCanvas.getBoundingClientRect();
+      this.gMouse = { x: e.clientX, y: e.clientY };
       const hot = this.preview.pick(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
       this.previewCanvas.style.cursor = hot ? 'pointer' : 'default';
       this.tip.classList.toggle('hidden', !hot);
       if (hot) { this.tip.textContent = hot.label; this.tip.style.left = e.clientX + 14 + 'px'; this.tip.style.top = e.clientY + 14 + 'px'; }
     });
-    this.previewCanvas.addEventListener('mouseleave', () => this.tip.classList.add('hidden'));
-    this.previewCanvas.addEventListener('click', () => {
-      if (!this.preview || this.state !== 'garage' || !this.preview.hover || (this.gDrag && this.gDrag.moved)) return;
-      const h = this.preview.hover.userData.hot;
+    this.previewCanvas.addEventListener('mouseleave', () => { this.tip.classList.add('hidden'); this.gMouse = null; });
+    this.previewCanvas.addEventListener('click', (e) => {
+      if (!this.preview || this.state !== 'garage' || (this.gDrag && this.gDrag.moved)) return;
+      // Re-check what is under the cursor right now (the camera may have eased since the last mouse move).
+      const r = this.previewCanvas.getBoundingClientRect();
+      const h = this.preview.pick(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      if (!h) return;
       Sound.resume();
       Sound.play({ type: 'click' });
       this.tip.classList.add('hidden');
@@ -610,6 +614,7 @@ const Proto = {
   // ---------- Garage / shop / rewards ----------
 
   showGarage() {
+    this.state = 'garage';
     const b = this.build, act = this.act;
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
     const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(this.run.act) ? 'Concierge' : 'Commissary', this.shopOpen ? 'Open now' : 'Closed'], ['paint', 'Paint booth', 'Looks, kept between runs']];
@@ -861,6 +866,14 @@ const Proto = {
     if (this.state !== 'garage') this.preview.setStation('overview');
     const panel = this.state === 'garage' && this.W > 900 ? 500 : 0;
     this.preview.render(this.W, this.H, dt, this.time, panel);
+    // Keep the hover and tooltip true to what is under the cursor while the camera eases between stations.
+    if (this.state === 'garage' && this.gMouse && !(this.gDrag && this.gDrag.moved)) {
+      const r = cv.getBoundingClientRect(), m = this.gMouse;
+      const hot = this.preview.pick(((m.x - r.left) / r.width) * 2 - 1, -((m.y - r.top) / r.height) * 2 + 1);
+      cv.style.cursor = hot ? 'pointer' : 'default';
+      this.tip.classList.toggle('hidden', !hot);
+      if (hot) this.tip.textContent = hot.label;
+    }
   },
 
   render(dt) {

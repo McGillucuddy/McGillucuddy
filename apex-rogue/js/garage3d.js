@@ -534,7 +534,7 @@ class Garage3D {
     const k = Math.min(1, dt * 3.5);
     const pose = this.pose();
     if (pose) {
-      const still = this.station === 'paint';
+      const still = this.station === 'paint' || this.station === 'market'; // no parallax where you aim at small things
       const px = still ? 0 : this.mouse.x * 3, py = still ? 0 : this.mouse.y * 2;
       this.cam.pos.lerp(new THREE.Vector3(pose[0][0] + px, pose[0][1] + py, pose[0][2]), k);
       this.cam.look.lerp(new THREE.Vector3(...pose[1]), k);
@@ -556,7 +556,16 @@ class Garage3D {
     this.ember.material.emissiveIntensity = 1.4 + Math.sin(t * 3) * 0.8;
     this.cctv.visible = Math.floor(t * 1.2) % 2 === 0;
     this.trader.rotation.y = Math.sin(t * 0.4) * 0.15;
-    for (const o of this.hotRoot.children) if (o.userData.baseY != null) o.position.y = o.userData.baseY + (o === this.hover ? 1 + Math.sin(t * 6) * 0.3 : 0);
+    // Hovered goods glow warm (no movement, so the click always lands on what you hovered).
+    if (this.glowing !== this.hover) {
+      const set = (o, on) => o && o.userData.baseY != null && o.traverse((m) => {
+        if (!m.isMesh || !m.material.emissive) return;
+        if (on) { m.userData.em = m.material.emissive.getHex(); m.material.emissive.setHex(0x553311); } else if (m.userData.em != null) m.material.emissive.setHex(m.userData.em);
+      });
+      set(this.glowing, false);
+      set(this.hover, true);
+      this.glowing = this.hover;
+    }
     if (PSX.enabled) { this.post.begin(); this.renderer.render(this.scene, this.camera); this.post.end(t); }
     else this.renderer.render(this.scene, this.camera);
   }
