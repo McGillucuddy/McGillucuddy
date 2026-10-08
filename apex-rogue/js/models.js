@@ -107,6 +107,48 @@ const LP = {
     const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)), !!closed, 'centripetal');
     return new THREE.Mesh(new THREE.TubeGeometry(curve, points.length * 8, r, 10, !!closed), mat);
   },
+  // Tapered round limb along a smooth curve with rounded ends (fingers, thumbs, forearms, sleeves).
+  // radii: one per point, eased between; wob(t, a) optionally scales the radius (cloth folds, creases).
+  limb(points, radii, mat, wob) {
+    const curve = new THREE.CatmullRomCurve3(points.map((p) => new THREE.Vector3(...p)), false, 'centripetal');
+    const seg = Math.max(8, (points.length - 1) * 7), sides = 12, cap = 4;
+    const fr = curve.computeFrenetFrames(seg, false);
+    const rAt = (t) => {
+      const f = t * (radii.length - 1), i = Math.min(radii.length - 2, Math.floor(f)), u = f - i, s = u * u * (3 - 2 * u);
+      return radii[i] + (radii[i + 1] - radii[i]) * s;
+    };
+    // Rings: [centre, normal, binormal, radius]; the ends close over as half-domes.
+    const rings = [], c = new THREE.Vector3();
+    const tan0 = fr.tangents[0], tan1 = fr.tangents[seg];
+    for (let k = cap; k >= 1; k--) {
+      const ph = (k / cap) * Math.PI / 2, r = rAt(0);
+      rings.push([curve.getPointAt(0).addScaledVector(tan0, -Math.sin(ph) * r), fr.normals[0], fr.binormals[0], Math.cos(ph) * r, 0]);
+    }
+    for (let i = 0; i <= seg; i++) rings.push([curve.getPointAt(i / seg), fr.normals[i], fr.binormals[i], rAt(i / seg), i / seg]);
+    for (let k = 1; k <= cap; k++) {
+      const ph = (k / cap) * Math.PI / 2, r = rAt(1);
+      rings.push([curve.getPointAt(1).addScaledVector(tan1, Math.sin(ph) * r), fr.normals[seg], fr.binormals[seg], Math.cos(ph) * r, 1]);
+    }
+    const pos = [], idx = [];
+    for (const [p, n, b, r, t] of rings) {
+      for (let j = 0; j < sides; j++) {
+        const a = (j / sides) * Math.PI * 2, rr = Math.max(0.002, r * (wob ? wob(t, a) : 1));
+        c.copy(p).addScaledVector(n, Math.cos(a) * rr).addScaledVector(b, Math.sin(a) * rr);
+        pos.push(c.x, c.y, c.z);
+      }
+    }
+    for (let i = 0; i < rings.length - 1; i++) {
+      for (let j = 0; j < sides; j++) {
+        const a = i * sides + j, b2 = i * sides + (j + 1) % sides, d = a + sides, e = b2 + sides;
+        idx.push(a, d, b2, b2, d, e);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return new THREE.Mesh(geo, mat);
+  },
   // Rounded box (extruded rounded rectangle with rounded edges): fingers, grips, soft parts.
   rbox(w, h, d, r, mat, x, y, z) {
     r = Math.min(r, w / 2 - 0.01, h / 2 - 0.01, d / 2 - 0.01);
@@ -1382,40 +1424,101 @@ const Models = {
     return g;
   },
 
-  // First-person hands: fingerless gloves and orange prison-jumpsuit sleeves, posed on each gun's grips.
-  // 'pistol' wraps a vertical grip (axis = local Y); 'support' cradles a tube or handguard from below (axis = Z).
+  // First-person hands: fingerless leather gloves and orange prison-jumpsuit sleeves, posed on each gun's grips.
+  // 'pistol' wraps a vertical grip (axis = local Y, right hand); 'support' cradles a tube or handguard from below
+  // (axis = Z, left hand, palm up). Fingers are jointed tapered limbs with knuckles and nails; mirrored by scale.x = -1.
   hand(kind, arm) {
     const g = new THREE.Group();
-    const opts = { side: THREE.DoubleSide, roughness: 0.85 };
-    const skin = LP.mat('#c08a62', opts), glove = LP.mat('#2e2620', opts), suit = LP.mat('#d9661e', opts), cuff = LP.mat('#a8481a', opts);
+    const opts = { side: THREE.DoubleSide };
+    const skin = LP.mat('#c48766', Object.assign({ roughness: 0.62 }, opts));
+    const nail = LP.mat('#e0b4a2', Object.assign({ roughness: 0.32 }, opts));
+    const glove = LP.mat('#2f2620', Object.assign({ roughness: 0.72, metalness: 0.08 }, opts)), pad = LP.mat('#1b1714', Object.assign({ roughness: 0.92 }, opts));
+    const strap = LP.mat('#4a3e33', Object.assign({ roughness: 0.85 }, opts)), buckle = LP.mat('#8a8a86', { metalness: 0.8, roughness: 0.35 });
+    const suit = LP.mat('#d6631d', Object.assign({ roughness: 0.95 }, opts)), cuff = LP.mat('#b4521a', Object.assign({ roughness: 0.95 }, opts));
+    const V = (a) => new THREE.Vector3(...a), lerp = (a, b, t) => V(a).lerp(V(b), t).toArray();
+    const ellipsoid = (sx, sy, sz, m, p, basis) => {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), m);
+      e.scale.set(sx, sy, sz);
+      e.position.set(...p);
+      if (basis) e.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(...basis));
+      g.add(e);
+      return e;
+    };
+    // Soft rounded slab (a squared-off ellipsoid) for the palm and back of the hand; shape(v) bends it in place.
+    const slab = (sx, sy, sz, m, p, shape) => {
+      const geo = new THREE.SphereGeometry(1, 22, 16), q = geo.attributes.position, v = new THREE.Vector3();
+      for (let i = 0; i < q.count; i++) {
+        v.fromBufferAttribute(q, i);
+        v.set(Math.sign(v.x) * Math.abs(v.x) ** 0.55 * sx, Math.sign(v.y) * Math.abs(v.y) ** 0.7 * sy, Math.sign(v.z) * Math.abs(v.z) ** 0.7 * sz).add(V(p));
+        if (shape) shape(v);
+        q.setXYZ(i, v.x, v.y, v.z);
+      }
+      geo.computeVertexNormals();
+      g.add(new THREE.Mesh(geo, m));
+    };
+    // A finger through its joints [knuckle, middle joint, top joint, tip], with the glove over the first bone,
+    // a crease at each joint and a nail on the back (out = direction the back of the fingertip faces).
+    const finger = (j, r, out, gloved = 0.55) => {
+      g.add(LP.limb(j, [r * 1.1, r * 1.04, r * 0.96, r * 0.84], skin));
+      const m = lerp(j[0], j[1], gloved);
+      g.add(LP.limb([j[0], lerp(j[0], m, 0.5), m], [r * 1.38, r * 1.3, r * 1.24], glove));
+      const d = V(j[3]).sub(V(j[2])).normalize(), o = V(out).normalize();
+      const x = new THREE.Vector3().crossVectors(o, d).normalize(), y = new THREE.Vector3().crossVectors(d, x);
+      ellipsoid(r * 0.66, r * 0.2, r * 0.8, nail, V(j[3]).addScaledVector(y, r * 0.7).addScaledVector(d, r * 0.1).toArray(), [x, y, d]);
+    };
+    let w;
     if (kind === 'pistol') {
-      g.add(LP.rbox(0.42, 1.5, 1.2, 0.13, glove, 0.68, -0.1, 0.05)); // back of the hand
-      g.add(LP.rbox(0.46, 1.25, 0.42, 0.13, glove, 0.64, -0.2, -0.55)); // knuckles
-      g.add(LP.rbox(0.9, 0.42, 0.45, 0.13, glove, 0.22, 0.6, 0.55)); // web over the top of the grip
-      for (let k = 0; k < 3; k++) {
-        const y = -0.05 - k * 0.38;
-        g.add(LP.rbox(1.05, 0.32, 0.36, 0.13, skin, 0.05, y, -0.74)); // finger across the front
-        g.add(LP.rbox(0.34, 0.3, 0.46, 0.13, skin, -0.6, y, -0.46)); // fingertip on the far side
+      // Fingers wrap an ellipse around the grip: angle 0 = right side, PI/2 = front strap, PI = left side.
+      const at = (a, y, k) => [0.02 + 0.56 * k * Math.cos(a), y, -0.05 - 0.64 * k * Math.sin(a)];
+      const out = (a) => [Math.cos(a), 0, -Math.sin(a)];
+      const F = [[0.1, 0.15, 2.2], [-0.25, 0.14, 2.15], [-0.58, 0.12, 2.0]]; // [height, radius, tip angle]
+      for (const [y, r, ta] of F) {
+        finger([at(0.18, y, 1.12), at(1.05, y - 0.03, 1), at(1.68, y - 0.06, 1), at(ta, y - 0.08, 1)], r, out(ta));
       }
-      g.add(LP.rbox(0.3, 0.3, 1.0, 0.13, skin, 0.62, 0.42, -0.95)); // trigger finger along the frame
-      const thumb = LP.rbox(0.32, 0.32, 0.95, 0.13, skin, -0.55, 0.45, 0.05);
-      thumb.rotation.y = 0.3;
-      g.add(thumb);
-      g.add(LP.rbox(0.85, 0.95, 0.85, 0.13, glove, 0.6, -0.45, 0.85)); // wrist
+      // Trigger finger lies straight along the frame, off the trigger.
+      finger([[0.6, 0.36, -0.2], [0.66, 0.42, -0.7], [0.64, 0.43, -1.06], [0.6, 0.42, -1.3]], 0.14, [0.6, 0.8, 0]);
+      // Back of the hand on the right side, tapering to the wrist; heel of the palm round the back strap.
+      slab(0.2, 0.62, 0.62, glove, [0.64, -0.12, 0.3], (v) => {
+        const t = Math.max(0, Math.min(1, (v.z + 0.3) / 1.2));
+        v.y = -0.38 + (v.y + 0.38) * (1 - 0.32 * t);
+        v.x += 0.07 * Math.cos((v.y + 0.12) * 2.2) - 0.06 * t; // knuckle arch across the back
+      });
+      slab(0.36, 0.42, 0.2, glove, [0.3, -0.3, 0.6]); // heel of the palm round the back strap
+      g.add(LP.limb([[0.66, 0.4, -0.22], [0.66, 0.08, -0.3], [0.64, -0.25, -0.3], [0.6, -0.58, -0.26]], [0.11, 0.12, 0.12, 0.1], pad)); // padded knuckle strip
+      // Thumb over the top of the grip and down the left side.
+      const T = [[0.42, 0.12, 0.62], [-0.2, 0.44, 0.46], [-0.55, 0.36, -0.02], [-0.58, 0.27, -0.34]];
+      g.add(LP.limb([T[0], lerp(T[0], T[1], 0.5), T[1]], [0.24, 0.22, 0.2], glove)); // web and thumb bone in the glove
+      finger([T[1], lerp(T[1], T[2], 0.55), T[2], T[3]], 0.16, [-1, 0.25, 0], 0.4);
+      w = [0.6, -0.55, 1.08];
     } else {
-      g.add(LP.rbox(1.0, 0.36, 1.45, 0.13, glove, 0.05, -0.62, 0)); // palm under the tube
-      for (let k = 0; k < 4; k++) {
-        const z = -0.55 + k * 0.37;
-        g.add(LP.rbox(0.3, 0.7, 0.3, 0.13, skin, 0.56, -0.2, z)); // fingers up the far side
-        g.add(LP.rbox(0.3, 0.26, 0.3, 0.13, skin, 0.36, 0.22, z)); // tips curled over
-      }
-      g.add(LP.rbox(0.3, 0.66, 0.34, 0.13, skin, -0.55, -0.22, 0.35)); // thumb
-      g.add(LP.rbox(0.9, 0.8, 0.8, 0.13, glove, -0.1, -0.85, 0.85)); // wrist
+      // Fingers curl up the right side of the tube: angle 0 = straight below, PI/2 = right side.
+      const at = (b, z, k) => [0.57 * k * Math.sin(b), -0.57 * k * Math.cos(b), z];
+      const out = (b) => [Math.sin(b), -Math.cos(b), 0];
+      const F = [[-0.55, 0.14, 2.4], [-0.19, 0.145, 2.45], [0.17, 0.14, 2.35], [0.5, 0.12, 2.15]]; // [z, radius, tip angle]
+      for (const [z, r, tb] of F) finger([at(0.72, z + 0.04, 1.15), at(1.45, z, 1), at(1.98, z - 0.02, 1), at(tb, z - 0.04, 1)], r, out(tb));
+      // Palm cupped under the tube, narrowing to the wrist.
+      slab(0.5, 0.17, 0.72, glove, [0.04, -0.68, 0.08], (v) => {
+        const t = Math.max(0, Math.min(1, (v.z + 0.6) / 1.45));
+        v.y += 0.28 * v.x * v.x - 0.05 * t; // cupped
+        v.x = -0.05 + (v.x + 0.05) * (1 - 0.3 * t);
+      });
+      g.add(LP.limb([[0.36, -0.62, -0.62], [0.44, -0.6, -0.2], [0.45, -0.6, 0.18], [0.4, -0.6, 0.5]], [0.11, 0.12, 0.12, 0.1], pad)); // knuckle strip
+      slab(0.26, 0.2, 0.34, glove, [-0.3, -0.7, 0.48]); // ball of the thumb
+      const T = [[-0.18, -0.8, 0.62], [-0.52, -0.56, 0.22], [-0.62, -0.26, -0.18], [-0.58, -0.04, -0.46]];
+      g.add(LP.limb([T[0], lerp(T[0], T[1], 0.5), T[1]], [0.22, 0.2, 0.19], glove));
+      finger([T[1], lerp(T[1], T[2], 0.55), T[2], T[3]], 0.155, [-1, 0, 0], 0.4);
+      w = [-0.08, -0.92, 1.08];
     }
-    // Forearm in the jumpsuit sleeve, running back towards the camera.
-    const w = kind === 'pistol' ? [0.62, -0.55, 1.15] : [-0.1, -0.95, 1.15];
-    g.add(LP.tube(w, [w[0] + arm[0] * 0.12, w[1] + arm[1] * 0.12, w[2] + arm[2] * 0.12], 0.62, cuff));
-    g.add(LP.tube([w[0] + arm[0] * 0.1, w[1] + arm[1] * 0.1, w[2] + arm[2] * 0.1], [w[0] + arm[0], w[1] + arm[1], w[2] + arm[2]], 0.72, suit));
+    // Glove cuff with a strap and buckle, a strip of bare wrist, then the rolled jumpsuit sleeve.
+    const dir = V(arm).normalize(), L = V(arm).length(), along = (d) => V(w).addScaledVector(dir, d).toArray();
+    g.add(LP.limb([along(-0.45), along(-0.1), along(0.25)], [0.46, 0.44, 0.43], glove));
+    g.add(LP.limb([along(0.02), along(0.2)], [0.47, 0.47], strap));
+    const bk = LP.rbox(0.2, 0.06, 0.26, 0.03, buckle, 0, 0, 0);
+    bk.position.set(...along(0.11)); bk.position.y += 0.47; g.add(bk);
+    g.add(LP.limb([along(0.2), along(0.75)], [0.41, 0.46], skin)); // bare wrist
+    g.add(LP.limb([along(0.6), along(0.85), along(1.1)], [0.58, 0.64, 0.6], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1))); // rolled cuff
+    g.add(LP.limb([along(0.95), along(L * 0.45), along(L)], [0.6, 0.7, 0.76], suit,
+      (t, a) => 1 + 0.045 * Math.sin(a * 3 + t * 9) + 0.03 * Math.sin(a * 7 - t * 14))); // sleeve with cloth folds
     g.traverse((o) => { if (o.isMesh) o.userData.modVis = true; });
     return g;
   },
