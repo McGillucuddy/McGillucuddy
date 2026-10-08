@@ -245,17 +245,15 @@ const Proto = {
     this.shopOpen = false;
     const b = this.build, run = this.run, map = run.map, act = this.act, boss = BOSSES[run.act];
     const reach = reachableNodes(map, run.cur);
-    const rng = mulberry32(map.seed + 3);
-    // Stops are rubber stamps; each sits at a slight angle, like it was thumped on by hand.
+    // Stops: clear colour-coded markers with a plain label underneath.
     const nodes = map.nodes.map((n) => {
       const t = NODE_TYPES_RUN[n.type], can = reach.includes(n.id), p = RouteSheet.pos(n);
-      const tip = n.type === 'boss' ? `${boss.name}, ${boss.title}. ${boss.desc}` : t.desc;
-      const rot = ((rng() - 0.5) * 16).toFixed(1);
-      return `<button class="stamp t-${n.type} ${n.done ? 'done' : ''} ${can ? 'can' : ''}" style="left:${p.x * 100}%;top:${p.y * 100}%;--rot:${rot}deg"
-        ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} title="${tip.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? 'QUALIFIER' : t.label.toUpperCase()}</small></button>`;
+      const info = n.type === 'boss' ? `<b>Qualifier: ${boss.name}</b>, ${boss.title}. ${boss.desc}` : `<b>${t.label}.</b> ${t.desc}`;
+      return `<button class="stop t-${n.type} ${n.done ? 'done' : ''} ${can ? 'can' : ''}" style="left:${p.x * 100}%;top:${p.y * 100}%"
+        ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} data-info="${info.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? 'Boss' : t.label}</small></button>`;
     }).join('');
-    const here = run.cur != null ? RouteSheet.pos(mapNode(map, run.cur)) : { x: 0.5, y: 1.0 };
-    const legend = Object.entries(NODE_TYPES_RUN).filter(([k]) => k !== 'boss').map(([, t]) => `<span><b>${t.icon}</b> ${t.label}</span>`).join('');
+    const here = run.cur != null ? RouteSheet.pos(mapNode(map, run.cur)) : null;
+    const hint = reach.length === 1 && mapNode(map, reach[0]).type === 'boss' ? `Next: the qualifier against ${boss.name}.` : 'Pick one of the circled stops.';
     this.setUI(`<div class="screen mapscreen g3d">
       <div class="g-top">
         <div><b>Act ${ROMAN[run.act]}</b> · ${act.title}</div>
@@ -267,17 +265,18 @@ const Proto = {
       <div class="route clipboard sheet">
         <div class="clip"></div>
         <div class="form-head">
-          <div><b>DEPT. OF CORRECTIONS</b> · RACE ASSIGNMENT</div>
-          <div>INMATE #${this.cos.inmate} · ACT ${ROMAN[run.act]}: ${act.title.toUpperCase()}</div>
+          <canvas id="mugshot" width="120" height="140"></canvas>
+          <div>
+            <div class="form-title">Route sheet · Act ${ROMAN[run.act]}: ${act.title}</div>
+            <div class="form-boss">At the top: <b>${boss.name}</b>, ${boss.title}</div>
+          </div>
         </div>
         <div class="route-map" id="routeMap">
           <canvas class="route-canvas" id="routeCanvas"></canvas>
           ${nodes}
-          ${run.cur != null ? `<div class="pushpin" style="left:${here.x * 100}%;top:${here.y * 100}%"></div>` : ''}
-          <div class="mugshot"><canvas id="mugshot" width="120" height="140"></canvas><div class="tape"></div><p>${boss.title}</p></div>
-          <div class="approved">APPROVED<small>by order of the warden</small></div>
+          ${here ? `<div class="pushpin" style="left:${here.x * 100}%;top:${here.y * 100}%"></div>` : ''}
         </div>
-        <div class="route-legend small">${legend}</div>
+        <div class="route-info" id="routeInfo">${hint}</div>
       </div>
       <button class="btn big g-go garage-btn" data-action="open-garage">Garage: repairs, loadout, paint</button>
     </div>`);
@@ -285,6 +284,12 @@ const Proto = {
     if (cv) RouteSheet.draw(cv, map, reach, run.cur);
     const mug = document.getElementById('mugshot');
     if (mug) RouteSheet.mugshot(mug, boss);
+    // Hovering a stop explains it in the line under the map.
+    const info = document.getElementById('routeInfo'), rm = document.getElementById('routeMap');
+    if (rm && info) {
+      rm.addEventListener('mouseover', (e) => { const el = e.target.closest('.stop'); if (el) info.innerHTML = el.dataset.info; });
+      rm.addEventListener('mouseleave', () => { info.textContent = hint; });
+    }
     this.syncGarage();
     if (this.preview) this.preview.setStation('overview');
   },

@@ -136,6 +136,8 @@ function genActMap(rng, act) {
   const cap = (type, max) => { const l = all.filter((n) => n.type === type); while (l.length > max) l.splice(Math.floor(rng() * l.length), 1)[0].type = 'race'; };
   cap('elite', 2);
   cap('event', 3);
+  cap('repair', 1);
+  cap('shop', 2);
   // Never two commissaries side by side in a row.
   for (const row of rows) { let seen = false; for (const n of row) { if (n.type === 'shop') { if (seen) n.type = 'race'; seen = true; } } }
   return { act, rows, boss, nodes: [...all, boss], seed: Math.floor(rng() * 1e9) };

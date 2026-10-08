@@ -24,12 +24,13 @@ const RouteSheet = {
     g.scale(dpr, dpr);
     const rng = mulberry32(map.seed || 7);
     this.paper(g, W, H, rng);
-    this.district(g, W, H, rng, DISTRICTS[map.act] || DISTRICTS[0]);
-    // Links: pencil for the routes, red marker for the way you came.
+    this.streets(g, W, H, rng);
+    // Links: faint pencil for the routes, red marker for the way you came and the ways you can go next.
     const P = (n) => { const p = this.pos(n); return [p.x * W, p.y * H]; };
     for (const n of map.nodes) for (const t of n.next) {
       const m = mapNode(map, t);
       if (n.done && m.done) continue; // drawn in marker below
+      if (n.id === curId && reach.includes(m.id)) continue; // drawn bold below
       this.pencil(g, P(n), P(m), rng);
     }
     for (const n of map.nodes) for (const t of n.next) {
@@ -38,43 +39,33 @@ const RouteSheet = {
     }
     // The leg you are about to take starts from where you are.
     if (curId != null) for (const t of reach) this.marker(g, P(mapNode(map, curId)), P(mapNode(map, t)), rng, true);
-    for (const id of reach) { const [x, y] = P(mapNode(map, id)); this.circle(g, x, y, mapNode(map, id).type === 'boss' ? 50 : 40, rng); }
+    for (const id of reach) { const [x, y] = P(mapNode(map, id)); this.circle(g, x, y, mapNode(map, id).type === 'boss' ? 52 : 42, rng); }
   },
 
+  // Plain aged paper: light texture, one fold, one coffee ring tucked in a corner, soft edges.
   paper(g, W, H, rng) {
-    g.fillStyle = '#e8ddc0';
+    g.fillStyle = '#ebe2c8';
     g.fillRect(0, 0, W, H);
-    // Fibres and speckle.
-    for (let k = 0; k < (W * H) / 60; k++) {
-      g.fillStyle = rng() < 0.5 ? `rgba(120,90,50,${rng() * 0.06})` : `rgba(255,250,235,${rng() * 0.12})`;
+    for (let k = 0; k < (W * H) / 140; k++) {
+      g.fillStyle = rng() < 0.5 ? `rgba(120,90,50,${rng() * 0.04})` : `rgba(255,250,235,${rng() * 0.08})`;
       g.fillRect(rng() * W, rng() * H, 1 + rng() * 2, 1);
     }
-    // Faint form ruling.
-    g.strokeStyle = 'rgba(70,90,130,0.08)';
-    g.lineWidth = 1;
-    for (let y = 18; y < H; y += 22) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
-    // Fold creases: a dark and a light line side by side.
-    for (const [x0, y0, x1, y1] of [[W * 0.5, 0, W * 0.5 + 6, H], [0, H * 0.5, W, H * 0.5 - 5]]) {
-      g.strokeStyle = 'rgba(90,70,40,0.18)'; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
-      g.strokeStyle = 'rgba(255,255,245,0.35)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x0 + 2, y0 + 1); g.lineTo(x1 + 2, y1 + 1); g.stroke();
-    }
-    // Coffee rings and a smudge.
-    for (let k = 0; k < 2; k++) {
-      const x = W * (0.15 + rng() * 0.7), y = H * (0.1 + rng() * 0.8), r = 28 + rng() * 20;
-      g.strokeStyle = `rgba(120,70,30,${0.18 + rng() * 0.1})`;
-      g.lineWidth = 2 + rng() * 2;
-      g.beginPath(); g.arc(x, y, r, rng() * 3, rng() * 3 + 4.6); g.stroke();
-      g.fillStyle = 'rgba(140,90,40,0.05)'; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
-    }
-    g.fillStyle = 'rgba(60,50,40,0.06)';
-    g.beginPath(); g.ellipse(W * (0.2 + rng() * 0.6), H * (0.2 + rng() * 0.6), 60, 22, rng() * 3, 0, TAU); g.fill();
-    // Edges burnt in by hands and time.
-    const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(90,60,25,0.35)');
+    g.strokeStyle = 'rgba(90,70,40,0.1)'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, H * 0.5); g.lineTo(W, H * 0.5 - 4); g.stroke();
+    g.strokeStyle = 'rgba(255,255,245,0.3)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, H * 0.5 + 2); g.lineTo(W, H * 0.5 - 2); g.stroke();
+    g.strokeStyle = 'rgba(120,70,30,0.14)'; g.lineWidth = 3;
+    g.beginPath(); g.arc(W * 0.9, H * 0.93, 34, 0.4, 5.2); g.stroke();
+    const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(90,60,25,0.22)');
     g.fillStyle = vg; g.fillRect(0, 0, W, H);
-    g.fillStyle = 'rgba(60,50,40,0.5)';
-    g.font = '10px "Courier New", monospace';
-    g.fillText('FORM 7-B · ROUTE ASSIGNMENT · DO NOT REMOVE FROM GARAGE', 8, H - 8);
+  },
+
+  // Just a whisper of the district: a few faint streets, nothing under the stops.
+  streets(g, W, H, rng) {
+    g.strokeStyle = 'rgba(70,65,60,0.07)';
+    g.lineWidth = 7;
+    g.lineCap = 'round';
+    for (const f of [0.02, 0.98]) { g.beginPath(); g.moveTo(f * W, 0); g.lineTo(f * W + (rng() - 0.5) * 20, H); g.stroke(); }
+    for (const f of [0.25, 0.75]) { g.beginPath(); g.moveTo(0, f * H); g.lineTo(W, f * H + (rng() - 0.5) * 20); g.stroke(); }
   },
 
   // A wobbly pencil sketch of the district: streets, hatched blocks, landmarks and handwritten labels.
@@ -157,9 +148,9 @@ const RouteSheet = {
   },
 
   pencil(g, [x0, y0], [x1, y1], rng) {
-    g.strokeStyle = 'rgba(50,45,40,0.55)';
-    g.lineWidth = 1.4;
-    g.setLineDash([6, 5]);
+    g.strokeStyle = 'rgba(50,45,40,0.3)';
+    g.lineWidth = 1.3;
+    g.setLineDash([5, 6]);
     g.beginPath();
     g.moveTo(x0, y0);
     const mx = (x0 + x1) / 2 + (rng() - 0.5) * 10, my = (y0 + y1) / 2 + (rng() - 0.5) * 6;
@@ -171,10 +162,10 @@ const RouteSheet = {
   // Felt-tip marker: a wobbly double stroke.
   marker(g, [x0, y0], [x1, y1], rng, faint) {
     for (let k = 0; k < 2; k++) {
-      g.strokeStyle = faint ? 'rgba(178,34,28,0.35)' : `rgba(178,34,28,${0.75 - k * 0.3})`;
-      g.lineWidth = faint ? 2 : 4 - k * 1.5;
+      g.strokeStyle = `rgba(178,34,28,${(faint ? 0.6 : 0.8) - k * 0.3})`;
+      g.lineWidth = faint ? 3 - k : 4 - k * 1.5;
       g.lineCap = 'round';
-      if (faint) g.setLineDash([2, 6]);
+      if (faint) g.setLineDash([9, 6]);
       g.beginPath();
       g.moveTo(x0 + (rng() - 0.5) * 2, y0 + (rng() - 0.5) * 2);
       const mx = (x0 + x1) / 2 + (rng() - 0.5) * 8, my = (y0 + y1) / 2 + (rng() - 0.5) * 8;

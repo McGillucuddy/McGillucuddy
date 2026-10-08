@@ -371,3 +371,30 @@ body.proto #ui { z-index: 2; }
   font: 900 18px/1 'Courier New', monospace; letter-spacing: 3px; text-align: center; pointer-events: none; mix-blend-mode: multiply; }
 .approved small { display: block; font-size: 8px; letter-spacing: 1px; font-weight: 700; }
 @media (max-width: 700px) { .mugshot { width: 70px; } .approved { font-size: 13px; } .stamp { width: 54px; height: 54px; } .stamp.t-boss { width: 70px; height: 70px; } }
+
+/* Route sheet, readable version: clear colour-coded stops over plain paper */
+.route.sheet .form-head { display: flex; gap: 12px; align-items: center; font-family: 'Courier New', monospace; border-bottom: 2px solid rgba(40,35,30,.5); padding-bottom: 8px; margin-bottom: 6px; }
+.form-head canvas { width: 46px; height: 54px; border: 3px solid #f4f0e6; box-shadow: 1px 2px 4px rgba(0,0,0,.3); transform: rotate(-3deg); filter: sepia(.3); flex: none; }
+.form-title { font-weight: 900; font-size: 15px; letter-spacing: 1px; text-transform: uppercase; color: #2a2620; }
+.form-boss { font-size: 13px; color: #5a1a14; margin-top: 2px; }
+.stop { position: absolute; transform: translate(-50%, -50%); width: 58px; height: 58px; border-radius: 50%; padding: 0; cursor: default;
+  background: #fbf6e8; border: 3px solid var(--c, #2a3550); box-shadow: 0 2px 0 rgba(0,0,0,.25); display: flex; align-items: center; justify-content: center; }
+.stop span { font-size: 26px; line-height: 1; }
+.stop small { position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; font: 700 12px/1.2 system-ui, sans-serif;
+  color: var(--c, #2a3550); background: rgba(251,246,232,.92); padding: 1px 5px; border-radius: 3px; }
+.stop.t-race { --c: #2a3550; }
+.stop.t-elite { --c: #a8221a; background: #fbe6e0; }
+.stop.t-shop { --c: #2f6a3a; background: #e8f3e4; }
+.stop.t-event { --c: #6a3f8a; background: #f1e8f6; }
+.stop.t-repair { --c: #2a5a8a; background: #e6eef7; }
+.stop.t-boss { --c: #7a1a12; width: 78px; height: 78px; background: #2a241c; border-color: #e8c25a; }
+.stop.t-boss span { font-size: 36px; }
+.stop.t-boss small { color: #7a1a12; font-size: 13px; }
+.stop.can { cursor: pointer; }
+.stop.can:hover { transform: translate(-50%, -50%) scale(1.1); }
+.stop.done { opacity: .45; filter: grayscale(.6); }
+.stop.done::after { content: '✓'; position: absolute; right: -6px; top: -8px; font: 900 20px/1 system-ui, sans-serif; color: #a8221a; }
+.stop[disabled] { pointer-events: auto; }
+.stop:not(.can):not(.done) { opacity: .8; }
+.route-info { min-height: 38px; font: 14px/1.35 system-ui, sans-serif; color: #2a2620; background: rgba(255,250,235,.6); border: 1px dashed rgba(60,50,40,.35); border-radius: 4px; padding: 6px 10px; }
+.route.sheet .route-map { height: calc(100% - 140px); }
