@@ -57,6 +57,30 @@ const LP = {
   cyl(rTop, rBot, h, seg, mat, x, y, z) {
     return LP.mesh(new THREE.CylinderGeometry(rTop, rBot, h, seg), mat, x, y, z);
   },
+  // Round part turned on a lathe around the Z axis (barrels, tubes, warheads): profile is [[radius, z], ...].
+  lathe(profile, seg, mat, x, y, z) {
+    // Faces point outward only when the profile runs towards +Z, so flip it if it was drawn the other way.
+    if (profile[0][1] > profile[profile.length - 1][1]) profile = profile.slice().reverse();
+    const geo = new THREE.LatheGeometry(profile.map(([r, zz]) => new THREE.Vector2(Math.max(0.001, r), zz)), seg || 8);
+    geo.rotateX(Math.PI / 2);
+    return LP.mesh(geo, mat, x, y, z);
+  },
+  // Bake each mesh's transform into its geometry, then move every vertex with fn(v) (in the parent's space).
+  // Used to give extruded bodies rounded corners and a glasshouse that leans in.
+  warp(meshes, fn) {
+    const v = new THREE.Vector3();
+    for (const m of meshes) {
+      m.updateMatrix();
+      let geo = m.geometry.clone();
+      geo.applyMatrix4(m.matrix);
+      if (geo.index) geo = geo.toNonIndexed();
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i); fn(v); pos.setXYZ(i, v.x, v.y, v.z); }
+      geo.computeVertexNormals();
+      m.geometry = geo;
+      m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.set(1, 1, 1);
+    }
+  },
   // Deterministic vertex jitter for organic shapes (rocks, foliage).
   jitter(geo, amount, seed) {
     const rng = mulberry32(seed || 7);
@@ -430,33 +454,69 @@ const Models = {
       const [front, rear] = shellProfiles(st, 8.5, -12.5);
       g.add(LP.side(front, W, body, bev), LP.side(rear, W, body, bev));
     } else {
-      g.add(LP.side(bodyOutline(st), W, body, bev));
-      // Glasshouse: tinted glass, roof skin, pillars.
+      const shell = LP.side(bodyOutline(st), W, body, bev);
+      g.add(shell);
+      // Round the body off: corners pulled in towards the nose and tail, a softened shoulder along the top.
+      const [wf, wr] = st.wheels, ar = st.wheelR + 0.75, fX = st.top[0][0], rX = st.top[st.top.length - 1][0];
+      const belt = st.cabin[0][1];
+      LP.warp([shell], (v) => {
+        const tf = clamp((v.x - (wf + ar * 0.4)) / (fX - wf - ar * 0.4), 0, 1), tr = clamp(((wr - ar * 0.4) - v.x) / (wr - ar * 0.4 - rX), 0, 1);
+        let k = 1 - 0.11 * tf * tf - 0.08 * tr * tr;
+        k -= 0.035 * clamp((v.y - (belt - 0.6)) / 0.8, 0, 1); // shoulder
+        k -= 0.03 * clamp((2.2 - v.y) / 1.0, 0, 1); // sills tuck under
+        v.z *= k;
+      });
+      // Glasshouse: tinted glass, roof skin, pillars, window trim; it leans in as it rises (tumblehome).
       const cab = st.cabin, cw = st.cabinW;
-      g.add(LP.side(cab, cw, glass, 0.25));
+      const house = [LP.side(cab, cw, glass, 0.25)];
       const roofY = cab[1][1];
-      g.add(LP.side([[cab[1][0] - 0.2, roofY - 0.2], [cab[2][0] + 0.2, roofY - 0.2], [cab[2][0], roofY + 0.35], [cab[1][0] - 0.3, roofY + 0.35]], cw + 0.3, roofMat, 0.1));
+      house.push(LP.side([[cab[1][0] - 0.2, roofY - 0.2], [cab[2][0] + 0.2, roofY - 0.2], [cab[2][0], roofY + 0.35], [cab[1][0] - 0.3, roofY + 0.35]], cw + 0.3, roofMat, 0.1));
       for (const s of [-1, 1]) {
         const z = (cw / 2 + 0.1) * s;
-        g.add(LP.beam([cab[0][0], cab[0][1], z], [cab[1][0], cab[1][1], z], 0.55, roofMat)); // A-pillar
-        g.add(LP.box(0.9, roofY - cab[0][1] + 0.1, 0.4, roofMat, st.bPillar, (roofY + cab[0][1]) / 2, z)); // B-pillar
-        g.add(LP.side(st.cPillar, 0.45, roofMat, 0.05).translateZ(z)); // C-pillar
+        house.push(LP.beam([cab[0][0], cab[0][1], z], [cab[1][0], cab[1][1], z], 0.55, roofMat)); // A-pillar
+        house.push(LP.box(0.9, roofY - cab[0][1] + 0.1, 0.4, roofMat, st.bPillar, (roofY + cab[0][1]) / 2, z)); // B-pillar
+        house.push(LP.side(st.cPillar, 0.45, roofMat, 0.05).translateZ(z)); // C-pillar
+        house.push(LP.beam([cab[0][0] - 0.4, belt + 0.12, (cw / 2 + 0.12) * s], [cab[cab.length - 1][0] + 0.4, belt + 0.12, (cw / 2 + 0.12) * s], 0.22, chrome)); // belt trim
+        house.push(LP.beam([cab[1][0] - 0.2, roofY - 0.05, (cw / 2 + 0.16) * s], [cab[2][0] + 0.3, roofY - 0.05, (cw / 2 + 0.16) * s], 0.2, dark)); // drip rail
+      }
+      LP.warp(house, (v) => { v.z *= 1 - 0.15 * clamp((v.y - belt) / (roofY - belt), 0, 1); });
+      g.add(...house);
+      // Wipers at the base of the windscreen.
+      for (const z of [-3.2, 1.6]) {
+        const wpr = LP.beam([cab[0][0] - 0.2, belt + 0.25, z], [cab[0][0] - 1.6, belt + 1.1, z + 3.4], 0.15, dark);
+        g.add(wpr);
       }
     }
 
     // Front: bumper, grille, headlights, plate. Rear: bumper, tail lights, plate, exhaust.
     const fx = st.top[0][0] + bev, rx = st.top[st.top.length - 1][0] - bev;
-    g.add(LP.box(1, 1.3, W - 0.6, dark, fx + 0.3, 2.3, 0));
-    g.add(LP.box(1, 1.3, W - 0.6, dark, rx - 0.3, 2.4, 0));
+    // Bumpers follow the rounded corners in plan view: a slab with chamfered ends.
+    const bumperSlab = (x0, x1, y, h, half, mat) => {
+      const dir = Math.sign(x1 - x0), cut = 1.3;
+      const pts = [[x0, -half], [x1 - dir * 0.3, -(half - cut)], [x1, -(half - cut - 0.4)], [x1, half - cut - 0.4], [x1 - dir * 0.3, half - cut], [x0, half]];
+      const shape = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 1 });
+      geo.rotateX(-Math.PI / 2);
+      return LP.mesh(geo, mat, 0, y, 0);
+    };
+    g.add(bumperSlab(fx - 0.6, fx + 0.85, 1.65, 1.3, (W / 2 - 0.3) * 0.9, dark));
+    g.add(bumperSlab(rx + 0.6, rx - 0.85, 1.75, 1.3, (W / 2 - 0.3) * 0.93, dark));
     const grille = LP.box(0.2, 1.3, 6, DECALS.mat('grille'), fx + 0.35, st.lightY - 0.2, 0);
     grille.userData.noGrime = true;
     g.add(grille);
+    // Light positions follow the rounded nose/tail (the corners are pulled in).
+    const hz = (hw - 2.3) * 0.93, tz = (hw - 2.4) * 0.95;
     for (const s of [-1, 1]) {
-      const hl = LP.box(0.3, 1.1, 2.8, DECALS.mat('headlight', { emissive: '#fff3c8', emissiveIntensity: 0.35 }), fx + 0.3, st.lightY, (hw - 2.3) * s);
-      const tl = LP.box(0.3, 1.0, 3.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.25 }), rx - 0.2, st.tailY, (hw - 2.4) * s);
-      hl.userData.noGrime = tl.userData.noGrime = true;
-      g.add(hl, tl);
+      g.add(LP.box(0.4, 1.5, 3.3, chrome, fx - 0.05, st.lightY, hz * s)); // bezel
+      const hl = LP.box(0.3, 1.1, 2.8, DECALS.mat('headlight', { emissive: '#fff3c8', emissiveIntensity: 0.35 }), fx + 0.12, st.lightY, hz * s);
+      const ind = LP.box(0.3, 0.5, 0.9, LP.glow('#ff9a1a', 0.35), fx + 0.1, st.lightY - 1.05, (hz + 0.9) * s); // indicator
+      const tl = LP.box(0.3, 1.0, 3.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.25 }), rx - 0.2, st.tailY, tz * s);
+      const wrap = LP.box(1.4, 0.9, 0.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.2 }), rx + 0.6, st.tailY, (hw * 0.93 + bev - 0.05) * s); // wraps round the corner
+      hl.userData.noGrime = tl.userData.noGrime = ind.userData.noGrime = wrap.userData.noGrime = true;
+      g.add(hl, ind, tl, wrap);
     }
+    g.add(LP.box(0.6, 0.8, 7, DECALS.mat('grille'), fx + 0.55, 2.2, 0)); // lower intake
+    g.add(LP.box(0.5, 0.5, W - 2.4, dark, rx - 0.5, 1.4, 0)); // rear valance
     const plate = opts.plate || 'APX ' + (100 + Math.floor(paint.r * 899));
     g.add(LP.box(0.12, 1.0, 2.6, DECALS.mat('plate', {}, plate), fx + 0.85, st.frontPlateY, 0));
     g.add(LP.box(0.12, 1.0, 2.6, DECALS.mat('plate', {}, plate), rx - 0.85, st.rearPlateY, 0));
@@ -467,6 +527,15 @@ const Models = {
         const z = (hw + bev + 0.02) * s;
         for (const x of st.seams) g.add(LP.box(0.12, 5, 0.06, dark, x, 4.1, z));
         g.add(LP.box(0.9, 0.25, 0.12, chrome, st.seams[st.seams.length - 1] + 1.2, 6.0, z));
+        // Wheel-arch flares and a side skirt between them.
+        const ar = st.wheelR + 0.75, cy = st.wheelR - 0.2;
+        for (const wc of st.wheels) {
+          const band = [...archPts(wc, cy, ar + 0.55, 9), ...archPts(wc, cy, ar - 0.05, 9).reverse()];
+          g.add(LP.side(band, 0.5, body, 0.08).translateZ((hw * (wc > 0 ? 0.985 : 0.99) + bev - 0.12) * s));
+        }
+        const sx0 = st.wheels[1] + ar + 0.4, sx1 = st.wheels[0] - ar - 0.4;
+        g.add(LP.box(sx1 - sx0, 0.7, 0.5, dark, (sx0 + sx1) / 2, 1.75, (hw * 0.97 + bev - 0.05) * s));
+        if (s > 0) g.add(LP.mesh(new THREE.CircleGeometry(0.55, 8), chrome, st.wheels[1] + ar + 1.6, 5.4, z + 0.02)); // fuel cap
         g.add(LP.box(0.8, 0.8, 1.2, body, st.mirrorX, st.mirrorY, (hw + 0.9) * s)); // mirror housing
         g.add(LP.box(0.3, 0.3, 1, dark, st.mirrorX + 0.2, st.mirrorY - 0.3, (hw + 0.3) * s));
       }
@@ -481,12 +550,16 @@ const Models = {
     for (const x of st.wheels) {
       for (const s of [-1, 1]) {
         const w = new THREE.Group();
-        const t = LP.cyl(st.wheelR, st.wheelR, 2.2, 12, tyre);
-        t.rotation.x = Math.PI / 2;
-        const rim = LP.mesh(new THREE.CircleGeometry(st.wheelR * 0.66, 12), DECALS.mat('rim', { metalness: 0.5, roughness: 0.4 }, opts.rims || 'spoke5'), 0, 0, 1.12 * s);
+        const R = st.wheelR;
+        // Tyre with rounded shoulders and sidewalls, turned on a lathe.
+        const t = LP.lathe([[R * 0.66, -1.15], [R * 0.9, -1.15], [R - 0.12, -0.95], [R, -0.55], [R, 0.55], [R - 0.12, 0.95], [R * 0.9, 1.15], [R * 0.66, 1.15]], 16, tyre);
+        // Rim dished in from the sidewall, with a brake disc behind the spokes.
+        const dish = LP.lathe([[R * 0.66, 1.12 * s], [R * 0.6, 0.85 * s], [R * 0.22, 0.75 * s]], 16, LP.mat('#2a2c2e', { metalness: 0.6, roughness: 0.5 }));
+        const disc = LP.cyl(R * 0.48, R * 0.48, 0.25, 14, LP.mat('#6a6c6e', { metalness: 0.7, roughness: 0.4 }), 0, 0, 0.55 * s).rotateX(Math.PI / 2);
+        const rim = LP.mesh(new THREE.CircleGeometry(R * 0.64, 16), DECALS.mat('rim', { metalness: 0.5, roughness: 0.4 }, opts.rims || 'spoke5'), 0, 0, 0.98 * s);
         if (s < 0) rim.rotation.y = Math.PI;
         rim.userData.noGrime = true;
-        w.add(t, rim);
+        w.add(t, dish, disc, rim);
         w.position.set(x, st.wheelR, st.wheelZ * s);
         g.add(w);
         g.userData.wheels.push(w);
@@ -670,66 +743,90 @@ const Models = {
 
   // ---------- Hand-held weapons (point down -Z) ----------
 
-  // Compact SMG: stamped-steel receiver, folding wire stock, magazine in the grip.
+  // Compact SMG: stamped-steel receiver, perforated barrel shroud, magazine through the grip, folding wire stock.
   smg() {
     const g = new THREE.Group();
     g.name = 'smg';
     const steel = LP.mat('#2b2d30', { metalness: 0.6, roughness: 0.45 });
+    const worn = LP.mat('#4a4d52', { metalness: 0.7, roughness: 0.35 });
     const poly = LP.mat('#18191b', { roughness: 0.8 });
-    g.add(LP.sideZ([[-2.6, -0.5], [2.4, -0.5], [2.6, 0.1], [2.4, 0.6], [-2.6, 0.6]], 1.0, steel, 0.08)); // receiver
-    g.add(LP.sideZ([[-2.4, 0.6], [1.6, 0.6], [1.6, 0.85], [-2.4, 0.85]], 0.5, steel, 0.04)); // top cover
-    g.add(LP.sideZ([[-0.4, -0.5], [0.5, -0.5], [0.2, -2.6], [-0.7, -2.6]], 0.85, poly, 0.1)); // grip
-    g.add(LP.sideZ([[-0.3, -2.6], [0.4, -2.6], [0.3, -3.5], [-0.4, -3.5]], 0.6, steel, 0.05)); // mag base in grip
-    g.add(LP.sideZ([[0.5, -0.5], [1.5, -0.5], [1.5, -0.65], [0.5, -1.2]], 0.15, steel, 0)); // trigger guard
-    g.add(LP.sideZ([[1.4, -0.5], [2.4, -0.5], [2.2, -1.6], [1.6, -1.6]], 0.7, poly, 0.08)); // front grip
-    const barrel = LP.cyl(0.2, 0.2, 1.6, 8, steel, 0, 0.1, -3.2);
-    barrel.rotation.x = Math.PI / 2;
+    const hole = LP.mat('#050505');
+    g.add(LP.sideZ([[-2.6, -0.55], [2.3, -0.55], [2.5, -0.3], [2.5, 0.55], [2.2, 0.75], [-2.4, 0.75], [-2.6, 0.5]], 1.05, steel, 0.08)); // receiver
+    g.add(LP.sideZ([[-2.2, 0.75], [1.8, 0.75], [1.7, 0.95], [-2.1, 0.95]], 0.62, worn, 0.04)); // top cover
+    g.add(LP.box(0.05, 0.42, 1.3, hole, 0.54, 0.18, -0.4)); // ejection port
+    g.add(LP.box(0.06, 0.12, 2.6, hole, -0.54, 0.0, 0.2)); // stamped seam
+    g.add(LP.cyl(0.16, 0.16, 0.45, 6, worn, 0, 1.15, -0.9)); // cocking knob
+    g.add(LP.box(0.12, 0.05, 2.4, hole, 0, 0.96, -0.2)); // knob slot
+    for (const x of [-0.24, 0.24]) g.add(LP.box(0.1, 0.45, 0.35, steel, x, 1.05, -2.0)); // front sight ears
+    g.add(LP.box(0.1, 0.32, 0.12, worn, 0, 1.0, -2.0)); // front post
+    g.add(LP.box(0.55, 0.38, 0.3, steel, 0, 1.08, 1.6)); // rear sight
+    g.add(LP.box(0.15, 0.15, 0.32, hole, 0, 1.12, 1.6)); // peep
+    // Barrel shroud with cooling holes, then the bare barrel and a muzzle nut.
+    g.add(LP.lathe([[0.36, -2.5], [0.36, -3.6], [0.3, -3.68]], 8, steel, 0, 0.1, 0));
+    for (const z of [-2.75, -3.05, -3.35]) for (const x of [-0.34, 0.34]) g.add(LP.box(0.06, 0.16, 0.18, hole, x, 0.1, z));
+    g.add(LP.lathe([[0.19, -3.6], [0.19, -4.0], [0.27, -4.02], [0.27, -4.32], [0.15, -4.34]], 8, worn, 0, 0.1, 0));
+    const barrel = new THREE.Object3D(); // muzzle marker
+    barrel.position.set(0, 0.1, -4.3);
     g.add(barrel);
-    const muzzle = LP.cyl(0.28, 0.28, 0.5, 8, steel, 0, 0.1, -3.9);
-    muzzle.rotation.x = Math.PI / 2;
-    g.add(muzzle);
-    for (const s of [-1, 1]) g.add(LP.box(0.08, 0.08, 3, steel, 0.35 * s, -0.1, 3.9)); // wire stock
-    g.add(LP.box(0.8, 1.0, 0.12, steel, 0, -0.35, 5.4));
-    g.add(LP.box(0.25, 0.4, 0.35, steel, 0, 1.05, 1.6)); // rear sight
-    g.add(LP.box(0.15, 0.4, 0.2, steel, 0, 1.0, -2.2)); // front sight
-    g.add(LP.box(0.3, 0.2, 0.6, steel, 0.6, 0.35, 0.4)); // charging handle
+    // Grip with moulded panels, magazine running through it, trigger and guard.
+    g.add(LP.sideZ([[-0.55, -0.55], [0.45, -0.55], [0.25, -2.7], [-0.85, -2.7]], 0.9, poly, 0.1));
+    for (const y of [-1.2, -1.6, -2.0]) for (const x of [-0.47, 0.47]) g.add(LP.box(0.05, 0.08, 0.85, hole, x, y, 0.15 + (y + 1.2) * -0.1));
+    g.add(LP.sideZ([[-0.42, -2.7], [0.18, -2.7], [0.02, -4.5], [-0.6, -4.5]], 0.62, steel, 0.05)); // magazine
+    g.add(LP.sideZ([[-0.5, -4.5], [0.12, -4.5], [0.1, -4.75], [-0.66, -4.75]], 0.78, worn, 0.05)); // base plate
+    g.add(LP.sideZ([[0.6, -0.55], [1.55, -0.55], [1.5, -1.3], [0.55, -1.38], [0.55, -1.25], [1.36, -1.18], [1.42, -0.62], [0.6, -0.62]], 0.18, steel, 0)); // trigger guard
+    const trig = LP.box(0.14, 0.55, 0.16, worn, 0, -0.85, -0.95);
+    trig.rotation.x = 0.35;
+    g.add(trig);
+    g.add(LP.sideZ([[1.5, -0.55], [2.4, -0.55], [2.25, -1.0], [1.55, -1.0]], 0.8, poly, 0.08)); // handguard lip
+    // Folding wire stock and butt plate, sling loop.
+    for (const s of [-1, 1]) {
+      g.add(LP.tube([0.4 * s, 0.25, 2.5], [0.35 * s, -0.1, 5.2], 0.07, worn));
+      g.add(LP.tube([0.35 * s, -0.1, 5.2], [0.3 * s, -0.9, 5.35], 0.07, worn));
+    }
+    g.add(LP.box(0.85, 1.35, 0.2, steel, 0, -0.45, 5.45));
+    g.add(LP.box(0.9, 1.4, 0.12, poly, 0, -0.45, 5.58)); // rubber pad
+    g.add(LP.mesh(new THREE.TorusGeometry(0.22, 0.05, 4, 8), worn, 0, -0.25, 2.75).rotateY(Math.PI / 2)); // sling loop
     g.userData.barrel = barrel;
     return g;
   },
 
-  // RPG-style launcher: steel tube, wooden heat guard, finned warhead.
+  // RPG-style launcher: steel tube, wooden heat shields with steel bands, flared venturi, optic, finned warhead.
   launcher() {
     const g = new THREE.Group();
     g.name = 'launcher';
     const steel = LP.mat('#3a3d3a', { metalness: 0.6, roughness: 0.5 });
+    const dark = LP.mat('#1c1d1c', { metalness: 0.4, roughness: 0.7 });
     const wood = LP.mat('#7a4e2a');
-    const tube = LP.cyl(0.55, 0.55, 10, 8, steel);
-    tube.rotation.x = Math.PI / 2;
-    g.add(tube);
-    const guard = LP.cyl(0.9, 0.9, 3.4, 8, wood, 0, 0, 0.6);
-    guard.rotation.x = Math.PI / 2;
-    g.add(guard);
-    const bell = LP.cyl(0.6, 1.0, 1.6, 8, steel, 0, 0, 5.6);
-    bell.rotation.x = Math.PI / 2;
-    g.add(bell);
-    g.add(LP.sideZ([[-1.2, -0.5], [-0.3, -0.5], [-0.6, -2.4], [-1.5, -2.4]], 0.7, wood, 0.08)); // rear grip
-    g.add(LP.sideZ([[1.8, -0.5], [2.6, -0.5], [2.3, -2.2], [1.5, -2.2]], 0.7, steel, 0.08)); // front grip
-    g.add(LP.box(0.5, 1.0, 1.4, steel, -0.85, 0.8, -1.2)); // optic
-    // Warhead: olive cone and body with fins, sitting in the muzzle.
+    const olive = LP.mat('#4b5a2e', { metalness: 0.3, roughness: 0.6 });
+    g.add(LP.lathe([[0.62, -5.05], [0.55, -4.9], [0.52, -4.6], [0.52, 4.4], [0.6, 4.6]], 10, steel)); // main tube
+    g.add(LP.lathe([[0.6, 4.6], [0.72, 5.0], [1.05, 5.9], [1.12, 6.2], [0.95, 6.2], [0.6, 5.2]], 10, dark)); // venturi bell
+    // Heat shields: wood sleeve with three steel bands.
+    g.add(LP.lathe([[0.82, -0.6], [0.9, -0.4], [0.9, 2.0], [0.82, 2.2]], 10, wood));
+    for (const z of [-0.45, 0.8, 2.05]) g.add(LP.lathe([[0.94, z - 0.1], [0.94, z + 0.1]], 10, steel));
+    // Pistol grip with trigger guard, front grip.
+    g.add(LP.sideZ([[-1.25, -0.5], [-0.35, -0.5], [-0.6, -2.5], [-1.55, -2.5]], 0.72, wood, 0.1));
+    g.add(LP.sideZ([[-0.3, -0.5], [0.75, -0.5], [0.7, -1.35], [-0.25, -1.4], [-0.25, -1.28], [0.6, -1.24], [0.62, -0.6], [-0.3, -0.6]], 0.16, steel, 0));
+    const trig = LP.box(0.14, 0.55, 0.16, steel, 0, -0.9, -0.15);
+    trig.rotation.x = 0.35;
+    g.add(trig);
+    g.add(LP.sideZ([[1.8, -0.5], [2.6, -0.5], [2.35, -2.25], [1.55, -2.25]], 0.7, dark, 0.08));
+    // Iron sights and an optic on the left with a glowing lens and rubber eyecup.
+    g.add(LP.box(0.12, 0.7, 0.12, steel, 0, 0.85, -4.4));
+    g.add(LP.box(0.4, 0.5, 0.15, steel, 0, 0.75, -0.9));
+    g.add(LP.box(0.15, 0.6, 1.8, steel, -0.62, 0.3, -1.2)); // optic bracket
+    g.add(LP.lathe([[0.32, -2.2], [0.36, -2.0], [0.32, -0.6], [0.4, -0.3], [0.28, 0.0]], 8, dark, -0.95, 0.85, 0));
+    g.add(LP.mesh(new THREE.CircleGeometry(0.28, 8), LP.glow('#5ad87a', 0.6), -0.95, 0.85, -2.21).rotateY(Math.PI));
+    // Warhead: bulbous olive body with a fuse nose, painted band and stabiliser fins, sitting in the muzzle.
     const tip = new THREE.Group();
-    const war = LP.cyl(0.05, 1.05, 2.4, 8, LP.mat('#4b5a2e', { metalness: 0.3 }), 0, 0, -1.2);
-    war.rotation.x = -Math.PI / 2;
-    const neck = LP.cyl(1.05, 0.5, 0.8, 8, LP.mat('#4b5a2e'), 0, 0, 0.4);
-    neck.rotation.x = -Math.PI / 2;
-    tip.add(war, neck);
+    tip.add(LP.lathe([[0.02, -2.75], [0.12, -2.7], [0.16, -2.4], [0.5, -2.1], [0.98, -1.35], [1.08, -0.9], [0.95, -0.4], [0.5, -0.05], [0.42, 0.5], [0.36, 1.0]], 10, olive));
+    tip.add(LP.lathe([[1.0, -1.25], [1.09, -1.05], [1.07, -0.85]], 10, LP.mat('#c9a227')));
     for (let k = 0; k < 4; k++) {
-      const f = LP.box(0.08, 0.7, 0.8, steel, 0, 0.6, 1.0);
       const p = new THREE.Group();
-      p.rotation.z = (k / 4) * TAU;
-      p.add(f);
+      p.rotation.z = (k / 4) * TAU + Math.PI / 4;
+      p.add(LP.box(0.06, 0.55, 0.7, steel, 0, 0.6, 0.75));
       tip.add(p);
     }
-    tip.position.z = -6.2;
+    tip.position.z = -6.3;
     g.add(tip);
     g.userData.tip = tip;
     return g;
@@ -753,40 +850,69 @@ const Models = {
     return g;
   },
 
-  // Pump shotgun: long barrel over a tube magazine, wooden pump and stock.
+  // Pump shotgun: steel receiver, vent-ribbed barrel over a tube magazine, ribbed wooden pump, pistol-grip stock.
   shotgun() {
     const g = new THREE.Group();
     g.name = 'shotgun';
     const steel = LP.mat('#2d2f31', { metalness: 0.6, roughness: 0.45 });
+    const worn = LP.mat('#4a4d52', { metalness: 0.7, roughness: 0.35 });
     const wood = LP.mat('#6e4526');
-    g.add(LP.sideZ([[-2.2, -0.45], [1.4, -0.45], [1.4, 0.55], [-2.2, 0.55]], 0.9, steel, 0.08)); // receiver
-    const barrel = LP.cyl(0.26, 0.26, 6.4, 8, steel, 0, 0.3, -4.6);
-    barrel.rotation.x = Math.PI / 2;
-    const tube = LP.cyl(0.22, 0.22, 4.6, 8, steel, 0, -0.25, -3.7);
-    tube.rotation.x = Math.PI / 2;
-    g.add(barrel, tube);
-    const pump = LP.cyl(0.42, 0.42, 2, 8, wood, 0, -0.25, -3.2);
-    pump.rotation.x = Math.PI / 2;
-    g.add(pump);
-    g.add(LP.sideZ([[-2.2, 0.4], [-6.2, -0.6], [-6.2, -1.7], [-5.6, -1.7], [-2.2, -0.6]], 0.75, wood, 0.12)); // stock
-    g.add(LP.sideZ([[-1.4, -0.45], [-0.6, -0.45], [-1.0, -1.6], [-1.8, -1.6]], 0.65, wood, 0.08)); // grip
-    g.add(LP.box(0.15, 0.3, 0.2, steel, 0, 0.65, -7.6)); // bead sight
+    const hole = LP.mat('#050505');
+    g.add(LP.sideZ([[-2.2, -0.5], [1.5, -0.5], [1.5, 0.48], [1.2, 0.62], [-1.9, 0.62], [-2.2, 0.38]], 0.95, steel, 0.08)); // receiver
+    g.add(LP.box(0.05, 0.45, 1.4, hole, 0.48, 0.15, -0.3)); // ejection port
+    g.add(LP.box(0.5, 0.05, 1.6, hole, 0, -0.52, -0.3)); // loading port
+    g.add(LP.box(0.06, 0.08, 0.5, worn, -0.49, 0.25, 0.4)); // pin
+    // Barrel with a vent rib and brass bead; magazine tube with cap and barrel clamp.
+    g.add(LP.lathe([[0.27, -1.5], [0.27, -7.8], [0.24, -7.85]], 8, steel, 0, 0.3, 0));
+    g.add(LP.box(0.12, 0.08, 6.2, worn, 0, 0.62, -4.7));
+    for (let z = -2; z > -7.6; z -= 0.7) g.add(LP.box(0.08, 0.1, 0.12, steel, 0, 0.53, z));
+    g.add(LP.mesh(new THREE.IcosahedronGeometry(0.1, 0), LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 }), 0, 0.72, -7.65));
+    g.add(LP.lathe([[0.23, -1.5], [0.23, -6.3], [0.3, -6.35], [0.3, -6.65], [0.2, -6.7]], 8, steel, 0, -0.28, 0));
+    g.add(LP.box(0.3, 0.6, 0.35, worn, 0, 0.02, -6.0)); // barrel clamp
+    // Ribbed pump.
+    const pump = [];
+    for (let k = 0; k <= 8; k++) pump.push([k % 2 ? 0.43 : 0.48, -2.3 - k * 0.27]);
+    g.add(LP.lathe([[0.32, -2.2], ...pump, [0.32, -4.6]], 8, wood, 0, -0.26, 0));
+    // Stock: wrist and pistol grip flowing into the comb and butt, rubber butt pad.
+    g.add(LP.sideZ([[-2.2, 0.48], [-3.1, 0.3], [-6.5, 0.1], [-6.75, 0.05], [-6.8, -1.85], [-6.5, -1.95], [-3.6, -0.85], [-2.9, -1.05], [-2.55, -1.75], [-1.75, -1.7], [-2.0, -0.5]], 0.82, wood, 0.12));
+    g.add(LP.sideZ([[-6.8, 0.1], [-7.1, 0.1], [-7.1, -1.95], [-6.8, -1.95]], 0.86, LP.mat('#111'), 0.05));
+    g.add(LP.sideZ([[-0.25, -0.5], [0.9, -0.5], [0.85, -1.3], [-0.2, -1.35], [-0.2, -1.22], [0.72, -1.18], [0.76, -0.6], [-0.25, -0.6]], 0.18, steel, 0)); // trigger guard
+    const trig = LP.box(0.14, 0.5, 0.15, worn, 0, -0.85, -0.3);
+    trig.rotation.x = 0.35;
+    g.add(trig);
+    for (const [x, y, z] of [[0, -1.35, 5.2], [0, -0.6, -6.5]]) g.add(LP.mesh(new THREE.TorusGeometry(0.18, 0.05, 4, 8), worn, x, y, z).rotateY(Math.PI / 2)); // sling swivels
+    const barrel = new THREE.Object3D(); // muzzle marker
+    barrel.position.set(0, 0.3, -7.85);
+    g.add(barrel);
     g.userData.barrel = barrel;
     return g;
   },
 
-  // Orange flare pistol with a fat barrel.
+  // Orange flare pistol: break-open barrel on a hinge, chunky frame, ribbed black grip panels.
   flareGun() {
     const g = new THREE.Group();
     g.name = 'flare gun';
-    const orange = LP.mat('#d9601e', { roughness: 0.6 });
+    const orange = LP.mat('#d9601e', { roughness: 0.55 });
     const black = LP.mat('#1a1a1a');
-    const barrel = LP.cyl(0.55, 0.55, 3.4, 8, orange, 0, 0.2, -1.6);
-    barrel.rotation.x = Math.PI / 2;
+    const steel = LP.mat('#6a6c6e', { metalness: 0.7, roughness: 0.35 });
+    g.add(LP.lathe([[0.62, 0.0], [0.58, -0.2], [0.55, -3.1], [0.66, -3.15], [0.66, -3.45], [0.42, -3.48]], 10, orange, 0, 0.3, 0)); // barrel
+    g.add(LP.mesh(new THREE.CircleGeometry(0.42, 10), black, 0, 0.3, -3.47).rotateY(Math.PI)); // bore
+    g.add(LP.box(0.2, 0.2, 2.8, orange, 0, 0.9, -1.6)); // top rib
+    g.add(LP.box(0.12, 0.3, 0.15, black, 0, 1.05, -3.0)); // front sight
+    g.add(LP.sideZ([[-1.0, -0.35], [0.9, -0.35], [0.9, 0.0], [0.4, 0.05], [-0.8, 0.35], [-1.0, 0.2]], 0.95, orange, 0.08)); // frame
+    g.add(LP.cyl(0.18, 0.18, 1.05, 8, steel, 0, -0.2, -0.75).rotateZ(Math.PI / 2)); // hinge pin
+    g.add(LP.sideZ([[-0.55, -0.35], [0.45, -0.35], [0.1, -2.3], [-0.95, -2.3]], 0.85, orange, 0.1)); // grip
+    for (const x of [-0.44, 0.44]) g.add(LP.sideZ([[-0.45, -0.6], [0.25, -0.6], [0.0, -2.0], [-0.75, -2.0]], 0.06, black, 0).translateX(x));
+    g.add(LP.sideZ([[0.45, -0.35], [1.35, -0.35], [1.3, -1.05], [0.4, -1.1], [0.4, -0.98], [1.18, -0.95], [1.22, -0.45], [0.45, -0.45]], 0.18, orange, 0)); // trigger guard
+    const trig = LP.box(0.14, 0.45, 0.15, black, 0, -0.7, -0.8);
+    trig.rotation.x = 0.35;
+    g.add(trig);
+    const hammer = LP.sideZ([[-0.9, 0.3], [-0.55, 0.45], [-0.75, 0.95], [-1.15, 0.85]], 0.35, black, 0.04);
+    g.add(hammer);
+    g.add(LP.box(0.5, 0.3, 0.6, black, 0, -2.3, 0.75)); // lanyard ring base
+    const barrel = new THREE.Object3D(); // muzzle marker
+    barrel.position.set(0, 0.3, -3.45);
     g.add(barrel);
-    g.add(LP.cyl(0.4, 0.4, 0.2, 8, black, 0, 0.2, -3.35).rotateX(Math.PI / 2));
-    g.add(LP.sideZ([[-0.5, -0.3], [0.5, -0.3], [0.1, -2.0], [-0.8, -2.0]], 0.8, orange, 0.1)); // grip
-    g.add(LP.box(0.5, 0.5, 0.8, black, 0, 0.5, 0.4)); // hammer
     g.userData.barrel = barrel;
     return g;
   },
@@ -1013,6 +1139,63 @@ const Models = {
       sway.userData.stiff = true;
     }
     return g;
+  },
+
+  // First-person hands: fingerless gloves and orange prison-jumpsuit sleeves, posed on each gun's grips.
+  // 'pistol' wraps a vertical grip (axis = local Y); 'support' cradles a tube or handguard from below (axis = Z).
+  hand(kind, arm) {
+    const g = new THREE.Group();
+    const opts = { side: THREE.DoubleSide, roughness: 0.85 };
+    const skin = LP.mat('#c08a62', opts), glove = LP.mat('#2e2620', opts), suit = LP.mat('#d9661e', opts), cuff = LP.mat('#a8481a', opts);
+    if (kind === 'pistol') {
+      g.add(LP.box(0.42, 1.5, 1.2, glove, 0.68, -0.1, 0.05)); // back of the hand
+      g.add(LP.box(0.46, 1.25, 0.42, glove, 0.64, -0.2, -0.55)); // knuckles
+      g.add(LP.box(0.9, 0.42, 0.45, glove, 0.22, 0.6, 0.55)); // web over the top of the grip
+      for (let k = 0; k < 3; k++) {
+        const y = -0.05 - k * 0.38;
+        g.add(LP.box(1.05, 0.32, 0.36, skin, 0.05, y, -0.74)); // finger across the front
+        g.add(LP.box(0.34, 0.3, 0.46, skin, -0.6, y, -0.46)); // fingertip on the far side
+      }
+      g.add(LP.box(0.3, 0.3, 1.0, skin, 0.62, 0.42, -0.95)); // trigger finger along the frame
+      const thumb = LP.box(0.32, 0.32, 0.95, skin, -0.55, 0.45, 0.05);
+      thumb.rotation.y = 0.3;
+      g.add(thumb);
+      g.add(LP.box(0.85, 0.95, 0.85, glove, 0.6, -0.45, 0.85)); // wrist
+    } else {
+      g.add(LP.box(1.0, 0.36, 1.45, glove, 0.05, -0.62, 0)); // palm under the tube
+      for (let k = 0; k < 4; k++) {
+        const z = -0.55 + k * 0.37;
+        g.add(LP.box(0.3, 0.7, 0.3, skin, 0.56, -0.2, z)); // fingers up the far side
+        g.add(LP.box(0.3, 0.26, 0.3, skin, 0.36, 0.22, z)); // tips curled over
+      }
+      g.add(LP.box(0.3, 0.66, 0.34, skin, -0.55, -0.22, 0.35)); // thumb
+      g.add(LP.box(0.9, 0.8, 0.8, glove, -0.1, -0.85, 0.85)); // wrist
+    }
+    // Forearm in the jumpsuit sleeve, running back towards the camera.
+    const w = kind === 'pistol' ? [0.62, -0.55, 1.15] : [-0.1, -0.95, 1.15];
+    g.add(LP.tube(w, [w[0] + arm[0] * 0.12, w[1] + arm[1] * 0.12, w[2] + arm[2] * 0.12], 0.62, cuff));
+    g.add(LP.tube([w[0] + arm[0] * 0.1, w[1] + arm[1] * 0.1, w[2] + arm[2] * 0.1], [w[0] + arm[0], w[1] + arm[1], w[2] + arm[2]], 0.72, suit));
+    g.traverse((o) => { if (o.isMesh) o.userData.modVis = true; });
+    return g;
+  },
+
+  // Where the hands go on each gun: [kind, position, x-tilt, arm direction, mirrored].
+  GRIPS: {
+    smg: [['pistol', [0, -1.45, 0.15], -0.12, [2.2, -3.6, 6], false], ['support', [0, -0.78, -1.95], 0, [-2.4, -3.2, 6], false]],
+    shotgun: [['pistol', [0, -1.15, 2.2], 0.45, [2.2, -3.2, 6], false], ['support', [0, -0.27, -3.4], 0, [-2.6, -3, 6.5], false]],
+    rocket: [['pistol', [0, -1.45, 0.95], -0.15, [2.2, -3.4, 6], false], ['pistol', [0, -1.35, -1.95], -0.15, [-2.6, -3.2, 7], true]],
+    flare: [['pistol', [0, -1.3, 0.25], -0.2, [2.2, -3.6, 6], false]],
+  },
+
+  hands(gun, weaponId) {
+    for (const [kind, pos, tilt, arm, mirror] of Models.GRIPS[weaponId] || []) {
+      const h = Models.hand(kind, mirror ? [-arm[0], arm[1], arm[2]] : arm);
+      if (mirror) h.scale.x = -1;
+      h.position.set(...pos);
+      h.rotation.x = tilt;
+      gun.add(h);
+    }
+    return gun;
   },
 
   weapon(id) {

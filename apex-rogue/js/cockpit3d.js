@@ -409,9 +409,9 @@ class CockpitView {
     const vm = new THREE.Group();
     this.vmCamera.add(vm);
     // One held model per weapon on your rack; the active one is shown.
-    const HOLD = { smg: [2.1, -2.2, -6, 1], shotgun: [2.0, -2.2, -4.6, 0.9], rocket: [3.0, -2.3, -5.5, 0.75], flare: [2.0, -2.0, -5.2, 1] };
+    const HOLD = { smg: [1.9, -1.7, -5.6, 1], shotgun: [1.8, -1.55, -4.6, 0.85], rocket: [2.7, -1.9, -5.4, 0.7], flare: [1.9, -1.55, -5.0, 1] };
     const guns = this.combat.build.rack.map((w) => {
-      const m = Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]);
+      const m = Models.hands(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]), w.id);
       const [x, y, z, sc] = HOLD[w.id];
       m.position.set(x, y, z);
       m.scale.setScalar(sc);
@@ -419,11 +419,9 @@ class CockpitView {
       vm.add(m);
       return m;
     });
-    const glove = box(1.6, 1.4, 2.4, m3('#2e231b'), 2.1, -3.6, -5.2);
-    vm.add(glove);
     const flash = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     this.vmCamera.add(flash);
-    this.vm = { root: vm, guns, glove, flash };
+    this.vm = { root: vm, guns, flash };
   }
 
   // ---------- Effects pools ----------
