@@ -1731,6 +1731,44 @@ const Models = {
     return g;
   },
 
+  // Beat-up service pistol, the gun every inmate starts with: a slab-sided slide (its own piece, so it kicks back
+  // on each shot) with rear serrations and plain sights, a raked grip wrapped in electrical tape, and a magazine
+  // that drops out on reloads.
+  pistol() {
+    const g = new THREE.Group();
+    g.name = 'pistol';
+    const { steel, worn, poly } = GUNTEX.mats();
+    const tape = LP.mat('#2a2a28', { roughness: 0.95 });
+    const sc = new Sculpt('pistol', 0.03);
+    // Slide: profile (forward, up), forward is -z.
+    sc.add(steel, SDF.side([[-1.55, 0.0], [2.2, 0.0], [2.25, 0.55], [2.12, 0.72], [-1.42, 0.72], [-1.55, 0.58]], 0.56, 0.07), 0.05, 'slide');
+    for (let k = 0; k < 6; k++) for (const sd of [-1, 1]) sc.cut(SDF.box([0.08, 0.5, 0.05], 0.015, [sd * 0.29, 0.36, 0.9 + k * 0.1]), 0.01, [steel]); // rear serrations
+    sc.cut(SDF.box([0.12, 0.3, 0.75], 0.03, [0.27, 0.52, -0.2]), 0.02, [steel]); // ejection port
+    sc.add(worn, SDF.box([0.1, 0.16, 0.18], 0.04, [0, 0.8, -1.95]), 0.03, 'slide'); // front sight
+    for (const sd of [-1, 1]) sc.add(worn, SDF.box([0.14, 0.16, 0.18], 0.04, [sd * 0.13, 0.8, 1.3]), 0.03, 'slide'); // rear sight, notched
+    sc.add(worn, SDF.cyl(0.17, 0.5, 'z', 0.04, [0, 0.42, -2.3]), 0.02, 'slide'); // barrel bushing
+    sc.cut(SDF.cyl(0.09, 0.5, 'z', 0.01, [0, 0.42, -2.5]), 0.01, [worn]); // bore
+    // Frame: dust cover, trigger guard and the raked grip in one piece.
+    sc.add(poly, SDF.side([[-1.35, 0.04], [1.95, 0.04], [1.95, -0.26], [1.55, -0.42], [-0.15, -0.42], [-1.35, -0.3]], 0.5, 0.08), 0.05);
+    sc.add(poly, SDF.side([[-1.38, -0.2], [-0.12, -0.2], [-0.58, -2.0], [-1.84, -2.0]], 0.62, 0.15), 0.1); // grip
+    sc.add(poly, SDF.path([[0, -0.38, -0.95], [0, -0.85, -0.82], [0, -0.92, -0.35], [0, -0.62, 0.12]], 0.07), 0.04); // trigger guard
+    sc.add(worn, SDF.path([[0, -0.36, -0.42], [0, -0.58, -0.38], [0, -0.7, -0.24]], 0.06), 0.03); // trigger
+    sc.add(worn, SDF.box([0.2, 0.28, 0.22], 0.06, [0, 0.42, 1.62], [0.4, 0, 0]), 0.04); // hammer
+    sc.add(worn, SDF.cyl(0.08, 0.62, 'x', 0.02, [0, -0.15, -0.9]), 0.02); // slide stop pin
+    // Electrical tape round the grip, a few untidy turns following its rake.
+    for (const [y, z, h] of [[-0.72, 0.87, 0.26], [-1.12, 0.97, 0.32], [-1.55, 1.08, 0.28]]) sc.add(tape, SDF.box([0.68, h, 1.32], 0.08, [0, y, z], [-0.25, 0, 0.03 * Math.sign(y + 1.2)]), 0.03);
+    // Magazine with its base pad, poking out of the bottom of the grip.
+    sc.add(steel, SDF.side([[-1.28, -0.4], [-0.4, -0.4], [-0.83, -2.12], [-1.71, -2.12]], 0.44, 0.05), 0.03, 'mag');
+    sc.add(poly, SDF.side([[-1.88, -2.0], [-0.66, -2.0], [-0.68, -2.25], [-1.9, -2.25]], 0.66, 0.08), 0.03, 'mag');
+    sc.uv(steel, 0.35).uv(worn, 0.35).uv(poly, 0.4);
+    const sets = sc.build(g);
+    g.userData.slide = LP.pivot(g, sets.slide, [0, 0.36, 0]);
+    g.userData.mag = LP.pivot(g, sets.mag, [0, -1.25, 1.1]);
+    g.userData.magRest = [0, -1.25, 1.1];
+    const barrel = new THREE.Object3D(); barrel.position.set(0, 0.42, -2.55); g.add(barrel); g.userData.barrel = barrel;
+    return g;
+  },
+
   // A flamethrower made from a propane tank and a length of pipe: perforated heat shield, brass nozzle with a blue
   // pilot light, a valve wheel, a front grip and a squeeze-lever handle at the back.
   flamer() {
@@ -2071,6 +2109,7 @@ const Models = {
       rocket: { mag: [1.0, -0.4, 1.6], side: [0.65, 0.4, -1.4], muzzle: [0, 0, -5.4], under: [0, -1.0, -3.0] },
       flare: { mag: [0, -2.2, 0.0], side: [0.6, 0.25, -1.0], muzzle: [0, 0.3, -3.6], under: [0, -0.3, -2.4] },
       nailgun: { mag: [0.4, -1.1, -0.3], side: [0.62, 0.35, -0.3], muzzle: [0, -0.25, -2.72], under: [0, -0.62, -2.2] },
+      pistol: { mag: [0, -2.45, 1.35], side: [0.3, -0.15, -0.9], muzzle: [0, 0.42, -2.55], under: [0, -0.55, -1.45] },
       flamer: { mag: [0.6, -0.8, -1.0], side: [0.38, 0.25, -1.6], muzzle: [0, 0.25, -5.4], under: [0, -0.1, -4.4] },
       harpoon: { mag: [0.45, -0.42, -2.6], side: [0.32, 0.12, -2.0], muzzle: [0, 0.36, -6.12], under: [0, -0.15, -4.0] },
     }[weaponId];
@@ -2088,7 +2127,13 @@ const Models = {
     const v = (p, d) => [p[0] + (d[0] || 0), p[1] + (d[1] || 0), p[2] + (d[2] || 0)];
     for (const id of mods.filter(Boolean)) {
       if (id === 'ext_mag') {
-        if (weaponId === 'smg') part(id, (sc) => { // a longer magazine with a bumper pad
+        if (weaponId === 'pistol') { // a +10 extension under the base pad, riding on the magazine
+          const g = part(id, (sc) => {
+            sc.add(steel, SDF.box([0.46, 0.7, 0.95], 0.08, A.mag, [-0.25, 0, 0]), 0.04);
+            sc.add(LP.mat('#1a1a1a', { roughness: 0.9 }), SDF.box([0.66, 0.22, 1.18], 0.08, v(A.mag, [0, -0.38, 0.1]), [-0.25, 0, 0]), 0.04);
+          });
+          if (gun.userData.mag) { gun.remove(g); g.position.sub(gun.userData.mag.position); gun.userData.mag.add(g); }
+        } else if (weaponId === 'smg') part(id, (sc) => { // a longer magazine with a bumper pad
           sc.add(steel, SDF.box([0.6, 2.4, 0.92], 0.1, A.mag), 0.05);
           sc.add(LP.mat('#1a1a1a', { roughness: 0.9 }), SDF.box([0.72, 0.3, 1.05], 0.12, v(A.mag, [0, -1.25, 0])), 0.05);
           for (let k = 0; k < 4; k++) sc.cut(SDF.box([0.7, 0.06, 0.6], 0.02, v(A.mag, [0, 0.8 - k * 0.45, 0])), 0.01);
@@ -2208,7 +2253,7 @@ const Models = {
         const c = weaponId === 'harpoon' ? [T[0] - 0.1, T[1] + 0.25, T[2]] : [T[0], T[1] + 0.42, T[2]];
         add(LP.mesh(new THREE.CircleGeometry(0.2, 18), LP.mat('#7ac8a8', { transparent: true, opacity: 0.7, roughness: 0.05, metalness: 0.3 }), c[0], c[1], c[2] - 0.87).rotateY(Math.PI));
       } else if (id === 'compensator') { // a slotted muzzle brake welded on
-        const r0 = { smg: 0.32, shotgun: 0.36, nailgun: 0.22 }[weaponId] || 0.3;
+        const r0 = { smg: 0.32, shotgun: 0.36, nailgun: 0.22, pistol: 0.22 }[weaponId] || 0.3;
         part(id, (sc) => {
           const m = v(A.muzzle, [0, 0, -0.35]);
           sc.add(steel, SDF.cyl(r0, 0.75, 'z', 0.06, m), 0.02);
@@ -2248,7 +2293,7 @@ const Models = {
           sc.add(tape, SDF.box([0.54, 0.36, 0.14], 0.02, [0, 1.06, 0.25]), 0.005);
         });
       } else if (id === 'red_dot') { // a compact reflex sight: tinted window, a red dot
-        const T = { smg: [0, 0.92, 0.6], shotgun: [0, 0.64, 0.6], flare: [0, 0.9, -0.5], nailgun: [0, 0.94, 0.0], harpoon: [0, 0.3, -0.2] }[weaponId];
+        const T = { smg: [0, 0.92, 0.6], shotgun: [0, 0.64, 0.6], flare: [0, 0.9, -0.5], nailgun: [0, 0.94, 0.0], harpoon: [0, 0.3, -0.2], pistol: [0, 0.72, 0.6] }[weaponId];
         part(id, (sc) => {
           const body = LP.mat('#1c1c1e', { metalness: 0.5, roughness: 0.5 }), c = [T[0], T[1] + 0.24, T[2]];
           sc.add(body, SDF.box([0.34, 0.4, 0.5], 0.08, c), 0.03);
@@ -2258,7 +2303,7 @@ const Models = {
         add(LP.mesh(new THREE.PlaneGeometry(0.24, 0.26), LP.mat('#8ab8c8', { transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.3, side: THREE.DoubleSide }), T[0], T[1] + 0.27, T[2] - 0.1));
         add(LP.mesh(new THREE.CircleGeometry(0.025, 10), LP.glow('#ff2020', 2), T[0], T[1] + 0.27, T[2] - 0.09));
       } else if (id === 'flashlight') { // a torch clamped on the left, a faint cone in front of it
-        const L = { smg: [-0.62, 0.1, -2.6], shotgun: [-0.45, 0.15, -4.8], flare: [-0.58, 0.3, -2.4], nailgun: [-0.55, -0.05, -1.75], harpoon: [-0.32, 0.12, -3.6] }[weaponId];
+        const L = { smg: [-0.62, 0.1, -2.6], shotgun: [-0.45, 0.15, -4.8], flare: [-0.58, 0.3, -2.4], nailgun: [-0.55, -0.05, -1.75], harpoon: [-0.32, 0.12, -3.6], pistol: [0, -0.62, -1.55] }[weaponId];
         part(id, (sc) => {
           const al = LP.mat('#2a2c2e', { metalness: 0.6, roughness: 0.4 });
           sc.add(al, SDF.lathe([[0.13, 0.45], [0.13, -0.2], [0.19, -0.35], [0.19, -0.5]], L), 0.03);
@@ -2351,6 +2396,8 @@ const Models = {
       spikes: [0.52, 2.6, 4.3], skull: [-1.0, 0.5, 2.35], tube2: [0, 0, 0.42, -4.6, -2.8] },
     flare: { barrel: true, wraps: [[0, 0.3, -3.25, -1.85, 0.52, 0.52]], chain: [[-0.46, 0.4, -3.2], [-0.46, 0.4, -1.7], 0.85], plate: [-0.52, -1.1, 0.1, -0.12, 0.76],
       spikes: [0.72, -3.25, -1.95], skull: [0, -2.68, 1.2], skullDrop: true, barrelTube: [0, 0.3, 0.42, -3.35, -1.95] },
+    pistol: { wraps: [[0, 0.38, -2.15, -1.6, 0.34, 0.44]], chain: [[-0.28, -0.25, -1.45], [-0.28, -0.25, -0.15], 0.35], plate: [-0.3, -1.6, 0.55, 0.06, 0.66],
+      spikes: [0.78, -1.75, 0.6], skull: [0, -1.75, 2.0], skullDrop: true },
     nailgun: { wraps: [[0, -0.25, -2.6, -2.0, 0.24, 0.24]], chain: [[-0.52, 0.62, -1.1], [-0.52, 0.62, 0.55], 0.3], plate: [-0.36, -1.95, -1.25, -0.4, 0.5],
       spikes: [0.82, -0.6, 0.6], skull: [0, -1.95, 1.55], skullDrop: true, tube: [0, 0.32, 0.5, -1.1, 0.5] },
     flamer: { wraps: [[0, 0.25, -4.6, -3.1, 0.42, 0.42]], chain: [[-0.55, -0.55, -2.1], [-0.55, -0.55, 0.0], 0.5], tube: [0, -0.8, 0.48, -2.0, 0.0],
@@ -2565,11 +2612,11 @@ const Models = {
     // Buckle on top of the wrist strap (top = away from the palm, across the arm).
     const up = new THREE.Vector3(...glove.top).projectOnPlane(dir).normalize();
     const bk = LP.rbox(0.2, 0.06, 0.26, 0.03, buckle, 0, 0, 0);
-    bk.position.set(...along(0.11)).addScaledVector(up, 0.47);
+    bk.position.set(...along(0.11)).addScaledVector(up, 0.41);
     bk.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
     g.add(bk);
-    g.add(LP.limb([along(0.6), along(0.85), along(1.1)], [0.58, 0.64, 0.6], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1))); // rolled cuff
-    g.add(LP.limb([along(0.95), along(L * 0.45), along(L)], [0.6, 0.7, 0.78], suit,
+    g.add(LP.limb([along(0.6), along(0.85), along(1.1)], [0.48, 0.53, 0.5], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1))); // rolled cuff
+    g.add(LP.limb([along(0.95), along(L * 0.45), along(L)], [0.5, 0.58, 0.64], suit,
       (t, a) => 1 + 0.045 * Math.sin(a * 3 + t * 9) + 0.03 * Math.sin(a * 7 - t * 14))); // sleeve with cloth folds
     g.traverse((o) => { if (o.isMesh) o.userData.modVis = true; });
     return g;
@@ -2602,10 +2649,11 @@ const Models = {
     if (kind === 'pistol') {
       // Grip axis is local Y; angle 0 = right side (back of the hand), PI/2 = front strap, PI = left side.
       const [rx, rz] = pose.grip || [0.4, 0.48];
-      const ex = rx + 0.16, ez = rz + 0.16, sx = (rx + 0.2) / 0.6, sz = (rz + 0.2) / 0.68;
+      // The palm never shrinks below full size on a slim grip (that left a thin hand on a thick wrist); the fingers just wrap further.
+      const ex = rx + 0.17, ez = rz + 0.17, sx = Math.max(1, (rx + 0.2) / 0.6), sz = Math.max(1, (rz + 0.2) / 0.68);
       const S = (p) => [p[0] * sx, p[1], p[2] * sz]; // the base skeleton, stretched to this grip
       radial = (x, y, z) => [x / ex, 0, z / ez];
-      const F = [[0.1, 0.15], [-0.25, 0.14], [-0.58, 0.12]]; // [height, radius]
+      const F = [[0.1, 0.16], [-0.25, 0.155], [-0.58, 0.135]]; // [height, radius]
       const bases = [[0.64, -0.1, 0.64], [0.62, -0.32, 0.64], [0.57, -0.5, 0.6]];
       F.forEach(([y, r], i) => {
         const sc = i === 2 ? 0.82 : i === 1 ? 0.95 : 1; // the pinky is shorter
@@ -2627,7 +2675,7 @@ const Models = {
       } else {
         ix = wrap((a, k) => [ex * k * Math.cos(a), 0.42 - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS, 2.9);
       }
-      chain(ix, [0.165, 0.158, 0.15, 0.14]);
+      chain(ix, [0.172, 0.165, 0.158, 0.15]);
       bone(palm, S([0.62, 0.12, 0.62]), ix[0], 0.17, 0.155);
       knuckles.unshift(ix[0]);
       bone(palm, S([0.55, -0.5, 0.62]), S([0.22, -0.42, 0.66]), 0.2, 0.17); // heel of the palm round the back strap
@@ -2635,15 +2683,15 @@ const Models = {
       // Thumb: its metacarpal and muscle run over the top of the grip, then two bones down the left side.
       const T = [[0.5, 0.0, 0.72], [-0.2, 0.44, 0.46], [-0.55, 0.36, -0.02], [-0.58, 0.27, -0.34]].map(S);
       bone(palm, T[0], T[1], 0.22, 0.18);
-      chain(T.slice(1), [0.185, 0.175, 0.16]);
+      chain(T.slice(1), [0.195, 0.185, 0.17]);
       w = S([0.6, -0.55, 1.08]);
       top = [1, 0, 0];
     } else {
       // Tube axis is local Z; angle 0 = straight below, PI/2 = right side.
-      const R = pose.tube || 0.43, er = R + 0.14, s2 = (R + 0.25) / 0.68;
+      const R = pose.tube || 0.43, er = R + 0.15, s2 = Math.max(1, (R + 0.25) / 0.68);
       const S = (p) => [p[0] * s2, p[1] * s2, p[2]];
       radial = (x, y) => [x, y, 0];
-      const F = [[-0.55, 0.14], [-0.19, 0.145], [0.17, 0.14], [0.5, 0.12]]; // [z, radius]
+      const F = [[-0.55, 0.155], [-0.19, 0.16], [0.17, 0.155], [0.5, 0.135]]; // [z, radius]
       const bases = [-0.18, 0.04, 0.26, 0.46];
       F.forEach(([z, r], i) => {
         const sc = i === 3 ? 0.82 : i === 0 ? 0.95 : 1;
@@ -2657,18 +2705,17 @@ const Models = {
       // Thumb along the left side of the tube, pointing forward.
       const T = [[-0.12, -0.78, 0.62], [-0.53, -0.5, 0.2], [-0.6, -0.18, -0.2], [-0.57, -0.04, -0.52]].map(S);
       bone(palm, T[0], T[1], 0.2, 0.17);
-      chain(T.slice(1), [0.18, 0.17, 0.155]);
+      chain(T.slice(1), [0.195, 0.185, 0.17]);
       w = S([-0.08, -0.92, 1.08]);
       top = [0, -1, 0];
     }
     // Gauntlet up the wrist with a raised strap.
     const dir = V(arm).normalize(), along = (d) => V(w).addScaledVector(dir, d).toArray();
-    bone(palm, along(-0.3), along(0.72), 0.42, 0.47);
-    const strap = { a: along(0.02), b: along(0.2), ra: 0.465, rb: 0.465 };
+    bone(palm, along(-0.3), along(0.72), 0.37, 0.41); // a wrist a bit narrower than the palm, as wrists are
+    const strap = { a: along(0.02), b: along(0.2), ra: 0.405, rb: 0.405 };
     // Knuckle guard: a moulded ridge with a boss over each knuckle, standing just proud of the leather.
-    const gp = knuckles.map((k) => { const r = V(radial(...k)).normalize(); return V(k).addScaledVector(r, 0.11).toArray(); });
-    for (let i = 0; i < gp.length - 1; i++) bone(guard, gp[i], gp[i + 1], 0.075, 0.075);
-    for (const p of gp) bone(guard, p, lerp(p, along(0), 0.22), 0.085, 0.06); // each boss tails back over the hand
+    const gp = knuckles.map((k) => { const r = V(radial(...k)).normalize(); return V(k).addScaledVector(r, 0.07).toArray(); });
+    for (let i = 0; i < gp.length - 1; i++) bone(guard, gp[i], gp[i + 1], 0.055, 0.055); // a low padded ridge, no knobs
     const S = LP.smin, RC = LP.roundCone, d1 = (b, x, y, z) => RC(x, y, z, b.a, b.b, b.ra, b.rb);
     // Bounding spheres let far-away bones be skipped: a bone can't matter if even its nearest point is too far.
     const bound = (list) => {
@@ -2744,7 +2791,12 @@ const Models = {
     const g = new THREE.Group();
     const brass = LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 });
     const sc = new Sculpt('ammo:' + id + (id === 'flare' ? ':' + (variant % 2) : ''), 0.02);
-    if (id === 'smg') { // stamped magazine with ribs, a base plate and the top round showing
+    if (id === 'pistol') { // a single-stack pistol magazine, base pad and the top round showing
+      const steel = LP.mat('#2b2d30', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.4 });
+      sc.add(steel, SDF.box([0.2, 0.8, 0.16], 0.03, [0, 0, 0], [0, 0, -0.12]), 0.02);
+      sc.add(LP.mat('#1c1d1c', { roughness: 0.6 }), SDF.box([0.28, 0.1, 0.22], 0.04, [0.05, -0.42, 0]), 0.02);
+      sc.add(brass, SDF.lathe([[0.045, -0.05], [0.045, 0.02], [0.028, 0.07]], [-0.05, 0.42, 0], [-Math.PI / 2, 0, 0]), 0.02);
+    } else if (id === 'smg') { // stamped magazine with ribs, a base plate and the top round showing
       const steel = LP.mat('#2b2d30', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.4 });
       sc.add(steel, SDF.box([0.3, 1.05, 0.2], 0.04, [0, 0, 0]), 0.02);
       for (const y of [-0.25, 0.1]) sc.cut(SDF.box([0.4, 0.04, 0.1], 0.01, [0, y, 0]), 0.01, [steel]);
@@ -2793,7 +2845,7 @@ const Models = {
     ],
     shotgun: [
       { kind: 'pistol', pos: [0, -1.25, 2.98], tilt: -0.2, grip: [0.35, 0.46], trigger: [0, -0.92, 1.74], arm: [-0.6, -3.6, 4.0] },
-      { kind: 'support', pos: [0, -0.24, -3.5], tilt: 0, tube: 0.5, arm: [-7.2, -3.4, 5.4] },
+      { kind: 'support', pos: [0, 0.1, -3.0], tilt: 0, tube: 0.42, arm: [-7.2, -3.4, 5.4] }, // round the barrel shroud
     ],
     rocket: [
       { kind: 'pistol', pos: [0, -1.45, 0.95], tilt: -0.15, grip: [0.36, 0.46], trigger: [0, -0.9, -0.3], arm: [-0.6, -2.8, 6.0] },
@@ -2801,6 +2853,9 @@ const Models = {
     ],
     flare: [
       { kind: 'pistol', pos: [0, -1.0, 0.6], tilt: -0.38, grip: [0.41, 0.5], trigger: [0, -0.62, -0.56], arm: [-0.5, -3.0, 5.0] },
+    ],
+    pistol: [
+      { kind: 'pistol', pos: [0, -1.05, 1.15], tilt: -0.25, grip: [0.3, 0.44], trigger: [0, -0.55, -0.3], arm: [-0.5, -3.0, 5.0] },
     ],
     nailgun: [
       { kind: 'pistol', pos: [0, -1.05, 0.95], tilt: -0.6, grip: [0.26, 0.42], trigger: [0, -0.55, 0.2], arm: [-0.5, -3.0, 5.0] },
@@ -2811,7 +2866,7 @@ const Models = {
     ],
     harpoon: [
       { kind: 'pistol', pos: [0, -0.72, 0.68], tilt: -0.18, grip: [0.25, 0.38], trigger: [0, -0.38, 0.3], arm: [-0.6, -2.8, 5.6] },
-      { kind: 'support', pos: [0, -0.12, -1.6], tilt: 0, tube: 0.3, arm: [-7.2, -3.4, 5.4] },
+      { kind: 'support', pos: [0, 0.04, -1.45], tilt: 0, tube: 0.3, arm: [-7.2, -3.4, 5.4] }, // round the rail, clear of the reel
     ],
   },
 
@@ -2838,7 +2893,7 @@ const Models = {
   },
 
   weapon(id) {
-    return id === 'shotgun' ? Models.shotgun() : id === 'rocket' ? Models.launcher() : id === 'flare' ? Models.flareGun()
+    return id === 'pistol' ? Models.pistol() : id === 'shotgun' ? Models.shotgun() : id === 'rocket' ? Models.launcher() : id === 'flare' ? Models.flareGun()
       : id === 'nailgun' ? Models.nailGun() : id === 'flamer' ? Models.flamer() : id === 'harpoon' ? Models.harpoonGun() : Models.smg();
   },
 

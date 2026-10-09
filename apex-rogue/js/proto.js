@@ -37,6 +37,7 @@ const Proto = {
       this.view = 'top';
     }
     this.cos = loadCosmetics();
+    Meta.rep = this.cos.rep;
     Settings.load();
     this.tab = 'car';
     this.previewCanvas = document.getElementById('preview3d');
@@ -192,9 +193,6 @@ const Proto = {
       case 'start': this.startRace(); break;
       case 'settings': this.showSettings(); break;
       case 'resume': this.resume(); break;
-      case 'view-cockpit': this.setView('cockpit'); this.refresh(); break;
-      case 'view-top': this.setView('top'); this.refresh(); break;
-      case 'retro': this.toggleRetro(); this.refresh(); break;
       case 'to-briefing': this.showMap(); break;
       case 'to-map': this.showMap(); break;
       case 'open-garage': this.toGarage(); break;
@@ -228,6 +226,7 @@ const Proto = {
       case 'title-new': if (this.titleFrom) this.showTitle(this.titleFrom, 'confirm'); else this.action('new-run'); break;
       case 'continue': this.continueRun(); break;
       case 'how-to': this.showTitle(this.titleFrom, 'howto'); break;
+      case 'unlocks': this.showTitle(this.titleFrom, 'unlocks'); break;
       case 'exit': this.exitGame(); break;
       case 'abandon': this.gameOver(false); break;
       case 'after-results': this.afterResults(); break;
@@ -306,17 +305,34 @@ const Proto = {
         <p>Your run in ${ACTS[run.act].title} ends here. Paint, finishes and rep are kept.</p>
         <div class="t-row"><button class="btn primary" data-action="new-run">Start over</button><button class="btn" data-action="title">Keep it</button></div>
       </div>`;
+    } else if (panel === 'unlocks') {
+      const groups = Object.entries(UNLOCK_REP).map(([type, list]) => {
+        const items = Object.entries(list).sort((a, b) => a[1] - b[1]);
+        const got = items.filter(([, r]) => r <= Meta.rep).length;
+        const rows = items.map(([id, r]) => {
+          const it = UNLOCK_TYPES[type][id], on = r <= Meta.rep;
+          return `<li class="${on ? 'on' : 'off'}" title="${it.desc.replace(/"/g, '&quot;')}">${on ? '' : '🔒 '}${it.name}${on ? '' : `<small>${r}</small>`}</li>`;
+        }).join('');
+        return `<h3>${UNLOCK_LABEL[type]} <small>${got}/${items.length}</small></h3><ul class="unlock-list">${rows}</ul>`;
+      }).join('');
+      side = `<div class="t-panel unlocks">
+        <h2>Unlocks</h2>
+        <p>Every run starts with a pistol and a clapped-out car. Gear only turns up in shops and rewards once you've unlocked it with reputation. You earn rep by finishing races, winning, wrecking rivals and beating bosses. It's kept for good.</p>
+        ${this.nextUnlockLine()}
+        ${groups}
+        <button class="btn" data-action="title">Back</button>
+      </div>`;
     } else if (panel === 'howto') {
       side = `<div class="t-panel howto">
         <h2>How it works</h2>
         <p>You are a prisoner riding gun in a death race. Climb three acts of the route sheet and win the Crown to walk free. Finish outside the qualifying places three times and you're back in your cell.</p>
-        <p>Between races: buy and fit parts in the garage, tune them, load the gun rack, and paint the car. Scrap is your money, rep unlocks paint.</p>
+        <p>Between races: buy and fit parts in the garage, tune them, load the gun rack, and paint the car. Scrap is your money for this run. Reputation is kept for good: it unlocks new gear and paint for every run after.</p>
         <h3>In the car</h3>
         <div class="ctl"><kbd>Mouse</kbd> Aim · <kbd>LMB</kbd> Fire · <kbd>R</kbd> Reload</div>
         <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
         <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade · <kbd>Space</kbd>/<kbd>E</kbd> Abilities</div>
         <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
-        <div class="ctl"><kbd>V</kbd> View · <kbd>F</kbd> Retro filter · <kbd>M</kbd> Mute · <kbd>Esc</kbd> Pause</div>
+        <div class="ctl"><kbd>M</kbd> Mute · <kbd>Esc</kbd> Pause</div>
         <button class="btn" data-action="title">Back</button>
       </div>`;
     }
@@ -327,10 +343,11 @@ const Proto = {
         ${from ? `<button class="btn primary big" data-action="continue">Continue ▶<small>${where}</small></button>` : ''}
         <button class="btn ${from ? '' : 'primary big'}" data-action="title-new">New run</button>
         <button class="btn" data-action="tutorial">Tutorial${Settings.data.tutorialDone ? '' : '<small>New here? Start with a practice race.</small>'}</button>
+        <button class="btn" data-action="unlocks">Unlocks<small>${Object.values(UNLOCK_REP).reduce((n, l) => n + Object.values(l).filter((r) => r <= Meta.rep).length, 0)} of ${Object.values(UNLOCK_REP).reduce((n, l) => n + Object.keys(l).length, 0)} gear unlocked</small></button>
         <button class="btn" data-action="settings">Settings</button>
         <button class="btn" data-action="how-to">How to play</button>
         <button class="btn ghost" data-action="exit">Exit</button>
-        <p class="t-links small"><a href="models.html">Model viewer</a> · <a href="index.html">Top-down game</a> · Rep <b>${this.cos.rep}</b></p>
+        <p class="t-links small"><a href="models.html">Model viewer</a> · Rep <b>${this.cos.rep}</b></p>
       </div>
       ${side}
     </div>`);
@@ -373,6 +390,8 @@ const Proto = {
     this.titleFrom = null;
     const b = this.build = newBuild();
     b.hull = b.maxHull = 300; // room to learn without wrecking
+    addWeapon(b, 'rocket'); // a loaner from the warden, to learn the second slot
+    b.grenades = 3;
     this.runRng = mulberry32(20261009);
     this.run = { act: 0, map: genActMap(this.runRng, 0), cur: null, node: null, flags: { disarm: true } };
     this.tutorial = new Tutorial(this);
@@ -607,6 +626,8 @@ const Proto = {
       <h1>Escape failed</h1>
       <p>Three strikes. The warden sends you back to your cell after ${b.race} race${b.race === 1 ? '' : 's'} and ${b.wins} win${b.wins === 1 ? '' : 's'}.</p>
       <p class="muted">Trinkets collected: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
+      <p>Everything you unlocked stays unlocked. The next inmate gets a better shot.</p>
+      ${this.nextUnlockLine()}
       <button class="btn primary big" data-action="new-run">New run ▶</button>
       <button class="btn" data-action="menu">Main menu</button>
     </div>`);
@@ -615,19 +636,32 @@ const Proto = {
   victory() {
     const b = this.build;
     this.state = 'over';
+    // Walking free is the biggest rep there is.
+    const before = this.cos.rep;
+    this.cos.rep += 150;
+    Meta.rep = this.cos.rep;
+    saveCosmetics(this.cos);
+    const gear = gearUnlockedBetween(before, this.cos.rep);
     this.setUI(`<div class="screen end won">
       <h1>Free</h1>
       <p>You won the Crown. The warden signs your release in front of the whole upper city, smiling for the cameras.</p>
       <p class="muted">${b.race} races · ${b.wins} wins · trinkets: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
+      <p class="unlock">+150 reputation for walking free${gear.length ? `. 🔓 Unlocked: ${gear.map((g) => `<b>${g.name}</b>`).join(', ')}` : ''}</p>
+      ${this.nextUnlockLine()}
       <button class="btn primary big" data-action="new-run">New run ▶</button>
       <button class="btn" data-action="menu">Main menu</button>
     </div>`);
   },
 
-  toggleRetro() {
-    if (this.cockpit) this.cockpit.setRetro(!PSX.enabled);
+  // What the next run is playing for: how far to the next piece of gear.
+  nextUnlockLine() {
+    const next = Object.entries(UNLOCK_REP).flatMap(([type, list]) => Object.entries(list).map(([id, r]) => ({ type, id, r })))
+      .filter((u) => u.r > Meta.rep).sort((a, b) => a.r - b.r)[0];
+    if (!next) return '<p class="muted small">Every piece of gear is unlocked.</p>';
+    return `<p class="muted small next-unlock">Reputation ${Meta.rep} · next unlock: <b>${UNLOCK_TYPES[next.type][next.id].name}</b> at ${next.r}</p>`;
   },
 
+  // The game is played from the cockpit; the top-down view is only a fallback for machines without WebGL.
   setView(v) {
     if (v === 'cockpit' && !this.cockpit) return;
     this.view = v;
@@ -668,6 +702,7 @@ const Proto = {
     });
     this.race.node = node;
     this.race.boss = boss;
+    this.race.music = Music.forRace(run.act, node.type, this.seed, !!(boss && boss.mustWin));
     if (node.type === 'bounty') {
       // A price on one rival's head: the strongest non-boss driver on the grid.
       const field = this.race.cars.filter((c) => c !== player && !c.isBoss);
@@ -777,14 +812,9 @@ const Proto = {
           <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further)</div>
           <div class="ctl"><kbd>Space</kbd> / <kbd>E</kbd> Abilities · <kbd>B</kbd> Fit your spare part when one breaks</div>
           <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
-          <div class="ctl"><kbd>V</kbd> Switch view · <kbd>F</kbd> Retro filter · <kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
-          <p class="muted small">Shoot rockets and mines out of the air with the SMG. Red laser = a gunner is locking on to you.</p>
+          <div class="ctl"><kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
+          <p class="muted small">Shoot rockets and mines out of the air with bullets. Red laser = a gunner is locking on to you.</p>
         </div>
-      </div>
-      <div class="btn-row">
-        ${this.cockpit ? `<button class="btn ${this.view === 'cockpit' ? 'primary' : ''}" data-action="view-cockpit">Cockpit view</button>` : ''}
-        <button class="btn ${this.view === 'top' ? 'primary' : ''}" data-action="view-top">Top-down view</button>
-        ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'}</button>` : ''}
       </div>
       <button class="btn primary big" data-action="start">Start race ▶</button>
       <button class="btn ghost" data-action="menu">Main menu</button>
@@ -796,8 +826,6 @@ const Proto = {
     this.setUI(`<div class="screen pause">
       <h1>Paused</h1>
       <button class="btn primary big" data-action="resume">${this.view === 'cockpit' ? 'Click to resume aiming' : 'Resume'}</button>
-      ${this.cockpit ? `<button class="btn" data-action="${this.view === 'cockpit' ? 'view-top' : 'view-cockpit'}">Switch to ${this.view === 'cockpit' ? 'top-down' : 'cockpit'} view</button>` : ''}
-      ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'} (F)</button>` : ''}
       <button class="btn" data-action="settings">Settings</button>
       ${this.tutorial ? '<button class="btn ghost" data-action="menu">Leave tutorial</button>' : `<button class="btn" data-action="menu">Main menu</button>
       <button class="btn ghost" data-action="abandon">Abandon run</button>`}
@@ -817,7 +845,6 @@ const Proto = {
         if (!a) return;
         const [k, v] = a.dataset.set.split(':');
         if (k === 'sway') Settings.data.cabinSway = v;
-        if (k === 'retro') this.toggleRetro();
         if (k === 'mute') Sound.toggleMute();
         Settings.save();
         Sound.play({ type: 'click' });
@@ -827,9 +854,10 @@ const Proto = {
         if (e.target.id === 'setSens') Settings.data.sens = +e.target.value;
         if (e.target.id === 'setVol') Settings.data.volume = +e.target.value;
         if (e.target.id === 'setMusic') Settings.data.music = +e.target.value;
+        if (e.target.id === 'setRaceMusic') Settings.data.raceMusic = +e.target.value;
         Settings.save();
         const l = el.querySelector(`[data-val="${e.target.id}"]`);
-        if (l) l.textContent = e.target.id === 'setSens' ? Settings.data.sens.toFixed(2) + 'x' : Math.round(Settings.data[e.target.id === 'setVol' ? 'volume' : 'music'] * 100) + '%';
+        if (l) l.textContent = e.target.id === 'setSens' ? Settings.data.sens.toFixed(2) + 'x' : Math.round(Settings.data[{ setVol: 'volume', setMusic: 'music', setRaceMusic: 'raceMusic' }[e.target.id]] * 100) + '%';
       });
     }
     const d = Settings.data, opt = (k, v, label) => `<button class="opt ${d.cabinSway === v ? 'on' : ''}" data-set="${k}:${v}">${label}</button>`;
@@ -845,9 +873,9 @@ const Proto = {
       <input type="range" id="setVol" min="0" max="1" step="0.05" value="${d.volume}">
       <h3>Menu music <small data-val="setMusic">${Math.round(d.music * 100)}%</small></h3>
       <input type="range" id="setMusic" min="0" max="1" step="0.05" value="${d.music}">
+      <h3>Race music <small data-val="setRaceMusic">${Math.round(d.raceMusic * 100)}%</small></h3>
+      <input type="range" id="setRaceMusic" min="0" max="1" step="0.05" value="${d.raceMusic}">
       <div class="opts" style="margin-top:8px"><button class="opt ${Sound.muted ? 'on' : ''}" data-set="mute:1">${Sound.muted ? 'Sound muted (M)' : 'Mute (M)'}</button></div>
-      <h3>Look</h3>
-      <div class="opts"><button class="opt ${PSX.enabled ? 'on' : ''}" data-set="retro:1">Retro filter: ${PSX.enabled ? 'On' : 'Off'} (F)</button></div>
       <button class="btn primary" data-set="close" style="margin-top:14px">Done</button>
     </div>`;
   },
@@ -874,11 +902,13 @@ const Proto = {
     if (p.place === 1) b.wins++;
     if (!ok) b.strikes++;
     // Reputation persists between runs and unlocks paint-shop options.
-    const repGain = raceRep(p.place, s.wrecked) + (run.flags.repGain || 0) - (run.flags.repLoss || 0), repBefore = this.cos.rep;
+    const repGain = raceRep(p.place, s.wrecked) + (boss && ok ? 40 : 0) + (run.flags.repGain || 0) - (run.flags.repLoss || 0), repBefore = this.cos.rep; // beating a boss makes your name
     run.flags.repGain = run.flags.repLoss = 0;
     this.cos.rep += repGain;
     saveCosmetics(this.cos);
+    Meta.rep = this.cos.rep;
     const unlocked = allCosmeticOptions().filter((o) => o.rep > repBefore && o.rep <= this.cos.rep).map((o) => o.name);
+    const gear = gearUnlockedBetween(repBefore, this.cos.rep);
     const parts = PART_SLOTS.map((slot) => `<span class="${b.parts[slot].dur <= 0 ? 'bad' : ''}">${SLOT_NAMES[slot]} ${b.parts[slot].dur <= 0 ? 'BROKEN' : Math.round((100 * b.parts[slot].dur) / partMaxDur(b, b.parts[slot].id)) + '%'}</span>`).join(' · ');
     const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
     this.setUI(`<div class="screen results">
@@ -901,7 +931,9 @@ const Proto = {
           ${betPay ? `<div><span>Bet winnings</span><b>${betPay} scrap</b></div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
           <div><span>Reputation</span><b>+${repGain} (${this.cos.rep})</b></div>
+          ${gear.length ? `<div class="unlock gear">🔓 New gear in the shops and rewards: ${gear.map((g) => `<b>${g.name}</b>`).join(', ')}</div>` : ''}
           ${unlocked.length ? `<div class="unlock small">Paint shop unlocked: ${unlocked.join(', ')}</div>` : ''}
+          ${this.nextUnlockLine()}
           <p class="small">${parts}</p>
         </div>
       </div>
@@ -941,7 +973,7 @@ const Proto = {
         <h2 class="g-title">${title[1]}</h2>
         <div class="perks trinket-row">${trinkets}</div>
         ${body}
-        <p class="small muted g-links"><a href="models.html">Model viewer</a> · <a href="index.html">Top-down game</a></p>
+        <p class="small muted g-links"><a href="models.html">Model viewer</a></p>
       </div>
       <button class="btn primary big g-go" data-action="to-map">Route sheet ▶</button>
     </div>`);
@@ -1105,20 +1137,20 @@ const Proto = {
     this.last = now;
     this.time += dt;
     if (Input.consume('KeyM')) Sound.toggleMute();
-    if (Input.consume('KeyF')) { this.toggleRetro(); this.refresh(); }
 
     if (this.state === 'title' && Input.consume('Escape') && !document.getElementById('settings')) {
       if (this.titlePanel) this.showTitle(this.titleFrom);
       else if (this.titleFrom) this.continueRun();
     }
     if (this.state === 'race') {
-      if (Input.consume('KeyV')) this.setView(this.view === 'cockpit' ? 'top' : 'cockpit');
       if (Input.consume('KeyP') || Input.consume('Escape')) this.pause();
       else if (this.view === 'cockpit' && !this.locked && !this.noLock) Sound.engine(0, 0, false, false); // wait for a click
       else this.updateRace(dt);
     }
     if (this.tutorial) this.tutorial.update(dt);
-    Music.want(this.state === 'title');
+    // Menu theme on the title; the race's own track from the briefing to the flag (quieter while paused).
+    const racing = this.race && this.race.music && ['briefing', 'race', 'paused'].includes(this.state);
+    Music.set(this.state === 'title' ? Music.MENU : racing ? this.race.music : null, this.state === 'paused' ? 0.4 : this.state === 'briefing' ? 0.7 : 1);
     this.render(dt);
     this.renderPreview(dt);
     Input.endFrame();
@@ -1224,7 +1256,7 @@ const Proto = {
   },
 };
 
-const SHORT_WEAPON = { smg: 'SMG', shotgun: 'Shotgun', rocket: 'Launcher', flare: 'Flare', nailgun: 'Nail Gun', flamer: 'Flamer', harpoon: 'Harpoon' };
+const SHORT_WEAPON = { pistol: 'Pistol', smg: 'SMG', shotgun: 'Shotgun', rocket: 'Launcher', flare: 'Flare', nailgun: 'Nail Gun', flamer: 'Flamer', harpoon: 'Harpoon' };
 
 // ---------- HUD pieces ----------
 
@@ -1408,7 +1440,10 @@ function drawCockpitHUD(ctx, P, W, H, t) {
   const cx = W / 2, cy = H / 2, wd = c.weaponDef, wst = c.wstate[c.wi];
   ctx.strokeStyle = c.weapon.mag <= 0 && c.weapon.reserve <= 0 ? '#ff3b1f' : 'rgba(255,255,255,0.9)';
   ctx.lineWidth = 2;
-  if (c.weapon.id === 'smg') {
+  if (c.weapon.id === 'pistol') { // a plain dot in a gap ring
+    for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) { ctx.beginPath(); ctx.arc(cx, cy, 9, a + 0.35, a + Math.PI / 2 - 0.35); ctx.stroke(); }
+    ctx.fillRect(cx - 1, cy - 1, 2, 2);
+  } else if (c.weapon.id === 'smg') {
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       ctx.beginPath(); ctx.moveTo(cx + dx * 6, cy + dy * 6); ctx.lineTo(cx + dx * 14, cy + dy * 14); ctx.stroke();
     }

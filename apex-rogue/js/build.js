@@ -43,7 +43,8 @@ const BROKEN_TEXT = {
 
 // Ammo-based weapons. mag = rounds per magazine, reserve = spare rounds carried.
 const WEAPONS = {
-  smg: { name: 'SMG', desc: 'Fast, accurate, low damage. Shoots rockets and mines out of the air.', kind: 'bullet', auto: true, mag: 30, reload: 1.6, rate: 0.085, pellets: 1, spread: 0.035, speed: 1500, dmg: 3.2, life: 0.6, pack: 60, packPrice: 40, start: 90, price: 0 },
+  pistol: { name: 'Service Pistol', desc: 'Every inmate starts with one. Accurate and quick to reload, but light. Can pick rockets out of the air.', kind: 'bullet', auto: true, mag: 12, reload: 1.2, rate: 0.19, pellets: 1, spread: 0.022, speed: 1550, dmg: 5.2, life: 0.6, pack: 36, packPrice: 25, start: 60, price: 0 },
+  smg: { name: 'SMG', desc: 'Fast, accurate, low damage. Shoots rockets and mines out of the air.', kind: 'bullet', auto: true, mag: 30, reload: 1.6, rate: 0.085, pellets: 1, spread: 0.035, speed: 1500, dmg: 3.2, life: 0.6, pack: 60, packPrice: 40, start: 90, price: 160 },
   shotgun: { name: 'Pump Shotgun', desc: 'Close range. Big knockback; one blast clears incoming rockets.', kind: 'bullet', auto: false, mag: 6, reload: 2.2, rate: 0.7, pellets: 7, spread: 0.2, speed: 1250, dmg: 3.4, life: 0.3, knock: 70, pack: 12, packPrice: 40, start: 18, price: 220 },
   rocket: { name: 'Rocket Launcher', desc: 'Slow, explosive and devastating.', kind: 'rocket', auto: false, mag: 1, reload: 1.8, rate: 0.6, speed: 950, dmg: 26, radius: 62, life: 2.2, pack: 3, packPrice: 90, start: 3, price: 300 },
   flare: { name: 'Flare Gun', desc: 'Blinds the driver you hit: they swerve and brake for 3 seconds.', kind: 'flare', auto: false, mag: 1, reload: 1.4, rate: 0.5, speed: 1100, dmg: 4, life: 1.2, blind: 3, pack: 4, packPrice: 50, start: 4, price: 180 },
@@ -100,14 +101,14 @@ const CHIPS = {
 // Weapon mods: two slots per weapon, swappable in the garage.
 const MODS = {
   // Common
-  ext_mag: { name: 'Extended Mag', rarity: 'common', desc: '+50% magazine size, but reloads 25% slower.', fits: ['smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon'], price: 120 },
-  quick_mag: { name: 'Speed Loader', rarity: 'common', desc: 'Reloads 40% faster, but -25% magazine size.', fits: ['smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon'], price: 120 },
+  ext_mag: { name: 'Extended Mag', rarity: 'common', desc: '+50% magazine size, but reloads 25% slower.', fits: ['pistol', 'smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon'], price: 120 },
+  quick_mag: { name: 'Speed Loader', rarity: 'common', desc: 'Reloads 40% faster, but -25% magazine size.', fits: ['pistol', 'smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon'], price: 120 },
   // Bolt-on attachments you can see on the gun.
   drum_mag: { name: 'Drum Mag', rarity: 'common', desc: 'Double magazine, but reloads 50% slower.', fits: ['smg', 'shotgun', 'nailgun', 'flamer'], price: 130 },
   scope: { name: 'Scrap Scope', rarity: 'common', desc: 'A pipe and a bottle lens: -45% spread, +25% range.', fits: ['smg', 'shotgun', 'nailgun', 'harpoon', 'flare'], price: 120 },
-  compensator: { name: 'Muzzle Brake', rarity: 'common', desc: '-35% spread and 8% faster firing.', fits: ['smg', 'shotgun', 'nailgun'], price: 120 },
-  red_dot: { name: 'Red Dot Sight', rarity: 'common', desc: '-30% spread.', fits: ['smg', 'shotgun', 'nailgun', 'harpoon', 'flare'], price: 100 },
-  flashlight: { name: 'Flashlight', rarity: 'common', desc: 'Rivals you keep in its beam lose their lock on you.', fits: ['smg', 'shotgun', 'nailgun', 'harpoon', 'flare'], price: 110 },
+  compensator: { name: 'Muzzle Brake', rarity: 'common', desc: '-35% spread and 8% faster firing.', fits: ['pistol', 'smg', 'shotgun', 'nailgun'], price: 120 },
+  red_dot: { name: 'Red Dot Sight', rarity: 'common', desc: '-30% spread.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'harpoon', 'flare'], price: 100 },
+  flashlight: { name: 'Flashlight', rarity: 'common', desc: 'Rivals you keep in its beam lose their lock on you.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'harpoon', 'flare'], price: 110 },
   bayonet: { name: 'Rebar Bayonet', rarity: 'common', desc: 'Your rams deal +35% damage while this gun is in your hands.', fits: ['shotgun', 'harpoon'], price: 100 },
   // Built from whatever was lying around the yard.
   shock_coil: { name: 'Shock Coil', rarity: 'rare', desc: 'A car battery wired to a coil round the barrel: hits have a 15% chance to short out a rival (EMP, 1.5s).', fits: ['smg', 'nailgun', 'harpoon'], price: 170 },
@@ -116,14 +117,14 @@ const MODS = {
   napalm: { name: 'Napalm Mix', rarity: 'rare', desc: 'Fires burn 60% hotter and last 5 seconds.', fits: ['flamer'], price: 170 },
   framing_nails: { name: 'Framing Nails', rarity: 'rare', desc: '+30% damage and each nail drags 60% harder.', fits: ['nailgun'], price: 150 },
   barbed_head: { name: 'Barbed Head', rarity: 'epic', desc: 'Hooked rivals bleed (3 dmg/s for 4s) and stay hooked 40% longer.', fits: ['harpoon'], price: 200 },
-  laser: { name: 'Laser Sight', rarity: 'common', desc: '-60% spread. Paints a red line to your target.', fits: ['smg', 'shotgun'], price: 100 },
+  laser: { name: 'Laser Sight', rarity: 'common', desc: '-60% spread. Paints a red line to your target.', fits: ['pistol', 'smg', 'shotgun'], price: 100 },
   choke: { name: 'Full Choke', rarity: 'common', desc: 'Shotgun spread halved and range +50%.', fits: ['shotgun'], price: 110 },
   hair_trigger: { name: 'Hair Trigger', rarity: 'common', desc: '+30% fire rate, but +40% spread.', fits: ['smg', 'shotgun', 'flare', 'nailgun'], price: 110 },
   sawn_off: { name: 'Sawn-Off Barrel', rarity: 'common', desc: '+3 pellets and 30% faster reload, but much wider spread and shorter range.', fits: ['shotgun'], price: 100 },
   // Rare
-  incendiary: { name: 'Incendiary Rounds', rarity: 'rare', desc: 'Hits set rivals on fire (3 dmg/s for 3s). Ammo costs 50% more.', fits: ['smg', 'shotgun', 'nailgun'], price: 160 },
-  ap_rounds: { name: 'Armour-Piercing Rounds', rarity: 'rare', desc: '+35% damage, but -15% fire rate.', fits: ['smg', 'shotgun', 'nailgun'], price: 150 },
-  suppressor: { name: 'Suppressor', rarity: 'rare', desc: '-15% damage, but rival gunners take 40% longer to lock on to you.', fits: ['smg', 'shotgun', 'nailgun'], price: 150 },
+  incendiary: { name: 'Incendiary Rounds', rarity: 'rare', desc: 'Hits set rivals on fire (3 dmg/s for 3s). Ammo costs 50% more.', fits: ['pistol', 'smg', 'shotgun', 'nailgun'], price: 160 },
+  ap_rounds: { name: 'Armour-Piercing Rounds', rarity: 'rare', desc: '+35% damage, but -15% fire rate.', fits: ['pistol', 'smg', 'shotgun', 'nailgun'], price: 150 },
+  suppressor: { name: 'Suppressor', rarity: 'rare', desc: '-15% damage, but rival gunners take 40% longer to lock on to you.', fits: ['pistol', 'smg', 'shotgun', 'nailgun'], price: 150 },
   tracer: { name: 'Tracer Rounds', rarity: 'rare', desc: 'Hits mark a rival for 3s: they take +20% damage from everything.', fits: ['smg'], price: 160 },
   slugs: { name: 'Slug Rounds', rarity: 'rare', desc: 'One heavy, accurate slug instead of buckshot. Long range, big knockback.', fits: ['shotgun'], price: 150 },
   bunker_buster: { name: 'Bunker Buster', rarity: 'rare', desc: '+60% blast radius and +20% damage, but slower rockets.', fits: ['rocket'], price: 190 },
@@ -136,6 +137,41 @@ const MODS = {
   phosphor: { name: 'White Phosphor', rarity: 'epic', desc: 'Flares also set the driver on fire (4 dmg/s).', fits: ['flare'], price: 190 },
 };
 const modFits = (modId, weaponId) => MODS[modId].fits.includes(weaponId);
+
+// ---------- Unlocks ----------
+// Gear unlocks for good with reputation, the same rep that unlocks paint. You start each run with a pistol;
+// everything else has to turn up in a shop or a reward, and only unlocked gear ever does.
+// Each number is the rep needed (0 = available from the first run).
+const UNLOCK_REP = {
+  weapon: { pistol: 0, smg: 20, shotgun: 60, flare: 110, nailgun: 170, rocket: 240, flamer: 330, harpoon: 440 },
+  part: {
+    diesel: 0, all_terrain: 0, big_bottle: 0, window_cage: 0, studded: 30, chains: 50, methanol: 70, run_flats: 90, reactive: 120,
+    slicks: 150, turbo_v6: 180, electric: 210, hot_mix: 240, spiked_cage: 280, recycler: 320, riot_plates: 370, twin_bottles: 430,
+    ablative: 500, supercharger: 580, racing_v8: 680,
+  },
+  ability: { shield: 0, nitro_burst: 80, smoke: 200, emp: 400 },
+  mod: {
+    ext_mag: 0, quick_mag: 0, red_dot: 0, laser: 25, compensator: 45, hair_trigger: 65, flashlight: 85, choke: 100, sawn_off: 120,
+    scope: 140, drum_mag: 160, bayonet: 180, incendiary: 210, ap_rounds: 240, suppressor: 270, tracer: 300, slugs: 330, hubcap: 360,
+    shock_coil: 390, pressure_tank: 420, framing_nails: 450, long_burn: 480, napalm: 510, bunker_buster: 540,
+    homing: 600, remote_det: 660, cluster: 720, phosphor: 780, twin_tube: 850, barbed_head: 920,
+  },
+  trinket: {
+    dice: 0, rabbit_foot: 0, bobblehead: 0, freshener: 0, cassette: 0, troll: 0, tooth: 40, dogtags: 80, sparkplug: 120, smokes: 160,
+    photo: 200, medal: 250, lighter: 300, compass: 350, teddy: 400, shoes: 460, horseshoe: 520, snowglobe: 580, rosary: 640,
+    clover: 700, keys: 780, eightball: 860,
+  },
+  chip: { hothead: 0, cautious: 0, daredevil: 60, gun_nut: 140, veteran: 300, ghost: 500, showboat: 700 },
+};
+const UNLOCK_TYPES = { weapon: WEAPONS, part: PARTS, ability: ABILITIES, mod: MODS, trinket: TRINKETS, chip: CHIPS };
+const UNLOCK_LABEL = { weapon: 'Weapons', part: 'Car parts', ability: 'Abilities', mod: 'Attachments', trinket: 'Trinkets', chip: 'Driver chips' };
+// The player's reputation, kept in step with the saved cosmetics by the game.
+const Meta = { rep: 0 };
+const unlockRep = (type, id) => (UNLOCK_REP[type] && UNLOCK_REP[type][id]) || 0;
+const isUnlocked = (type, id) => unlockRep(type, id) <= Meta.rep;
+// Everything that unlocks in (before, after], for the results screen.
+const gearUnlockedBetween = (before, after) => Object.entries(UNLOCK_REP).flatMap(([type, list]) => Object.entries(list)
+  .filter(([, r]) => r > before && r <= after).map(([id]) => ({ type, id, name: UNLOCK_TYPES[type][id].name })));
 
 // Part tuning: one trade-off slider per part, -1..1 in steps of 0.5. Free to change in the garage.
 const TUNING = {
@@ -155,16 +191,14 @@ function newBuild() {
     scrap: 150, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0,
     parts: {}, spare: null,
     rack: [], rackBase: 2,
-    grenades: 3,
+    grenades: 2,
     abilities: ['shield', null],
     trinkets: [], // the only permanent things in a run
     chip: null,
     stash: { parts: [], weapons: [], abilities: [], mods: [], chips: [] },
   };
   for (const id of ['stock_engine', 'stock_tyres', 'scrap_plating', 'stock_nitro']) installPart(b, id);
-  addWeapon(b, 'smg');
-  addWeapon(b, 'rocket');
-  b.stash.mods.push('ext_mag'); // a taste of modding from the start
+  addWeapon(b, 'pistol'); // everything else is found, bought, and unlocked over runs
   return b;
 }
 
@@ -361,6 +395,7 @@ function rollRewards(b, rng, count) {
   for (const id in MODS) pool.push(['mod', id, { common: 2, rare: 1.2, epic: 0.6 }[MODS[id].rarity]]);
   for (const id in TRINKETS) if (!has(b, id)) pool.push(['trinket', id, 2]);
   for (const id in CHIPS) if (!ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)) pool.push(['chip', id, 1]);
+  for (let i = pool.length - 1; i >= 0; i--) if (!isUnlocked(pool[i][0], pool[i][1])) pool.splice(i, 1); // only gear you've unlocked
   const out = [];
   while (out.length < count && pool.length) {
     const pickd = weightedPick(rng, pool, (p) => p[2]);
@@ -373,7 +408,7 @@ function rollRewards(b, rng, count) {
 // Elite races guarantee a trinket among the cards (while there are trinkets left to find).
 function rollEliteRewards(b, rng) {
   const out = rollRewards(b, rng, 3).filter((c) => c.type !== 'trinket').slice(0, 2);
-  const left = Object.keys(TRINKETS).filter((id) => !has(b, id));
+  const left = Object.keys(TRINKETS).filter((id) => !has(b, id) && isUnlocked('trinket', id));
   if (left.length) out.push(itemCard('trinket', left[Math.floor(rng() * left.length)]));
   while (out.length < 3) { const extra = rollRewards(b, rng, 1)[0]; if (!extra || out.some((c) => c.id === extra.id)) break; out.push(extra); }
   return shuffle(rng, out);
@@ -381,26 +416,27 @@ function rollEliteRewards(b, rng) {
 
 // Beating a boss: choose a driver trait (the boss-only chips first), padded with epic mods.
 function rollBossRewards(b, rng) {
-  const traits = shuffle(rng, ['veteran', 'ghost', 'showboat'].filter((id) => !ownsChip(b, id)));
-  const others = shuffle(rng, Object.keys(CHIPS).filter((id) => !ownsChip(b, id) && !traits.includes(id)));
+  const traits = shuffle(rng, ['veteran', 'ghost', 'showboat'].filter((id) => !ownsChip(b, id) && isUnlocked('chip', id)));
+  const others = shuffle(rng, Object.keys(CHIPS).filter((id) => !ownsChip(b, id) && !traits.includes(id) && isUnlocked('chip', id)));
   const out = [...traits, ...others].slice(0, 3).map((id) => itemCard('chip', id));
-  const epics = shuffle(rng, Object.keys(MODS).filter((id) => MODS[id].rarity === 'epic'));
+  const epics = shuffle(rng, Object.keys(MODS).filter((id) => MODS[id].rarity === 'epic' && isUnlocked('mod', id)));
   while (out.length < 3 && epics.length) out.push(itemCard('mod', epics.pop()));
+  while (out.length < 3) { const extra = rollRewards(b, rng, 1)[0]; if (!extra || out.some((c) => c.id === extra.id)) break; out.push(extra); }
   return out;
 }
 
 function rollShop(b, rng) {
   const pickN = (ids, n) => shuffle(rng, ids).slice(0, n);
-  const parts = pickN(Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id)), 2);
-  const weapons = pickN(Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id)), 1);
-  const abil = pickN(Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id)), 1);
-  const mods = pickN(Object.keys(MODS), 3);
+  const parts = pickN(Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id) && isUnlocked('part', id)), 2);
+  const weapons = pickN(Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id) && isUnlocked('weapon', id)), 1);
+  const abil = pickN(Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id) && isUnlocked('ability', id)), 1);
+  const mods = pickN(Object.keys(MODS).filter((id) => isUnlocked('mod', id)), 3);
   const out = [
     ...parts.map((id) => itemCard('part', id)), ...weapons.map((id) => itemCard('weapon', id)),
     ...abil.map((id) => itemCard('ability', id)), ...mods.map((id) => itemCard('mod', id)),
   ];
   // Now and then a trinket under the counter, at a price.
-  const left = Object.keys(TRINKETS).filter((id) => !has(b, id));
+  const left = Object.keys(TRINKETS).filter((id) => !has(b, id) && isUnlocked('trinket', id));
   if (left.length && rng() < 0.35) out.push(Object.assign(itemCard('trinket', left[Math.floor(rng() * left.length)]), { price: 260 }));
   if (has(b, 'smokes')) for (const c of out) c.price = Math.round(c.price * 0.85);
   return out;

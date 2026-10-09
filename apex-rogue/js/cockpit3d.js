@@ -637,7 +637,7 @@ class CockpitView {
     const webbing = LP.mat('#3a3a2a', { roughness: 1 }), board = LP.mat('#6a6448', { roughness: 0.95 }), steel = LP.mat('#8a8f94', { metalness: 0.8 }); // olive canvas so dark mags stand out
     const H = rows * rowH + 0.3;
     // Per weapon: how many items, items per line, spacing, scale. Shells and flares sit in two lines.
-    const PER = { smg: [5, 5, 0.38, 0.68], shotgun: [10, 5, 0.38, 0.85], rocket: [4, 4, 0.46, 0.4], flare: [8, 4, 0.46, 0.8], nailgun: [6, 6, 0.32, 0.7], flamer: [3, 3, 0.6, 0.6], harpoon: [4, 4, 0.46, 0.55] };
+    const PER = { pistol: [6, 6, 0.3, 0.75], smg: [5, 5, 0.38, 0.68], shotgun: [10, 5, 0.38, 0.85], rocket: [4, 4, 0.46, 0.4], flare: [8, 4, 0.46, 0.8], nailgun: [6, 6, 0.32, 0.7], flamer: [3, 3, 0.6, 0.6], harpoon: [4, 4, 0.46, 0.55] };
     // The board, its screws, brackets and the elastic loops, as one rounded sculpt per layout.
     const lineCounts = b.rack.map((w) => Math.ceil(PER[w.id][0] / PER[w.id][1]));
     const bs = new Sculpt('ammoboard:' + lineCounts.join(''), 0.03);
@@ -661,7 +661,7 @@ class CockpitView {
         R.add(it);
         items.push(it);
       }
-      return { items, wi: r, per: ['smg', 'nailgun', 'flamer'].includes(w.id) ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
+      return { items, wi: r, per: ['pistol', 'smg', 'nailgun', 'flamer'].includes(w.id) ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
     });
     const tilt = 0.45, yaw = 0.2, h2 = H / 2;
     const cy = 5.85 - h2 * Math.cos(tilt), cz = 7.85 - h2 * Math.sin(tilt) * Math.cos(yaw) - 0.28;
@@ -691,7 +691,7 @@ class CockpitView {
     // [x, y, z, scale, yaw, roll, pitch]: low on the right, turned in towards the crosshair and canted a touch, so you
     // see the gun's left side and both hands round the grips.
     const HOLD = {
-      smg: [2.6, -1.6, -5.6, 1, 0.28, 0.05, 0.03], shotgun: [2.4, -1.5, -4.9, 0.85, 0.24, 0.06, 0.03],
+      pistol: [2.3, -1.3, -5.0, 1.1, 0.24, 0.05, 0.03], smg: [2.6, -1.6, -5.6, 1, 0.28, 0.05, 0.03], shotgun: [2.4, -1.5, -4.9, 0.85, 0.24, 0.06, 0.03],
       rocket: [3.0, -1.9, -5.6, 0.7, 0.18, 0.04, 0.02], flare: [2.4, -1.3, -5.1, 1, 0.26, 0.06, 0.02],
       nailgun: [2.4, -1.25, -5.0, 1, 0.26, 0.05, 0.03], flamer: [2.3, -1.45, -4.2, 0.95, 0.15, 0.04, 0.02], harpoon: [2.3, -1.4, -4.0, 0.95, 0.15, 0.04, 0.02],
     };
@@ -1158,7 +1158,8 @@ class CockpitView {
       const [x, y, z] = g.userData.hold, u = g.userData, hands = u.hands || [];
       // Reset moving parts to rest.
       for (const h of hands) { h.position.copy(h.userData.rest.pos); h.rotation.set(h.userData.rest.rot, 0, 0); h.visible = true; }
-      if (u.mag) u.mag.position.set(0, -2.7, 0.2), (u.mag.visible = true);
+      if (u.mag) u.mag.position.set(...(u.magRest || [0, -2.7, 0.2])), (u.mag.visible = true);
+      if (u.slide) u.slide.position.set(0, 0.36, Math.min(0.45, this.recoil * 0.5)); // the pistol's slide kicks back on each shot
       if (u.pump) u.pump.position.set(0, 0, 0);
       if (u.barrelGrp) u.barrelGrp.rotation.x = 0;
       if (u.shell) u.shell.visible = false;
@@ -1168,7 +1169,18 @@ class CockpitView {
       let ox = 0, oy = 0, oz = 0, rx = 0, ry = 0, rz = 0;
       if (rp >= 0) {
         const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp));
-        if (id === 'smg') {
+        if (id === 'pistol') {
+          // Tip it in: the empty mag drops out of the grip, the other hand (off screen) pushes a fresh one up into
+          // the well from the rack, then the slide snaps forward.
+          ry = 0.7 * tilt; rz = 0.3 * tilt; rx = 0.15 * tilt; ox = -1.0 * tilt; oy = 1.6 * tilt;
+          const M = u.magRest, drop = ss(0.12, 0.3, rp), feed = ss(0.45, 0.72, rp);
+          if (rp < 0.32) { u.mag.position.y = M[1] - drop * 5; u.mag.visible = drop < 0.98; }
+          else if (rp < 0.45) u.mag.visible = false;
+          else { u.mag.visible = true; u.mag.position.set(M[0], M[1] - (1 - feed) * 3.5, M[2] + (1 - feed) * 0.9); }
+          if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.38 && rp < 0.72 ? 1 : 0;
+          if (u.slide) u.slide.position.z = 0.45 * (1 - ss(0.82, 0.86, rp)); // locked back until the new mag is in
+          oz += bump(0.72, 0.78, rp) * 0.3; // seat it
+        } else if (id === 'smg') {
           // Side-on: the empty mag drops out, the support hand reaches to the rack, brings a fresh mag back
           // under the well, slaps it in and racks the bolt.
           ry = 0.95 * tilt; rz = 0.25 * tilt; rx = 0.1 * tilt; ox = -1.4 * tilt; oy = 2.6 * tilt; oz = 0.2 * tilt;

@@ -16,7 +16,24 @@ npx serve apex-rogue     # then open the printed URL
 ## Gunner prototype (`prototype.html`)
 
 An experiment in the next direction for the game: **the car drives itself and you are the gunner.**
-One race, with a switchable first-person cockpit view and top-down view (press `V`).
+Played from the cockpit: you ride shotgun with a gun in your hands. A top-down view is kept only as a fallback
+for machines without WebGL, and the PS1-style retro look is always on.
+
+**Progression.** Every run starts with a **service pistol**, two grenades, a shield and a clapped-out car.
+Everything else unlocks for good with reputation, the same rep that unlocks paint:
+- **What unlocks:** 8 weapons, 20 car parts, 4 abilities, 30 attachments, 22 trinkets and 7 driver chips. Each item has its own rep threshold.
+- **Where it turns up:** gear only appears in shops and rewards once it's unlocked.
+- **Earning rep:** finish races, win, wreck rivals, beat bosses (+40) and walk free (+150).
+- **Seeing progress:** the results and end screens name new unlocks and the next one to aim for. **Unlocks** on the menu lists everything, locked and unlocked.
+
+**Race music.** Every race gets its own synthesized track. The act sets the mood, the race type and seed set the key, tempo, chord progression and arp:
+- **Act I, Undercity:** dark synthwave with a dirty bass.
+- **Act II, Stacks:** harder, faster and Phrygian, with a galloping 16th-note bass and tom fills.
+- **Act III, Terraces:** cinematic harmonic minor, with bells, string pads and a first breath of choir.
+- **Act IV, Crown:** half-time and ethereal, with a formant-synthesized choir, celesta bells, a sub drone and a great sour bell tolling each phrase.
+
+Bosses push the tempo and add pounding toms. The final race lets the kick loose under the full choir.
+The music plays from the briefing, ducks while paused and fades at the flag. **Settings → Race music** sets its volume.
 
 It opens on a **start menu** over the garage, with your car swinging slowly on the lift. The menu has:
 - **Continue**, shown while a run is in progress, with its act, scrap and strikes;
@@ -49,7 +66,7 @@ The end screen explains the route sheet, garage, strikes and rep.
 You can reach the menu from the route sheet and garage (`☰ Menu`), the pause screen, the race briefing, and the end screens.
 `Esc` backs out of a menu panel, or returns to your run. `prototype.html?run` skips the menu and starts a run straight away.
 
-- The car's AI drives. You aim with the mouse and fire the **SMG** (overheats) or **rocket launcher**,
+- The car's AI drives. You aim with the mouse and fire whatever's on your rack, starting with the **pistol**,
   throw **grenades** (look higher to throw further), raise a **shield**, and order the driver to **swerve**.
 - Some rivals are armed: **rocket gunners** paint you with a red laser before firing homing rockets,
   and a **mine layer** drops mines when you're behind it. Shoot rockets and mines out of the air, or
@@ -65,7 +82,7 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
   polaroid on the visor, torn and duct-taped seats, a taped-over dash crack, exposed wiring, riveted
   steel plate on the door, wire mesh over the rear windows, junk on the floor, a grimy windshield
   with wiper arcs, and dust drifting in the light of a flickering bulb.
-- **Retro look** (on by default, toggle with `F`): a PS1-era style in the spirit of *Fears to Fathom*.
+- **Retro look** (always on): a PS1-era style in the spirit of *Fears to Fathom*.
   The world renders at 240p with hard pixels, 15-bit colour and ordered dithering, film grain and a
   vignette; vertices snap to the low-res grid so geometry wobbles; every model gets grimy 64×64 pixel
   textures (scratched paint, rust, cracked vinyl, scuffed plastic); fog is thick and murky; the mirror
@@ -81,7 +98,6 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
 | Abilities | `Space` / `E` |
 | Fit spare part | `B` |
 | Swerve left / right | `A` / `D` |
-| Switch view | `V` |
 
 The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor/` so it works offline.
 
@@ -142,7 +158,8 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   Broken parts cripple the car until repaired in the garage.
 - **One spare part:** carry a spare of one fitted part; if that part breaks mid-race press `B` to fit
   it (your hands are busy for 2.5s, so no shooting).
-- **Weapons use ammo** (magazines, `R` to reload, ammo bought with scrap): SMG, pump shotgun, rocket
+- **Weapons use ammo** (magazines, `R` to reload, ammo bought with scrap): service pistol (the starter; its slide kicks
+  back on each shot and the mag drops out on reloads), SMG, pump shotgun, rocket
   launcher, flare gun (an orange Orion-style 12-gauge flare pistol firing red and green cartridges; blinds
   the driver it hits). Two rack slots, three with the Warden's Keys.
   Scrap-built guns too: a pneumatic Nail Gun (nails puncture tyres and drag rivals back), a Flamethrower

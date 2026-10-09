@@ -5,7 +5,7 @@ const SETTINGS_KEY = 'apexrogue_settings_v1';
 const SWAY_LEVELS = { off: 0, subtle: 0.5, full: 1 };
 
 const Settings = {
-  data: { cabinSway: 'subtle', sens: 1, volume: 0.8, music: 0.7, tutorialDone: false },
+  data: { cabinSway: 'subtle', sens: 1, volume: 0.8, music: 0.7, raceMusic: 0.6, tutorialDone: false },
 
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); } catch (e) { /* storage unavailable */ }

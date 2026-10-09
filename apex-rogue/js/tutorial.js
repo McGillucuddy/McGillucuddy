@@ -4,10 +4,10 @@
 
 const TUTORIAL_STEPS = [
   { id: 'look', title: 'Look around', text: 'Move the <kbd>Mouse</kbd> to look around. Your driver steers the car; you ride shotgun as the gunner.', done: (t) => t.look > 1.6 },
-  { id: 'fire', title: 'Open fire', text: 'Hold <kbd>LMB</kbd> to fire the SMG. Watch the heat bar: let go before it overheats and jams.', done: (t) => t.n.shoot >= 12 },
+  { id: 'fire', title: 'Open fire', text: 'Hold <kbd>LMB</kbd> to fire your pistol. Every inmate starts with one; better guns are found, bought and unlocked.', done: (t) => t.n.shoot >= 8 },
   { id: 'hit', title: 'Hit a rival', text: 'Put rounds into a rival car. The crosshair flashes when you land a hit.', done: (t) => t.g.combat.stats.dealt - t.dealt0 >= 15 },
   { id: 'reload', title: 'Reload', text: 'Press <kbd>R</kbd> to reload. Ammo is limited: top up between races in the garage.', done: (t) => t.n.reload >= 1 },
-  { id: 'switch', title: 'Swap guns', text: 'Press <kbd>2</kbd> for the rocket launcher. <kbd>1</kbd>-<kbd>3</kbd>, <kbd>Q</kbd> or the mouse wheel swap guns.', done: (t) => t.n.switch >= 1 },
+  { id: 'switch', title: 'Swap guns', text: 'Press <kbd>2</kbd> for the rocket launcher the warden lent you. <kbd>1</kbd>-<kbd>3</kbd>, <kbd>Q</kbd> or the mouse wheel swap guns.', done: (t) => t.n.switch >= 1 },
   { id: 'rocket', title: 'Fire a rocket', text: 'Click to fire a rocket at a rival. Rockets are slow and hit hard, so aim ahead of your target.', done: (t) => t.n.rocket >= 1 },
   { id: 'swerve', title: 'Swerve', text: 'Press <kbd>A</kbd> or <kbd>D</kbd> to order the driver to swerve. Use it to dodge fire or slam into a rival.', done: (t) => t.n.swerve >= 1 },
   { id: 'grenade', title: 'Grenade', text: 'Press <kbd>G</kbd> or <kbd>RMB</kbd> to lob a grenade out of the window. Look higher to throw further.', done: (t) => t.n.throw >= 1 },

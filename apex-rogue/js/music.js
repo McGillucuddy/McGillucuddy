@@ -1,7 +1,9 @@
 'use strict';
-// Menu theme, synthesized live like the rest of the sound: no audio files.
-// Straight synthwave in D minor: four-on-the-floor kick, a gated snare, a big pumping saw bass under a
-// supersaw pad and a 16th-note arpeggio with a dotted echo. Everything but the drums ducks under the kick.
+// Music, synthesized live like the rest of the sound: no audio files.
+// Menu theme: straight synthwave in D minor. A four-on-the-floor kick, a gated snare and a big pumping saw bass,
+// under a supersaw pad and a 16th-note arpeggio with a dotted echo. Everything but the drums ducks under the kick.
+// Race tracks are generated per race (see Music.forRace): the act sets the mood, getting more serious the higher
+// you climb, up to an ethereal choir at the Crown; the race type and its seed vary key, tempo and parts.
 
 const MUSIC = {
   bpm: 104,
@@ -16,13 +18,30 @@ const Music = {
   playing: false,
   bus: null,
 
-  get level() { return 1.1 * (Settings.data.music ?? 0.7); },
+  cfg: null,
+  mult: 1,
+  MENU: { id: 'menu', style: 'menu', bpm: MUSIC.bpm },
 
-  // Call every frame with whether the menu wants music; starts and fades as needed.
-  want(on) {
-    if (on && !this.playing) this.start();
-    else if (!on && this.playing) this.stop();
+  get level() {
+    const race = this.cfg && this.cfg.style !== 'menu';
+    return (race ? 0.75 * (Settings.data.raceMusic ?? 0.6) : 1.1 * (Settings.data.music ?? 0.7)) * this.mult;
   },
+
+  // Call every frame with the track that should be playing (or null) and a volume multiplier;
+  // a new track crossfades in, null fades out.
+  set(cfg, mult) {
+    this.mult = mult ?? 1;
+    if ((cfg && cfg.id) !== (this.cfg && this.cfg.id)) {
+      if (this.playing) this.stop();
+      this.cfg = cfg;
+      if (cfg) this.start();
+      return;
+    }
+    if (this.bus && Math.abs(this.applied - this.level) > 0.001) this.setLevel();
+  },
+
+  // The menu's old switch.
+  want(on) { this.set(on ? this.MENU : null); },
 
   start() {
     Sound.init();
@@ -30,8 +49,10 @@ const Music = {
     if (!c) return;
     this.playing = true;
     if (!this.fx) this.buildFx(c);
+    this.fx.echo.delayTime.setValueAtTime((60 / this.cfg.bpm) * 0.75, c.currentTime);
     this.bus = c.createGain();
     this.bus.gain.value = 0;
+    this.applied = this.level;
     this.bus.gain.setTargetAtTime(this.level, c.currentTime, 0.8);
     this.bus.connect(Sound.master);
     this.makeDuck(c);
@@ -53,7 +74,8 @@ const Music = {
   },
 
   setLevel() {
-    if (this.bus) this.bus.gain.setTargetAtTime(this.level, Sound.ctx.currentTime, 0.05);
+    this.applied = this.level;
+    if (this.bus) this.bus.gain.setTargetAtTime(this.applied, Sound.ctx.currentTime, 0.15);
   },
 
   // The sidechain: bass, pad and arp run through this gain, which dips on every kick.
@@ -112,7 +134,7 @@ const Music = {
   schedule() {
     const c = Sound.ctx;
     if (!this.bus) return;
-    const sixteenth = 60 / MUSIC.bpm / 4;
+    const sixteenth = 60 / this.cfg.bpm / 4, play = this.cfg.style === 'menu' ? this.play : this.playRace;
     // If the page stalled (a big garage rebuild, a background tab), drop the missed steps but stay on the grid,
     // so the beat comes back in time instead of lurching.
     while (this.next < c.currentTime + 0.01) {
@@ -120,7 +142,7 @@ const Music = {
       if (++this.step === 16) { this.step = 0; this.bar++; }
     }
     while (this.next < c.currentTime + 0.5) {
-      this.play(this.bar, this.step, this.next, sixteenth);
+      play.call(this, this.bar, this.step, this.next, sixteenth);
       this.next += sixteenth;
       if (++this.step === 16) { this.step = 0; this.bar++; }
     }
@@ -229,13 +251,13 @@ const Music = {
   },
 
   // Big bass: two detuned saws, saturated, through a snapping low-pass, over a clean sine sub an octave down.
-  bassNote(t, m, dur) {
+  bassNote(t, m, dur, dist) {
     const c = Sound.ctx, f = c.createBiquadFilter(), sh = c.createWaveShaper(), g = c.createGain();
     f.type = 'lowpass'; f.Q.value = 5;
     f.frequency.setValueAtTime(300, t);
     f.frequency.exponentialRampToValueAtTime(1500, t + 0.015);
     f.frequency.exponentialRampToValueAtTime(320, t + dur);
-    sh.curve = this.curve;
+    sh.curve = dist ? this.curveFor(dist) : this.curve;
     this.env(g, t, 0.005, 0.22, dur);
     f.connect(sh); sh.connect(g); g.connect(this.duck);
     for (const det of [-8, 8]) {
@@ -251,13 +273,14 @@ const Music = {
   },
 
   // Supersaw pad: three detuned saws a note, a quick swell, held for the bar.
-  pad(t, notes, dur) {
+  pad(t, notes, dur, bright, vol) {
+    bright = bright || 1; vol = vol ?? 1;
     const c = Sound.ctx, f = c.createBiquadFilter(), g = c.createGain();
-    f.type = 'lowpass'; f.frequency.value = 1700; f.Q.value = 0.7;
+    f.type = 'lowpass'; f.frequency.value = 1700 * bright; f.Q.value = 0.7;
     g.gain.value = 0;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.045, t + 0.35);
-    g.gain.setValueAtTime(0.045, t + dur - 0.15);
+    g.gain.linearRampToValueAtTime(0.045 * vol, t + 0.35);
+    g.gain.setValueAtTime(0.045 * vol, t + dur - 0.15);
     g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.25);
     f.connect(g); g.connect(this.duck);
     this.send(g, 0.7);
@@ -280,5 +303,165 @@ const Music = {
     o.connect(f); o2.connect(f); f.connect(g); g.connect(this.duck);
     this.send(g, 0.4, 0.55);
     o.start(t); o2.start(t); o.stop(t + 0.26); o2.stop(t + 0.26);
+  },
+
+  // Saturation curves by drive, made once each.
+  curveFor(k) {
+    this.curves = this.curves || {};
+    if (!this.curves[k]) { const cv = new Float32Array(1024); for (let i = 0; i < 1024; i++) cv[i] = Math.tanh(((i / 511.5) - 1) * k); this.curves[k] = cv; }
+    return this.curves[k];
+  },
+
+  // ---------- Race tracks ----------
+
+  // A race's track. Act 0-3 sets the mood; elites and bosses push harder; the seed picks key, tempo and parts.
+  forRace(act, type, seed, final) {
+    const r = mulberry32((seed ^ 0x5eed) >>> 0), pick = (a) => a[Math.floor(r() * a.length)];
+    const AEOLIAN = [0, 2, 3, 5, 7, 8, 10], PHRYGIAN = [0, 1, 3, 5, 7, 8, 10], HARMONIC = [0, 2, 3, 5, 7, 8, 11], DORIAN = [0, 2, 3, 5, 7, 9, 10];
+    const boss = type === 'boss', elite = type === 'elite';
+    const P = [
+      // Act I, the Undercity: dark, gritty synthwave. Four on the floor, a dirty eighth-note bass.
+      { bpm: [100, 104, 106], scale: pick([AEOLIAN, DORIAN]), progs: [[0, 5, 3, 4], [0, 3, 4, 0], [0, 5, 6, 4], [0, 6, 5, 4]], drums: 'four', hats: 8, bass: 8, dist: 2.4,
+        arp: pick([[0, null, 1, null, 2, null, 3, null, 2, null, 1, null, 2, null, 3, null], [0, null, null, 2, null, null, 1, null, 3, null, null, 2, null, null, 1, null]]), arpOct: 0,
+        pad: 0.8, padBright: 0.6, bells: 0, choir: 0, toll: false, toms: false },
+      // Act II, the Stacks: harder and faster, a Phrygian edge, galloping sixteenth bass and fills.
+      { bpm: [112, 116, 118], scale: PHRYGIAN, progs: [[0, 1, 0, 6], [0, 5, 1, 0], [0, 6, 5, 1], [0, 3, 1, 0]], drums: 'drive', hats: 16, bass: 16, dist: 3.2,
+        arp: [0, 1, 2, 1, 3, 1, 2, 1, 0, 1, 2, 1, 3, 2, 1, 2], arpOct: 0, pad: 0.7, padBright: 0.8, bells: 0, choir: 0, toll: false, toms: true },
+      // Act III, the Gilded Terraces: serious and cinematic. Harmonic minor (a major V that pulls home), bells,
+      // string-like pads, the first breath of a choir.
+      { bpm: [118, 120, 122], scale: HARMONIC, progs: [[0, 5, 3, 4], [0, 3, 5, 4], [0, 5, 1, 4]], drums: 'four', hats: 16, bass: 8, dist: 1.8,
+        arp: [0, 2, 1, 3, 0, 2, 1, 3, 0, 2, 1, 3, 2, 1, 2, 3], arpOct: 0, pad: 1, padBright: 1.05, bells: 0.7, choir: 0.5, toll: false, toms: true },
+      // Act IV, the Crown: ethereal. Half-time drums, a choir of the damned singing for the rich, celesta bells,
+      // a sub drone and a great bell tolling every four bars.
+      { bpm: [86, 88, 90], scale: AEOLIAN, progs: [[0, 5, 2, 6], [0, 3, 5, 4], [0, 5, 3, 6]], drums: 'half', hats: 8, bass: 'drone', dist: 1.2,
+        arp: [0, null, null, 2, null, null, 3, null, null, 1, null, null, 2, null, 3, null], arpOct: 12, pad: 0.5, padBright: 0.9, bells: 1, choir: 1.1, toll: true, toms: true },
+    ][Math.min(3, act)];
+    const root = 60 + pick([2, 4, 5, 0, 7]); // D, E, F, C or G
+    const prog = pick(P.progs), sc = P.scale;
+    const deg = (d) => sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
+    const chords = prog.map((d) => [deg(d), deg(d + 2), deg(d + 4)].map((n) => { n += root; while (n > root + 10) n -= 12; return n; }).sort((a, b) => a - b));
+    const roots = prog.map((d) => { let n = root - 24 + sc[d % 7]; while (n > 45) n -= 12; return n; });
+    // The choir sings the chord low with an added ninth; at the Crown a semitone grinds against it now and then.
+    const choirs = prog.map((d, i) => { const c = chords[i]; return [c[0] - 12, c[1] - 12, c[2] - 12, root + deg(d + 1) - (act >= 3 && i === 3 ? 11 : 0)]; });
+    let bpm = pick(P.bpm) + (boss ? 6 : elite ? 3 : 0);
+    if (final) bpm += 4;
+    return Object.assign({}, P, {
+      id: 'race:' + act + ':' + type + ':' + seed, style: 'race', bpm, chords, roots, choirs,
+      intensity: boss ? 2 : elite ? 1 : 0, toms: P.toms || boss, act3: act >= 3,
+      choir: P.choir + (final ? 0.4 : boss && act >= 2 ? 0.2 : 0),
+      fourClimax: act >= 3 && (boss || final), // the final race lets the kick loose under the choir
+    });
+  },
+
+  // Bars 0-3 intro; then a 20-bar loop: groove A (8), full B (8), breakdown (4).
+  playRace(bar, s, t, dt) {
+    const C = this.cfg, ch = bar % 4, intro = bar < 4, loop = intro ? -1 : (bar - 4) % 20;
+    const B = loop >= 8 && loop < 16, brk = loop >= 16;
+    const chord = C.chords[ch], root = C.roots[ch], tones = [...chord, chord[0] + 12];
+    if (s === 0) {
+      if (C.pad) this.pad(t, chord, dt * 16, C.padBright * (brk ? 0.7 : 1), C.pad);
+      if (C.choir && (intro || B || brk || C.act3)) this.choir(t, C.choirs[ch], dt * 16, C.choir * (B ? 1 : 0.75), ch % 2 ? 'oo' : 'ah');
+      if (C.toll && ch === 0) this.toll(t, root);
+    }
+    const bright = intro ? 0.3 + bar * 0.1 : brk ? 0.55 : B ? 1 : 0.75;
+    const ap = C.arp[s];
+    if (ap != null) {
+      if (C.bells && (B || brk || C.toll)) this.bell(t, tones[ap] + C.arpOct, 0.05 * C.bells);
+      else this.arpNote(t, tones[ap] + C.arpOct + (B && C.hats === 16 && s % 4 === 3 ? 12 : 0), bright);
+    }
+    if (C.bass === 'drone' && s === 0 && !intro) this.drone(t, root, dt * 16);
+    if (intro || brk) {
+      if (s % 4 === 2 && C.drums !== 'half') this.hat(t, 0.04, false);
+      if (brk && loop === 19 && s === 0) this.riser(t, dt * 16);
+      return;
+    }
+    if ((loop === 0 || loop === 8) && s === 0) this.crash(t);
+    // Drums.
+    const four = C.drums === 'four' || C.drums === 'drive' || (C.fourClimax && B);
+    if (four) {
+      if (s % 4 === 0) this.kick(t);
+      if (C.drums === 'drive' && ch === 3 && s === 14) this.kick(t);
+      if (s === 4 || s === 12) this.snare(t);
+    } else { // half time: kick on one, snare on three, a pickup kick
+      if (s === 0 || (s === 10 && ch % 2)) this.kick(t);
+      if (s === 8) this.snare(t);
+    }
+    if (C.hats === 16 && (B || C.intensity)) this.hat(t, s % 2 ? 0.045 : s % 4 === 2 ? 0.085 : 0.055, s === 14);
+    else if (s % 2 === 0) this.hat(t, s % 4 === 2 ? 0.08 : 0.045, s === 14);
+    if (C.toms && ch === 3 && loop % 8 === 7 && s >= 12) this.tom(t, 52 - (s - 12) * 4);
+    if (C.intensity >= 2 && s % 4 === 2 && B) this.tom(t, 40, 0.5); // boss races: a pounding off-beat floor tom
+    // Bass.
+    if (C.bass === 16) this.bassNote(t, root + (s % 4 === 2 ? 12 : 0), dt * 0.9, C.dist);
+    else if (C.bass === 8 && s % 2 === 0) this.bassNote(t, root + (B && (s === 6 || s === 14) ? 12 : 0), dt * 1.8, C.dist);
+  },
+
+  // FM bell: a sine carrier with an inharmonic modulator, ringing down into the reverb.
+  bell(t, m, vol, dur) {
+    const c = Sound.ctx, car = c.createOscillator(), mod = c.createOscillator(), mg = c.createGain(), g = c.createGain();
+    dur = dur || 2.2;
+    car.frequency.value = this.hz(m); mod.frequency.value = this.hz(m) * 3.5;
+    mg.gain.setValueAtTime(this.hz(m) * 2.2, t);
+    mg.gain.exponentialRampToValueAtTime(this.hz(m) * 0.1, t + dur * 0.6);
+    mod.connect(mg); mg.connect(car.frequency);
+    this.env(g, t, 0.004, vol, dur);
+    car.connect(g); g.connect(this.duck);
+    this.send(g, 1.1, 0.4);
+    car.start(t); mod.start(t); car.stop(t + dur + 0.1); mod.stop(t + dur + 0.1);
+  },
+
+  // A great bell, very low and long, tolling the start of each phrase.
+  toll(t, m) {
+    this.bell(t, m + 12, 0.12, 6);
+    this.bell(t, m + 24.1, 0.05, 4.5); // a slightly sour upper partial
+  },
+
+  tom(t, m, vol) {
+    const c = Sound.ctx, o = c.createOscillator(), g = c.createGain();
+    o.frequency.setValueAtTime(this.hz(m + 7), t);
+    o.frequency.exponentialRampToValueAtTime(this.hz(m), t + 0.12);
+    this.env(g, t, 0.003, 0.5 * (vol || 1), 0.35);
+    o.connect(g); g.connect(this.bus);
+    this.send(g, 0.8);
+    o.start(t); o.stop(t + 0.42);
+  },
+
+  // A long sub note under the half-time Crown tracks.
+  drone(t, m, dur) {
+    const c = Sound.ctx, o = c.createOscillator(), o2 = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+    o.frequency.value = this.hz(m - 12); o2.type = 'sawtooth'; o2.frequency.value = this.hz(m); o2.detune.value = 5;
+    f.type = 'lowpass'; f.frequency.value = 260;
+    g.gain.value = 0;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.3, t + 0.3);
+    g.gain.setValueAtTime(0.3, t + dur - 0.2);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.1);
+    o.connect(g); o2.connect(f); f.connect(g); g.connect(this.duck);
+    o.start(t); o2.start(t); o.stop(t + dur + 0.2); o2.stop(t + dur + 0.2);
+  },
+
+  // Choir: detuned saw voices through vowel formant filters, with a slow vibrato and a long swell. 'ah' or 'oo'.
+  choir(t, notes, dur, vol, vowel) {
+    const c = Sound.ctx, out = c.createGain(), mix = c.createGain();
+    const F = vowel === 'oo' ? [[350, 9, 1], [700, 10, 0.4], [2500, 12, 0.12]] : [[780, 8, 1], [1150, 10, 0.55], [2850, 12, 0.22]];
+    for (const [fr, q, amp] of F) {
+      const bp = c.createBiquadFilter(), fg = c.createGain();
+      bp.type = 'bandpass'; bp.frequency.value = fr; bp.Q.value = q; fg.gain.value = amp;
+      mix.connect(bp); bp.connect(fg); fg.connect(out);
+    }
+    out.gain.value = 0;
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.linearRampToValueAtTime(0.5 * vol, t + Math.min(1.2, dur * 0.4)); // the formant filters eat most of the energy, hence the big gain
+    out.gain.setValueAtTime(0.5 * vol, t + dur - 0.25);
+    out.gain.linearRampToValueAtTime(0.0001, t + dur + 0.7);
+    out.connect(this.bus);
+    this.send(out, 2.4);
+    for (const n of notes) for (let v = 0; v < 3; v++) {
+      const o = c.createOscillator(), lfo = c.createOscillator(), lg = c.createGain();
+      o.type = 'sawtooth'; o.frequency.value = this.hz(n); o.detune.value = (v - 1) * 11 + (Math.random() - 0.5) * 6;
+      lfo.frequency.value = 4.6 + Math.random() * 1.2; lg.gain.value = this.hz(n) * 0.006;
+      lfo.connect(lg); lg.connect(o.frequency);
+      o.connect(mix);
+      o.start(t); lfo.start(t); o.stop(t + dur + 0.8); lfo.stop(t + dur + 0.8);
+    }
   },
 };
