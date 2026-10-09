@@ -1255,6 +1255,7 @@ const Proto = {
         Sound.play(ev);
         if (this.cockpit) this.cockpit.onEvent(ev);
         if (this.tutorial) this.tutorial.onEvent(ev);
+        if (ev.type === 'crewHit' || ev.type === 'crewKill') this.hitMark = { t: ev.type === 'crewKill' ? 0.7 : 0.3, kill: ev.type === 'crewKill' };
       }
       combat.events.length = 0;
     }
@@ -1309,6 +1310,15 @@ const Proto = {
       ctx.clearRect(0, 0, W, H);
       if (live) WeatherGlass.draw(ctx, this.cockpit.wx, W, H, this.state === 'race' ? dt : 0, race.player.speed / 500);
       if (live) drawCockpitHUD(ctx, this, W, H, this.time);
+      if (live && this.hitMark && this.hitMark.t > 0) { // a hit marker: you got someone through the glass
+        const hm = this.hitMark, a = Math.min(1, hm.t / 0.2), r0 = hm.kill ? 10 : 7, r1 = hm.kill ? 22 : 14;
+        hm.t -= this.state === 'race' ? dt : 0;
+        ctx.strokeStyle = hm.kill ? `rgba(255,210,63,${a})` : `rgba(255,90,70,${a})`;
+        ctx.lineWidth = hm.kill ? 3 : 2;
+        ctx.beginPath();
+        for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { ctx.moveTo(W / 2 + sx * r0, H / 2 + sy * r0); ctx.lineTo(W / 2 + sx * r1, H / 2 + sy * r1); }
+        ctx.stroke();
+      }
       if (this.state === 'race' && !this.locked && !this.noLock) {
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(0, H / 2 - 40, W, 80);

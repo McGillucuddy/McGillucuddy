@@ -57,6 +57,11 @@ Big guns punch the view. A brief ragged muzzle flame flickers light over your ha
 - **Obstacles:** concrete jersey barriers, tyre stacks (they scatter if you hit them hard), burnt-out wrecks, and red barrel clusters.
   Barrels explode when shot or rammed, set off any barrels nearby, and hurt any car in the blast. Clear an obstacle in the air and you sail over it.
 - **AI:** drivers steer round obstacles, and some go out of their way to hit the ramps.
+- **Rival crews:** every rival car has a driver at the wheel, and armed cars carry a gunner beside them. You can see them through the glass.
+  - **Driver:** a shot whose path passes their seat hits them. A hit makes the car flinch into a swerve. Kill the driver and the car coasts on, steering itself into a wall: it's out of the race and counts as your wreck.
+  - **Gunner:** hits break their lock, and killing them silences the car's weapon.
+  - **Bosses:** they wear helmets, so their crews take several times the punishment.
+  - **Feedback:** a red X on the crosshair marks a crew hit, and a gold one a kill.
 - **Physics:** cars have a height and a body on springs. The nose dips under braking and lifts under power, and the body leans out of turns.
   Braking loads the front tyres for a sharper turn-in.
 

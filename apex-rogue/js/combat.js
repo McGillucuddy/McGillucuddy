@@ -341,6 +341,7 @@ class Combat {
       }
     }
     for (const c of race.cars) {
+      if (c.gFlinchT > 0) c.gFlinchT -= dt;
       if (c.empT > 0) c.empT -= dt;
       if (c.blindT > 0) c.blindT -= dt;
       if (c.markT > 0) c.markT -= dt;
@@ -398,7 +399,7 @@ class Combat {
   updateRivals(dt) {
     const p = this.player;
     for (const c of this.race.cars) {
-      if (!c.weapon || c === p) continue;
+      if (!c.weapon || c === p || c.gunnerDead) continue; // a dead gunner fires no more
       const w = c.wpn;
       const disabled = c.hp <= 0 || c.finished || p.finished || c.empT > 0 || c.blindT > 0;
       w.cd -= dt;
@@ -535,6 +536,8 @@ class Combat {
         pr.dead = true;
         if (pr.type === 'rocket') this.explode(pr.x, pr.y, pr.radius, pr.dmg, pr.owner, pr);
         else {
+          const role = this.crewHit(c, pr); // through the glass and into the driver or gunner?
+          if (role) this.woundCrew(c, role, pr.dmg * (pr.type === 'harpoon' ? 2.5 : 1), pr.owner);
           this.hitCar(c, pr.dmg, pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, pr.type === 'flame' ? 'fire' : 'bullet');
           if (pr.puncture && c !== pr.owner) { // nails in the tyres: each one drags a little more
             c.slowDrag = Math.min(2.2, (c.slowT > 0 ? c.slowDrag : 0) + pr.puncture * 0.25);
@@ -671,6 +674,45 @@ class Combat {
   }
 
   // ang: world angle from the victim toward the damage source.
+  // Rival crews sit behind the glass: the driver on the left, a gunner on the right in armed cars. A shot whose
+  // line passes close to a seat on its way through the car hits whoever's in it.
+  crewHit(c, pr) {
+    if (c === this.player || c.hp <= 0 && c.driverDead || !['bullet', 'harpoon'].includes(pr.type)) return null;
+    const sp = Math.hypot(pr.vx, pr.vy) || 1, dx = pr.vx / sp, dy = pr.vy / sp, ch = Math.cos(c.heading), sh = Math.sin(c.heading);
+    for (const role of ['driver', 'gunner']) {
+      if (role === 'driver' ? c.driverDead : !c.weapon || c.gunnerDead) continue;
+      const side = role === 'driver' ? -4.2 : 4.2, sx = c.x - ch * 1.5 - sh * side, sy = c.y - sh * 1.5 + ch * side;
+      const rx = sx - pr.x, ry = sy - pr.y, along = rx * dx + ry * dy;
+      if (along < -CAR_RADIUS || along > CAR_RADIUS * 2) continue;
+      if (Math.abs(rx * dy - ry * dx) < 3.6) return role;
+    }
+    return null;
+  }
+
+  // A hit on the crew. Drivers flinch the car into a swerve; gunners lose their lock. Kill the driver and the car
+  // is out (it coasts on, steering itself into a wall); kill the gunner and its weapon falls silent.
+  woundCrew(c, role, dmg, owner) {
+    const p = this.player;
+    if (!c.crewHp) c.crewHp = { driver: c.isBoss ? 45 : 16, gunner: c.isBoss ? 30 : 10 }; // bosses wear helmets
+    c.crewHp[role] -= dmg;
+    if (role === 'driver') { c.flinchT = 0.5; c.spinT = Math.max(c.spinT, 0.16); c.spinDir = Math.random() < 0.5 ? -1 : 1; }
+    else { c.gFlinchT = 0.5; if (c.wpn) c.wpn.lock = 0; }
+    if (c.crewHp[role] > 0) {
+      this.events.push({ type: 'crewHit', role });
+      if (owner === p) this.race.message(role === 'driver' ? 'Driver hit!' : 'Gunner hit!', '#ff8a6a');
+      return;
+    }
+    this.events.push({ type: 'crewKill', role });
+    if (role === 'gunner') { c.gunnerDead = true; if (owner === p) this.race.message(`${shortName(c)}'s gunner is down!`, '#ffd23f', true); return; }
+    c.driverDead = true;
+    c.deadSteer = (Math.random() - 0.5) * 0.5;
+    if (c.hp > 0) {
+      c.hp = 0;
+      if (owner === p) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.cloverRefill(); }
+    }
+    if (owner === p) this.race.message(`${shortName(c)}'s driver is down!`, '#ffd23f', true);
+  }
+
   hitCar(c, dmg, owner, ang, slow, kind) {
     const p = this.player;
     if (c !== p && c.markT > 0) dmg *= 1.2; // tracer-marked

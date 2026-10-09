@@ -108,6 +108,8 @@ const Sound = {
         if (ev.w === 'pistol') { this.noiseBurst(0.1, 1600, 0.2, 420); this.tone(150, 0.05, 'square', 0.06); } // a sharper, heavier crack
         else this.noiseBurst(0.06, 2200, 0.12, 900);
         break;
+      case 'crewHit': this.noiseBurst(0.07, 900, 0.22, 260); this.tone(220, 0.06, 'square', 0.04); break;
+      case 'crewKill': this.noiseBurst(0.12, 700, 0.3, 200); this.tone(330, 0.09, 'triangle', 0.1); setTimeout(() => this.tone(220, 0.14, 'triangle', 0.1), 90); break;
       case 'jump': this.noiseBurst(0.35, 600, 0.12, 1800); break;
       case 'land': this.noiseBurst(0.3, 160, Math.min(0.6, 0.15 + ev.power / 900), 60); this.tone(60, 0.2, 'sine', Math.min(0.3, ev.power / 1500)); break;
       case 'scatter': this.noiseBurst(0.25, 220, 0.3, 90); break;

@@ -401,7 +401,7 @@ class CockpitView {
       // Rivals: every one a different heap. Bosses drive their own signature car.
       const k = this.carMeshes.size;
       const model = car.bossLook
-        ? Models.car(Object.assign({ color: car.color, accent: car.accent, weapon: car.weapon, number: 1 }, car.bossLook))
+        ? Models.car(Object.assign({ color: car.color, accent: car.accent, weapon: car.weapon, number: 1, crew: { gunner: !!car.weapon, seed: k * 13 + 5, helmet: true } }, car.bossLook))
         : Models.car(this.rivalLook(car, k));
       if (car.bossLook) model.scale.setScalar(1.08);
       g.add(model);
@@ -427,7 +427,7 @@ class CockpitView {
     const style = styles[(k + Math.floor(rng() * styles.length)) % styles.length];
     const roof = car.weapon === 'rocket' ? 'none' : pick(['stock', 'stock', 'none', 'rails', 'rack', 'lightbar', 'cage']);
     return {
-      style, color: car.color, accent: car.accent, weapon: car.weapon, number: 10 + ((k * 37) % 89),
+      style, color: car.color, accent: car.accent, weapon: car.weapon, number: 10 + ((k * 37) % 89), crew: { gunner: !!car.weapon, seed: (this.rivalSeed || 7) + k * 13 },
       bumper: pick(['stock', 'stock', 'pushbar', 'bullbar', 'plow']), roof,
       twoTone: pick(['none', 'none', 'roof', 'hood', 'lower']), paint2: pick(['#2a2a2e', '#d8cfb0', '#6f6f68', '#c9a443', '#5a6b3a']),
       finish: pick(['gloss', 'matte', 'rusty', 'patched', 'gloss']), grime: pick(['clean', 'dirty', 'dirty', 'filthy']),
@@ -1049,6 +1049,7 @@ class CockpitView {
       }
       this.carMotion(car, m, dt, t);
       this.updateDamage(car, m, dt);
+      this.animateCrew(car, m, dt, t);
       const flash = car.hitFlash > 0;
       if (car.burnT > 0 && this.puffs.length < this.pools.puff.length && Math.random() < 0.5) this.puffs.push({ x: car.x + (Math.random() - 0.5) * 20, y: car.y + (Math.random() - 0.5) * 12, t: 0, fire: true });
       m.bodyMat.emissive.set(flash ? '#ffffff' : car.burnT > 0 && Math.random() < 0.6 ? '#ff4a0a' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
@@ -1127,6 +1128,21 @@ class CockpitView {
 
   // Body roll in corners, nose dive under braking, squat on launch, suspension jiggle, a jolt when hit,
   // and a hop-and-spin the moment a car is wrecked. Damaged cars smoke; exhausts puff under hard throttle.
+  // The crew through the glass: glancing about, jolting when hit, slumped over once they're dead.
+  animateCrew(car, m, dt, t) {
+    const crew = m.model.userData.crew;
+    if (!crew) return;
+    for (const role of ['driver', 'gunner']) {
+      const f = crew[role];
+      if (!f) continue;
+      const u = f.userData, dead = role === 'driver' ? car.driverDead : car.gunnerDead, fl = (role === 'driver' ? car.flinchT : car.gFlinchT) || 0;
+      u.slump = dead ? Math.min(1, (u.slump || 0) + dt * 2.5) : 0;
+      const k = u.slump * u.slump, side = role === 'driver' ? 1 : -1;
+      u.torso.rotation.set(k * 0.35 * side, 0, -k * 0.75 + (fl > 0 ? Math.sin(fl * 38) * 0.12 : 0)); // over the wheel / against the door
+      u.head.rotation.set((fl > 0 ? Math.sin(fl * 29) * 0.3 : Math.sin(t * 0.9 + m.mo.seed + (role === 'gunner' ? 2 : 0)) * 0.12) + k * 0.5 * side, 0, -k * 0.6);
+    }
+  }
+
   carMotion(car, m, dt, t) {
     const mo = m.mo;
     if (dt > 0) {

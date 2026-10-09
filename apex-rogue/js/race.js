@@ -128,6 +128,11 @@ class Race {
         inp = car.autopilot.update(this, dt);
         inp.throttle *= 0.6;
       }
+      if (car.driverDead) inp = { throttle: 0, brake: 0.2, steer: car.deadSteer, handbrake: false, nitro: false }; // nobody at the wheel
+      else if (car.flinchT > 0) { // the driver's been hit: a jerk of the wheel, a lift off the throttle
+        car.flinchT -= dt;
+        inp = Object.assign({}, inp, { steer: clamp(inp.steer + Math.sin(car.flinchT * 30) * 0.8, -1, 1), throttle: inp.throttle * 0.4 });
+      }
       car.input = inp;
       if (tr.ramps && tr.ramps.length) this.rampCheck(car);
       car.step(inp, dt, bio.grip);

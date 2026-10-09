@@ -1126,6 +1126,20 @@ const Models = {
         gg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       }
       g.add(...house);
+      // A crew you can see through the glass (rivals): the driver on the left, a gunner beside them if armed.
+      if (opts.crew) {
+        glass.transparent = true; glass.opacity = 0.42; glass.depthWrite = false;
+        const hx = cab[1][0] - 0.35 * (cab[1][0] - cab[2][0]), hipY = Math.max(belt - 2.6, roofY - 6.3);
+        const crew = {};
+        for (const role of ['driver', 'gunner']) {
+          if (role === 'gunner' && !opts.crew.gunner) continue;
+          const f = Models.crewFigure(role, opts.crew.seed + (role === 'gunner' ? 7 : 0), opts.crew.helmet);
+          f.position.set(hx - 0.3, hipY, (role === 'driver' ? -1 : 1) * cw * 0.26);
+          g.add(f);
+          crew[role] = f;
+        }
+        g.userData.crew = crew;
+      }
       // Wipers at the base of the windscreen.
       for (const z of [-3.2, 1.6]) g.add(LP.beam([cab[0][0] - 0.2, belt + 0.25, z], [cab[0][0] - 1.6, belt + 1.1, z + 3.4], 0.15, dark));
     }
@@ -2895,6 +2909,42 @@ const Models = {
   weapon(id) {
     return id === 'pistol' ? Models.pistol() : id === 'shotgun' ? Models.shotgun() : id === 'rocket' ? Models.launcher() : id === 'flare' ? Models.flareGun()
       : id === 'nailgun' ? Models.nailGun() : id === 'flamer' ? Models.flamer() : id === 'harpoon' ? Models.harpoonGun() : Models.smg();
+  },
+
+  // ---------- Crew: the people in the rival cars ----------
+
+  // A seated figure in a prison jumpsuit, hands on the wheel (driver) or on a gun (gunner). Origin at the hips,
+  // +x forward. The torso and head are their own pivots so the 3D view can make them flinch and slump.
+  crewFigure(role, seed, helmet) {
+    const r = mulberry32((seed * 7919) >>> 0);
+    const g = new THREE.Group();
+    const suit = LP.mat(['#d96a1e', '#c85a14', '#d9a01e', '#6f6f68'][Math.floor(r() * 4)], { roughness: 0.95 });
+    const skin = LP.mat(['#e0b89a', '#c48a64', '#8a5a3a', '#5a3a26', '#f0cdb0'][Math.floor(r() * 5)], { roughness: 0.8 });
+    const dark = LP.mat('#1c1c1c', { roughness: 0.7 }), hatC = LP.mat(['#2a2a2e', '#7a1e1a', '#2a4a6a', '#3a4a2a'][Math.floor(r() * 4)], { roughness: 0.9 });
+    const key = 'crew:' + role + ':' + (helmet ? 'h' : 'n');
+    const hv = Math.floor(r() * 3); // which headgear
+    const body = new Sculpt(key + ':body', 0.12), head = new Sculpt(key + ':head:' + hv, 0.1);
+    body.add(suit, SDF.box([1.8, 3.2, 2.7], 0.75, [0, 1.8, 0], [0, 0, 0.12]), 0.4); // torso, leaning back a touch
+    body.add(suit, SDF.box([2.6, 1.2, 2.5], 0.5, [0.9, 0.1, 0]), 0.4); // lap
+    const hands = role === 'driver' ? [[2.9, 2.9, -0.85], [2.9, 2.9, 0.85]] : [[2.4, 2.2, 0.2], [1.6, 2.0, -0.6]];
+    for (const [k, sd] of [[0, -1], [1, 1]]) {
+      const sh = [0.1, 3.0, sd * 1.25], el = [1.4, 2.2, sd * 1.45], h = hands[k];
+      body.add(suit, SDF.path([sh, el, h], 0.42), 0.25); // arm
+      body.add(skin, SDF.ellipsoid([0.42, 0.36, 0.36], h), 0.15); // hand
+    }
+    if (role === 'driver') body.add(dark, SDF.torus(1.25, 0.16, [3.1, 3.0, 0], [0, Math.PI / 2 - 0.35, 0]), 0.05); // steering wheel
+    else body.add(dark, SDF.box([2.6, 0.5, 0.4], 0.12, [2.6, 2.4, 0]), 0.1); // the gun
+    body.add(skin, SDF.cyl(0.42, 0.7, 'y', 0.15, [0.15, 3.6, 0]), 0.2); // neck
+    head.add(skin, SDF.ellipsoid([1.0, 1.15, 0.92], [0, 0.95, 0]), 0.2);
+    if (helmet) head.add(dark, SDF.ellipsoid([1.15, 1.0, 1.05], [-0.1, 1.45, 0]), 0.15); // a boss's helmet
+    else if (hv > 0) head.add(hatC, hv === 1 ? SDF.ellipsoid([1.05, 0.62, 0.98], [-0.08, 1.6, 0]) : SDF.box([2.0, 0.42, 1.95], 0.2, [-0.05, 1.55, 0]), 0.2); // beanie, bandana, or a shaved head
+    head.add(dark, SDF.box([0.25, 0.22, 1.5], 0.08, [0.9, 1.05, 0]), 0.05); // dark glasses
+    const torso = new THREE.Group(); g.add(torso);
+    body.build(torso);
+    const hg = new THREE.Group(); hg.position.set(0.15, 3.9, 0); torso.add(hg);
+    head.build(hg);
+    g.userData = { torso, head: hg };
+    return g;
   },
 
   // ---------- Track features: ramps and obstacles (local +x runs along the track) ----------
