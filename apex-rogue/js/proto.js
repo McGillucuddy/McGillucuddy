@@ -146,6 +146,10 @@ const Proto = {
       if (e.target.id === 'inmateInput') this.action('cosmetic', 'inmate:' + e.target.value);
     });
 
+    // Browsers hold sound back until the first click or key; wake it then so the menu theme can start.
+    const wake = () => Sound.resume();
+    window.addEventListener('pointerdown', wake);
+    window.addEventListener('keydown', wake);
     if (/[?&]run\b/.test(location.search)) this.newRun(); // prototype.html?run skips the menu
     else this.showTitle();
     this.last = performance.now();
@@ -316,8 +320,8 @@ const Proto = {
     }
     this.setUI(`<div class="screen titlescreen g3d">
       <div class="t-menu">
-        <h1 class="t-logo">APEX<span>ROGUE</span></h1>
-        <p class="t-tag">Race your way out. Three strikes and you go back to the cell.</p>
+        <h1 class="t-logo"><small>Cellblock 9 presents</small>DEATH ROW<span>DERBY</span></h1>
+        <p class="t-tag">Win the Crown and walk free. Three strikes and you go back to the cell.</p>
         ${from ? `<button class="btn primary big" data-action="continue">Continue ▶<small>${where}</small></button>` : ''}
         <button class="btn ${from ? '' : 'primary big'}" data-action="title-new">New run</button>
         <button class="btn" data-action="settings">Settings</button>
@@ -763,9 +767,10 @@ const Proto = {
       el.addEventListener('input', (e) => {
         if (e.target.id === 'setSens') Settings.data.sens = +e.target.value;
         if (e.target.id === 'setVol') Settings.data.volume = +e.target.value;
+        if (e.target.id === 'setMusic') Settings.data.music = +e.target.value;
         Settings.save();
         const l = el.querySelector(`[data-val="${e.target.id}"]`);
-        if (l) l.textContent = e.target.id === 'setSens' ? Settings.data.sens.toFixed(2) + 'x' : Math.round(Settings.data.volume * 100) + '%';
+        if (l) l.textContent = e.target.id === 'setSens' ? Settings.data.sens.toFixed(2) + 'x' : Math.round(Settings.data[e.target.id === 'setVol' ? 'volume' : 'music'] * 100) + '%';
       });
     }
     const d = Settings.data, opt = (k, v, label) => `<button class="opt ${d.cabinSway === v ? 'on' : ''}" data-set="${k}:${v}">${label}</button>`;
@@ -779,6 +784,8 @@ const Proto = {
       <input type="range" id="setSens" min="0.3" max="2.5" step="0.05" value="${d.sens}">
       <h3>Volume <small data-val="setVol">${Math.round(d.volume * 100)}%</small></h3>
       <input type="range" id="setVol" min="0" max="1" step="0.05" value="${d.volume}">
+      <h3>Menu music <small data-val="setMusic">${Math.round(d.music * 100)}%</small></h3>
+      <input type="range" id="setMusic" min="0" max="1" step="0.05" value="${d.music}">
       <div class="opts" style="margin-top:8px"><button class="opt ${Sound.muted ? 'on' : ''}" data-set="mute:1">${Sound.muted ? 'Sound muted (M)' : 'Mute (M)'}</button></div>
       <h3>Look</h3>
       <div class="opts"><button class="opt ${PSX.enabled ? 'on' : ''}" data-set="retro:1">Retro filter: ${PSX.enabled ? 'On' : 'Off'} (F)</button></div>
@@ -1051,6 +1058,7 @@ const Proto = {
       else if (this.view === 'cockpit' && !this.locked && !this.noLock) Sound.engine(0, 0, false, false); // wait for a click
       else this.updateRace(dt);
     }
+    Music.want(this.state === 'title');
     this.render(dt);
     this.renderPreview(dt);
     Input.endFrame();

@@ -1,4 +1,6 @@
-# Apex Rogue
+# Death Row Derby
+
+*(Formerly Apex Rogue. The folder and save keys keep the old name, so existing saves still load.)*
 
 A top-down **roguelite racing game** that runs in the browser. Pick a car, race AI rivals across
 procedurally generated tracks, upgrade between races, and try to survive all 8 races to beat the
@@ -21,6 +23,10 @@ It opens on a **start menu** over the garage, with your car swinging slowly on t
 - **New run**, which asks before throwing away a run in progress;
 - **Settings** and **How to play**;
 - **Exit**. Browsers only let a page close a tab it opened itself, so otherwise Exit shows a "lights out" screen.
+
+The menu has its own theme, synthesized live in `js/music.js` like the rest of the sound (there are no audio files). It's a slow industrial piece in D minor:
+a far-off prison siren and pipe clanks, then kick, a driving bass, and a saturated lead over Dm–B♭–Gm–A. Browsers hold sound back until your first click or key press.
+The music fades out when you leave the menu. **Settings → Menu music** sets its volume; the main volume and mute apply too.
 
 You can reach the menu from the route sheet and garage (`☰ Menu`), the pause screen, the race briefing, and the end screens.
 `Esc` backs out of a menu panel, or returns to your run. `prototype.html?run` skips the menu and starts a run straight away.
@@ -261,7 +267,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/upgrades.js` | Cars, upgrade cards, perks, shop pricing |
 | `js/campaign.js` | Run structure, route choices, opponents, prize money |
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
-| `js/input.js`, `js/audio.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound |
+| `js/input.js`, `js/audio.js`, `js/music.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound, the menu theme |
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |

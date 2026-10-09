@@ -445,9 +445,13 @@ body.proto #ui { z-index: 2; }
 .g-settings.g-menu { margin-left: 0; }
 .titlescreen .t-menu { position: fixed; top: 0; bottom: 0; left: 0; width: 420px; max-width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: stretch;
   padding: 24px 40px; background: linear-gradient(90deg, rgba(8,7,6,.92) 0%, rgba(8,7,6,.78) 70%, rgba(8,7,6,0) 100%); }
-.t-logo { margin: 0; font-family: Impact, 'Arial Black', sans-serif; font-size: 64px; line-height: .9; letter-spacing: 3px; color: #e8e0c8;
+.t-logo { margin: 0; font-family: Impact, 'Arial Black', sans-serif; font-size: 48px; line-height: .95; letter-spacing: 4px; white-space: nowrap; text-align: center; color: #e8e0c8;
   text-shadow: 3px 3px 0 #a8322a, 0 0 24px rgba(0,0,0,.8); }
-.t-logo span { display: block; color: var(--accent); text-shadow: 3px 3px 0 #6a4a2e, 0 0 24px rgba(0,0,0,.8); }
+.t-logo small { display: block; margin-bottom: 6px; font-family: 'Courier New', monospace; font-size: 13px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; color: #a89e88; text-shadow: none; }
+/* DERBY: hazard-yellow with cell bars running through the letters */
+.t-logo span { display: block; font-size: 92px; letter-spacing: 5px; color: transparent; text-shadow: none;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 17px, #7a5a10 17px 21px); -webkit-background-clip: text; background-clip: text;
+  filter: drop-shadow(4px 4px 0 #6a4a2e) drop-shadow(0 0 18px rgba(0,0,0,.8)); }
 .t-tag { margin: 10px 0 22px; color: #a89e88; font-family: 'Courier New', monospace; font-size: 14px; }
 .t-menu .btn { margin: 5px 0; text-align: left; font-family: 'Courier New', monospace; text-transform: uppercase; letter-spacing: 1px;
   background: rgba(10,9,8,.7); border: 2px solid rgba(232,224,200,.3); border-radius: 4px; }
@@ -471,5 +475,6 @@ body.proto #ui { z-index: 2; }
 @media (max-width: 900px) {
   .titlescreen .t-menu { width: 100%; padding: 24px 16px; background: rgba(8,7,6,.82); }
   .t-panel { left: 16px; z-index: 2; }
-  .t-logo { font-size: 48px; }
+  .t-logo { font-size: 42px; }
+  .t-logo span { font-size: 76px; }
 }

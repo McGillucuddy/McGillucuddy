@@ -284,7 +284,7 @@ const Game = {
       </button>`;
     }).join('');
     this.setUI(`<div class="screen title-screen">
-      <h1 class="logo">APEX<span>ROGUE</span></h1>
+      <h1 class="logo">DEATH ROW<span>DERBY</span></h1>
       <p class="tagline">Top-down roguelite racing. 8 races. One run. Upgrade or die trying.</p>
       <div class="car-row">${cars}</div>
       <button class="btn primary big" data-action="start-run">Start Run ▶</button>

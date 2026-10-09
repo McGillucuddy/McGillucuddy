@@ -163,7 +163,7 @@ class CockpitView {
     this.buildWalls();
     this.buildDecos();
     this.buildHazards();
-    this.buildGantry({ text: 'APEX ROGUE', bg: '#111', fg: '#ffd23f', edge: '#ffffff' }, bio.night ? '#2ff3ff' : '#333', bio.night);
+    this.buildGantry({ text: 'DEATH ROW DERBY', bg: '#111', fg: '#ffd23f', edge: '#ffffff' }, bio.night ? '#2ff3ff' : '#333', bio.night);
   }
 
   // Ground: reuse the pre-rendered 2D track canvas as one big texture.
