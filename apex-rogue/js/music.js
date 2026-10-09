@@ -51,7 +51,7 @@ const Music = {
     this.step = 0;
     this.next = c.currentTime + 0.1;
     this.siren(this.next);
-    this.timer = setInterval(() => this.schedule(), 50);
+    this.timer = setInterval(() => this.schedule(), 40);
   },
 
   stop() {
@@ -120,8 +120,13 @@ const Music = {
     const c = Sound.ctx;
     if (!this.bus) return;
     const sixteenth = 60 / MUSIC.bpm / 4;
-    if (this.next < c.currentTime) this.next = c.currentTime + 0.05; // tab was asleep: pick up from now
-    while (this.next < c.currentTime + 0.3) {
+    // If the page stalled (a big garage rebuild, a background tab), drop the missed steps but stay on the grid,
+    // so the beat comes back in time instead of lurching.
+    while (this.next < c.currentTime + 0.01) {
+      this.next += sixteenth;
+      if (++this.step === 16) { this.step = 0; this.bar++; }
+    }
+    while (this.next < c.currentTime + 0.5) {
       this.play(this.bar, this.step, this.next, sixteenth);
       this.next += sixteenth;
       if (++this.step === 16) { this.step = 0; this.bar++; }
@@ -135,7 +140,7 @@ const Music = {
     const leadOn = (loop >= 8 && loop < 12) || (loop >= 16 && loop < 20) || breakdown;
     if (s === 0) this.pad(t, MUSIC.chords[ch], dt * 16, breakdown ? 1.4 : 1);
     if (intro) {
-      if (s === 7 && bar % 2 === 1) this.clank(t, 0.5);
+      if (s === 0 && bar % 2 === 1) this.clank(t, 0.5);
       if (s % 4 === 2 && bar >= 2) this.hat(t, 0.05, false);
       return;
     }
@@ -143,11 +148,10 @@ const Music = {
       if (s === 0 || s === 6 || s === 8 || (s === 10 && ch === 3)) this.kick(t);
       if (full && (s === 4 || s === 12)) this.snare(t);
       if (s % 2 === 0) this.hat(t, s === 14 ? 0.1 : 0.07, s === 14);
-      else if (full && (s === 7 || s === 15) && ch % 2) this.hat(t, 0.04, false);
       for (const [st, off] of MUSIC.bass) if (st === s) this.bassNote(t, MUSIC.roots[ch] + off, dt * (st === 14 ? 2 : 1.6));
-      if (s === 7 && ch === 1) this.clank(t, 0.6);
-      if (s === 15 && ch === 3 && loop % 8 === 7) { this.snare(t); this.snare(t + dt / 2); }
-    } else if (s === 7 && ch % 2) this.clank(t, 0.4);
+      if (s === 12 && ch === 1) this.clank(t, 0.5);
+      if ((s === 14 || s === 15) && ch === 3 && loop % 8 === 7) this.snare(t);
+    } else if (s === 0 && ch % 2) this.clank(t, 0.4);
     if (leadOn) {
       const line = loop >= 16 ? MUSIC.lead2 : MUSIC.lead;
       for (const [b, st, n, len] of line) if (b === ch && st === s) this.leadNote(t, n - (breakdown ? 12 : 0), dt * len);
@@ -156,7 +160,10 @@ const Music = {
 
   hz(m) { return 440 * Math.pow(2, (m - 69) / 12); },
 
+  // Gains start at full volume by default; zero them first, or an oscillator's first sample can slip through
+  // just before the envelope begins and click.
   env(g, t, a, peak, d) {
+    g.gain.value = 0;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(peak, t + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
@@ -198,16 +205,15 @@ const Music = {
   clank(t, vol) {
     const c = Sound.ctx, g = c.createGain(), f = c.createBiquadFilter();
     f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 1.2;
-    this.env(g, t, 0.002, vol * 0.25, 0.55);
+    // Sine partials and a soft 8ms attack: a ring rather than a click.
+    this.env(g, t, 0.008, vol * 0.3, 0.9);
     f.connect(g); g.connect(this.bus);
     this.send(g, 1.6);
     for (const r of [1, 1.47, 2.09, 2.76]) {
       const o = c.createOscillator();
-      o.type = 'square';
-      o.frequency.value = 410 * r * (0.97 + Math.random() * 0.06);
-      o.connect(f); o.start(t); o.stop(t + 0.6);
+      o.frequency.value = 410 * r;
+      o.connect(f); o.start(t); o.stop(t + 1);
     }
-    this.noise(t, 0.03, 'highpass', 3000, 0.7, vol * 0.3, 0);
   },
 
   bassNote(t, m, dur) {
@@ -231,6 +237,7 @@ const Music = {
     f.frequency.setValueAtTime(500 * bright, t);
     f.frequency.linearRampToValueAtTime(1300 * bright, t + dur * 0.5);
     f.frequency.linearRampToValueAtTime(600 * bright, t + dur);
+    g.gain.value = 0;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.08, t + 0.9);
     g.gain.setValueAtTime(0.08, t + dur - 0.3);
@@ -254,6 +261,7 @@ const Music = {
     lfo.connect(lg); lg.connect(o.frequency);
     sh.curve = this.curve;
     f.type = 'lowpass'; f.frequency.value = 1900; f.Q.value = 2;
+    g.gain.value = 0;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(0.07, t + 0.04);
     g.gain.setValueAtTime(0.07, t + Math.max(0.05, dur - 0.08));
@@ -270,6 +278,7 @@ const Music = {
     lfo.frequency.value = 0.22; lg.gain.value = 170;
     lfo.connect(lg); lg.connect(o.frequency);
     f.type = 'bandpass'; f.frequency.value = 800; f.Q.value = 1.5;
+    g.gain.value = 0;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.035, t + 3);
     g.gain.linearRampToValueAtTime(0.0001, t + 10);
