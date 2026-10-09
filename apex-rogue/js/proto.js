@@ -89,15 +89,16 @@ const Proto = {
     // them a few milliseconds per frame while the menus idle, so neither the menus nor the first race stall.
     Sculpt.collect = true;
     try {
-      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.hands(Models.weapon(id), id); // guns and their fitted gloves
-      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id], this.cos.patchSeed[id]); // your welded-on junk
+      for (const id of Object.keys(WEAPONS)) Models.hands(Models.weapon(id), id); // guns and their fitted gloves
+      for (const id of Object.keys(WEAPONS)) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id], this.cos.patchSeed[id]); // your welded-on junk
       for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
       Models.car(Object.assign({}, carLook(this.cos), { shell: true })); // your own car, seen from inside
       Models.interior('#888888', {});
       Models.rocketPod(); Models.mineDropper(); Models.gunner(); Models.grenade(); Models.rocket(); Models.mine(); Models.grenadeCrate();
       for (const id of Object.keys(TRINKET_MOUNT)) Models.trinket(id);
       for (const id of ['hula', 'dog', 'saint', 'skull']) Models.ornament(id);
-      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.ammoItem(id);
+      for (const id of Object.keys(WEAPONS)) Models.ammoItem(id);
+      Models.harpoonBolt();
       Models.ammoItem('flare', 1);
       const M = Env.models; // the undercity first (act I), then the rest
       M.fireBarrel(); M.wreck(4); M.wreck(8); M.junk(5); Env.guardTower(); M.palm(3); M.palm(8); M.palm(5); M.palm(13);
@@ -1051,7 +1052,7 @@ const Proto = {
   },
 };
 
-const SHORT_WEAPON = { smg: 'SMG', shotgun: 'Shotgun', rocket: 'Launcher', flare: 'Flare' };
+const SHORT_WEAPON = { smg: 'SMG', shotgun: 'Shotgun', rocket: 'Launcher', flare: 'Flare', nailgun: 'Nail Gun', flamer: 'Flamer', harpoon: 'Harpoon' };
 
 // ---------- HUD pieces ----------
 
@@ -1244,6 +1245,13 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
   } else if (c.weapon.id === 'flare') {
     ctx.beginPath(); ctx.moveTo(cx, cy - 10); ctx.lineTo(cx + 10, cy); ctx.lineTo(cx, cy + 10); ctx.lineTo(cx - 10, cy); ctx.closePath(); ctx.stroke();
+  } else if (c.weapon.id === 'nailgun') { // a little T for the nail
+    ctx.beginPath(); ctx.moveTo(cx - 7, cy - 6); ctx.lineTo(cx + 7, cy - 6); ctx.moveTo(cx, cy - 6); ctx.lineTo(cx, cy + 8); ctx.stroke();
+  } else if (c.weapon.id === 'flamer') { // the cone it reaches
+    ctx.beginPath(); ctx.arc(cx, cy + 30, 34, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5); ctx.stroke();
+    ctx.fillStyle = '#ff9a2a'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+  } else if (c.weapon.id === 'harpoon') { // barbed arrowhead
+    ctx.beginPath(); ctx.moveTo(cx - 9, cy + 6); ctx.lineTo(cx, cy - 6); ctx.lineTo(cx + 9, cy + 6); ctx.moveTo(cx, cy - 6); ctx.lineTo(cx, cy + 14); ctx.stroke();
   } else {
     ctx.beginPath(); ctx.arc(cx, cy, 14, 0, TAU); ctx.stroke();
     ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);

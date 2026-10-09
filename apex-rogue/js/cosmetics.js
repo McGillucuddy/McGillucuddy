@@ -110,7 +110,7 @@ const COSMETICS = {
 // Junk welded onto each gun.
 COSMETICS.gunKit = [
   { id: 'none', name: 'Clean', rep: 0 }, { id: 'chains', name: 'Hanging Chains', rep: 25 }, { id: 'barbed', name: 'Barbed Wire', rep: 55 },
-  { id: 'plates', name: 'Scrap Plating', rep: 85 }, { id: 'spikes', name: 'Spikes & Bayonet', rep: 120 }, { id: 'skull', name: 'Skull Charm', rep: 150 },
+  { id: 'plates', name: 'Scrap Plating', rep: 85 }, { id: 'spikes', name: 'Spikes', rep: 120 }, { id: 'skull', name: 'Skull Charm', rep: 150 },
   { id: 'patched', name: 'Patched Up', rep: 70 }, { id: 'deathrow', name: 'Death Row (all of it)', rep: 260 },
 ];
 
@@ -122,16 +122,15 @@ function loadCosmetics() {
     style: 'comet', paint: 'red', paint2: 'black', twoTone: 'none', finish: 'gloss', grime: 'dirty', livery: 'stencil', number: 47,
     rims: 'spoke5', bumper: 'stock', roof: 'stock', spoiler: 'stock', exhaust: 'single', underglow: 'none',
     seats: 'vinyl', wheelWrap: 'tape', dash: 'black', bulb: 'warm', ornament: 'none',
-    gunFinish: { smg: 'stock', shotgun: 'stock', rocket: 'stock', flare: 'stock' },
-    gunKit: { smg: 'none', shotgun: 'none', rocket: 'none', flare: 'none' },
-    patchSeed: { smg: 0, shotgun: 0, rocket: 0, flare: 0 },
+    gunFinish: {}, gunKit: {}, patchSeed: {},
     inmate: '4471', plate: 'INM 4471', rep: 0, presets: [null, null, null],
   };
   let c;
   try { c = Object.assign(def, JSON.parse(localStorage.getItem(COSMETIC_KEY)) || {}); } catch (e) { c = def; }
-  c.gunFinish = Object.assign({ smg: 'stock', shotgun: 'stock', rocket: 'stock', flare: 'stock' }, c.gunFinish);
-  c.gunKit = Object.assign({ smg: 'none', shotgun: 'none', rocket: 'none', flare: 'none' }, c.gunKit);
-  c.patchSeed = Object.assign({ smg: 0, shotgun: 0, rocket: 0, flare: 0 }, c.patchSeed);
+  const each = (v) => Object.fromEntries(Object.keys(WEAPONS).map((id) => [id, v])); // every weapon, old saves included
+  c.gunFinish = Object.assign(each('stock'), c.gunFinish);
+  c.gunKit = Object.assign(each('none'), c.gunKit);
+  c.patchSeed = Object.assign(each(0), c.patchSeed);
   const renamed = { anim_neon: 'anim_jury', anim_galaxy: 'anim_oil', anim_prism: 'anim_chem' }; // finishes that were reworked
   for (const w of Object.keys(c.gunFinish)) if (renamed[c.gunFinish[w]]) c.gunFinish[w] = renamed[c.gunFinish[w]];
   if (Array.isArray(c.presets)) for (const pr of c.presets) if (pr && pr.gunFinish) for (const w of Object.keys(pr.gunFinish)) if (renamed[pr.gunFinish[w]]) pr.gunFinish[w] = renamed[pr.gunFinish[w]];

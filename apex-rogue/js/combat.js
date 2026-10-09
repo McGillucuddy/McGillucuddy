@@ -42,6 +42,7 @@ class Combat {
     const p = this.player;
     p.damageFilter = (amount, info) => this.filterDamage(amount, info);
     p.ramMul = p.stats.ram * (has(b, 'horseshoe') ? 3 : 1) * (b.chip === 'hothead' ? 1.5 : 1);
+    this.ramBase = p.ramMul; // rams before any bayonet in your hands
     p.ramTakenMul = (has(b, 'horseshoe') ? 1.5 : 1) * (b.chip === 'veteran' ? 1.25 : 1);
     p.oilMul = b.chip === 'daredevil' ? 2 : 1;
 
@@ -153,6 +154,7 @@ class Combat {
     p.stats = s;
     p.nitro = Math.min(p.nitro, s.nitroCap);
     p.ramMul = s.ram * (has(this.build, 'horseshoe') ? 3 : 1) * (this.build.chip === 'hothead' ? 1.5 : 1);
+    this.ramBase = p.ramMul;
   }
 
   breakPart(slot) {
@@ -169,6 +171,7 @@ class Combat {
   filterDamage(amount, info) {
     const b = this.build, p = this.player, s = p.stats;
     if (this.invulnT > 0) return 0;
+    if (info.kind === 'bullet' && this.weaponDef.hubcap) amount *= 0.8; // the hubcap on the gun in your hands
     if (info.kind === 'wall' && b.chip === 'cautious') amount *= 0.3;
     if (info.kind === 'wall' && has(b, 'troll')) amount *= 0.6;
     const arm = b.parts.armour;
@@ -215,6 +218,12 @@ class Combat {
       }
     }
     this.lastFire += dt;
+    p.ramMul = this.ramBase * (def.bayonet ? 1.35 : 1); // a bayonet in your hands bites on rams
+    if (def.dazzle && ctl.aim != null) for (const c of this.race.cars) { // the flashlight: whoever's in the beam can't hold a lock
+      if (c === p || !c.wpn || !(c.wpn.lock > 0)) continue;
+      const d = Math.hypot(c.x - p.x, c.y - p.y), off = Math.abs(wrapAngle(Math.atan2(c.y - p.y, c.x - p.x) - ctl.aim));
+      if (d < 650 && off < 0.12) c.wpn.lock = Math.max(0, c.wpn.lock - dt * 2.5);
+    }
     if (this.driver) this.driver.shaky = b.chip === 'gun_nut' && this.lastFire < 0.4;
     if (p.finished || this.race.state !== 'racing' || this.busy) return;
     // Remote detonator: pulling the trigger again blows your rocket mid-air.
@@ -239,9 +248,19 @@ class Combat {
     if (def.kind === 'bullet') {
       for (let k = 0; k < def.pellets; k++) {
         const a = ctl.aim + randRange(this.rng, -def.spread, def.spread);
-        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0, tracer: !!def.tracer });
+        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0, tracer: !!def.tracer, puncture: def.puncture || 0, shock: def.shock || 0 });
       }
-      this.events.push({ type: def.pellets > 1 ? 'shotgun' : 'shoot' });
+      this.events.push({ type: def.pellets > 1 ? 'shotgun' : def.puncture ? 'nail' : 'shoot' });
+    } else if (def.kind === 'flame') {
+      // A gout of burning fuel: short-lived blobs that spread and slow, lighting whatever they touch.
+      for (let k = 0; k < def.pellets; k++) {
+        const a = ctl.aim + randRange(this.rng, -def.spread, def.spread);
+        this.spawn('flame', p, a, def.speed * randRange(this.rng, 0.8, 1.1), 1, { dmg: def.dmg, life: def.life * randRange(this.rng, 0.85, 1.1), burn: def.burn, burnTime: def.burnTime || 3 });
+      }
+      this.events.push({ type: 'flame' });
+    } else if (def.kind === 'harpoon') {
+      this.spawn('harpoon', p, ctl.aim + randRange(this.rng, -(def.spread || 0), def.spread || 0), def.speed, 1, { dmg: def.dmg, life: def.life, hook: def.hook, bleed: def.bleed || 0, shock: def.shock || 0 });
+      this.events.push({ type: 'harpoon' });
     } else if (def.kind === 'rocket') {
       // Homing fins: lock onto the rival nearest the aim direction.
       let target = null;
@@ -322,6 +341,22 @@ class Combat {
       if (c.empT > 0) c.empT -= dt;
       if (c.blindT > 0) c.blindT -= dt;
       if (c.markT > 0) c.markT -= dt;
+      if (c.hookT > 0) c.hookT -= dt;
+      if (c.slowT > 0) { // punctured tyres / a harpoon line: bleed off speed
+        c.slowT -= dt;
+        const k = Math.max(0, 1 - c.slowDrag * dt);
+        c.vx *= k; c.vy *= k;
+        if (c.slowT <= 0) c.slowDrag = 0;
+      }
+      if (c.bleedT > 0) {
+        c.bleedT -= dt;
+        const before = c.hp;
+        race.damage(c, c.bleedDps * dt, { kind: 'bullet' });
+        if (c.bleedBy === p && c !== p) {
+          this.stats.dealt += before - c.hp;
+          if (before > 0 && c.hp <= 0) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.cloverRefill(); }
+        }
+      }
       if (c.burnT > 0) {
         c.burnT -= dt;
         const before = c.hp;
@@ -434,6 +469,7 @@ class Combat {
         pr.vx = Math.cos(na) * sp;
         pr.vy = Math.sin(na) * sp;
       }
+      if (pr.type === 'flame') { const k = Math.max(0, 1 - 2.2 * dt); pr.vx *= k; pr.vy *= k; } // burning fuel loses speed
       pr.x += pr.vx * dt;
       pr.y += pr.vy * dt;
       if (pr.t >= pr.life) {
@@ -483,15 +519,32 @@ class Combat {
         pr.dead = true;
         if (pr.type === 'rocket') this.explode(pr.x, pr.y, pr.radius, pr.dmg, pr.owner, pr);
         else {
-          this.hitCar(c, pr.dmg, pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, 'bullet');
+          this.hitCar(c, pr.dmg, pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, pr.type === 'flame' ? 'fire' : 'bullet');
+          if (pr.puncture && c !== pr.owner) { // nails in the tyres: each one drags a little more
+            c.slowDrag = Math.min(2.2, (c.slowT > 0 ? c.slowDrag : 0) + pr.puncture * 0.25);
+            c.slowT = 1.5;
+          }
+          if (pr.type === 'flame') { c.burnT = Math.max(c.burnT || 0, pr.burnTime); c.burnDps = Math.max(c.burnT > 0 ? c.burnDps || 0 : 0, pr.burn); c.burnBy = pr.owner; }
+          if (pr.type === 'harpoon' && c !== pr.owner) { // hooked: the line goes taut and drags them back towards you
+            c.hookT = pr.hook; c.hookBy = pr.owner; c.slowT = Math.max(c.slowT || 0, pr.hook); c.slowDrag = 2.6;
+            const o = pr.owner, a = Math.atan2(o.y - c.y, o.x - c.x);
+            c.vx += Math.cos(a) * 140; c.vy += Math.sin(a) * 140;
+            if (pr.bleed) { c.bleedT = 4; c.bleedDps = pr.bleed; c.bleedBy = pr.owner; }
+            if (pr.owner === p) this.race.message(`${shortName(c)} is hooked!`, '#5ad8ff');
+          }
           if (pr.knock) {
             const a = Math.atan2(pr.vy, pr.vx);
             c.vx += Math.cos(a) * pr.knock;
             c.vy += Math.sin(a) * pr.knock;
           }
-          if (pr.burn) { c.burnT = 3; c.burnDps = pr.burn; c.burnBy = pr.owner; }
+          if (pr.burn && pr.type !== 'flame') { c.burnT = 3; c.burnDps = pr.burn; c.burnBy = pr.owner; }
           else if (pr.owner === p && c !== p && has(this.build, 'lighter') && Math.random() < 0.12) { c.burnT = 3; c.burnDps = 4; c.burnBy = p; }
           if (pr.tracer && c !== p) c.markT = 3;
+          if (pr.shock && c !== pr.owner && Math.random() < pr.shock) { // the shock coil shorts them out
+            c.empT = Math.max(c.empT || 0, 1.5);
+            if (c.wpn) c.wpn.lock = 0;
+            this.explosions.push({ x: c.x, y: c.y, r: 40, t: 0, kind: 'emp' });
+          }
           if (pr.type === 'flare') {
             c.blindT = pr.blind;
             if (c.wpn) c.wpn.lock = 0;
@@ -675,7 +728,24 @@ class Combat {
       if (c.burnT > 0 && Math.random() < 0.8) this.race.particles.push({ x: c.x + (Math.random() - 0.5) * 16, y: c.y + (Math.random() - 0.5) * 16, vx: 0, vy: 0, life: 0.5, t: 0, size: 6, color: Math.random() < 0.5 ? '#ff7a1a' : '#ffcf3a', type: 'smoke' });
       if (c.empT > 0 && Math.floor(t * 10) % 2) { ctx.strokeStyle = '#7fd8ff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(c.x, c.y, 20, 0, TAU); ctx.stroke(); }
     }
+    for (const c of this.race.cars) if (c.hookT > 0 && c.hookBy) { // the harpoon line
+      ctx.strokeStyle = 'rgba(220,210,190,0.8)'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(c.hookBy.x, c.hookBy.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+    }
     for (const pr of this.projectiles) {
+      if (pr.type === 'flame') {
+        const k = pr.t / pr.life;
+        ctx.fillStyle = `rgba(255,${Math.round(180 - 120 * k)},40,${0.7 * (1 - k)})`;
+        ctx.beginPath(); ctx.arc(pr.x, pr.y, 4 + 14 * k, 0, TAU); ctx.fill();
+        continue;
+      }
+      if (pr.type === 'harpoon') {
+        ctx.strokeStyle = '#cfd4d8'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.x - pr.vx * 0.02, pr.y - pr.vy * 0.02); ctx.stroke();
+        ctx.strokeStyle = 'rgba(220,210,190,0.7)'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.owner.x, pr.owner.y); ctx.stroke();
+        continue;
+      }
       if (pr.type === 'flare') {
         ctx.fillStyle = '#ff6a2a';
         ctx.beginPath(); ctx.arc(pr.x, pr.y, 5, 0, TAU); ctx.fill();

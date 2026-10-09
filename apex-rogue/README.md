@@ -112,6 +112,9 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **Weapons use ammo** (magazines, `R` to reload, ammo bought with scrap): SMG, pump shotgun, rocket
   launcher, flare gun (an orange Orion-style 12-gauge flare pistol firing red and green cartridges; blinds
   the driver it hits). Two rack slots, three with the Warden's Keys.
+  Scrap-built guns too: a pneumatic Nail Gun (nails puncture tyres and drag rivals back), a Flamethrower
+  built from a propane tank (short range, sets everything alight) and a Harpoon Gun (hooks a rival on a
+  line and drags them back hard).
   Grenades are a separate consumable.
 - **Abilities** on `Space` and `E`: shield/parry, nitro burst, smoke screen, EMP pulse.
 - **Trinkets** (22 to earn) change the rules and physically appear in your cabin, hanging from the mirror
@@ -133,6 +136,11 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   - Launcher: Homing Fins, Bunker Buster, Twin Tube (two rockets per shot), Remote Detonator (fire again
     to blow your rocket mid-air).
   - Flare gun: Cluster Flare, Long Burn, White Phosphor.
+  - Bolt-on attachments: Red Dot Sight, Flashlight (rivals in its beam lose their lock), Muzzle Brake,
+    Drum Mag, Rebar Bayonet (shotgun and harpoon: +35% ram damage while held).
+  - Scrapyard specials: Scrap Scope (pipe and a bottle-bottom lens), Shock Coil (a car battery wired to a
+    coil round the barrel; hits can short a rival out), Hubcap Shield (-20% gunfire damage while held),
+    Pressure Tank, Napalm Mix, Framing Nails, Barbed Head.
   Every mod is visible on the gun in your hands and on the rack.
 - **Parts:** six per slot, e.g. Supercharger, Electric Motor, Run-Flats, Snow Chains, Ablative Plates,
   Window Cage (stops gunfire), Twin Bottles, Methanol.

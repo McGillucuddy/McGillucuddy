@@ -1692,6 +1692,137 @@ const Models = {
     return g;
   },
 
+  // Pneumatic framing nailer: faded yellow motor housing, black nose and handle, a nail strip magazine raked back
+  // under it, and a little red air tank strapped to its left side on a hose. One-handed.
+  nailGun() {
+    const g = new THREE.Group();
+    g.name = 'nail gun';
+    const yellow = LP.mat('#c89a1e', { roughness: 0.55 }), black = LP.mat('#1c1c1c', { roughness: 0.6 }), steel = LP.mat('#8a8e92', { metalness: 0.75, roughness: 0.35 });
+    const red = LP.mat('#a8221a', { roughness: 0.45 }), hose = LP.mat('#121212', { roughness: 0.8 }), paper = LP.mat('#c23a2a', { roughness: 0.9 });
+    const sc = new Sculpt('nailgun', 0.035);
+    const R = (pts) => chaikin(pts.concat([pts[0]]), 2, 0.22);
+    sc.add(yellow, SDF.lathe([[0.26, -1.5], [0.46, -1.38], [0.5, -1.1], [0.5, 0.55], [0.44, 0.8], [0.26, 0.9]], [0, 0.32, 0]), 0.05); // motor housing
+    for (const sd of [-1, 1]) for (let k = 0; k < 3; k++) sc.cut(SDF.box([0.2, 0.06, 0.36], 0.02, [sd * 0.48, 0.32 + (k - 1) * 0.14, 0.45]), 0.01, [yellow]); // exhaust vents
+    sc.add(black, SDF.cyl(0.3, 0.18, 'y', 0.06, [0, 0.84, -1.0]), 0.08); // top cap
+    sc.add(black, SDF.box([0.68, 1.02, 0.74], 0.2, [0, 0.06, -1.6]), 0.15); // head, the housing sunk into it
+    sc.add(black, SDF.cyl(0.16, 0.8, 'z', 0.05, [0, -0.25, -2.2]), 0.1); // nose
+    sc.add(steel, SDF.cyl(0.1, 0.18, 'z', 0.03, [0, -0.25, -2.62]), 0.02);
+    sc.add(steel, SDF.path([[0.14, -0.42, -1.85], [0.18, -0.4, -2.5], [0, -0.44, -2.72], [-0.18, -0.4, -2.5], [-0.14, -0.42, -1.85]], 0.03), 0.02); // contact trip
+    sc.add(black, SDF.side(R([[-0.3, 0.05], [-0.78, 0.02], [-1.38, -1.35], [-1.52, -1.7], [-1.32, -1.86], [-0.96, -1.76], [-0.55, -0.6], [-0.28, -0.32]]), 0.52, 0.2), 0.2); // handle
+    sc.add(black, SDF.path([[0, -0.3, 0.12], [0, -0.55, 0.18], [0, -0.72, 0.34]], 0.07), 0.04); // trigger
+    const mz = [0, -1.0, -0.3], ma = 0.341;
+    sc.add(black, SDF.box([0.3, 0.42, 3.3], 0.08, mz, [ma, 0, 0]), 0.08); // nail magazine
+    sc.cut(SDF.box([0.36, 0.08, 2.8], 0.02, [0.0, mz[1] + 0.12, mz[2]], [ma, 0, 0]), 0.01, [black]); // feed slot
+    sc.add(paper, SDF.box([0.32, 0.05, 2.6], 0.01, [0, mz[1] + 0.12, mz[2]], [ma, 0, 0]), 0.005); // the paper nail strip
+    sc.add(steel, SDF.cyl(0.1, 0.32, 'z', 0.03, [0, -1.82, 1.6]), 0.04); // air fitting
+    sc.add(hose, SDF.path([[0, -1.82, 1.74], [-0.3, -2.3, 1.6], [-0.75, -1.95, 0.7], [-0.82, -0.9, 0.45], [-0.82, -0.36, 0.32]], 0.07), 0.04); // air hose
+    sc.add(red, SDF.lathe([[0.0, -1.25], [0.2, -1.22], [0.28, -1.1], [0.28, 0.12], [0.2, 0.24], [0.0, 0.27]], [-0.86, -0.2, 0]), 0.05); // air tank
+    for (const z of [-0.9, -0.1]) sc.add(steel, SDF.box([0.36, 0.1, 0.12], 0.04, [-0.58, -0.02, z], [0, 0, 0.6]), 0.05); // straps to the housing
+    sc.add(steel, SDF.cyl(0.13, 0.08, 'z', 0.03, [-0.86, -0.2, 0.3]), 0.03); // gauge
+    sc.build(g);
+    g.add(LP.mesh(new THREE.CircleGeometry(0.1, 14), LP.mat('#f2f0e6'), -0.86, -0.2, 0.345));
+    const barrel = new THREE.Object3D(); barrel.position.set(0, -0.25, -2.72); g.add(barrel); g.userData.barrel = barrel;
+    return g;
+  },
+
+  // A flamethrower made from a propane tank and a length of pipe: perforated heat shield, brass nozzle with a blue
+  // pilot light, a valve wheel, a front grip and a squeeze-lever handle at the back.
+  flamer() {
+    const g = new THREE.Group();
+    g.name = 'flamethrower';
+    const steel = LP.mat('#5a5c5e', { metalness: 0.7, roughness: 0.45 }), shield = LP.mat('#4a4c4e', { metalness: 0.7, roughness: 0.5 }), black = LP.mat('#1a1a1a', { roughness: 0.7 });
+    const brass = LP.mat('#b8963a', { metalness: 0.8, roughness: 0.35 }), tank = LP.mat('#d8d2c0', { roughness: 0.6 }), red = LP.mat('#b0281e', { roughness: 0.5 }), hose = LP.mat('#121212', { roughness: 0.8 });
+    const sc = new Sculpt('flamer', 0.035);
+    const R = (pts) => chaikin(pts.concat([pts[0]]), 2, 0.22);
+    sc.add(steel, SDF.cyl(0.17, 6.0, 'z', 0.04, [0, 0.25, -2.0]), 0.04); // the wand
+    sc.add(brass, SDF.lathe([[0.17, -4.95], [0.25, -5.1], [0.21, -5.3], [0.12, -5.36]], [0, 0.25, 0]), 0.03); // nozzle
+    sc.cut(SDF.cyl(0.08, 0.3, 'z', 0.01, [0, 0.25, -5.36]), 0.01, [brass]);
+    sc.add(shield, SDF.cyl(0.36, 1.8, 'z', 0.05, [0, 0.25, -3.85]), 0.02); // heat shield
+    sc.cut(SDF.cyl(0.3, 2.0, 'z', 0.02, [0, 0.25, -3.85]), 0.01, [shield]);
+    for (let k = 0; k < 5; k++) for (const ax of ['x', 'y']) sc.cut(SDF.cyl(0.07, 0.9, ax, 0.01, [0, 0.25, -4.5 + k * 0.32]), 0.01, [shield]); // vent holes
+    sc.add(brass, SDF.cyl(0.05, 0.4, 'z', 0.02, [0, 0.02, -5.0]), 0.02); // pilot tube
+    sc.add(black, SDF.cyl(0.2, 1.0, 'y', 0.08, [0, -0.42, -2.9]), 0.05); // front grip
+    for (let k = 0; k < 3; k++) sc.cut(SDF.torus(0.2, 0.03, [0, -0.2 - k * 0.25, -2.9], [Math.PI / 2, 0, 0]), 0.01, [black]);
+    sc.add(steel, SDF.box([0.3, 0.3, 0.36], 0.08, [0, 0.08, -2.9]), 0.08); // its clamp
+    sc.add(black, SDF.side(R([[-0.6, 0.12], [-1.15, 0.12], [-1.35, -1.25], [-1.15, -1.42], [-0.8, -1.36], [-0.55, -0.1]]), 0.5, 0.2), 0.15); // rear handle
+    sc.add(steel, SDF.path([[0, -0.02, 0.35], [0, -0.5, 0.32], [0, -0.92, 0.45]], 0.07), 0.04); // squeeze lever
+    sc.add(brass, SDF.box([0.5, 0.5, 0.7], 0.15, [0, 0.25, 0.3]), 0.1); // valve body
+    sc.add(red, SDF.torus(0.3, 0.05, [0, 0.72, 0.15], [Math.PI / 2, 0, 0]), 0.02); // valve wheel
+    for (let k = 0; k < 3; k++) { const a = (k / 3) * TAU; sc.add(red, SDF.path([[0, 0.72, 0.15], [Math.cos(a) * 0.3, 0.72, 0.15 + Math.sin(a) * 0.3]], 0.035), 0.02); }
+    sc.add(red, SDF.cyl(0.06, 0.28, 'y', 0.02, [0, 0.58, 0.15]), 0.02);
+    sc.add(tank, SDF.lathe([[0.0, -2.3], [0.3, -2.25], [0.48, -2.0], [0.48, 0.0], [0.3, 0.25], [0.0, 0.3]], [0, -0.8, 0]), 0.05); // propane tank
+    sc.add(red, SDF.lathe([[0.495, -1.25], [0.495, -0.9]], [0, -0.8, 0]), 0.01); // painted band
+    for (const z of [-1.7, -0.4]) {
+      sc.add(steel, SDF.torus(0.5, 0.04, [0, -0.8, z]), 0.01); // straps
+      sc.add(steel, SDF.box([0.12, 0.44, 0.12], 0.04, [0, -0.12, z]), 0.04); // brackets up to the wand
+    }
+    sc.add(brass, SDF.cyl(0.11, 0.2, 'z', 0.03, [0, -0.62, 0.38]), 0.03); // tank valve
+    sc.add(hose, SDF.path([[0, -0.62, 0.48], [-0.38, -0.4, 0.7], [-0.3, 0.12, 0.62], [0, 0.18, 0.62]], 0.07), 0.03); // hose to the valve body
+    sc.build(g);
+    const pilot = LP.mesh(new THREE.ConeGeometry(0.06, 0.22, 8), LP.glow('#5ab8ff', 2.2), 0, 0.02, -5.26);
+    pilot.rotation.x = -Math.PI / 2;
+    g.add(pilot);
+    const barrel = new THREE.Object3D(); barrel.position.set(0, 0.25, -5.4); g.add(barrel); g.userData.barrel = barrel;
+    // The jet of burning fuel out of the nozzle, shown while the trigger's held.
+    const jet = new THREE.Group();
+    jet.position.set(0, 0.25, -5.4);
+    for (const [len, r, col, op] of [[4.5, 0.55, '#ff5a10', 0.55], [3.2, 0.32, '#ffb03a', 0.8], [1.6, 0.16, '#fff2c0', 0.9]]) {
+      const cone = LP.mesh(new THREE.ConeGeometry(r, len, 12, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), 0, 0, -len / 2);
+      cone.rotation.x = -Math.PI / 2;
+      jet.add(cone);
+    }
+    jet.visible = false;
+    g.add(jet);
+    g.userData.jet = jet;
+    return g;
+  },
+
+  // A rubber-band harpoon gun: steel rail, a barbed bolt lying in its groove, red surgical-tube bands to a wishbone,
+  // a rope reel slung underneath, a pistol grip and a short padded stock.
+  harpoonGun() {
+    const g = new THREE.Group();
+    g.name = 'harpoon gun';
+    const steel = LP.mat('#6a6e72', { metalness: 0.75, roughness: 0.4 }), rail = LP.mat('#2a2c2e', { metalness: 0.5, roughness: 0.55 }), black = LP.mat('#1a1a1a', { roughness: 0.7 });
+    const band = LP.mat('#a8221a', { roughness: 0.6 }), reel = LP.mat('#d8a81a', { roughness: 0.5 }), rope = LP.mat('#b89a6a', { roughness: 1 }), pad = LP.mat('#3a2a1e', { roughness: 0.9 });
+    const sc = new Sculpt('harpoon', 0.035);
+    const R = (pts) => chaikin(pts.concat([pts[0]]), 2, 0.22);
+    sc.add(rail, SDF.box([0.34, 0.3, 5.3], 0.08, [0, 0.12, -1.95]), 0.04); // rail
+    sc.cut(SDF.box([0.12, 0.14, 5.6], 0.02, [0, 0.28, -1.95]), 0.01, [rail]); // groove
+    sc.add(rail, SDF.box([0.62, 0.5, 0.42], 0.12, [0, 0.2, -4.45]), 0.1); // muzzle block
+    // The bolt (hidden once it's fired): shaft, head and barbs, a notch at the tail.
+    sc.add(steel, SDF.cyl(0.07, 5.7, 'z', 0.02, [0, 0.36, -2.65]), 0.01, 'bolt');
+    sc.add(steel, SDF.cone([0, 0.36, -5.45], [0, 0.36, -6.12], 0.15, 0.01), 0.04, 'bolt');
+    for (const sd of [-1, 1]) sc.add(steel, SDF.path([[0, 0.36, -5.6], [sd * 0.2, 0.36, -5.35], [sd * 0.24, 0.36, -5.25]], 0.035), 0.02, 'bolt');
+    // Bands from the muzzle block back to the wishbone hooked in the shaft's notch.
+    for (const sd of [-1, 1]) sc.add(band, SDF.path([[sd * 0.3, 0.32, -4.5], [sd * 0.34, 0.42, -3.0], [sd * 0.14, 0.48, -1.35]], 0.075), 0.03);
+    sc.add(steel, SDF.path([[-0.14, 0.48, -1.35], [0, 0.56, -1.3], [0.14, 0.48, -1.35]], 0.035), 0.02); // wishbone
+    // Reel underneath with the line coiled on it, the line running up to the bolt's tail.
+    sc.add(steel, SDF.box([0.12, 0.34, 0.3], 0.04, [0, -0.12, -2.6]), 0.05);
+    sc.add(reel, SDF.cyl(0.38, 0.42, 'x', 0.06, [0, -0.42, -2.6]), 0.05);
+    sc.cut(SDF.cyl(0.3, 0.3, 'x', 0.02, [0, -0.42, -2.6]), 0.02, [reel]);
+    sc.add(rope, SDF.torus(0.3, 0.07, [0, -0.42, -2.6], [0, Math.PI / 2, 0]), 0.02);
+    sc.add(rope, SDF.path([[0, -0.08, -2.55], [0, 0.18, -1.2], [0, 0.36, 0.25]], 0.025), 0.01);
+    sc.add(black, SDF.side(R([[-0.32, 0.0], [-0.86, 0.0], [-1.06, -1.35], [-0.86, -1.5], [-0.5, -1.4], [-0.28, -0.2]]), 0.5, 0.2), 0.15); // pistol grip
+    sc.add(steel, SDF.path([[0, -0.08, 0.25], [0, -0.38, 0.3], [0, -0.55, 0.45]], 0.06), 0.03); // trigger
+    sc.add(pad, SDF.box([0.42, 0.62, 1.4], 0.2, [0, 0.0, 1.55]), 0.2); // padded stock
+    sc.add(black, SDF.box([0.46, 0.7, 0.18], 0.06, [0, 0.0, 2.25]), 0.05); // butt pad
+    const sets = sc.build(g);
+    g.userData.bolt = LP.pivot(g, sets.bolt, [0, 0.36, -2.65]);
+    const barrel = new THREE.Object3D(); barrel.position.set(0, 0.36, -6.12); g.add(barrel); g.userData.barrel = barrel;
+    return g;
+  },
+
+  // The harpoon in flight.
+  harpoonBolt() {
+    const g = new THREE.Group();
+    const sc = new Sculpt('harpoonbolt', 0.04), steel = LP.mat('#9aa0a6', { metalness: 0.75, roughness: 0.35 });
+    sc.add(steel, SDF.cyl(0.6, 26, 'x', 0.2, [-6, 0, 0]), 0.1);
+    sc.add(steel, SDF.cone([7, 0, 0], [12, 0, 0], 1.2, 0.05), 0.3);
+    for (const sd of [-1, 1]) sc.add(steel, SDF.path([[8, 0, 0], [6, 0, sd * 1.8]], 0.3), 0.2);
+    sc.build(g);
+    return g;
+  },
+
   // Paint job details: race number + livery decals, and rust/primer patches for worn finishes.
   livery(g, st, opts, W, bev) {
     const hw = W / 2, side = hw + bev + 0.05;
@@ -1776,6 +1907,9 @@ const Models = {
       shotgun: { mag: [0.5, -0.1, -1.5], side: [0.5, 0.1, -0.3], muzzle: [0, 0.3, -7.95], under: [0, -0.7, -5.4] },
       rocket: { mag: [1.0, -0.4, 1.6], side: [0.65, 0.4, -1.4], muzzle: [0, 0, -5.4], under: [0, -1.0, -3.0] },
       flare: { mag: [0, -2.2, 0.0], side: [0.6, 0.25, -1.0], muzzle: [0, 0.3, -3.6], under: [0, -0.3, -2.4] },
+      nailgun: { mag: [0.4, -1.1, -0.3], side: [0.62, 0.35, -0.3], muzzle: [0, -0.25, -2.72], under: [0, -0.62, -2.2] },
+      flamer: { mag: [0.6, -0.8, -1.0], side: [0.38, 0.25, -1.6], muzzle: [0, 0.25, -5.4], under: [0, -0.1, -4.4] },
+      harpoon: { mag: [0.45, -0.42, -2.6], side: [0.32, 0.12, -2.0], muzzle: [0, 0.36, -6.12], under: [0, -0.15, -4.0] },
     }[weaponId];
     const steel = LP.mat('#2b2d30', { metalness: 0.6, roughness: 0.45 });
     const add = (m) => { m.userData.modVis = true; gun.add(m); return m; };
@@ -1883,6 +2017,124 @@ const Models = {
           for (let k = 0; k < 3; k++) sc.add(LP.mat('#d9601e'), SDF.cyl(0.18, 0.9, 'z', 0.06, v(A.side, [0.1, -0.3 - k * 0.4, 0.8])), 0.02);
           sc.add(LP.mat('#2a2a2a'), SDF.box([0.15, 1.2, 0.3], 0.05, v(A.side, [0.0, -0.7, 0.8])), 0.06); // their bandolier strap
         });
+      } else if (id === 'drum_mag') { // a fat drum magazine (on the SMG it rides on the magazine, so it drops out on reloads)
+        const D = { smg: [0, -0.35, -0.15], shotgun: [0, -1.05, -0.6], nailgun: [0, -1.0, -1.7], flamer: [-0.82, -0.8, -1.0] }[weaponId];
+        const R = weaponId === 'flamer' ? 0.62 : weaponId === 'nailgun' ? 0.5 : 0.72;
+        const host = weaponId === 'smg' && gun.userData.mag ? gun.userData.mag : null;
+        const g = part(id, (sc) => {
+          const drum = LP.mat(weaponId === 'flamer' ? '#a8221a' : '#2b2d30', { metalness: 0.55, roughness: 0.45 });
+          sc.add(drum, SDF.cyl(R, 0.5, 'x', 0.12, [0, 0, 0]), 0.03);
+          for (let k = 0; k < 10; k++) { const an = (k / 10) * TAU; sc.cut(SDF.box([0.6, 0.06, 0.2], 0.02, [0, Math.cos(an) * R, Math.sin(an) * R], [an, 0, 0]), 0.01, [drum]); } // grip ribs
+          sc.add(steel, SDF.cyl(R * 0.35, 0.58, 'x', 0.06, [0, 0, 0]), 0.03); // winding key boss
+          sc.add(steel, SDF.box([0.62, 0.12, R * 0.6], 0.05, [0, 0, 0]), 0.02);
+          if (weaponId !== 'smg') sc.add(steel, SDF.box([0.3, 0.5, 0.3], 0.08, [0, R + 0.15, 0]), 0.1); // neck into the gun
+        });
+        g.position.set(...D);
+        if (host) { gun.remove(g); host.add(g); for (const c of host.children) if (c !== g && c.isMesh) c.visible = false; }
+      } else if (id === 'scope') { // a length of pipe with a bottle-bottom lens, taped onto two posts
+        const T = { smg: [0, 0.92, 0.35], shotgun: [0, 0.64, 0.2], flare: [0, 0.9, -0.55], nailgun: [0, 0.94, -0.2], harpoon: [-0.45, 0.32, -0.9] }[weaponId];
+        part(id, (sc) => {
+          const pipe = LP.mat('#4a4c4e', { metalness: 0.7, roughness: 0.5 }), tape = DECALS.mat('tape', { roughness: 1 }), rubber = LP.mat('#141414', { roughness: 0.8 });
+          const side = weaponId === 'harpoon', c = side ? [T[0] - 0.1, T[1] + 0.25, T[2]] : [T[0], T[1] + 0.42, T[2]];
+          sc.add(pipe, SDF.cyl(0.19, 1.5, 'z', 0.05, c), 0.03);
+          sc.add(pipe, SDF.lathe([[0.19, -0.5], [0.27, -0.7], [0.27, -0.85], [0.22, -0.88]], c), 0.05); // objective bell
+          sc.add(rubber, SDF.cyl(0.22, 0.25, 'z', 0.08, [c[0], c[1], c[2] + 0.82]), 0.03); // eye cup
+          sc.add(tape, SDF.cyl(0.215, 0.3, 'z', 0.05, [c[0], c[1], c[2] + 0.15]), 0.01);
+          for (const dz of [-0.45, 0.45]) sc.add(steel, side ? SDF.box([0.25, 0.14, 0.14], 0.04, [T[0] + 0.07, T[1] + 0.12, T[2] + dz]) : SDF.box([0.14, 0.34, 0.16], 0.05, [T[0], T[1] + 0.12, T[2] + dz]), 0.06); // posts
+        });
+        const c = weaponId === 'harpoon' ? [T[0] - 0.1, T[1] + 0.25, T[2]] : [T[0], T[1] + 0.42, T[2]];
+        add(LP.mesh(new THREE.CircleGeometry(0.2, 18), LP.mat('#7ac8a8', { transparent: true, opacity: 0.7, roughness: 0.05, metalness: 0.3 }), c[0], c[1], c[2] - 0.87).rotateY(Math.PI));
+      } else if (id === 'compensator') { // a slotted muzzle brake welded on
+        const r0 = { smg: 0.32, shotgun: 0.36, nailgun: 0.22 }[weaponId] || 0.3;
+        part(id, (sc) => {
+          const m = v(A.muzzle, [0, 0, -0.35]);
+          sc.add(steel, SDF.cyl(r0, 0.75, 'z', 0.06, m), 0.02);
+          for (const dz of [-0.2, 0.05]) for (const rz of [0, Math.PI / 2]) sc.cut(SDF.box([r0 * 3, 0.1, 0.12], 0.02, v(m, [0, 0, dz]), [0, 0, rz]), 0.01);
+          sc.cut(SDF.cyl(r0 * 0.45, 0.9, 'z', 0.01, m), 0.01);
+          sc.add(LP.mat('#2e2a26', { metalness: 0.4, roughness: 0.8 }), SDF.torus(r0 * 0.9, 0.05, v(m, [0, 0, 0.36])), 0.02); // weld bead
+        });
+      } else if (id === 'bayonet') { // sharpened rebar welded and wired under the muzzle
+        const [b0, b1] = { shotgun: [[0, -0.32, -7.4], [0, -0.32, -9.3]], harpoon: [[0, -0.1, -4.3], [0, -0.1, -6.0]] }[weaponId];
+        part(id, (sc) => {
+          const rebar = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.75 }), body = [b1[0], b1[1], b1[2] + 0.45];
+          sc.add(rebar, SDF.cone(b0, body, 0.075, 0.075), 0.02);
+          sc.add(rebar, SDF.cone(body, b1, 0.075, 0.008), 0.03);
+          for (let k = 1; k < 8; k++) sc.add(rebar, SDF.torus(0.075, 0.018, [b0[0], b0[1], b0[2] + (body[2] - b0[2]) * (k / 8)]), 0.004); // ribs
+          sc.add(LP.mat('#2e2a26', { metalness: 0.4, roughness: 0.8 }), SDF.ellipsoid([0.13, 0.17, 0.24], [b0[0], b0[1] + 0.1, b0[2]]), 0.05); // weld
+          sc.add(LP.mat('#7a7672', { metalness: 0.6 }), SDF.torus(0.22, 0.025, [b0[0], b0[1] + 0.15, b0[2] - 0.35]), 0.01); // wire lashing
+        });
+      } else if (id === 'pressure_tank') { // a green gas bottle strapped on, hosed in
+        part(id, (sc) => {
+          const green = LP.mat('#2f6a3a', { metalness: 0.4, roughness: 0.5 }), L = [-A.side[0], A.side[1], A.side[2]], c = v(L, [-0.24, 0, 0]); // on the left, where you can see it
+          sc.add(green, SDF.lathe([[0, -0.7], [0.18, -0.68], [0.22, -0.55], [0.22, 0.5], [0.14, 0.62], [0, 0.65]], c), 0.03);
+          sc.add(steel, SDF.cyl(0.08, 0.2, 'z', 0.02, v(c, [0, 0, 0.72])), 0.02);
+          sc.add(LP.mat('#121212', { roughness: 0.8 }), SDF.path([v(c, [0, 0, 0.82]), v(c, [0.05, 0.3, 1.0]), v(L, [0.08, 0.15, 0.9])], 0.05), 0.02);
+          for (const dz of [-0.3, 0.3]) sc.add(steel, SDF.torus(0.24, 0.03, v(c, [0, 0, dz])), 0.01);
+        });
+      } else if (id === 'napalm') { // a hazard-striped can of jellied fuel strapped on the left
+        part(id, (sc) => {
+          const can = LP.mat('#ffffff', { map: CAMO.get('camo_hazard'), roughness: 0.6 }), c = [-0.78, 0.05, -2.0];
+          sc.add(can, SDF.box([0.32, 0.6, 0.7], 0.08, c), 0.03);
+          sc.add(steel, SDF.box([0.36, 0.08, 0.76], 0.03, v(c, [0, 0.12, 0])), 0.01);
+          sc.add(LP.mat('#121212', { roughness: 0.8 }), SDF.path([v(c, [0, 0.3, 0.25]), v(c, [0.25, 0.45, 0.5]), [-0.15, 0.25, -1.4]], 0.05), 0.02);
+        });
+      } else if (id === 'framing_nails') { // a carton of heavy nails taped on top
+        part(id, (sc) => {
+          const card = LP.mat('#8a6a3a', { roughness: 0.95 }), tape = DECALS.mat('tape', { roughness: 1 });
+          sc.add(card, SDF.box([0.5, 0.32, 0.75], 0.03, [0, 1.06, 0.25]), 0.01);
+          sc.add(tape, SDF.box([0.54, 0.36, 0.14], 0.02, [0, 1.06, 0.25]), 0.005);
+        });
+      } else if (id === 'red_dot') { // a compact reflex sight: tinted window, a red dot
+        const T = { smg: [0, 0.92, 0.6], shotgun: [0, 0.64, 0.6], flare: [0, 0.9, -0.5], nailgun: [0, 0.94, 0.0], harpoon: [0, 0.3, -0.2] }[weaponId];
+        part(id, (sc) => {
+          const body = LP.mat('#1c1c1e', { metalness: 0.5, roughness: 0.5 }), c = [T[0], T[1] + 0.24, T[2]];
+          sc.add(body, SDF.box([0.34, 0.4, 0.5], 0.08, c), 0.03);
+          sc.cut(SDF.box([0.24, 0.26, 0.7], 0.05, [c[0], c[1] + 0.03, c[2]]), 0.02, [body]); // the window
+          sc.add(body, SDF.box([0.4, 0.1, 0.56], 0.04, [c[0], T[1] + 0.03, c[2]]), 0.03); // rail clamp
+        });
+        add(LP.mesh(new THREE.PlaneGeometry(0.24, 0.26), LP.mat('#8ab8c8', { transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.3, side: THREE.DoubleSide }), T[0], T[1] + 0.27, T[2] - 0.1));
+        add(LP.mesh(new THREE.CircleGeometry(0.025, 10), LP.glow('#ff2020', 2), T[0], T[1] + 0.27, T[2] - 0.09));
+      } else if (id === 'flashlight') { // a torch clamped on the left, a faint cone in front of it
+        const L = { smg: [-0.62, 0.1, -2.6], shotgun: [-0.45, 0.15, -4.8], flare: [-0.58, 0.3, -2.4], nailgun: [-0.55, -0.05, -1.75], harpoon: [-0.32, 0.12, -3.6] }[weaponId];
+        part(id, (sc) => {
+          const al = LP.mat('#2a2c2e', { metalness: 0.6, roughness: 0.4 });
+          sc.add(al, SDF.lathe([[0.13, 0.45], [0.13, -0.2], [0.19, -0.35], [0.19, -0.5]], L), 0.03);
+          for (let k = 0; k < 3; k++) sc.cut(SDF.torus(0.135, 0.02, v(L, [0, 0, 0.3 - k * 0.15])), 0.005, [al]);
+          sc.add(al, SDF.box([0.3, 0.12, 0.2], 0.04, v(L, [0.17, 0, 0])), 0.04); // clamp
+        });
+        add(LP.mesh(new THREE.CircleGeometry(0.16, 16), LP.glow('#fff6d8', 1.6), L[0], L[1], L[2] - 0.51).rotateY(Math.PI));
+        if (beam) add(LP.mesh(new THREE.ConeGeometry(1.6, 12, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#fff3c8', transparent: true, opacity: 0.035, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), L[0], L[1], L[2] - 6.5).rotateX(Math.PI / 2)); // narrow at the lens
+      } else if (id === 'shock_coil') { // a car battery strapped on the left, jumper cables to a copper coil round the barrel
+        const B = { smg: [-0.74, 0.3, 1.35], nailgun: [-0.58, 0.45, 0.35], harpoon: [-0.45, -0.1, -0.6] }[weaponId];
+        const C = { smg: [0, 0.1, -3.4, 0.36], nailgun: [0, -0.25, -2.25, 0.22], harpoon: [0, 0.12, -3.9, 0.3] }[weaponId];
+        part(id, (sc) => {
+          const bat = LP.mat('#1a1a1c', { roughness: 0.6 }), copper = LP.mat('#c8783a', { metalness: 0.8, roughness: 0.35 }), redC = LP.mat('#b0281e'), blackC = LP.mat('#141414');
+          sc.add(bat, SDF.box([0.42, 0.5, 0.75], 0.05, B), 0.02);
+          sc.add(LP.mat('#d8d0b0', { roughness: 0.8 }), SDF.box([0.43, 0.18, 0.4], 0.02, v(B, [0, 0.05, 0])), 0.005); // label
+          for (const [dz, mat] of [[-0.2, redC], [0.2, blackC]]) sc.add(mat, SDF.cyl(0.06, 0.1, 'y', 0.02, v(B, [0, 0.28, dz])), 0.01); // terminals
+          const turns = 6, pts = [];
+          for (let k = 0; k <= turns * 10; k++) { const a = (k / 10) * TAU; pts.push([C[0] + Math.cos(a) * C[3], C[1] + Math.sin(a) * C[3], C[2] + (k / (turns * 10)) * 0.6]); }
+          sc.add(copper, SDF.path(pts, 0.035), 0.01); // the coil
+          sc.add(redC, SDF.path([v(B, [0, 0.33, -0.2]), v(B, [0.1, 0.6, -0.8]), [C[0] - C[3] - 0.05, C[1] + 0.1, C[2] + 0.62]], 0.04), 0.02); // jumper cables
+          sc.add(blackC, SDF.path([v(B, [0, 0.33, 0.2]), v(B, [0.2, 0.75, -0.5]), [C[0] - C[3] * 0.7, C[1] + C[3] * 0.7, C[2] + 0.62]], 0.04), 0.02);
+          for (const mat of [redC, blackC]) sc.add(mat, SDF.box([0.1, 0.16, 0.2], 0.03, [C[0] - C[3] - 0.06, C[1] + (mat === redC ? 0.1 : 0.3), C[2] + 0.64]), 0.02); // the clips
+        });
+        add(LP.mesh(new THREE.TorusGeometry(C[3] + 0.04, 0.02, 6, 24), LP.glow('#7fd8ff', 1.2), C[0], C[1], C[2] + 0.3)); // a crackle of charge
+      } else if (id === 'hubcap') { // a chrome hubcap welded on as a shield, the barrel through its centre
+        const H = { smg: [0, 0.1, -2.75, 1.0], shotgun: [0, 0.2, -4.9, 1.1], nailgun: [0, -0.25, -2.35, 0.85], flamer: [0, 0.25, -4.85, 1.0] }[weaponId];
+        part(id, (sc) => {
+          const chrome = LP.mat('#c8ccd0', { metalness: 0.7, roughness: 0.25 }), c = [H[0], H[1], H[2]], R = H[3];
+          sc.add(chrome, SDF.lathe([[R * 0.2, 0.02], [R * 0.55, 0.08], [R * 0.95, 0.0], [R, -0.05], [R * 0.96, -0.1], [R * 0.6, -0.04], [R * 0.2, -0.06]], c), 0.02); // dished cap
+          for (let k = 0; k < 5; k++) { const a = (k / 5) * TAU; sc.cut(SDF.ellipsoid([R * 0.16, R * 0.1, 0.3], [c[0] + Math.cos(a) * R * 0.7, c[1] + Math.sin(a) * R * 0.7, c[2]], [0, 0, a]), 0.01, [chrome]); } // vents
+          sc.cut(SDF.cyl(R * 0.22, 0.6, 'z', 0.01, c), 0.01, [chrome]); // hole for the barrel
+          sc.add(LP.mat('#2e2a26', { metalness: 0.4, roughness: 0.8 }), SDF.torus(R * 0.22, 0.05, c), 0.01); // welded on
+        });
+      } else if (id === 'barbed_head' && gun.userData.bolt) { // extra barbs on the bolt (they fly with it)
+        const bolt = gun.userData.bolt, g = part(id, (sc) => {
+          const st = LP.mat('#9aa0a6', { metalness: 0.75, roughness: 0.35 });
+          for (let k = 0; k < 4; k++) { const a2 = (k / 4) * TAU + Math.PI / 4, cx = Math.cos(a2), cy = Math.sin(a2); sc.add(st, SDF.path([[0, 0.36, -5.85], [cx * 0.22, 0.36 + cy * 0.22, -5.55], [cx * 0.26, 0.36 + cy * 0.26, -5.42]], 0.03), 0.02); }
+        });
+        gun.remove(g); g.position.sub(bolt.position); bolt.add(g);
       }
     }
     return gun;
@@ -1929,13 +2181,19 @@ const Models = {
   // On the flare gun the barrel pieces ride on the barrel so they tip open with it.
   KIT_ANCHOR: {
     smg: { wraps: [[0, 0.1, -4.1, -2.75, 0.4, 0.4]], chain: [[-0.58, 0.62, -0.7], [-0.58, 0.62, 1.9], 0.62], plate: [-0.55, -0.9, 1.9, -0.35, 0.78],
-      spikes: [0.44, -4.0, -2.85], bayonet: [[0, -0.22, -3.9], [0, -0.22, -5.7]], skull: [-0.58, 0.6, 2.35] },
+      spikes: [0.44, -4.0, -2.85], skull: [-0.58, 0.6, 2.35] },
     shotgun: { wraps: [[0, 0.02, -7.3, -5.2, 0.44, 0.64]], chain: [[-0.48, 0.45, -1.2], [-0.48, 0.45, 1.8], 0.6], plate: [-0.46, -1.3, 1.8, -0.4, 0.56],
       spikes: [0.68, -7.3, -5.6], bayonet: [[0, -0.3, -7.6], [0, -0.3, -9.5]], skull: [-0.48, 0.4, 1.95] },
     rocket: { wraps: [[0, 0, 2.7, 4.4, 0.6, 0.6], [0, 0, -4.6, -2.8, 0.5, 0.5]], chain: [[-1.0, 0.5, -0.45], [-1.0, 0.5, 2.15], 0.95], tube: [0, 0, 0.52, 2.7, 4.5],
       spikes: [0.52, 2.6, 4.3], skull: [-1.0, 0.5, 2.35], tube2: [0, 0, 0.42, -4.6, -2.8] },
     flare: { barrel: true, wraps: [[0, 0.3, -3.25, -1.85, 0.52, 0.52]], chain: [[-0.46, 0.4, -3.2], [-0.46, 0.4, -1.7], 0.85], plate: [-0.52, -1.1, 0.1, -0.12, 0.76],
-      spikes: [0.72, -3.25, -1.95], bayonet: [[0, -0.12, -3.3], [0, -0.12, -4.7]], skull: [0, -2.68, 1.2], skullDrop: true, barrelTube: [0, 0.3, 0.42, -3.35, -1.95] },
+      spikes: [0.72, -3.25, -1.95], skull: [0, -2.68, 1.2], skullDrop: true, barrelTube: [0, 0.3, 0.42, -3.35, -1.95] },
+    nailgun: { wraps: [[0, -0.25, -2.6, -2.0, 0.24, 0.24]], chain: [[-0.52, 0.62, -1.1], [-0.52, 0.62, 0.55], 0.3], plate: [-0.36, -1.95, -1.25, -0.4, 0.5],
+      spikes: [0.82, -0.6, 0.6], skull: [0, -1.95, 1.55], skullDrop: true, tube: [0, 0.32, 0.5, -1.1, 0.5] },
+    flamer: { wraps: [[0, 0.25, -4.6, -3.1, 0.42, 0.42]], chain: [[-0.55, -0.55, -2.1], [-0.55, -0.55, 0.0], 0.5], tube: [0, -0.8, 0.48, -2.0, 0.0],
+      spikes: [0.42, -2.6, -1.2], skull: [-0.2, 0.25, -0.7] },
+    harpoon: { wraps: [[0, 0, 1.0, 2.1, 0.28, 0.38]], chain: [[-0.3, 0.1, -3.8], [-0.3, 0.1, -1.5], 0.45], plate: [-0.22, 1.0, 2.0, -0.26, 0.26],
+      spikes: [0.31, 1.1, 2.0], bayonet: [[0, -0.1, -4.3], [0, -0.1, -6.0]], skull: [-0.22, 0.0, 2.0] },
   },
   gunKit(gun, id, kit, seed) {
     const A = Models.KIT_ANCHOR[id];
@@ -2337,6 +2595,21 @@ const Models = {
     } else if (id === 'rocket') { // warhead with fuse nose and a painted band
       sc.add(LP.mat('#4b5a2e', { metalness: 0.3, roughness: 0.6 }), SDF.lathe([[0.02, -0.75], [0.08, -0.7], [0.3, -0.35], [0.34, -0.1], [0.24, 0.12], [0.13, 0.25], [0.13, 0.6]], [0, 0, 0], [Math.PI / 2, 0, 0]), 0.03);
       sc.add(LP.mat('#c9a227'), SDF.lathe([[0.33, -0.24], [0.35, -0.2], [0.34, -0.16]], [0, 0, 0], [Math.PI / 2, 0, 0]), 0.01);
+    } else if (id === 'nailgun') { // a collated strip of nails on red paper tape
+      const paper = LP.mat('#c23a2a', { roughness: 0.9 }), nail = LP.mat('#9aa0a6', { metalness: 0.8, roughness: 0.3 });
+      sc.add(paper, SDF.box([0.08, 1.1, 0.3], 0.02, [0, 0, 0]), 0.01);
+      for (let k = 0; k < 9; k++) { const y = -0.48 + k * 0.12; sc.add(nail, SDF.cyl(0.018, 0.5, 'z', 0.005, [0, y, 0]), 0.002); sc.add(nail, SDF.cyl(0.05, 0.02, 'z', 0.005, [0, y, 0.26]), 0.002); }
+    } else if (id === 'flamer') { // a dented red jerrycan of fuel with its spout
+      const can = LP.mat('#a8221a', { roughness: 0.5 });
+      sc.add(can, SDF.box([0.32, 0.8, 0.55], 0.08, [0, 0, 0]), 0.03);
+      sc.cut(SDF.box([0.4, 0.05, 0.45], 0.02, [0, 0.12, 0], [0, 0, 0.2]), 0.01, [can]); // pressed X
+      sc.add(can, SDF.path([[0, 0.4, -0.15], [0, 0.48, 0.0], [0, 0.4, 0.15]], 0.04), 0.02); // handle
+      sc.add(brass, SDF.cyl(0.07, 0.14, 'y', 0.02, [0, 0.45, 0.2]), 0.02); // spout cap
+    } else if (id === 'harpoon') { // a spare harpoon bolt
+      const st = LP.mat('#9aa0a6', { metalness: 0.75, roughness: 0.35 });
+      sc.add(st, SDF.cyl(0.035, 1.3, 'y', 0.01, [0, -0.1, 0]), 0.01);
+      sc.add(st, SDF.cone([0, 0.55, 0], [0, 0.85, 0], 0.075, 0.005), 0.02);
+      for (const sd of [-1, 1]) sc.add(st, SDF.path([[0, 0.62, 0], [sd * 0.1, 0.5, 0]], 0.018), 0.01);
     } else { // 12-gauge flare cartridge: red or green hull, rolled crimp, tall brass head with a rim
       const hull = LP.mat(variant % 2 ? '#2f8a3a' : '#c0221a', { roughness: 0.55 });
       sc.add(hull, SDF.lathe([[0.165, -0.12], [0.17, -0.1], [0.17, 0.34], [0.14, 0.37], [0.0, 0.375]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.02);
@@ -2366,6 +2639,17 @@ const Models = {
     flare: [
       { kind: 'pistol', pos: [0, -1.0, 0.6], tilt: -0.38, grip: [0.41, 0.5], trigger: [0, -0.62, -0.56], arm: [-0.5, -3.0, 5.0] },
     ],
+    nailgun: [
+      { kind: 'pistol', pos: [0, -1.05, 0.95], tilt: -0.6, grip: [0.26, 0.42], trigger: [0, -0.55, 0.2], arm: [-0.5, -3.0, 5.0] },
+    ],
+    flamer: [
+      { kind: 'pistol', pos: [0, -0.75, 0.95], tilt: -0.2, grip: [0.25, 0.38], trigger: [0, -0.5, 0.36], arm: [-0.6, -2.8, 5.6] },
+      { kind: 'pistol', pos: [0, -0.5, -2.9], tilt: 0, grip: [0.2, 0.2], arm: [-7.2, -3.0, 5.4], mirror: true },
+    ],
+    harpoon: [
+      { kind: 'pistol', pos: [0, -0.72, 0.68], tilt: -0.18, grip: [0.25, 0.38], trigger: [0, -0.38, 0.3], arm: [-0.6, -2.8, 5.6] },
+      { kind: 'support', pos: [0, -0.12, -1.6], tilt: 0, tube: 0.3, arm: [-7.2, -3.4, 5.4] },
+    ],
   },
 
   hands(gun, weaponId) {
@@ -2391,7 +2675,8 @@ const Models = {
   },
 
   weapon(id) {
-    return id === 'shotgun' ? Models.shotgun() : id === 'rocket' ? Models.launcher() : id === 'flare' ? Models.flareGun() : Models.smg();
+    return id === 'shotgun' ? Models.shotgun() : id === 'rocket' ? Models.launcher() : id === 'flare' ? Models.flareGun()
+      : id === 'nailgun' ? Models.nailGun() : id === 'flamer' ? Models.flamer() : id === 'harpoon' ? Models.harpoonGun() : Models.smg();
   },
 
   // ---------- Trinkets (each hangs or sits somewhere in the cabin) ----------

@@ -547,6 +547,7 @@ class CockpitView {
     this.rackGuns = b.rack.map((w, i) => {
       const m = Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (this.look3d.gunFinish || {})[w.id]), w.id, (this.look3d.gunKit || {})[w.id], (this.look3d.patchSeed || {})[w.id]);
       if (w.id === 'rocket') m.scale.setScalar(0.8);
+      else if (w.id === 'flamer' || w.id === 'harpoon') m.scale.setScalar(0.85);
       m.position.set(-1.2, hooks[i] || 4.9, -6.9); // resting on the J hooks, clear of the door bars
       m.rotation.y = -Math.PI / 2;
       I.add(m);
@@ -636,7 +637,7 @@ class CockpitView {
     const webbing = LP.mat('#3a3a2a', { roughness: 1 }), board = LP.mat('#6a6448', { roughness: 0.95 }), steel = LP.mat('#8a8f94', { metalness: 0.8 }); // olive canvas so dark mags stand out
     const H = rows * rowH + 0.3;
     // Per weapon: how many items, items per line, spacing, scale. Shells and flares sit in two lines.
-    const PER = { smg: [5, 5, 0.38, 0.68], shotgun: [10, 5, 0.38, 0.85], rocket: [4, 4, 0.46, 0.4], flare: [8, 4, 0.46, 0.8] };
+    const PER = { smg: [5, 5, 0.38, 0.68], shotgun: [10, 5, 0.38, 0.85], rocket: [4, 4, 0.46, 0.4], flare: [8, 4, 0.46, 0.8], nailgun: [6, 6, 0.32, 0.7], flamer: [3, 3, 0.6, 0.6], harpoon: [4, 4, 0.46, 0.55] };
     // The board, its screws, brackets and the elastic loops, as one rounded sculpt per layout.
     const lineCounts = b.rack.map((w) => Math.ceil(PER[w.id][0] / PER[w.id][1]));
     const bs = new Sculpt('ammoboard:' + lineCounts.join(''), 0.03);
@@ -660,7 +661,7 @@ class CockpitView {
         R.add(it);
         items.push(it);
       }
-      return { items, wi: r, per: w.id === 'smg' ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
+      return { items, wi: r, per: ['smg', 'nailgun', 'flamer'].includes(w.id) ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
     });
     const tilt = 0.45, yaw = 0.2, h2 = H / 2;
     const cy = 5.85 - h2 * Math.cos(tilt), cz = 7.85 - h2 * Math.sin(tilt) * Math.cos(yaw) - 0.28;
@@ -692,6 +693,7 @@ class CockpitView {
     const HOLD = {
       smg: [2.6, -1.6, -5.6, 1, 0.28, 0.05, 0.03], shotgun: [2.4, -1.5, -4.9, 0.85, 0.24, 0.06, 0.03],
       rocket: [3.0, -1.9, -5.6, 0.7, 0.18, 0.04, 0.02], flare: [2.4, -1.3, -5.1, 1, 0.26, 0.06, 0.02],
+      nailgun: [2.4, -1.25, -5.0, 1, 0.26, 0.05, 0.03], flamer: [2.3, -1.45, -4.2, 0.95, 0.15, 0.04, 0.02], harpoon: [2.3, -1.4, -4.0, 0.95, 0.15, 0.04, 0.02],
     };
     const guns = this.combat.build.rack.map((w) => {
       const m = Models.hands(Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]), w.id, (this.look3d.gunKit || {})[w.id], (this.look3d.patchSeed || {})[w.id]), w.id);
@@ -745,6 +747,8 @@ class CockpitView {
       mine: pool(40, () => Models.mine()),
       nade: pool(10, () => { const g = Models.grenade(); g.scale.setScalar(2.4); return g; }),
       flare: pool(8, () => new THREE.Mesh(new THREE.OctahedronGeometry(1.4, 0), new THREE.MeshBasicMaterial({ color: '#ff7a2a' }))),
+      flame: pool(110, () => new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff9a2a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))),
+      harpoon: pool(6, () => Models.harpoonBolt()),
       cloud: pool(48, () => new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: '#8f8f8a', transparent: true, opacity: 0.8, depthWrite: false }))),
       boom: pool(24, () => new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffb13b', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))),
       puff: pool(160, () => new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), new THREE.MeshBasicMaterial({ color: '#cccccc', transparent: true, opacity: 0.5, depthWrite: false }))),
@@ -780,6 +784,9 @@ class CockpitView {
     else if (ev.type === 'empty') this.anim.dry = 0.14;
     if (ev.type === 'shotgun') this.anim.pumpT = 0.55;
     if (ev.type === 'shoot') { this.recoil = Math.min(1, this.recoil + 0.35); this.flash = 0.05; }
+    else if (ev.type === 'nail') { this.recoil = Math.min(0.8, this.recoil + 0.25); }
+    else if (ev.type === 'flame') { this.recoil = Math.max(this.recoil, 0.12); }
+    else if (ev.type === 'harpoon') { this.recoil = 1.1; this.shake = Math.max(this.shake, 0.2); }
     else if (ev.type === 'rocket') { this.recoil = 1.4; this.flash = 0.08; this.shake = Math.max(this.shake, 0.4); }
     else if (ev.type === 'shotgun') { this.recoil = 1.5; this.flash = 0.07; this.shake = Math.max(this.shake, 0.3); }
     else if (ev.type === 'flare') { this.recoil = 0.9; this.flash = 0.06; }
@@ -1156,6 +1163,8 @@ class CockpitView {
       if (u.barrelGrp) u.barrelGrp.rotation.x = 0;
       if (u.shell) u.shell.visible = false;
       if (u.tip) { u.tip.position.z = -6.3; u.tip.visible = b.rack[i].mag > 0; }
+      if (u.bolt) u.bolt.visible = b.rack[i].mag > 0; // the harpoon's gone until you load another
+      if (u.jet) { u.jet.visible = combat.lastFire < 0.09 && st.reloadT <= 0; u.jet.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.5, 0.8 + Math.random() * 0.4); } // the flamethrower's jet
       let ox = 0, oy = 0, oz = 0, rx = 0, ry = 0, rz = 0;
       if (rp >= 0) {
         const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp));
@@ -1236,6 +1245,21 @@ class CockpitView {
             if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.5 && rp < 0.75 ? 1 : 0;
           }
           oz += bump(0.86, 0.92, rp) * 0.3; // snap shut
+        } else {
+          // Nail gun, flamethrower, harpoon: tip it over, the other hand fetches a strip, a can or a bolt from the
+          // rack and feeds it in; the one-handed nail gun just gets turned over and slapped.
+          ry = 0.6 * tilt; rx = 0.12 * tilt; rz = 0.2 * tilt; ox = -1.0 * tilt; oy = 0.9 * tilt; oz = 0.5 * tilt;
+          const hand = hands[1], R = this.rackPoint(g, i);
+          if (hand && R) {
+            const rest = hand.userData.rest.pos;
+            if (rp < 0.35) hand.position.lerpVectors(rest, R, ss(0.12, 0.35, rp));
+            else if (rp < 0.45) hand.position.copy(R);
+            else hand.position.lerpVectors(R, rest, ss(0.45, 0.78, rp));
+            hand.rotation.x = hand.userData.rest.rot + 0.5 * bump(0.12, 0.78, rp);
+          }
+          if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.38 && rp < 0.72 ? 1 : 0;
+          if (u.bolt) u.bolt.visible = rp > 0.62;
+          oz += bump(0.74, 0.82, rp) * 0.35; // seated
         }
       }
       // Pump-action after every shotgun blast.
@@ -1298,6 +1322,29 @@ class CockpitView {
       o.material.opacity = 0.85 * (1 - k);
       o.material.color.setHSL(0.08 - 0.06 * k, 1, 0.55);
     });
+    show(this.pools.flame, c.projectiles.filter((q) => q.type === 'flame'), (o, q) => {
+      const k = q.t / q.life;
+      o.position.set(q.x, 9.5 + k * 3, q.y); // above the bonnet, rising as it burns
+      o.scale.setScalar(1.5 + 9 * k);
+      o.material.color.setHSL(0.12 - 0.1 * k, 1, 0.55 - 0.15 * k);
+      o.material.opacity = 0.85 * (1 - k);
+    });
+    show(this.pools.harpoon, c.projectiles.filter((q) => q.type === 'harpoon'), (o, q) => {
+      o.position.set(q.x, 8, q.y);
+      o.rotation.set(0, -Math.atan2(q.vy, q.vx), 0);
+    });
+    { // the harpoon line: from your car to the bolt in flight, or to whoever's hooked
+      const pts = [];
+      for (const q of c.projectiles) if (q.type === 'harpoon') pts.push([q.owner, q]);
+      for (const car of this.race.cars) if (car.hookT > 0 && car.hookBy) pts.push([car.hookBy, car]);
+      if (!this.hookLines) { this.hookLines = []; for (let k = 0; k < 4; k++) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: '#d8cfb8' })); l.frustumCulled = false; this.scene.add(l); this.hookLines.push(l); } }
+      this.hookLines.forEach((l, k) => {
+        l.visible = k < pts.length;
+        if (!l.visible) return;
+        const [a, b2] = pts[k], P = l.geometry.attributes.position;
+        P.setXYZ(0, a.x, 7, a.y); P.setXYZ(1, b2.x, 8, b2.y); P.needsUpdate = true;
+      });
+    }
     show(this.pools.flare, c.projectiles.filter((q) => q.type === 'flare'), (o, q) => {
       o.position.set(q.x, 8, q.y);
       o.rotation.y += dt * 10;
