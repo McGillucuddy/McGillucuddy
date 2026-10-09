@@ -16,6 +16,8 @@ npx serve apex-rogue     # then open the printed URL
 ## Gunner prototype (`prototype.html`)
 
 An experiment in the next direction for the game: **the car drives itself and you are the gunner.**
+A new run starts in the garage, where you can drag to spin the car a full 360° and scroll to zoom. **🗺 Pick your race** (on the clipboard and at the bottom of the screen) opens the route sheet when you're ready.
+
 Played from the cockpit: you ride shotgun with a gun in your hands. A top-down view is kept only as a fallback
 for machines without WebGL, and the PS1-style retro look is always on.
 
@@ -64,7 +66,7 @@ Big guns punch the view. A brief ragged muzzle flame flickers light over your ha
   - **Feedback:** a red X on the crosshair marks a crew hit, and a gold one a kill.
 - **People** (`js/people.js`): one sculpted body for everyone. Each has a head with a jaw, brow, nose, eyes and ears, under a beanie, bandana, cap, helmet or a shaved scalp, with an optional beard and shades.
   The jumpsuit has a collar, pockets, a number patch and creased legs, and the limbs are posed from joint positions.
-  - **Your driver:** sits at the wheel with arms re-posed every frame, so their fists ride the rim as it turns. They glance at the mirror, look over when you open fire, and lean into corners.
+  - **Your car drives itself:** there's no one at the wheel, just the autopilot rig. It's a box strapped to the driver's seat with a blinking light, cabled to a motor on the column, with a clamp on the hub that turns with the wheel.
   - **You:** look down and you see your own chest, lap and legs.
 - **Commissary:** a planked counter with a barred hatch, a cash box, ledger and ashtray, and shelves of contraband (smokes, tins, bottles, ammo, oil).
   It has crates, hand-lettered notices, a lit sign and a string of bulbs, all under a warm lamp. The trader is built from the same body, arms folded, cigarette going.
@@ -239,8 +241,11 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   Window Cage (stops gunfire), Twin Bottles, Methanol.
 - **Rivals** come armed: rocket gunners, a mine layer and a **gunner** who leans out of the window and
   rakes you with bursts (the lock warning shows before each burst).
-- **Part tuning:** one trade-off slider per part (engine reliable↔boosted, tyres hard↔soft, armour
-  light↔heavy, nitro capacity↔power), free to change in the garage.
+- **Part tuning (builds):** one trade-off slider per part: engine reliable↔boosted, tyres hard↔soft, armour light↔heavy, nitro capacity↔power.
+  - **Start of a run:** every car can tune one notch either way.
+  - **Welding:** a second notch in each direction is welded on in the workshop for 90 scrap. Each direction is bought on its own, and the welds belong to the car, so they stay when you swap parts.
+  - **Extreme notch:** a third notch per part (160 scrap) unlocks for good with rep: engine 140, tyres 180, armour 220, nitro 260.
+  - **The look:** the car shows its tune, getting bulkier armour, bigger bottles and so on.
 - **Paint shop** (cosmetic, kept between runs; races earn **reputation**, which unlocks options). The
   3D preview switches between exterior, interior and gun-rack views.
   - **Body:** style, paint, two-tone (roof / lower / hood) with a second colour, finish, grime (washed

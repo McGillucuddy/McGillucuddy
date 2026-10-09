@@ -586,12 +586,12 @@ class Garage3D {
 
   // Drag to look: around the cabin from your seat, or round the car in the paint booth.
   drag(dx, dy) {
-    if (this.station !== 'paint') return;
-    if (this.mode === 'interior') {
+    if (this.station !== 'paint' && this.station !== 'car') return; // the workshop and paint booth both have the car on a turntable
+    if (this.mode === 'interior' && this.station === 'paint') {
       const l = this.cabinLook;
       l.yaw = clamp(l.yaw + dx * 0.006, -2.6, 1.4);
       l.pitch = clamp(l.pitch - dy * 0.005, -0.9, 0.5);
-    } else if (this.mode === 'car') {
+    } else {
       this.userOrbit = true;
       this.orbit += dx * 0.008;
       this.orbitPitch = clamp(this.orbitPitch + dy * 0.15, 8, 70);
@@ -599,7 +599,7 @@ class Garage3D {
   }
 
   zoom(delta) {
-    if (this.station === 'paint' && this.mode === 'car') this.orbitR = clamp(this.orbitR + delta * 0.05, 48, 120);
+    if ((this.station === 'paint' || this.station === 'car') && this.mode !== 'interior') this.orbitR = clamp(this.orbitR + delta * 0.05, 40, 120);
   }
 
   // ---------- Interaction ----------
@@ -630,7 +630,7 @@ class Garage3D {
       const a = 0.35 + Math.sin(this.orbit * 0.8) * 0.5;
       return [[GARAGE_LIFT.x + Math.cos(a) * 58, 18, GARAGE_LIFT.z + Math.sin(a) * 58], [GARAGE_LIFT.x, 10, GARAGE_LIFT.z]];
     }
-    if (st === 'paint') {
+    if (st === 'paint' || (st === 'car' && this.mode !== 'interior')) {
       const r = this.orbitR, a = this.orbit;
       return [[GARAGE_LIFT.x + Math.cos(a) * r, this.orbitPitch, GARAGE_LIFT.z + Math.sin(a) * r], [GARAGE_LIFT.x, 12, GARAGE_LIFT.z]];
     }
@@ -654,7 +654,7 @@ class Garage3D {
     const k = Math.min(1, dt * 3.5);
     const pose = this.pose();
     if (pose) {
-      const still = this.station === 'paint' || this.station === 'market'; // no parallax where you aim at small things
+      const still = this.station === 'paint' || this.station === 'market' || this.station === 'car'; // no parallax where you aim at small things
       const px = still ? 0 : this.mouse.x * 3, py = still ? 0 : this.mouse.y * 2;
       this.cam.pos.lerp(new THREE.Vector3(pose[0][0] + px, pose[0][1] + py, pose[0][2]), k);
       this.cam.look.lerp(new THREE.Vector3(...pose[1]), k);

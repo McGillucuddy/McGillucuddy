@@ -519,3 +519,12 @@ body.proto #ui { z-index: 2; }
 .stop .wx { position: absolute; top: -9px; right: -11px; font-style: normal; font-size: 14px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
 .wx-line { margin: 4px auto 8px; max-width: 760px; color: #cfe0ff; }
 .wx-line span { font-size: 18px; }
+
+/* Garage: pick-your-race, welded tuning notches */
+.g-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.g-head .g-route { margin: 0; white-space: nowrap; background: #a8322a !important; color: #fff8e0 !important; border-color: #3a2a1a !important; }
+.g-hint { margin: 0 0 6px; }
+.tune-step.shut { opacity: .25; border-style: dashed; cursor: not-allowed; }
+.tune-row .weld { margin: 0 4px; padding: 1px 6px; }
+.weld-lock, .weld-max { font-size: 11px; color: #6a5e4a; margin: 0 4px; white-space: nowrap; }
+.tune-row { flex-wrap: wrap; } .tune-row > small.muted { flex-basis: 100%; }

@@ -138,6 +138,14 @@ const MODS = {
 };
 const modFits = (modId, weaponId) => MODS[modId].fits.includes(weaponId);
 
+// The extreme (third) tuning notch for each part, unlocked with rep (see UNLOCK_REP.tune).
+const TUNE_EXTREME = {
+  engine: { name: 'Extreme engine tune', desc: 'A third tuning notch on the engine, both ways: bored out, or detuned to last.' },
+  tyres: { name: 'Extreme tyre tune', desc: 'A third tuning notch on the tyres: rock hard, or soft as chewing gum.' },
+  armour: { name: 'Extreme armour tune', desc: 'A third tuning notch on the armour: stripped to the frame, or a rolling bunker.' },
+  nitro: { name: 'Extreme nitro tune', desc: 'A third tuning notch on the nitro: a huge bottle, or a ferocious one.' },
+};
+
 // ---------- Unlocks ----------
 // Gear unlocks for good with reputation, the same rep that unlocks paint. You start each run with a pistol;
 // everything else has to turn up in a shop or a reward, and only unlocked gear ever does.
@@ -161,10 +169,11 @@ const UNLOCK_REP = {
     photo: 200, medal: 250, lighter: 300, compass: 350, teddy: 400, shoes: 460, horseshoe: 520, snowglobe: 580, rosary: 640,
     clover: 700, keys: 780, eightball: 860,
   },
+  tune: { engine: 140, tyres: 180, armour: 220, nitro: 260 },
   chip: { hothead: 0, cautious: 0, daredevil: 60, gun_nut: 140, veteran: 300, ghost: 500, showboat: 700 },
 };
-const UNLOCK_TYPES = { weapon: WEAPONS, part: PARTS, ability: ABILITIES, mod: MODS, trinket: TRINKETS, chip: CHIPS };
-const UNLOCK_LABEL = { weapon: 'Weapons', part: 'Car parts', ability: 'Abilities', mod: 'Attachments', trinket: 'Trinkets', chip: 'Driver chips' };
+const UNLOCK_TYPES = { weapon: WEAPONS, part: PARTS, ability: ABILITIES, mod: MODS, trinket: TRINKETS, chip: CHIPS, tune: TUNE_EXTREME };
+const UNLOCK_LABEL = { weapon: 'Weapons', part: 'Car parts', ability: 'Abilities', mod: 'Attachments', trinket: 'Trinkets', chip: 'Driver chips', tune: 'Extreme tuning' };
 // The player's reputation, kept in step with the saved cosmetics by the game.
 const Meta = { rep: 0 };
 const unlockRep = (type, id) => (UNLOCK_REP[type] && UNLOCK_REP[type][id]) || 0;
@@ -180,7 +189,27 @@ const TUNING = {
   armour: { left: 'Light', right: 'Heavy', desc: 'Absorbs more, but adds weight (slower).' },
   nitro: { left: 'Capacity', right: 'Power', desc: 'Stronger boost from a smaller bottle.' },
 };
-const TUNE_STEPS = [-1, -0.5, 0, 0.5, 1];
+// Tuning in notches of 0.5. Every car starts with one notch each way. A second is welded on in the workshop
+// (scrap, per direction, kept on the car whatever part is fitted). A third, extreme notch per part unlocks with rep.
+const TUNE_STEPS = [-1.5, -1, -0.5, 0, 0.5, 1, 1.5];
+const WELD_COST = [0, 0, 90, 160]; // to open notch 2, notch 3
+const tuneRange = (b, slot) => (b.tuneRange && b.tuneRange[slot]) || { lo: -1, hi: 1 }; // in notches
+// The next notch you could weld on in a direction (+1 / -1), or null; and what stands in the way.
+function nextWeld(b, slot, dir) {
+  const r = tuneRange(b, slot), cur = dir > 0 ? r.hi : -r.lo, next = cur + 1;
+  if (next > 3) return null;
+  return { notch: next, cost: WELD_COST[next], locked: next === 3 && !isUnlocked('tune', slot) };
+}
+function weldNotch(b, slot, dir) {
+  const w = nextWeld(b, slot, dir);
+  if (!w || w.locked || b.scrap < w.cost) return false;
+  b.scrap -= w.cost;
+  b.tuneRange = b.tuneRange || {};
+  const r = Object.assign({}, tuneRange(b, slot));
+  if (dir > 0) r.hi = w.notch; else r.lo = -w.notch;
+  b.tuneRange[slot] = r;
+  return true;
+}
 
 const PLACE_SCRAP = [220, 160, 120, 80, 50, 30, 20];
 const WRECK_SCRAP = 30;
@@ -191,6 +220,7 @@ function newBuild() {
     scrap: 150, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0,
     parts: {}, spare: null,
     rack: [], rackBase: 2,
+    tuneRange: { engine: { lo: -1, hi: 1 }, tyres: { lo: -1, hi: 1 }, armour: { lo: -1, hi: 1 }, nitro: { lo: -1, hi: 1 } },
     grenades: 2,
     abilities: ['shield', null],
     trinkets: [], // the only permanent things in a run

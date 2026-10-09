@@ -257,7 +257,8 @@ const Proto = {
       case 'equip-chip': equipChip(b, +arg); this.showGarage(); break;
       case 'fit-mod': { const [si, ri, slot] = arg.split(':').map(Number); fitMod(b, si, ri, slot); Sound.play({ type: 'reloaded' }); this.showGarage(); break; }
       case 'remove-mod': { const [ri, slot] = arg.split(':').map(Number); removeMod(b, ri, slot); this.showGarage(); break; }
-      case 'tune': { const [slot, v] = arg.split(':'); b.parts[slot].tune = +v; this.showGarage(); break; }
+      case 'tune': { const [slot, v] = arg.split(':'), R = tuneRange(b, slot), n = Math.round(+v * 2); if (n >= R.lo && n <= R.hi) b.parts[slot].tune = +v; this.showGarage(); break; }
+      case 'weld': { const [slot, dir] = arg.split(':'); if (weldNotch(b, slot, +dir)) Sound.play({ type: 'buy' }); this.showGarage(); break; }
       // Paint shop (saved between runs)
       case 'paint-tab': this.paintTab = arg; if (this.preview) this.preview.setMode({ cabin: 'interior', guns: 'guns' }[arg] || 'car'); this.showGarage(); break;
       case 'preset-save': savePreset(this.cos, +arg); saveCosmetics(this.cos); this.showGarage(); break;
@@ -501,14 +502,17 @@ const Proto = {
     this.race = null;
     this.shop = [];
     this.shopOpen = false;
-    this.startAct(0);
+    this.startAct(0, true);
+    this.tab = 'car';
+    if (this.preview) this.preview.setMode('car');
+    this.toGarage(); // a new run starts in the garage: look the car over, then pick your race
   },
 
   get act() { return ACTS[this.run.act]; },
 
-  startAct(i) {
+  startAct(i, quiet) {
     this.run = { act: i, map: genActMap(this.runRng, i), cur: null, node: null, flags: (this.run && this.run.flags) || {}, seed: this.runSeed };
-    this.showMap();
+    if (!quiet) this.showMap();
   },
 
   // ---------- Route sheet ----------
@@ -1038,12 +1042,13 @@ const Proto = {
       <nav class="g-nav">${nav}</nav>
       <div class="g-panel clipboard">
         <div class="clip"></div>
-        <h2 class="g-title">${title[1]}</h2>
+        <div class="g-head"><h2 class="g-title">${title[1]}</h2><button class="btn small g-route" data-action="to-map" title="The route sheet: choose your next stop">🗺 Pick your race</button></div>
+        ${this.tab === 'car' ? '<p class="small muted g-hint">Drag the car to spin it round · scroll to zoom</p>' : ''}
         <div class="perks trinket-row">${trinkets}</div>
         ${body}
         <p class="small muted g-links"><a href="models.html">Model viewer</a></p>
       </div>
-      <button class="btn primary big g-go" data-action="to-map">Route sheet ▶</button>
+      <button class="btn primary big g-go" data-action="to-map">🗺 Pick your race ▶</button>
     </div>`);
     this.syncGarage();
   },
@@ -1064,7 +1069,13 @@ const Proto = {
     const slots = PART_SLOTS.map((slot) => {
       const part = b.parts[slot], def = PARTS[part.id], max = partMaxDur(b, part.id), broken = part.dur <= 0;
       const cost = repairPartCost(b, slot), tu = TUNING[slot];
-      const tune = TUNE_STEPS.map((v) => `<button class="tune-step ${part.tune === v ? 'on' : ''}" data-action="tune" data-arg="${slot}:${v}" title="${v}"></button>`).join('');
+      // Tuning notches: open ones are buttons; beyond them, a weld (scrap) or a lock (rep) at each end.
+      const R = tuneRange(b, slot);
+      const tune = TUNE_STEPS.map((v) => { const n = Math.round(v * 2), open = n >= R.lo && n <= R.hi;
+        return `<button class="tune-step ${part.tune === v ? 'on' : ''} ${open ? '' : 'shut'}" ${open ? `data-action="tune" data-arg="${slot}:${v}"` : 'disabled'} title="${open ? 'Notch ' + n : 'Not welded on yet'}"></button>`; }).join('');
+      const weld = (dir) => { const w = nextWeld(b, slot, dir); if (!w) return '<span class="weld-max">max</span>';
+        if (w.locked) return `<span class="weld-lock" title="${TUNE_EXTREME[slot].desc}">🔒 ${unlockRep('tune', slot)} rep</span>`;
+        return `<button class="btn tiny weld" data-action="weld" data-arg="${slot}:${dir}" ${b.scrap < w.cost ? 'disabled' : ''} title="Weld on notch ${w.notch} (${dir > 0 ? tu.right : tu.left})">+ ${w.cost}</button>`; };
       const alts = b.stash.parts.map((inst, i) => ({ inst, i })).filter(({ inst }) => PARTS[inst.id].slot === slot)
         .map(({ inst, i }) => `<button class="btn small" data-action="equip-part" data-arg="${i}" title="${PARTS[inst.id].desc}">Fit ${PARTS[inst.id].name} (${Math.max(0, Math.round(inst.dur))}/${partMaxDur(b, inst.id)})</button>`).join('');
       return `<div class="part-card">
@@ -1074,7 +1085,7 @@ const Proto = {
           <button class="btn small" data-action="repair-part" data-arg="${slot}" ${cost <= 0 || b.scrap < cost ? 'disabled' : ''}>${cost <= 0 ? 'OK' : 'Fix ' + cost}</button>
           <button class="btn small" data-action="buy-spare" data-arg="${slot}" ${b.spare || b.scrap < spareCost(b, slot) ? 'disabled' : ''} title="Carry a spare ${def.name} to fit mid-race">Spare ${spareCost(b, slot)}</button>
         </div>
-        <div class="tune-row"><small>${tu.left}</small><span class="tune">${tune}</span><small>${tu.right}</small><small class="muted">${tu.desc}</small></div>
+        <div class="tune-row">${weld(-1)}<small>${tu.left}</small><span class="tune">${tune}</span><small>${tu.right}</small>${weld(1)}<small class="muted">${tu.desc}</small></div>
         ${alts ? `<div class="alts"><small class="muted">In your stash:</small> ${alts}</div>` : ''}
       </div>`;
     }).join('');
