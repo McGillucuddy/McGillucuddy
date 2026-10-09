@@ -92,7 +92,7 @@ const Proto = {
       for (const id of Object.keys(WEAPONS)) Models.hands(Models.weapon(id), id); // guns and their fitted gloves
       for (const id of Object.keys(WEAPONS)) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id], this.cos.patchSeed[id]); // your welded-on junk
       for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
-      Models.car(Object.assign({}, carLook(this.cos), { shell: true })); // your own car, seen from inside
+      Models.car(Object.assign({}, carLook(this.cos, this.build), { shell: true })); // your own car, seen from inside
       Models.interior('#888888', {});
       Models.rocketPod(); Models.mineDropper(); Models.gunner(); Models.grenade(); Models.rocket(); Models.mine(); Models.grenadeCrate();
       for (const id of Object.keys(TRINKET_MOUNT)) Models.trinket(id);
@@ -247,7 +247,7 @@ const Proto = {
       // Paint shop (saved between runs)
       case 'paint-tab': this.paintTab = arg; if (this.preview) this.preview.setMode({ cabin: 'interior', guns: 'guns' }[arg] || 'car'); this.showGarage(); break;
       case 'preset-save': savePreset(this.cos, +arg); saveCosmetics(this.cos); this.showGarage(); break;
-      case 'preset-load': loadPreset(this.cos, +arg); saveCosmetics(this.cos); if (this.preview) this.preview.setLook(carLook(this.cos)); this.showGarage(); break;
+      case 'preset-load': loadPreset(this.cos, +arg); saveCosmetics(this.cos); if (this.preview) this.preview.setLook(carLook(this.cos, this.build)); this.showGarage(); break;
       case 'cosmetic': {
         const i = arg.indexOf(':'), key = arg.slice(0, i), val = arg.slice(i + 1);
         if (key === 'number') this.cos.number = (+val + 100) % 100;
@@ -258,7 +258,7 @@ const Proto = {
         else if (key.startsWith('reweld.')) this.cos.patchSeed[key.slice(7)] = (this.cos.patchSeed[key.slice(7)] || 0) + 1;
         else this.cos[key] = val;
         saveCosmetics(this.cos);
-        if (this.preview) this.preview.setLook(carLook(this.cos));
+        if (this.preview) this.preview.setLook(carLook(this.cos, this.build));
         this.showGarage();
         break;
       }
@@ -410,7 +410,7 @@ const Proto = {
   toGarage() {
     this.state = 'garage';
     if (!this.shopOpen) this.shop = [];
-    if (this.preview) this.preview.setLook(carLook(this.cos));
+    if (this.preview) this.preview.setLook(carLook(this.cos, this.build));
     this.showGarage();
   },
 
@@ -544,7 +544,7 @@ const Proto = {
     run.flags.disarm = false;
     this.combat.pace = PACE;
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
-    if (this.cockpit) this.cockpit.load(this.race, this.combat, carLook(this.cos));
+    if (this.cockpit) this.cockpit.load(this.race, this.combat, carLook(this.cos, this.build));
     this.cam.x = player.x;
     this.cam.y = player.y;
     this.cam.zoom = this.baseZoom();
@@ -760,6 +760,10 @@ const Proto = {
   showGarage() {
     this.state = 'garage';
     const b = this.build, act = this.act;
+    if (this.preview) { // parts or tuning changed: rebuild the car on the lift so it shows them
+      const gk = JSON.stringify(gearLook(b));
+      if (gk !== this.gearKey) { this.gearKey = gk; this.preview.setLook(carLook(this.cos, b)); }
+    }
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
     const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(this.run.act) ? 'Concierge' : 'Commissary', this.shopOpen ? 'Open now' : 'Closed'], ['paint', 'Paint booth', 'Looks, kept between runs']];
     const nav = stations.map(([id, label, sub]) => `<button class="g-station ${this.tab === id ? 'on' : ''}" data-action="tab" data-arg="${id}"><b>${label}</b><small>${sub}</small></button>`).join('');

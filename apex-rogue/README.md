@@ -117,6 +117,12 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   line and drags them back hard).
   Grenades are a separate consumable.
 - **Abilities** on `Space` and `E`: shield/parry, nitro burst, smoke screen, EMP pulse.
+- **Your parts show on your car.** Armour bolts on as plates, reactive bricks, a spiked cage, ceramic tiles or
+  window bars; tuning it heavier adds a hood plate, then a ram and arch guards, lighter thins it out. The
+  nitro bottle is strapped on the boot or roof (bigger for capacity, smaller with a purge valve for power;
+  twin bottles are two). Engines show through the hood (turbo, blower, velocity stacks, a diesel stack,
+  salvaged batteries) and grow when boosted. Tyres show too: wide slicks, chunky all-terrains, studs,
+  run-flat bands, snow chains; soft tuning widens them.
 - **Trinkets** (22 to earn) change the rules and physically appear in your cabin, hanging from the mirror
   or the driver's visor, or standing and lying on the dash: fuzzy dice, rabbit's foot, warden's keys,
   burnt rosary, pine air freshener, dog tags, bronzed baby shoes, four-leaf clover, bobblehead, troll

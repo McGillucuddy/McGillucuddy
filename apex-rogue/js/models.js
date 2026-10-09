@@ -1165,12 +1165,17 @@ const Models = {
     // Wheels: 12-sided tyres, spoked rims on the outer face.
     const tyre = LP.mat('#151515', { roughness: 1 });
     g.userData.wheels = [];
+    // Your tyres show what's fitted: slicks run wide and smooth, all-terrains are big and chunky, studs, run-flat
+    // bands and snow chains; soft tuning widens them, hard narrows them.
+    const ty = opts.gear && opts.gear.tyres, tid = ty ? ty.id : 'stock_tyres', ttune = ty ? ty.tune || 0 : 0;
+    const wS = ({ slicks: 1.28, all_terrain: 1.15 }[tid] || 1) * (1 + 0.1 * ttune), rS = tid === 'all_terrain' ? 1.07 : 1;
     for (const x of st.wheels) {
       for (const s of [-1, 1]) {
         const w = new THREE.Group();
-        const R = st.wheelR;
+        const R = st.wheelR * rS;
         // Tyre with rounded shoulders and sidewalls, turned on a lathe.
-        const t = LP.lathe([[R * 0.66, -1.15], [R * 0.9, -1.15], [R - 0.12, -0.95], [R, -0.55], [R, 0.55], [R - 0.12, 0.95], [R * 0.9, 1.15], [R * 0.66, 1.15]], 28, tyre);
+        const t = LP.lathe([[R * 0.66, -1.15 * wS], [R * 0.9, -1.15 * wS], [R - 0.12, -0.95 * wS], [R, -0.55 * wS], [R, 0.55 * wS], [R - 0.12, 0.95 * wS], [R * 0.9, 1.15 * wS], [R * 0.66, 1.15 * wS]], 28, tyre);
+        if (tid !== 'stock_tyres' && tid !== 'slicks') Models.tyreExtras(tid, R, wS).build(w);
         // Rim dished in from the sidewall, with a brake disc behind the spokes.
         const dish = LP.lathe([[R * 0.66, 1.12 * s], [R * 0.6, 0.85 * s], [R * 0.22, 0.75 * s]], 16, LP.mat('#2a2c2e', { metalness: 0.6, roughness: 0.5 }));
         const disc = LP.cyl(R * 0.48, R * 0.48, 0.25, 14, LP.mat('#6a6c6e', { metalness: 0.7, roughness: 0.4 }), 0, 0, 0.55 * s).rotateX(Math.PI / 2);
@@ -1178,12 +1183,13 @@ const Models = {
         if (s < 0) rim.rotation.y = Math.PI;
         rim.userData.noGrime = true;
         w.add(t, dish, disc, rim);
-        w.position.set(x, st.wheelR, st.wheelZ * s);
+        w.position.set(x, st.wheelR * rS, (st.wheelZ + (wS - 1) * 0.9) * s);
         g.add(w);
         g.userData.wheels.push(w);
       }
     }
     Models.livery(g, st, opts, W, bev);
+    if (opts.gear) Models.gear(g, st, opts, W, bev);
 
     if (opts.weapon === 'rocket') {
       const pod = Models.rocketPod();
@@ -1821,6 +1827,163 @@ const Models = {
     for (const sd of [-1, 1]) sc.add(steel, SDF.path([[8, 0, 0], [6, 0, sd * 1.8]], 0.3), 0.2);
     sc.build(g);
     return g;
+  },
+
+  // Tread and extras on a tyre (one sculpt per kind and size, shared by every wheel).
+  tyreExtras(tid, R, wS) {
+    const sc = new Sculpt('tyre:' + tid + ':' + R.toFixed(2) + ':' + wS.toFixed(2), 0.06), rubber = LP.mat('#151515', { roughness: 1 });
+    const steel = LP.mat('#8a8e92', { metalness: 0.8, roughness: 0.35 });
+    if (tid === 'all_terrain') for (let k = 0; k < 18; k++) { // chunky blocks staggered across the tread
+      const a = (k / 18) * TAU;
+      for (const zz of [-0.55, 0.55]) sc.add(rubber, SDF.box([0.55, 0.32, 0.8 * wS], 0.08, [Math.cos(a + (zz > 0 ? 0.17 : 0)) * (R + 0.08), Math.sin(a + (zz > 0 ? 0.17 : 0)) * (R + 0.08), zz * wS], [0, 0, a]), 0.02);
+    } else if (tid === 'studded') for (let k = 0; k < 22; k++) for (const zz of [-0.6, 0, 0.6]) { // metal studs
+      const a = (k / 22) * TAU + zz;
+      sc.add(steel, SDF.ellipsoid([0.09, 0.09, 0.09], [Math.cos(a) * (R + 0.02), Math.sin(a) * (R + 0.02), zz * wS]), 0.01);
+    } else if (tid === 'run_flats') for (const sd of [-1, 1]) sc.add(LP.mat('#d8b81a', { roughness: 0.7 }), SDF.torus(R * 0.82, 0.06, [0, 0, sd * 1.12 * wS]), 0.01); // yellow sidewall bands
+    else if (tid === 'chains') for (let k = 0; k < 12; k++) { // chains across the tread, side chains round the walls
+      const a = (k / 12) * TAU, c = Math.cos(a), sn = Math.sin(a);
+      for (let j = -2; j <= 2; j++) sc.add(steel, SDF.torus(0.13, 0.04, [c * (R + 0.05), sn * (R + 0.05), j * 0.42 * wS], [0, Math.PI / 2 * (j % 2), a]), 0.004);
+    }
+    if (tid === 'chains') for (const sd of [-1, 1]) sc.add(steel, SDF.torus(R * 0.86, 0.05, [0, 0, sd * 1.05 * wS]), 0.01);
+    return sc;
+  },
+
+  // Your parts, made visible on your car: armour plating (bulkier the heavier it's tuned), the nitro bottle (bigger
+  // for capacity, smaller for power), engine hardware through the hood (bigger when boosted). Each piece is its
+  // own sculpt, cached per style, part and tuning.
+  gear(g, st, opts, W, bev) {
+    const G = opts.gear, hw = W / 2, side = hw + bev, belt = st.cabin[0][1];
+    const surf = (x) => topAt(x) + bev + 0.1; // the painted surface sits a bevel above the outline
+    const topAt = (x) => { const T = st.top; for (let i = 0; i < T.length - 1; i++) { const [x0, y0] = T[i], [x1, y1] = T[i + 1]; if ((x <= x0 && x >= x1) || (x >= x0 && x <= x1)) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0 || 1); } return T[0][1]; };
+    const dx0b = st.wheels[1] + st.wheelR + 1.0, dx1b = st.wheels[0] - st.wheelR - 1.0; // the doors, between the arches
+    const hood0 = st.cabin[0][0] + 1.0, hood1 = st.top[2][0] - 1.2, hx = (hood0 + hood1) / 2;
+    const key = (slot) => 'gear:' + (opts.style || 'comet') + ':' + (opts.shell ? 's' : 'f') + ':' + slot + ':' + G[slot].id + ':' + (G[slot].tune || 0)
+      + (slot === 'engine' && G.armour && (G.armour.tune || 0) >= 0.5 ? ':plated' + G.armour.tune : '');
+    const steel = LP.mat('#4a4c4e', { metalness: 0.7, roughness: 0.5 }), rust = DECALS.mat('rust', { metalness: 0.5, roughness: 0.85 }), weld = LP.mat('#2e2a26', { metalness: 0.4, roughness: 0.8 });
+    const teal = LP.mat('#2a8a8a', { metalness: 0.3, roughness: 0.7 }), bolt = LP.mat('#8a8e92', { metalness: 0.8, roughness: 0.35 });
+    const piece = (slot, fill) => { const sc = new Sculpt(key(slot), 0.07); fill(sc); const grp = new THREE.Group(); sc.build(grp); grp.userData.gear = slot; g.add(grp); return grp; };
+    const plate = (sc, mat, x0, x1, y0, y1, z, th, sd, rot) => { // a slab on the side of the car, bolted at the corners
+      sc.add(mat, SDF.box([x1 - x0, y1 - y0, th], 0.08, [(x0 + x1) / 2, (y0 + y1) / 2, z + (th / 2) * sd], [0, 0, rot || 0]), 0.02);
+      for (const [px, py] of [[x0 + 0.35, y0 + 0.3], [x1 - 0.35, y0 + 0.3], [x0 + 0.35, y1 - 0.3], [x1 - 0.35, y1 - 0.3]]) sc.add(bolt, SDF.ellipsoid([0.14, 0.14, 0.08], [px, py, z + th * sd]), 0.02);
+    };
+
+    if (G.armour) {
+      const id = G.armour.id, tune = G.armour.tune || 0, bulk = 1 + 0.6 * tune; // Light 0.4 .. Heavy 1.6
+      const rnd = mulberry32(id.length * 97 + Math.round(bulk * 10));
+      piece('armour', (sc) => {
+        const cut = tune < 0 ? -tune * 0.3 * (dx1b - dx0b) : 0; // lighter: covers less of the doors
+        for (const sd of [-1, 1]) {
+          const z = side * sd, y0 = 2.3 + (tune < 0 ? 0.6 : 0), y1 = belt - 0.4, dx0 = dx0b + cut / 2, dx1 = dx1b - cut / 2;
+          if (id === 'scrap_plating') { // mismatched patches, more and thicker the heavier
+            const n = 2 + Math.round(bulk * 2);
+            for (let k = 0; k < n; k++) {
+              const w = (dx1 - dx0) * (0.25 + rnd() * 0.3), h = (y1 - y0) * (0.4 + rnd() * 0.4), xc = dx0 + w / 2 + rnd() * (dx1 - dx0 - w), yc = y0 + h / 2 + rnd() * (y1 - y0 - h);
+              plate(sc, k % 2 ? teal : rust, xc - w / 2, xc + w / 2, yc - h / 2, yc + h / 2, z + sd * k * 0.05, 0.14 * bulk, sd, (rnd() - 0.5) * 0.15);
+            }
+          } else if (id === 'riot_plates') { // one big steel slab per side, thick
+            plate(sc, steel, dx0 - 0.4, dx1 + 0.4, y0 - 0.3, y1 + 0.2, z, 0.3 * bulk + 0.15, sd);
+            for (let k = 0; k < 6; k++) sc.add(weld, SDF.ellipsoid([0.16, 0.14, 0.12], [dx0 + (k / 5) * (dx1 - dx0), y1 + 0.2, z + (0.3 * bulk + 0.15) * sd]), 0.03);
+          } else if (id === 'reactive') { // rows of explosive bricks
+            const rows = Math.max(1, Math.round(1 + bulk)), cols = Math.floor((dx1 - dx0) / 1.9), bh = (y1 - y0) / rows;
+            for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+              const xc = dx0 + (c + 0.5) * ((dx1 - dx0) / cols), yc = y0 + (r + 0.5) * bh;
+              sc.add(LP.mat('#4b5a2e', { roughness: 0.7 }), SDF.box([1.7, bh - 0.18, 0.4 * bulk], 0.06, [xc, yc, z + 0.2 * bulk * sd]), 0.01);
+            }
+          } else if (id === 'spiked_cage') { // a welded tube cage standing off the doors, spikes outwards
+            const off = 0.5 + 0.35 * bulk, zz = z + off * sd, tubeM = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.7 });
+            for (const y of [y0, y1]) sc.add(tubeM, SDF.cone([dx0 - 1, y, zz], [dx1 + 1, y, zz], 0.2, 0.2), 0.15);
+            const posts = 4;
+            for (let k = 0; k < posts; k++) { const x = dx0 - 1 + (k / (posts - 1)) * (dx1 - dx0 + 2); sc.add(tubeM, SDF.cone([x, y0, zz], [x, y1, zz], 0.17, 0.17), 0.15); sc.add(tubeM, SDF.cone([x, (y0 + y1) / 2, z], [x, (y0 + y1) / 2, zz], 0.14, 0.14), 0.1); }
+            const spikes = 3 + Math.round(bulk * 4);
+            for (let k = 0; k < spikes; k++) { const x = dx0 - 0.6 + ((k + 0.5) / spikes) * (dx1 - dx0 + 1.2); sc.add(steel, SDF.cone([x, y1, zz], [x, y1 + 0.2, zz + (0.9 + 0.4 * bulk) * sd], 0.16, 0.01), 0.05); }
+          } else if (id === 'ablative') { // overlapping ceramic tiles, layered like shingles
+            const layers = bulk > 1.1 ? 2 : 1, cols = Math.floor((dx1 - dx0) / 1.4), rowsN = 3;
+            for (let L = 0; L < layers; L++) for (let r = 0; r < rowsN; r++) for (let c = 0; c < cols; c++) {
+              const xc = dx0 + (c + 0.5 + (r % 2) * 0.4) * ((dx1 - dx0) / (cols + 0.4)), yc = y0 + (r + 0.5) * ((y1 - y0) / rowsN);
+              sc.add(LP.mat(r % 2 ? '#a8a296' : '#8a857a', { roughness: 0.8 }), SDF.box([1.45, (y1 - y0) / rowsN + 0.15, 0.12 * bulk], 0.05, [xc, yc, z + (0.08 + L * 0.14 + r * 0.03) * sd], [0.12 * sd, 0, 0]), 0.005);
+            }
+          } else if (id === 'window_cage') { // bars welded over the side windows
+            const cab = st.cabin, cz = (st.cabinW / 2 + 0.35) * sd, roofY = cab[1][1] - 0.8, wx0 = cab[cab.length - 1][0] + 2.6, wx1 = cab[0][0] - 2.6, n = Math.round((wx1 - wx0) / 1.1);
+            for (let k = 0; k <= n; k++) { const x = wx0 + (k / n) * (wx1 - wx0); sc.add(steel, SDF.cone([x, belt + 0.1, cz], [x, roofY - 0.5, cz * 0.94], 0.07 * bulk + 0.03, 0.07 * bulk + 0.03), 0.04); }
+            for (const y of [belt + 0.1, roofY - 0.5]) sc.add(steel, SDF.cone([wx0, y, cz * (y > belt + 1 ? 0.94 : 1)], [wx1, y, cz * (y > belt + 1 ? 0.94 : 1)], 0.1 * bulk + 0.04, 0.1 * bulk + 0.04), 0.06);
+          }
+        }
+        const skin = { riot_plates: steel, reactive: LP.mat('#4b5a2e', { roughness: 0.7 }), ablative: LP.mat('#a8a296', { roughness: 0.8 }), spiked_cage: steel, window_cage: steel }[id] || rust;
+        if (tune >= 0.5) { // heavier: a plate bolted down over the hood, following its slope
+          const y0 = surf(hood1), y1 = surf(hood0 + 0.6), ang = Math.atan2(y1 - y0, hood1 - (hood0 + 0.6)), len = Math.hypot(hood1 - hood0 - 0.6, y1 - y0);
+          const cx = (hood0 + 0.6 + hood1) / 2, cy = (y0 + y1) / 2 + 0.12 * bulk;
+          sc.add(skin, SDF.box([len, 0.22 * bulk, hw * 1.25], 0.1, [cx, cy, 0], [0, 0, -ang]), 0.03);
+          for (const [fx2, fz] of [[0.4, 1], [0.4, -1], [-0.4, 1], [-0.4, -1]]) sc.add(bolt, SDF.ellipsoid([0.14, 0.1, 0.14], [cx + fx2 * len, cy + 0.12 * bulk + Math.sin(-ang) * fx2 * len * -1, fz * hw * 0.55]), 0.02);
+        }
+        if (tune >= 1) { // heaviest: a ram plate over the nose and guards over every wheel arch
+          const fx = st.top[0][0] + 0.7;
+          sc.add(steel, SDF.box([0.6 * bulk, 3.0, hw * 1.85], 0.15, [fx, 3.1, 0]), 0.05);
+          for (const sd of [-1, 1]) sc.add(weld, SDF.cone([fx - 0.2, 2.0, sd * hw * 0.8], [fx - 1.8, 2.4, sd * hw * 0.8], 0.18, 0.18), 0.1);
+          for (const wx of st.wheels) for (const sd of [-1, 1]) {
+            const R2 = st.wheelR + 0.9, arc = [];
+            for (let k = 0; k <= 8; k++) { const a = Math.PI * (0.12 + 0.76 * (k / 8)); arc.push([wx + Math.cos(a) * R2, st.wheelR + Math.sin(a) * R2, sd * (side + 0.2)]); }
+            sc.add(skin, SDF.path(arc, 0.32), 0.1); // a thick bent strip over the arch
+          }
+        }
+      });
+    }
+
+    if (G.nitro) { // the bottle(s), strapped down where you can see them: on the boot, in a bed, or on the roof
+      const id = G.nitro.id, tune = G.nitro.tune || 0;
+      const size = ({ big_bottle: 1.45, recycler: 0.85 }[id] || 1) * (1 - 0.22 * tune), n = id === 'twin_bottles' ? 2 : 1;
+      const col = { hot_mix: '#b0281e', methanol: '#d8b81a', recycler: '#2f8a4a' }[id] || '#2a4a8a';
+      const cab = st.cabin, cr = cab[cab.length - 1][0], rearTop = st.top[st.top.length - 3][0], trunk = cr - rearTop > 3.5;
+      const bx = trunk ? (cr + rearTop) / 2 : cr + 2.6, by = trunk ? surf(bx) : cab[1][1] + bev;
+      piece('nitro', (sc) => {
+        const r = 0.55 * size, L = 4.2 * size, blue = LP.mat(col, { metalness: 0.5, roughness: 0.35 }), feed = LP.mat('#1a6ad8', { roughness: 0.6 });
+        for (let k = 0; k < n; k++) {
+          const xx = bx + (n > 1 ? (k - 0.5) * (r * 2.3) : 0), c = [xx, by + r + 0.05, 0];
+          sc.add(blue, SDF.lathe([[0, -L / 2], [r * 0.8, -L / 2 + 0.05], [r, -L / 2 + r * 0.6], [r, L / 2 - r], [r * 0.5, L / 2 - 0.1], [r * 0.35, L / 2]], c), 0.04);
+          sc.add(bolt, SDF.cyl(r * 0.3, 0.4, 'z', 0.05, [xx, c[1], L / 2 + 0.15]), 0.03); // valve
+          sc.add(LP.mat('#e8e2d0', { roughness: 0.7 }), SDF.lathe([[r + 0.01, -0.5], [r + 0.01, 0.5]], c), 0.005); // label band
+          for (const zz of [-L * 0.28, L * 0.28]) sc.add(steel, SDF.torus(r + 0.06, 0.06, [xx, c[1], zz]), 0.01); // straps
+          sc.add(feed, SDF.path([[xx, c[1], L / 2 + 0.3], [xx + 0.6, c[1] + 0.6, L / 2 + 0.6], [xx + 1.4, by + 0.1, L / 2 + 0.2]], 0.1), 0.04); // feed line into the body
+          if (tune > 0) sc.add(LP.mat('#b0281e', { metalness: 0.4 }), SDF.cone([xx, c[1] + r, L * 0.1], [xx, c[1] + r + 0.5 * tune, L * 0.1], 0.12, 0.08), 0.03); // purge valve for power
+        }
+      });
+    }
+
+    if (G.engine && G.engine.id !== 'stock_engine') { // engine hardware through the hood
+      const lift = G.armour && (G.armour.tune || 0) >= 0.5 ? 0.3 * (1 + 0.6 * G.armour.tune) : 0; // sits up on a hood plate
+      const id = G.engine.id, e = 1.25 * (1 + 0.25 * (G.engine.tune || 0)), hy = surf(hx) + lift;
+      piece('engine', (sc) => {
+        const alloy = LP.mat('#9aa0a6', { metalness: 0.8, roughness: 0.35 }), black = LP.mat('#1a1a1a', { roughness: 0.6 }), orange = LP.mat('#e86a1a', { roughness: 0.6 });
+        if (id === 'supercharger') { // a blower sticking out of the hood with its scoop and belt
+          sc.add(alloy, SDF.box([3.0 * e, 1.3 * e, 2.4 * e], 0.25, [hx, hy + 0.5 * e, 0]), 0.1);
+          for (let k = 0; k < 6; k++) sc.cut(SDF.box([2.8 * e, 0.08, 2.6 * e], 0.02, [hx, hy + 0.1 + k * 0.2 * e, 0]), 0.01, [alloy]); // fins
+          sc.add(black, SDF.box([1.6 * e, 0.7 * e, 1.9 * e], 0.2, [hx - 0.3, hy + 1.45 * e, 0]), 0.15); // scoop
+          sc.cut(SDF.box([0.6, 0.45 * e, 1.6 * e], 0.08, [hx + 0.55 * e, hy + 1.5 * e, 0]), 0.03, [black]);
+          sc.add(black, SDF.box([0.3, 1.2 * e, 0.5], 0.1, [hx + 1.6 * e, hy + 0.2, 0]), 0.08); // belt
+          sc.add(alloy, SDF.cyl(0.45 * e, 0.3, 'x', 0.06, [hx + 1.65 * e, hy + 0.7 * e, 0]), 0.04); // pulley
+        } else if (id === 'racing_v8') { // eight velocity stacks through a hole in the hood
+          sc.add(black, SDF.box([3.2 * e, 0.5, 1.8], 0.15, [hx, hy + 0.1, 0]), 0.1);
+          for (let k = 0; k < 4; k++) for (const sd of [-1, 1]) sc.add(alloy, SDF.lathe([[0.22, 0], [0.24, 0.6 * e], [0.38, 1.1 * e], [0.42, 1.2 * e]], [hx - 1.2 * e + k * 0.8 * e, hy + 0.3, sd * 0.45], [-Math.PI / 2, 0, 0]), 0.03);
+        } else if (id === 'turbo_v6') { // a turbo snail and intercooler pipe poking out on one side
+          const tz = -hw * 0.5, c = [hx + 0.8, hy + 0.55 * e, tz];
+          sc.add(alloy, SDF.torus(0.55 * e, 0.3 * e, c, [0, 0, 0]), 0.1);
+          sc.add(alloy, SDF.cyl(0.5 * e, 0.5 * e, 'z', 0.1, c), 0.1);
+          sc.add(alloy, SDF.path([[c[0] + 0.5, c[1], tz], [hood1, hy + 0.6, tz * 0.4], [hood1 - 0.5, hy + 0.4, 0]], 0.26 * e), 0.1); // charge pipe
+          sc.add(black, SDF.box([1.4, 0.3, 2.6], 0.1, [hx + 0.6, hy - 0.05, tz]), 0.15); // the hole cut for it
+        } else if (id === 'diesel') { // a tall exhaust stack up the A-pillar with a rain flap
+          const sx = st.cabin[0][0] - 0.8, sz = -(hw - 0.4), top = st.cabin[1][1] + 1.6 * e;
+          sc.add(alloy, SDF.cone([sx, belt - 1.5, sz], [sx, top, sz], 0.32 * e, 0.3 * e), 0.05);
+          sc.add(black, SDF.cone([sx, top - 0.6, sz], [sx, top, sz], 0.33 * e, 0.33 * e), 0.02); // soot
+          sc.add(alloy, SDF.box([0.7 * e, 0.05, 0.7 * e], 0.02, [sx - 0.2, top + 0.15, sz], [0, 0, 0.5]), 0.01); // rain flap
+          for (const y of [belt + 0.2, (belt + top) / 2]) sc.add(steel, SDF.box([0.2, 0.2, 0.7], 0.05, [sx, y, sz + 0.35]), 0.06); // brackets
+        } else if (id === 'electric') { // salvaged battery bricks on the hood, orange high-voltage cables
+          for (const sd of [-1, 1]) {
+            sc.add(LP.mat('#2a2c2e', { metalness: 0.4, roughness: 0.6 }), SDF.box([2.2 * e, 0.6 * e, 1.6], 0.12, [hx, hy + 0.3 * e, sd * 2.2]), 0.05);
+            sc.add(LP.mat('#d8b81a', { roughness: 0.7 }), SDF.box([2.22 * e, 0.12, 1.62], 0.03, [hx, hy + 0.35 * e, sd * 2.2]), 0.01); // warning stripe
+            sc.add(orange, SDF.path([[hx + 1.1 * e, hy + 0.4, sd * 2.2], [hx + 1.6 * e, hy + 1.0, sd * 1.2], [hood0 - 0.2, hy + 0.3, sd * 0.6]], 0.12), 0.05);
+          }
+        }
+      });
+    }
   },
 
   // Paint job details: race number + livery decals, and rust/primer patches for worn finishes.

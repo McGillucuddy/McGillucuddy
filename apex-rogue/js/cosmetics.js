@@ -146,8 +146,12 @@ const cosOption = (key, id) => (COSMETICS[key] || []).find((o) => o.id === id);
 const paintColor = (c) => (cosOption('paint', c.paint) || COSMETICS.paint[0]).color;
 
 // Everything the 3D models need to dress your car, cabin and guns.
-function carLook(c) {
+// Your fitted parts and their tuning, for the car model to show.
+const gearLook = (b) => (b && b.parts ? Object.fromEntries(Object.entries(b.parts).map(([slot, p]) => [slot, { id: p.id, tune: p.tune || 0 }])) : null);
+
+function carLook(c, b) {
   return {
+    gear: gearLook(b),
     style: c.style, color: paintColor(c), accent: '#1d1d1d', finish: c.finish, livery: c.livery, number: c.number, plate: c.plate,
     paint2: (cosOption('paint', c.paint2) || COSMETICS.paint[4]).color, twoTone: c.twoTone, grime: c.grime,
     rims: c.rims, bumper: c.bumper, roof: c.roof, spoiler: c.spoiler, exhaust: c.exhaust,
