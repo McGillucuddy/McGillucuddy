@@ -528,3 +528,32 @@ body.proto #ui { z-index: 2; }
 .tune-row .weld { margin: 0 4px; padding: 1px 6px; }
 .weld-lock, .weld-max { font-size: 11px; color: #6a5e4a; margin: 0 4px; white-space: nowrap; }
 .tune-row { flex-wrap: wrap; } .tune-row > small.muted { flex-basis: 100%; }
+
+/* Intro: the gate, the Category 2 Games sting and the cold open (js/intro.js). */
+#intro { position: fixed; inset: 0; z-index: 50; background: #000; overflow: hidden; cursor: none; transition: opacity .7s; }
+#intro.gating { cursor: pointer; }
+#intro.out { opacity: 0; pointer-events: none; }
+#intro canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: none; image-rendering: pixelated; transition: opacity .4s; }
+#intro.sting .i-2d, #intro.cold .i-gl { display: block; }
+.i-gate { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  font-family: 'Courier New', monospace; font-size: 18px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: #e8e0c8; }
+.i-gate b { font-size: 34px; color: #e8423f; animation: i-pulse 1.4s ease-in-out infinite; }
+.i-gate small { font-size: 11px; letter-spacing: 2px; color: #7a7262; }
+#intro.gating .i-gate { display: flex; }
+@keyframes i-pulse { 50% { opacity: .35; } }
+.i-bar { position: absolute; left: 0; right: 0; height: 0; background: #000; z-index: 2; transition: height 1.2s ease; }
+.i-bar.top { top: 0; } .i-bar.bot { bottom: 0; }
+#intro.cold .i-bar { height: 10.5vh; }
+.i-cap { position: absolute; left: 0; right: 0; bottom: 3.2vh; z-index: 3; text-align: center; padding: 0 16px; opacity: 0; transition: opacity .45s;
+  font-family: 'Courier New', monospace; font-size: clamp(14px, 2.1vw, 22px); font-weight: 700; color: #e8e0c8; text-shadow: 0 2px 0 #000; }
+.i-cap.show { opacity: 1; } .i-cap.fade { opacity: 0; }
+.i-cap b { color: #ffd23f; text-transform: uppercase; letter-spacing: 2px; margin-right: 8px; }
+.i-cap.stamp { bottom: auto; top: 3.4vh; left: 4vw; right: auto; text-align: left; font-size: clamp(11px, 1.3vw, 14px); letter-spacing: 3px; color: #a89e88; }
+.i-flash { position: absolute; inset: 0; z-index: 4; background: #fff; opacity: 0; pointer-events: none; }
+.i-slam { position: absolute; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; }
+#intro.slammed .i-slam { display: flex; animation: i-slam .45s cubic-bezier(.2, 1.6, .4, 1) both; }
+#intro.slammed .i-slam .t-logo { animation: i-shake .5s .05s linear both; }
+@keyframes i-slam { from { transform: scale(1.9); opacity: 0; } 40% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
+@keyframes i-shake { 0%, 100% { transform: none; } 20% { transform: translate(-6px, 3px); } 40% { transform: translate(5px, -4px); } 60% { transform: translate(-3px, 2px); } 80% { transform: translate(2px, -1px); } }
+.i-skip { position: absolute; right: 18px; bottom: 14px; z-index: 6; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(232, 224, 200, .35); }
+#intro.gating .i-skip, #intro.slammed .i-skip { display: none; }

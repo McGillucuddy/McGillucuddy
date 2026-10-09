@@ -91,6 +91,7 @@ const Proto = {
     // them a few milliseconds per frame while the menus idle, so neither the menus nor the first race stall.
     Sculpt.collect = true;
     try {
+      Intro.warm(this); // the cold open's car and people go first: they mesh while the gate and the sting are up
       for (const id of Object.keys(WEAPONS)) Models.hands(Models.weapon(id), id); // guns and their fitted gloves
       for (const id of Object.keys(WEAPONS)) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id], this.cos.patchSeed[id]); // your welded-on junk
       for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
@@ -153,8 +154,9 @@ const Proto = {
     const wake = () => Sound.resume();
     window.addEventListener('pointerdown', wake);
     window.addEventListener('keydown', wake);
-    if (/[?&]run\b/.test(location.search)) this.newRun(); // prototype.html?run skips the menu
-    else this.showTitle(this.loadRun() ? 'saved' : null);
+    if (/[?&]run\b/.test(location.search)) this.newRun(); // prototype.html?run skips the menu (and the intro)
+    else if (/[?&]nointro\b/.test(location.search)) this.showTitle(this.loadRun() ? 'saved' : null);
+    else this.playIntro({ gate: true, cold: !Settings.data.introSeen || /[?&]intro\b/.test(location.search) }); // ?intro forces the cold open
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
   },
@@ -164,6 +166,7 @@ const Proto = {
     this.dpr = dpr;
     this.W = window.innerWidth;
     this.H = window.innerHeight;
+    if (this.intro) this.intro.resize();
     this.c2d.width = Math.floor(this.W * dpr);
     this.c2d.height = Math.floor(this.H * dpr);
     if (this.cockpit) this.cockpit.resize(this.W, this.H);
@@ -229,6 +232,7 @@ const Proto = {
       case 'continue': this.continueRun(); break;
       case 'how-to': this.showTitle(this.titleFrom, 'howto'); break;
       case 'unlocks': this.showTitle(this.titleFrom, 'unlocks'); break;
+      case 'intro': this.playIntro({ cold: true, from: this.titleFrom }); break;
       case 'exit': this.exitGame(); break;
       case 'abandon': this.gameOver(false); break;
       case 'after-results': this.afterResults(); break;
@@ -341,7 +345,7 @@ const Proto = {
     }
     this.setUI(`<div class="screen titlescreen g3d">
       <div class="t-menu">
-        <h1 class="t-logo"><small>Cellblock 9 presents</small>DEATH ROW<span>DERBY</span></h1>
+        <h1 class="t-logo"><small>${STUDIO.name} presents</small>DEATH ROW<span>DERBY</span></h1>
         <p class="t-tag">Win the Crown and walk free. Three strikes and you go back to the cell.</p>
         ${from ? `<button class="btn primary big" data-action="continue">Continue ▶<small>${where}</small></button>` : ''}
         <button class="btn ${from ? '' : 'primary big'}" data-action="title-new">New run</button>
@@ -350,10 +354,27 @@ const Proto = {
         <button class="btn" data-action="settings">Settings</button>
         <button class="btn" data-action="how-to">How to play</button>
         <button class="btn ghost" data-action="exit">Exit</button>
-        <p class="t-links small"><a href="models.html">Model viewer</a> · Rep <b>${this.cos.rep}</b></p>
+        <p class="t-links small"><a href="#" data-action="intro">Watch intro</a> · <a href="models.html">Model viewer</a> · Rep <b>${this.cos.rep}</b></p>
       </div>
       ${side}
     </div>`);
+  },
+
+  // The studio sting, then (the first time, or from the title menu) the cold open. See js/intro.js.
+  playIntro(opts) {
+    if (this.locked) document.exitPointerLock();
+    this.introFrom = opts.from;
+    this.state = 'intro';
+    this.setUI('');
+    try { this.intro = new Intro(this, opts); } catch (e) { console.error(e); this.intro = null; this.introDone(); }
+  },
+
+  introDone() {
+    Settings.data.introSeen = true;
+    Settings.save();
+    this.intro = null;
+    if (this.introFrom === undefined) this.showTitle(this.loadRun() ? 'saved' : null);
+    else this.showTitle(this.introFrom);
   },
 
   continueRun() {
@@ -1228,9 +1249,10 @@ const Proto = {
       else this.updateRace(dt);
     }
     if (this.tutorial) this.tutorial.update(dt);
+    if (this.state === 'intro' && this.intro) this.intro.update(dt);
     // Menu theme on the title; the race's own track from the briefing to the flag (quieter while paused).
     const racing = this.race && this.race.music && ['briefing', 'race', 'paused'].includes(this.state);
-    Music.set(this.state === 'title' ? Music.MENU : racing ? this.race.music : null, this.state === 'paused' ? 0.4 : this.state === 'briefing' ? 0.7 : 1);
+    Music.set(this.state === 'intro' ? (this.intro ? this.intro.music() : null) : this.state === 'title' ? Music.MENU : racing ? this.race.music : null, this.state === 'paused' ? 0.4 : this.state === 'briefing' ? 0.7 : 1);
     WeatherSound.set(racing ? wxOf(this.race.weather).ambience || null : null, this.state === 'paused' ? 0.3 : 1);
     this.render(dt);
     this.renderPreview(dt);
@@ -1312,7 +1334,7 @@ const Proto = {
   render(dt) {
     const ctx = this.ctx, W = this.W, H = this.H, race = this.race;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    const offTrack = ['garage', 'reward', 'over', 'title', 'bye', 'tutdone'].includes(this.state);
+    const offTrack = ['garage', 'reward', 'over', 'title', 'bye', 'tutdone', 'intro'].includes(this.state);
     this.c3d.style.visibility = offTrack ? 'hidden' : 'visible';
     if (!race || offTrack) { ctx.fillStyle = '#100f0c'; ctx.fillRect(0, 0, W, H); return; }
     const live = this.state !== 'briefing';

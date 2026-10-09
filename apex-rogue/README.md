@@ -74,6 +74,17 @@ Big guns punch the view. A brief ragged muzzle flame flickers light over your ha
 - **Physics:** cars have a height and a body on springs. The nose dips under braking and lifts under power, and the body leans out of turns.
   Braking loads the front tyres for a sharper turn-in.
 
+**Intro.** A game by **Category 2 Games**. The game opens on a "click or press any key" gate (browsers keep sound off until then), then:
+- **The studio sting** (6 s, every launch): a storm cell builds on a green weather radar, lightning strikes, and the Category 2 Games logo lands. The logo is the hurricane symbol with two arms, for category 2.
+- **The cold open** (30 s, the first launch only; **Watch intro** under the title menu replays it). It's rendered in engine with the PS1 look, letterboxed and subtitled:
+  - your cell door rolls open in the guard's torch;
+  - the walk down death row past inmates watching from their bars;
+  - your own car (your paint) under the garage lamp, headlights stuttering on, engine catching;
+  - the shutter rises, the car launches into the floodlights and the title slams in.
+- **The score:** eight bars at 72 BPM, cut to the shots. A drone and dripping bells in the cell, a heartbeat and low choir on the walk, a pulsing bass in the garage, a snare roll and riser into the title hit.
+
+Any key or click skips ahead. `?nointro` skips the intro, `?intro` forces the cold open, and `?run` skips straight into a run. The code is in `js/intro.js`.
+
 It opens on a **start menu** over the garage, with your car swinging slowly on the lift. The menu has:
 - **Continue**, shown while a run is in progress, with its act, scrap and strikes;
 - **New run**, which asks before throwing away a run in progress;
@@ -346,6 +357,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
 | `js/input.js`, `js/audio.js`, `js/music.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound, the menu theme |
 | `js/tutorial.js` | Tutorial steps and the in-race coach card |
+| `js/intro.js` | The studio sting and the cold open: gate, radar logo, in-engine cinematic, captions, sound cues |
 | `js/people.js` | People: the sculpted body used for drivers, crews, your own body and the trader; live two-bone arms |
 | `js/weather.js` | Weather: per-stop forecasts, effects, cockpit particles and lightning, windshield drops, ambience |
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |

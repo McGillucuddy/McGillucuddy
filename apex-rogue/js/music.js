@@ -21,9 +21,10 @@ const Music = {
   cfg: null,
   mult: 1,
   MENU: { id: 'menu', style: 'menu', bpm: MUSIC.bpm },
+  INTRO: { id: 'intro', style: 'intro', bpm: 72 }, // the cold open's one-shot cue (see playIntro)
 
   get level() {
-    const race = this.cfg && this.cfg.style !== 'menu';
+    const race = this.cfg && this.cfg.style === 'race';
     return (race ? 0.75 * (Settings.data.raceMusic ?? 0.6) : 1.1 * (Settings.data.music ?? 0.7)) * this.mult;
   },
 
@@ -138,7 +139,7 @@ const Music = {
   schedule() {
     const c = Sound.ctx;
     if (!this.bus) return;
-    const sixteenth = 60 / this.cfg.bpm / 4, play = this.cfg.style === 'menu' ? this.play : this.playRace;
+    const sixteenth = 60 / this.cfg.bpm / 4, play = this.cfg.style === 'menu' ? this.play : this.cfg.style === 'intro' ? this.playIntro : this.playRace;
     // If the page stalled (a big garage rebuild, a background tab), drop the missed steps but stay on the grid,
     // so the beat comes back in time instead of lurching.
     while (this.next < c.currentTime + 0.01) {
@@ -407,6 +408,44 @@ const Music = {
     // Bass.
     if (C.bass === 16) this.bassNote(t, root + (s % 4 === 2 ? 12 : 0), dt * 0.9, C.dist);
     else if (C.bass === 8 && s % 2 === 0) this.bassNote(t, root + (B && (s === 6 || s === 14) ? 12 : 0), dt * 1.8, C.dist);
+  },
+
+  // The cold open: eight bars at 72 bpm in D minor, scored to the cut (see INTRO_SHOTS in intro.js). The cell is a
+  // drone, a bell and dripping notes; the walk adds a heartbeat and a low choir; the garage a pulsing bass; the
+  // last bar is a snare roll and a riser into the title, which lands on the downbeat of bar 8. Then it rings out.
+  playIntro(bar, s, t, dt) {
+    if (bar > 8) return;
+    const D = [62, 65, 69], Bb = [58, 62, 65], Gm = [55, 58, 62], A = [57, 61, 64];
+    const chord = [null, null, D, D, Bb, Gm, A, A, D][bar];
+    if (bar === 8) {
+      if (s === 0) {
+        this.crash(t); this.kick(t); this.toll(t, 38);
+        this.pad(t, [62, 65, 69, 74], dt * 40, 1.3, 1.6);
+        this.choir(t, [50, 57, 62, 65], dt * 36, 1.2, 'ah');
+        this.bassNote(t, 26, dt * 12, 2);
+        this.drone(t, 38, dt * 40);
+      }
+      return;
+    }
+    if (s === 0) {
+      if (bar % 2 === 0) this.drone(t, 38, dt * 32);
+      if (bar === 0 || bar === 4 || bar === 6) this.toll(t, bar === 6 ? 33 : 38);
+      if (chord) this.pad(t, chord, dt * 16, bar >= 6 ? 0.9 : 0.55, bar >= 4 ? 1 : 0.7);
+      if (bar >= 2 && bar < 6) this.choir(t, chord.map((n) => n - 12), dt * 16, 0.55 + 0.1 * (bar - 2), bar < 4 ? 'oo' : 'ah');
+      if (bar >= 6) this.choir(t, chord.map((n) => n - 12), dt * 16, 0.9, 'ah');
+    }
+    if (bar < 2) { if (s === 6 || (bar === 1 && s === 13)) this.bell(t, [74, 81, 77, 76][(bar * 2 + (s > 8 ? 1 : 0)) % 4], 0.03, 1.6); return; } // drips in the cell
+    // From the corridor on: a heartbeat (lub-dub on each half bar), quickening into four on the floor at bar 6.
+    if (bar < 6) { if (s === 0 || s === 8) this.kick(t); if ((s === 2 || s === 10) && bar >= 3) this.kick(t); }
+    else if (s % 4 === 0) this.kick(t);
+    if (bar >= 5 && s % 2 === 0) this.hat(t, s % 4 === 2 ? 0.06 : 0.035, false);
+    if (bar >= 4 && s % 2 === 0) this.bassNote(t, [38, 38, 34, 31, 33, 33][bar - 2] + (bar >= 6 && s % 4 === 2 ? 12 : 0), dt * 1.7, 2.2);
+    if (bar === 6 && (s === 4 || s === 12)) this.snare(t);
+    if (bar === 7) { // the run-in: snares doubling up, toms tumbling down, a riser into the hit
+      if (s === 0) this.riser(t, dt * 16);
+      if (s < 8 ? s % 4 === 0 : s < 12 ? s % 2 === 0 : true) this.snare(t);
+      if (s >= 12) this.tom(t, 50 - (s - 12) * 4, 0.8);
+    }
   },
 
   // FM bell: a sine carrier with an inharmonic modulator, ringing down into the reverb.
