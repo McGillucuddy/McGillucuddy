@@ -90,6 +90,9 @@ const COSMETICS = {
     // Colourful scrap-yard paint jobs.
     { id: 'camo_hazard', name: 'Hazard Stripes', rep: 40, color: 'repeating-linear-gradient(45deg,#f2c21a 0 4px,#141414 4px 8px)' },
     { id: 'camo_chipped', name: 'Chipped Teal', rep: 70, color: 'linear-gradient(135deg,#2a9a9a 60%,#8a4a22 60%)' },
+    { id: 'camo_sheetrust', name: 'Rusted Sheet', rep: 95, color: 'conic-gradient(#8a4a22 0 25%,#4a2a16 0 50%,#a86030 0 75%,#7a7672 0)' },
+    { id: 'camo_roadsign', name: 'Road Sign Scraps', rep: 135, color: 'conic-gradient(#b8201a 0 25%,#e8c21a 0 50%,#1e6a3a 0 75%,#f2f2ee 0)' },
+    { id: 'camo_tincan', name: 'Tin Can Patches', rep: 155, color: 'linear-gradient(180deg,#c8ccd0 30%,#c8201a 30% 70%,#9aa0a6 70%)' },
     { id: 'camo_patchwork', name: 'Scrap Patchwork', rep: 115, color: 'conic-gradient(#2a8a8a 0 25%,#d86a2a 0 50%,#c8a02a 0 75%,#b0281e 0)' },
     { id: 'camo_graffiti', name: 'Graffiti', rep: 145, color: 'linear-gradient(135deg,#141416 30%,#ff3aa8 30% 45%,#3af0ff 45% 60%,#ffe23a 60% 75%,#141416 75%)' },
     { id: 'camo_splatter', name: 'Riot Splatter', rep: 175, color: 'radial-gradient(circle at 30% 30%,#ff2a7a 20%,transparent 21%),radial-gradient(circle at 70% 60%,#2ad8ff 18%,#d8d4cc 19%)' },
@@ -98,9 +101,9 @@ const COSMETICS = {
     { id: 'anim_toxic', name: 'Toxic Ooze ✦', rep: 250, color: 'radial-gradient(#5aff3a,#16240c)' },
     { id: 'anim_lava', name: 'Molten ✦', rep: 280, color: 'linear-gradient(135deg,#1a0d08,#ff7a1a,#1a0d08)' },
     { id: 'anim_static', name: 'Static ✦', rep: 300, color: 'repeating-linear-gradient(0deg,#ddd 0 2px,#333 2px 4px)' },
-    { id: 'anim_neon', name: 'Neon Circuit ✦', rep: 340, color: 'linear-gradient(135deg,#0a0a10,#3af0ff,#ff3ad8)' },
-    { id: 'anim_galaxy', name: 'Galaxy ✦', rep: 380, color: 'radial-gradient(#8a2a8a,#0a0818)' },
-    { id: 'anim_prism', name: 'Prism ✦', rep: 450, color: 'linear-gradient(90deg,#f55,#fd5,#5f8,#5af,#c5f)' },
+    { id: 'anim_jury', name: 'Jury-Rigged ✦', rep: 340, color: 'repeating-linear-gradient(0deg,#26282a 0 3px,#3af0ff 3px 4px,#26282a 4px 7px,#ff3ad8 7px 8px)' },
+    { id: 'anim_oil', name: 'Oil Slick ✦', rep: 380, color: 'radial-gradient(circle,#c5f 0,#5af 25%,#5f8 45%,#fd5 60%,#24221e 75%)' },
+    { id: 'anim_chem', name: 'Chem Burn ✦', rep: 450, color: 'radial-gradient(circle at 35% 40%,#8a3ad8 20%,transparent 22%),radial-gradient(circle at 70% 65%,#5aff3a 18%,#7a7c7a 20%)' },
   ],
 };
 
@@ -108,11 +111,11 @@ const COSMETICS = {
 COSMETICS.gunKit = [
   { id: 'none', name: 'Clean', rep: 0 }, { id: 'chains', name: 'Hanging Chains', rep: 25 }, { id: 'barbed', name: 'Barbed Wire', rep: 55 },
   { id: 'plates', name: 'Scrap Plating', rep: 85 }, { id: 'spikes', name: 'Spikes & Bayonet', rep: 120 }, { id: 'skull', name: 'Skull Charm', rep: 150 },
-  { id: 'deathrow', name: 'Death Row (all of it)', rep: 260 },
+  { id: 'patched', name: 'Patched Up', rep: 70 }, { id: 'deathrow', name: 'Death Row (all of it)', rep: 260 },
 ];
 
 const COSMETIC_KEY = 'apexrogue_cosmetics_v1';
-const LOOK_KEYS = ['style', 'paint', 'paint2', 'twoTone', 'finish', 'grime', 'livery', 'number', 'rims', 'bumper', 'roof', 'spoiler', 'exhaust', 'underglow', 'seats', 'wheelWrap', 'dash', 'bulb', 'ornament', 'gunFinish', 'gunKit', 'inmate', 'plate'];
+const LOOK_KEYS = ['style', 'paint', 'paint2', 'twoTone', 'finish', 'grime', 'livery', 'number', 'rims', 'bumper', 'roof', 'spoiler', 'exhaust', 'underglow', 'seats', 'wheelWrap', 'dash', 'bulb', 'ornament', 'gunFinish', 'gunKit', 'patchSeed', 'inmate', 'plate'];
 
 function loadCosmetics() {
   const def = {
@@ -121,12 +124,17 @@ function loadCosmetics() {
     seats: 'vinyl', wheelWrap: 'tape', dash: 'black', bulb: 'warm', ornament: 'none',
     gunFinish: { smg: 'stock', shotgun: 'stock', rocket: 'stock', flare: 'stock' },
     gunKit: { smg: 'none', shotgun: 'none', rocket: 'none', flare: 'none' },
+    patchSeed: { smg: 0, shotgun: 0, rocket: 0, flare: 0 },
     inmate: '4471', plate: 'INM 4471', rep: 0, presets: [null, null, null],
   };
   let c;
   try { c = Object.assign(def, JSON.parse(localStorage.getItem(COSMETIC_KEY)) || {}); } catch (e) { c = def; }
   c.gunFinish = Object.assign({ smg: 'stock', shotgun: 'stock', rocket: 'stock', flare: 'stock' }, c.gunFinish);
   c.gunKit = Object.assign({ smg: 'none', shotgun: 'none', rocket: 'none', flare: 'none' }, c.gunKit);
+  c.patchSeed = Object.assign({ smg: 0, shotgun: 0, rocket: 0, flare: 0 }, c.patchSeed);
+  const renamed = { anim_neon: 'anim_jury', anim_galaxy: 'anim_oil', anim_prism: 'anim_chem' }; // finishes that were reworked
+  for (const w of Object.keys(c.gunFinish)) if (renamed[c.gunFinish[w]]) c.gunFinish[w] = renamed[c.gunFinish[w]];
+  if (Array.isArray(c.presets)) for (const pr of c.presets) if (pr && pr.gunFinish) for (const w of Object.keys(pr.gunFinish)) if (renamed[pr.gunFinish[w]]) pr.gunFinish[w] = renamed[pr.gunFinish[w]];
   if (!Array.isArray(c.presets)) c.presets = [null, null, null];
   return c;
 }
@@ -149,7 +157,7 @@ function carLook(c) {
       seats: c.seats, wheelWrap: c.wheelWrap, dash: (cosOption('dash', c.dash) || COSMETICS.dash[0]).color,
       bulb: (cosOption('bulb', c.bulb) || COSMETICS.bulb[0]).color, ornament: c.ornament, inmate: c.inmate,
     },
-    gunFinish: c.gunFinish, gunKit: c.gunKit,
+    gunFinish: c.gunFinish, gunKit: c.gunKit, patchSeed: c.patchSeed,
   };
 }
 

@@ -445,7 +445,7 @@ class Garage3D {
     const D = this.dyn;
     // Pegboard: rack guns on the top row, stash weapons below.
     const hang = (w, x, y) => {
-      const gun = Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (cos.gunFinish || {})[w.id]), w.id, (cos.gunKit || {})[w.id]);
+      const gun = Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (cos.gunFinish || {})[w.id]), w.id, (cos.gunKit || {})[w.id], (cos.patchSeed || {})[w.id]);
       const holder = new THREE.Group();
       holder.add(gun);
       gun.rotation.y = Math.PI / 2;

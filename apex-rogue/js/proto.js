@@ -90,7 +90,7 @@ const Proto = {
     Sculpt.collect = true;
     try {
       for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.hands(Models.weapon(id), id); // guns and their fitted gloves
-      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id]); // your welded-on junk
+      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id], this.cos.patchSeed[id]); // your welded-on junk
       for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
       Models.car(Object.assign({}, carLook(this.cos), { shell: true })); // your own car, seen from inside
       Models.interior('#888888', {});
@@ -254,6 +254,7 @@ const Proto = {
         else if (key === 'inmate') this.cos.inmate = val.replace(/[^0-9]/g, '').slice(0, 6) || '4471';
         else if (key.startsWith('gun.')) this.cos.gunFinish[key.slice(4)] = val;
         else if (key.startsWith('kit.')) this.cos.gunKit[key.slice(4)] = val;
+        else if (key.startsWith('reweld.')) this.cos.patchSeed[key.slice(7)] = (this.cos.patchSeed[key.slice(7)] || 0) + 1;
         else this.cos[key] = val;
         saveCosmetics(this.cos);
         if (this.preview) this.preview.setLook(carLook(this.cos));
@@ -905,7 +906,8 @@ const Proto = {
         + row('Cabin bulb', opt('bulb', L.bulb, sw)) + row('Dash ornament', opt('ornament', L.ornament))
         + `<h3>Inmate number</h3><input id="inmateInput" class="plate-input" maxlength="6" value="${c.inmate}"><p class="muted small">Stencilled on the glovebox.</p>`,
       guns: () => Object.keys(SHORT_WEAPON).map((w) => row(SHORT_WEAPON[w] + ': finish', opt('gunFinish', L.gunFinish, (o) => (o.color ? sw(o) : ''), c.gunFinish[w], 'gun.' + w))
-        + row(SHORT_WEAPON[w] + ': welded-on junk', opt('gunKit', L.gunKit, null, c.gunKit[w], 'kit.' + w))).join(''),
+        + row(SHORT_WEAPON[w] + ': welded-on junk', opt('gunKit', L.gunKit, null, c.gunKit[w], 'kit.' + w)
+          + (c.gunKit[w] === 'patched' ? `<button class="opt" data-action="cosmetic" data-arg="reweld.${w}:1">Re-weld patches</button>` : ''))).join(''),
       presets: () => `<p class="muted small">Save your whole look (car, cabin and guns) into a slot and swap between them any time.</p>` + c.presets.map((p, i) => `<div class="preset-row">
           <b>Slot ${i + 1}</b> <span class="muted small">${p ? `${(cosOption('style', p.style) || {}).name || ''} · ${(cosOption('paint', p.paint) || {}).name || ''} · #${p.number}` : 'empty'}</span>
           <button class="opt" data-action="preset-save" data-arg="${i}">Save</button>
