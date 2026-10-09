@@ -440,3 +440,36 @@ body.proto #ui { z-index: 2; }
 .settings-card input[type=range] { width: 100%; accent-color: #a8322a; }
 .g-settings { font: inherit; cursor: pointer; margin-left: auto; color: #e8e0c8; background: transparent; border: 1px solid rgba(232,224,200,.4); border-radius: 4px; padding: 3px 10px; }
 .g-settings:hover { border-color: #e8e0c8; }
+
+/* Start menu: a stencilled sign on the left, the car turning on the lift behind it */
+.g-settings.g-menu { margin-left: 0; }
+.titlescreen .t-menu { position: fixed; top: 0; bottom: 0; left: 0; width: 420px; max-width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: stretch;
+  padding: 24px 40px; background: linear-gradient(90deg, rgba(8,7,6,.92) 0%, rgba(8,7,6,.78) 70%, rgba(8,7,6,0) 100%); }
+.t-logo { margin: 0; font-family: Impact, 'Arial Black', sans-serif; font-size: 64px; line-height: .9; letter-spacing: 3px; color: #e8e0c8;
+  text-shadow: 3px 3px 0 #a8322a, 0 0 24px rgba(0,0,0,.8); }
+.t-logo span { display: block; color: var(--accent); text-shadow: 3px 3px 0 #6a4a2e, 0 0 24px rgba(0,0,0,.8); }
+.t-tag { margin: 10px 0 22px; color: #a89e88; font-family: 'Courier New', monospace; font-size: 14px; }
+.t-menu .btn { margin: 5px 0; text-align: left; font-family: 'Courier New', monospace; text-transform: uppercase; letter-spacing: 1px;
+  background: rgba(10,9,8,.7); border: 2px solid rgba(232,224,200,.3); border-radius: 4px; }
+.t-menu .btn:hover:not([disabled]) { border-color: var(--accent); transform: translateX(4px); }
+.t-menu .btn.primary { background: linear-gradient(135deg, #a8322a, #c8641a); border-color: transparent; }
+.t-menu .btn small { text-transform: none; letter-spacing: 0; margin-top: 3px; color: #f0dcc0; }
+.t-menu .btn.ghost { background: transparent; border-color: rgba(232,224,200,.15); color: #a89e88; }
+.t-links { margin-top: 18px; color: #a89e88; font-family: 'Courier New', monospace; }
+.t-links a { color: #e8e0c8; }
+.t-panel { position: fixed; left: 460px; top: 50%; transform: translateY(-50%); width: 440px; max-width: calc(100% - 32px); max-height: calc(100% - 32px); overflow-y: auto;
+  text-align: left; color: #2a241c; font-family: 'Courier New', monospace; font-size: 14px; padding: 18px 20px;
+  background: repeating-linear-gradient(#efe7d2 0 23px, #d9cfb6 23px 24px), #efe7d2; border: 10px solid #6a4a2e; border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+.t-panel h2 { margin: 0 0 8px; font-family: Impact, 'Arial Black', sans-serif; letter-spacing: 2px; text-transform: uppercase; color: #3a2a1a; }
+.t-panel h3 { margin: 12px 0 4px; color: #3a2a1a; }
+.t-panel .ctl { margin: 3px 0; color: #2a241c; }
+.t-panel kbd { background: #f6f0e0; border: 1px solid #3a2a1a; border-radius: 3px; padding: 0 4px; color: #2a241c; }
+.t-panel .btn { color: #2a241c; background: #f6f0e0; border: 2px solid #3a2a1a; border-radius: 3px; box-shadow: 2px 2px 0 rgba(0,0,0,.25); margin: 10px 8px 0 0; }
+.t-row { display: flex; flex-wrap: wrap; }
+.bye { margin-top: 28vh; font-family: 'Courier New', monospace; }
+.bye h1 { font-family: Impact, 'Arial Black', sans-serif; font-size: 56px; letter-spacing: 3px; color: #e8e0c8; }
+@media (max-width: 900px) {
+  .titlescreen .t-menu { width: 100%; padding: 24px 16px; background: rgba(8,7,6,.82); }
+  .t-panel { left: 16px; z-index: 2; }
+  .t-logo { font-size: 48px; }
+}

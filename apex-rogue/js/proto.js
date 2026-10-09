@@ -146,7 +146,8 @@ const Proto = {
       if (e.target.id === 'inmateInput') this.action('cosmetic', 'inmate:' + e.target.value);
     });
 
-    this.newRun();
+    if (/[?&]run\b/.test(location.search)) this.newRun(); // prototype.html?run skips the menu
+    else this.showTitle();
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
   },
@@ -215,7 +216,13 @@ const Proto = {
         this.showEvent(this.event, res);
         break;
       }
-      case 'new-run': this.newRun(); break;
+      case 'new-run': this.titleFrom = null; this.newRun(); break;
+      case 'menu': if (!this.picking) this.showTitle(); break;
+      case 'title': this.showTitle(this.titleFrom || null); break;
+      case 'title-new': if (this.titleFrom) this.showTitle(this.titleFrom, 'confirm'); else this.action('new-run'); break;
+      case 'continue': this.continueRun(); break;
+      case 'how-to': this.showTitle(this.titleFrom, 'howto'); break;
+      case 'exit': this.exitGame(); break;
       case 'abandon': this.gameOver(false); break;
       case 'after-results': this.afterResults(); break;
       // Garage & shop
@@ -271,6 +278,85 @@ const Proto = {
     else if (this.state === 'garage') this.showGarage();
   },
 
+  // ---------- Title ----------
+
+  // The start menu, over the garage with your car turning slowly on the lift.
+  // `from` is the state a run in progress was left in, so Continue can drop you back into it.
+  showTitle(from, panel) {
+    if (this.locked) document.exitPointerLock();
+    Sound.engine(0, 0, false, false);
+    if (from === undefined) from = this.build && ['map', 'garage', 'briefing', 'paused'].includes(this.state) ? this.state : null;
+    this.titleFrom = from;
+    this.titlePanel = panel || null;
+    this.state = 'title';
+    this.mouse.down = false;
+    if (this.preview) this.preview.setLook(carLook(this.cos, this.build || newBuild()));
+    const b = this.build, run = this.run;
+    const where = from && run ? `Act ${ROMAN[run.act]} · ${ACTS[run.act].title} · ${b.scrap} scrap · strikes ${'●'.repeat(b.strikes)}${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}` : '';
+    let side = '';
+    if (panel === 'confirm') {
+      side = `<div class="t-panel">
+        <h2>Abandon this run?</h2>
+        <p>Your run in ${ACTS[run.act].title} ends here. Paint, finishes and rep are kept.</p>
+        <div class="t-row"><button class="btn primary" data-action="new-run">Start over</button><button class="btn" data-action="title">Keep it</button></div>
+      </div>`;
+    } else if (panel === 'howto') {
+      side = `<div class="t-panel howto">
+        <h2>How it works</h2>
+        <p>You are a prisoner riding gun in a death race. Climb three acts of the route sheet and win the Crown to walk free. Finish outside the qualifying places three times and you're back in your cell.</p>
+        <p>Between races: buy and fit parts in the garage, tune them, load the gun rack, and paint the car. Scrap is your money, rep unlocks paint.</p>
+        <h3>In the car</h3>
+        <div class="ctl"><kbd>Mouse</kbd> Aim · <kbd>LMB</kbd> Fire · <kbd>R</kbd> Reload</div>
+        <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
+        <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade · <kbd>Space</kbd>/<kbd>E</kbd> Abilities</div>
+        <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
+        <div class="ctl"><kbd>V</kbd> View · <kbd>F</kbd> Retro filter · <kbd>M</kbd> Mute · <kbd>Esc</kbd> Pause</div>
+        <button class="btn" data-action="title">Back</button>
+      </div>`;
+    }
+    this.setUI(`<div class="screen titlescreen g3d">
+      <div class="t-menu">
+        <h1 class="t-logo">APEX<span>ROGUE</span></h1>
+        <p class="t-tag">Race your way out. Three strikes and you go back to the cell.</p>
+        ${from ? `<button class="btn primary big" data-action="continue">Continue ▶<small>${where}</small></button>` : ''}
+        <button class="btn ${from ? '' : 'primary big'}" data-action="title-new">New run</button>
+        <button class="btn" data-action="settings">Settings</button>
+        <button class="btn" data-action="how-to">How to play</button>
+        <button class="btn ghost" data-action="exit">Exit</button>
+        <p class="t-links small"><a href="models.html">Model viewer</a> · <a href="index.html">Top-down game</a> · Rep <b>${this.cos.rep}</b></p>
+      </div>
+      ${side}
+    </div>`);
+  },
+
+  continueRun() {
+    const from = this.titleFrom;
+    this.titleFrom = null;
+    this.titlePanel = null;
+    if (from === 'paused') { this.state = 'paused'; this.showPause(); }
+    else if (from === 'briefing') { this.state = 'briefing'; this.showBriefing(); }
+    else if (from === 'garage') this.toGarage();
+    else if (from === 'map') this.showMap();
+    else this.newRun();
+  },
+
+  // Browsers only let a page close a tab it opened, so fall back to a lights-out screen.
+  exitGame() {
+    const from = this.titleFrom;
+    Sound.engine(0, 0, false, false);
+    try { window.close(); } catch (e) { /* not ours to close */ }
+    setTimeout(() => {
+      if (window.closed) return;
+      this.state = 'bye';
+      this.titleFrom = from;
+      this.setUI(`<div class="screen bye">
+        <h1>Lights out</h1>
+        <p class="muted">The garage door rolls down. You can close this tab now${from ? '; your run waits here until you do' : ''}.</p>
+        <button class="btn" data-action="title">Back to the menu</button>
+      </div>`);
+    }, 150);
+  },
+
   // ---------- Run flow ----------
 
   newRun() {
@@ -314,6 +400,7 @@ const Proto = {
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
         <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
+        <button class="g-settings g-menu" data-action="menu" title="Main menu">☰ Menu</button>
       </div>
       <div class="route clipboard sheet">
         <div class="clip"></div>
@@ -460,6 +547,7 @@ const Proto = {
       <p>Three strikes. The warden sends you back to your cell after ${b.race} race${b.race === 1 ? '' : 's'} and ${b.wins} win${b.wins === 1 ? '' : 's'}.</p>
       <p class="muted">Trinkets collected: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
       <button class="btn primary big" data-action="new-run">New run ▶</button>
+      <button class="btn" data-action="menu">Main menu</button>
     </div>`);
   },
 
@@ -471,6 +559,7 @@ const Proto = {
       <p>You won the Crown. The warden signs your release in front of the whole upper city, smiling for the cameras.</p>
       <p class="muted">${b.race} races · ${b.wins} wins · trinkets: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
       <button class="btn primary big" data-action="new-run">New run ▶</button>
+      <button class="btn" data-action="menu">Main menu</button>
     </div>`);
   },
 
@@ -635,7 +724,7 @@ const Proto = {
         ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'}</button>` : ''}
       </div>
       <button class="btn primary big" data-action="start">Start race ▶</button>
-      <p><a class="muted small" href="index.html">← Back to the main game</a></p>
+      <button class="btn ghost" data-action="menu">Main menu</button>
     </div>`);
     drawTrackPreview(document.getElementById('preview'), race);
   },
@@ -647,6 +736,7 @@ const Proto = {
       ${this.cockpit ? `<button class="btn" data-action="${this.view === 'cockpit' ? 'view-top' : 'view-cockpit'}">Switch to ${this.view === 'cockpit' ? 'top-down' : 'cockpit'} view</button>` : ''}
       ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'} (F)</button>` : ''}
       <button class="btn" data-action="settings">Settings</button>
+      <button class="btn" data-action="menu">Main menu</button>
       <button class="btn ghost" data-action="abandon">Abandon run</button>
     </div>`);
   },
@@ -777,6 +867,7 @@ const Proto = {
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
         <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
+        <button class="g-settings g-menu" data-action="menu" title="Main menu">☰ Menu</button>
       </div>
       <nav class="g-nav">${nav}</nav>
       <div class="g-panel clipboard">
@@ -950,6 +1041,10 @@ const Proto = {
     if (Input.consume('KeyM')) Sound.toggleMute();
     if (Input.consume('KeyF')) { this.toggleRetro(); this.refresh(); }
 
+    if (this.state === 'title' && Input.consume('Escape') && !document.getElementById('settings')) {
+      if (this.titlePanel) this.showTitle(this.titleFrom);
+      else if (this.titleFrom) this.continueRun();
+    }
     if (this.state === 'race') {
       if (Input.consume('KeyV')) this.setView(this.view === 'cockpit' ? 'top' : 'cockpit');
       if (Input.consume('KeyP') || Input.consume('Escape')) this.pause();
@@ -1011,11 +1106,11 @@ const Proto = {
   // The 3D garage fills the screen behind the clipboard (and behind the reward pick).
   renderPreview(dt) {
     const cv = this.previewCanvas;
-    const show = this.preview && ['garage', 'reward', 'map', 'event'].includes(this.state);
+    const show = this.preview && ['garage', 'reward', 'map', 'event', 'title'].includes(this.state);
     if (!show) { cv.style.display = 'none'; if (this.tip) this.tip.classList.add('hidden'); return; }
     cv.style.display = 'block';
-    if (this.state !== 'garage') this.preview.setStation('overview');
-    const panel = this.state === 'garage' && this.W > 900 ? 500 : 0;
+    if (this.state !== 'garage') this.preview.setStation(this.state === 'title' ? 'title' : 'overview');
+    const panel = this.W <= 900 ? 0 : this.state === 'garage' ? 500 : this.state === 'title' ? -420 : 0;
     this.preview.render(this.W, this.H, dt, this.time, panel);
     // Keep the hover and tooltip true to what is under the cursor while the camera eases between stations.
     if (this.state === 'garage' && this.gMouse && !(this.gDrag && this.gDrag.moved)) {
@@ -1030,7 +1125,7 @@ const Proto = {
   render(dt) {
     const ctx = this.ctx, W = this.W, H = this.H, race = this.race;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    const offTrack = ['garage', 'reward', 'over'].includes(this.state);
+    const offTrack = ['garage', 'reward', 'over', 'title', 'bye'].includes(this.state);
     this.c3d.style.visibility = offTrack ? 'hidden' : 'visible';
     if (!race || offTrack) { ctx.fillStyle = '#100f0c'; ctx.fillRect(0, 0, W, H); return; }
     const live = this.state !== 'briefing';

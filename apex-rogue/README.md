@@ -16,6 +16,15 @@ npx serve apex-rogue     # then open the printed URL
 An experiment in the next direction for the game: **the car drives itself and you are the gunner.**
 One race, with a switchable first-person cockpit view and top-down view (press `V`).
 
+It opens on a **start menu** over the garage, with your car swinging slowly on the lift. The menu has:
+- **Continue**, shown while a run is in progress, with its act, scrap and strikes;
+- **New run**, which asks before throwing away a run in progress;
+- **Settings** and **How to play**;
+- **Exit**. Browsers only let a page close a tab it opened itself, so otherwise Exit shows a "lights out" screen.
+
+You can reach the menu from the route sheet and garage (`☰ Menu`), the pause screen, the race briefing, and the end screens.
+`Esc` backs out of a menu panel, or returns to your run. `prototype.html?run` skips the menu and starts a run straight away.
+
 - The car's AI drives. You aim with the mouse and fire the **SMG** (overheats) or **rocket launcher**,
   throw **grenades** (look higher to throw further), raise a **shield**, and order the driver to **swerve**.
 - Some rivals are armed: **rocket gunners** paint you with a red laser before firing homing rockets,

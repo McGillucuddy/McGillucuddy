@@ -600,6 +600,11 @@ class Garage3D {
     const st = this.station;
     if (st === 'paint' && this.mode === 'interior') return null;
     if (st === 'paint' && this.mode === 'guns') return GARAGE_POSES.weapons;
+    if (st === 'title') {
+      // Start menu: a slow swing across the car's front quarter, clear of the lift posts at its sides.
+      const a = 0.35 + Math.sin(this.orbit * 0.8) * 0.5;
+      return [[GARAGE_LIFT.x + Math.cos(a) * 58, 18, GARAGE_LIFT.z + Math.sin(a) * 58], [GARAGE_LIFT.x, 10, GARAGE_LIFT.z]];
+    }
     if (st === 'paint') {
       const r = this.orbitR, a = this.orbit;
       return [[GARAGE_LIFT.x + Math.cos(a) * r, this.orbitPitch, GARAGE_LIFT.z + Math.sin(a) * r], [GARAGE_LIFT.x, 12, GARAGE_LIFT.z]];
@@ -615,8 +620,10 @@ class Garage3D {
       this.post.setSize(W, H);
     }
     // Keep the subject centred in the space left of the clipboard.
-    this.camera.aspect = (W + panelW) / H;
-    if (panelW > 0) this.camera.setViewOffset(W + panelW, H, panelW, 0, W, H);
+    // A negative width means the panel is on the left instead.
+    const pw = Math.abs(panelW);
+    this.camera.aspect = (W + pw) / H;
+    if (pw > 0) this.camera.setViewOffset(W + pw, H, panelW > 0 ? pw : 0, 0, W, H);
     else this.camera.clearViewOffset();
     if (!this.userOrbit) this.orbit += dt * 0.15;
     const k = Math.min(1, dt * 3.5);
