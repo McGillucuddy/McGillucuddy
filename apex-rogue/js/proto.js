@@ -16,6 +16,7 @@ const PACE = 0.72; // global speed scale for the gunner races
 const RIVAL_SKILL = (d) => Math.min(1.08, 0.97 + d * 0.007);
 const ACT_LUXURY = (act) => act >= 2;
 const ROMAN = ['I', 'II', 'III', 'IV'];
+const RUN_KEY = 'apexrogue_run_v1'; // the run in progress, so it survives a reload
 
 const Proto = {
   view: 'cockpit',
@@ -141,6 +142,7 @@ const Proto = {
       if (!el) return;
       Sound.resume();
       this.action(el.dataset.action, el.dataset.arg);
+      if (this.state === 'garage') this.saveRun(); // purchases, fittings, tuning
     });
     this.ui.addEventListener('change', (e) => {
       if (e.target.id === 'plateInput') this.action('cosmetic', 'plate:' + e.target.value);
@@ -152,7 +154,7 @@ const Proto = {
     window.addEventListener('pointerdown', wake);
     window.addEventListener('keydown', wake);
     if (/[?&]run\b/.test(location.search)) this.newRun(); // prototype.html?run skips the menu
-    else this.showTitle();
+    else this.showTitle(this.loadRun() ? 'saved' : null);
     this.last = performance.now();
     requestAnimationFrame((t) => this.frame(t));
   },
@@ -357,6 +359,15 @@ const Proto = {
     const from = this.titleFrom;
     this.titleFrom = null;
     this.titlePanel = null;
+    if (from === 'saved') { // a run from an earlier session
+      const d = this.saved;
+      this.saved = null;
+      if (d.where === 'pending' && d.pending != null) { this.state = 'map'; this.pickNode(d.pending); }
+      else if (d.where === 'garage') this.toGarage();
+      else if (d.where === 'reward' && this.rewards) { this.state = 'reward'; this.showReward(); }
+      else this.showMap();
+      return;
+    }
     if (from === 'paused') { this.state = 'paused'; this.showPause(); }
     else if (from === 'briefing') { this.state = 'briefing'; this.showBriefing(); }
     else if (from === 'garage') this.toGarage();
@@ -381,6 +392,48 @@ const Proto = {
     }, 150);
   },
 
+  // ---------- Saving the run ----------
+  // The run is saved at the calm points: the route sheet, the garage, a reward pick. If you were in the middle of
+  // a stop (a race, an event) when the page went away, the save remembers which one, and loading replays that pick
+  // from the same random state, so you get the identical race back at its briefing.
+
+  saveRun(pending) {
+    if (this.tutorial || !this.build || !this.run || ['over', 'tutdone'].includes(this.state)) return;
+    const where = pending != null ? 'pending' : this.state === 'garage' ? 'garage' : this.state === 'reward' ? 'reward' : 'map';
+    if (pending == null && !['map', 'garage', 'reward'].includes(this.state)) return;
+    const rng = this.runRng.state(); // nothing rolls between the route sheet and a pick, so a replay rolls the same race
+    const data = {
+      v: 1, where, pending, rng, runSeed: this.runSeed, build: this.build,
+      run: Object.assign({}, this.run, { node: this.run.node ? this.run.node.id : null }),
+      shop: this.shop, shopOpen: this.shopOpen, tab: this.tab, rewards: this.rewards || null, rewardKind: this.rewardKind || null, pendingAct: this.pendingAct ?? null,
+      saved: Date.now(),
+    };
+    try { localStorage.setItem(RUN_KEY, JSON.stringify(data)); } catch (e) { /* storage unavailable */ }
+  },
+
+  clearRun() { try { localStorage.removeItem(RUN_KEY); } catch (e) { /* storage unavailable */ } },
+
+  // Read a saved run back in (without showing anything). Returns true if there was one.
+  loadRun() {
+    let d;
+    try { d = JSON.parse(localStorage.getItem(RUN_KEY)); } catch (e) { d = null; }
+    if (!d || d.v !== 1 || !d.build || !d.run) return false;
+    this.build = d.build;
+    this.run = d.run;
+    this.run.node = d.run.node != null ? mapNode(this.run.map, d.run.node) : null;
+    this.runSeed = d.runSeed;
+    this.runRng = mulberry32(d.rng);
+    this.shop = d.shop || [];
+    this.shopOpen = !!d.shopOpen;
+    this.tab = d.tab || 'car';
+    this.rewards = d.rewards;
+    this.rewardKind = d.rewardKind;
+    this.pendingAct = d.pendingAct;
+    this.race = null;
+    this.saved = d;
+    return true;
+  },
+
   // ---------- Tutorial ----------
 
   // A practice race with a coach. Any run in progress is set aside and handed back afterwards.
@@ -392,6 +445,7 @@ const Proto = {
     b.hull = b.maxHull = 300; // room to learn without wrecking
     addWeapon(b, 'rocket'); // a loaner from the warden, to learn the second slot
     b.grenades = 3;
+    for (const w of b.rack) w.reserve = WEAPONS[w.id].pack * 8; // plenty to practise with: running dry would stall the reload step
     this.runRng = mulberry32(20261009);
     this.run = { act: 0, map: genActMap(this.runRng, 0), cur: null, node: null, flags: { disarm: true } };
     this.tutorial = new Tutorial(this);
@@ -442,7 +496,8 @@ const Proto = {
   newRun() {
     if (this.locked) document.exitPointerLock();
     this.build = newBuild();
-    this.runRng = mulberry32((Math.random() * 2 ** 31) | 0);
+    this.runSeed = (Math.random() * 2 ** 31) | 0;
+    this.runRng = mulberry32(this.runSeed);
     this.race = null;
     this.shop = [];
     this.shopOpen = false;
@@ -452,7 +507,7 @@ const Proto = {
   get act() { return ACTS[this.run.act]; },
 
   startAct(i) {
-    this.run = { act: i, map: genActMap(this.runRng, i), cur: null, node: null, flags: (this.run && this.run.flags) || {} };
+    this.run = { act: i, map: genActMap(this.runRng, i), cur: null, node: null, flags: (this.run && this.run.flags) || {}, seed: this.runSeed };
     this.showMap();
   },
 
@@ -460,15 +515,17 @@ const Proto = {
 
   showMap() {
     this.state = 'map';
+    this.saveRun();
     this.shopOpen = false;
     const b = this.build, run = this.run, map = run.map, act = this.act, boss = BOSSES[run.act];
     const reach = reachableNodes(map, run.cur);
     // Stops: clear colour-coded markers with a plain label underneath.
     const nodes = map.nodes.map((n) => {
       const t = NODE_TYPES_RUN[n.type], can = reach.includes(n.id), p = RouteSheet.pos(n);
-      const info = n.type === 'boss' ? `<b>Qualifier: ${boss.name}</b>, ${boss.title}. ${boss.desc}` : `<b>${t.label}.</b> ${t.desc}`;
+      const racing = ['race', 'elite', 'bounty', 'boss'].includes(n.type), wx = racing && !n.done ? wxOf(weatherFor(run.seed || 0, run.act, n.id)) : null; // the forecast
+      const info = (n.type === 'boss' ? `<b>Qualifier: ${boss.name}</b>, ${boss.title}. ${boss.desc}` : `<b>${t.label}.</b> ${t.desc}`) + (wx ? `<br>${wx.icon} <b>${wx.name}:</b> ${wx.desc}` : '');
       return `<button class="stop t-${n.type} ${n.done ? 'done' : ''} ${can ? 'can' : ''}" style="left:${p.x * 100}%;top:${p.y * 100}%;--d:${(n.row * 0.05 + n.col * 0.02).toFixed(2)}s"
-        ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} data-info="${info.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? 'Boss' : t.label}</small></button>`;
+        ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} data-info="${info.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? 'Boss' : t.label}</small>${wx && wx !== WEATHER.clear ? `<i class="wx" title="${wx.name}">${wx.icon}</i>` : ''}</button>`;
     }).join('');
     const here = run.cur != null ? RouteSheet.pos(mapNode(map, run.cur)) : null;
     const hint = reach.length === 1 && mapNode(map, reach[0]).type === 'boss' ? `Next: the qualifier against ${boss.name}.` : 'Pick one of the circled stops.';
@@ -520,6 +577,7 @@ const Proto = {
   pickNode(id) {
     const run = this.run, node = mapNode(run.map, id);
     if (!node || !reachableNodes(run.map, run.cur).includes(id)) return;
+    this.saveRun(id); // if the page goes away mid-stop, this stop replays from here
     run.node = node;
     if (['race', 'elite', 'boss', 'bounty'].includes(node.type)) { this.newRace(node); return; }
     if (node.type === 'stash') {
@@ -577,6 +635,7 @@ const Proto = {
   toGarage() {
     this.state = 'garage';
     if (!this.shopOpen) this.shop = [];
+    this.saveRun();
     if (this.preview) this.preview.setLook(carLook(this.cos, this.build));
     this.showGarage();
   },
@@ -620,6 +679,7 @@ const Proto = {
 
   gameOver() {
     if (this.locked) document.exitPointerLock();
+    this.clearRun();
     const b = this.build;
     this.state = 'over';
     this.setUI(`<div class="screen end lost">
@@ -636,6 +696,7 @@ const Proto = {
   victory() {
     const b = this.build;
     this.state = 'over';
+    this.clearRun();
     // Walking free is the biggest rep there is.
     const before = this.cos.rep;
     this.cos.rep += 150;
@@ -702,7 +763,7 @@ const Proto = {
     });
     this.race.node = node;
     this.race.boss = boss;
-    this.race.music = Music.forRace(run.act, node.type, this.seed, !!(boss && boss.mustWin));
+    this.race.music = null; // set once the weather is known, below
     if (node.type === 'bounty') {
       // A price on one rival's head: the strongest non-boss driver on the grid.
       const field = this.race.cars.filter((c) => c !== player && !c.isBoss);
@@ -719,17 +780,23 @@ const Proto = {
     // Contraband: a heavy load costs hull at the start.
     if (run.flags.hullHit) { player.hp = Math.max(1, player.hp - run.flags.hullHit); run.flags.hullHit = 0; }
     // Slower, heavier racing than the arcade game: more time to aim, and a pack that stays together.
+    // Weather: the forecast for this stop (the tutorial is always clear).
+    const wxId = node.tutorial || node.id == null ? 'clear' : weatherFor(run.seed || 0, run.act, node.id), wx = wxOf(wxId);
+    this.race.weather = wxId;
     for (const c of this.race.cars) {
+      c.stats.grip *= wx.grip || 1;
       c.stats.top *= PACE;
       c.stats.accel *= PACE;
       c.stats.aLat *= 0.88;
     }
     this.race.rubberCfg = { dist: 2200, ahead: -0.07, behind: 0.12 };
     this.driver = driver;
-    this.combat = new Combat(this.race, { driver, build: b, elite: node.type === 'elite', boss, disarm: !!run.flags.disarm });
+    this.combat = new Combat(this.race, { driver, build: b, elite: node.type === 'elite', boss, disarm: !!run.flags.disarm, weather: wx });
     run.flags.disarm = false;
     this.combat.pace = PACE;
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
+    this.race.music = Music.forRace(run.act, node.type, this.seed, !!(boss && boss.mustWin), wxId);
+    WeatherGlass.reset();
     if (this.cockpit) this.cockpit.load(this.race, this.combat, carLook(this.cos, this.build));
     this.cam.x = player.x;
     this.cam.y = player.y;
@@ -796,6 +863,7 @@ const Proto = {
     this.setUI(`<div class="screen briefing">
       <h1>${race.node.tutorial ? 'Tutorial: practice race' : race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : race.node.type === 'bounty' ? 'Bounty race' : 'Race briefing'}</h1>
       <p class="act-line">Act ${ROMAN[this.run.act]} · ${this.act.title}${race.boss && race.boss.mustWin ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
+      <p class="wx-line"><span>${wxOf(race.weather).icon}</span> <b>${wxOf(race.weather).name}.</b> ${wxOf(race.weather).desc}</p>
       ${race.node.tutorial ? '<p class="boss-line">No strikes, no scrap, no armed rivals. A coach card will walk you through every gun and trick, one step at a time.</p>' : ''}
       ${race.node.tutorial ? '' : race.boss ? `<p class="boss-line"><b>${race.boss.title}.</b> ${race.boss.desc}</p>` : race.node.type === 'elite' ? '<p class="boss-line">Sharper drivers and more guns on the grid. A trinket waits for you if you make the cut.</p>' : ''}
       <p class="muted">${this.build.scrap} scrap · hull ${Math.ceil(this.build.hull)}/${this.build.maxHull} · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
@@ -888,7 +956,7 @@ const Proto = {
     this.lastOk = ok;
     // Bank the race: hull carries over, scrap paid out, strikes for missing the cut.
     const show = b.chip === 'showboat' ? 1.5 : 1;
-    const placePay = Math.round((PLACE_SCRAP[p.place - 1] || 0) * show * (race.node.type === 'elite' ? 1.4 : 1) * (has(b, 'tooth') ? 1.3 : 1)), wreckPay = Math.round((s.wrecked * WRECK_SCRAP + s.scrapBonus) * show);
+    const wx = wxOf(race.weather), placePay = Math.round((PLACE_SCRAP[p.place - 1] || 0) * show * (race.node.type === 'elite' ? 1.4 : 1) * (has(b, 'tooth') ? 1.3 : 1) * (wx.scrap || 1)), wreckPay = Math.round((s.wrecked * WRECK_SCRAP + s.scrapBonus) * show);
     const bossPay = boss && ok ? 250 : 0;
     const bc = race.bountyCar, bountyPay = bc && bc.hp <= 0 ? bc.bounty : 0;
     let sponsorCut = 0;
@@ -902,7 +970,7 @@ const Proto = {
     if (p.place === 1) b.wins++;
     if (!ok) b.strikes++;
     // Reputation persists between runs and unlocks paint-shop options.
-    const repGain = raceRep(p.place, s.wrecked) + (boss && ok ? 40 : 0) + (run.flags.repGain || 0) - (run.flags.repLoss || 0), repBefore = this.cos.rep; // beating a boss makes your name
+    const repGain = Math.round((raceRep(p.place, s.wrecked) + (boss && ok ? 40 : 0)) * (wx.rep || 1)) + (run.flags.repGain || 0) - (run.flags.repLoss || 0), repBefore = this.cos.rep; // beating a boss makes your name
     run.flags.repGain = run.flags.repLoss = 0;
     this.cos.rep += repGain;
     saveCosmetics(this.cos);
@@ -1116,6 +1184,7 @@ const Proto = {
   },
 
   showReward() {
+    this.saveRun();
     const cards = this.rewards.map((c, i) => `<button class="up-card rarity-${c.type === 'trinket' || c.type === 'chip' ? 'epic' : c.type === 'part' ? 'common' : 'rare'}" data-action="pick-reward" data-arg="${i}">
       <div class="up-rarity">${c.type}</div>
       <div class="up-name">${c.name}</div>
@@ -1151,6 +1220,7 @@ const Proto = {
     // Menu theme on the title; the race's own track from the briefing to the flag (quieter while paused).
     const racing = this.race && this.race.music && ['briefing', 'race', 'paused'].includes(this.state);
     Music.set(this.state === 'title' ? Music.MENU : racing ? this.race.music : null, this.state === 'paused' ? 0.4 : this.state === 'briefing' ? 0.7 : 1);
+    WeatherSound.set(racing ? wxOf(this.race.weather).ambience || null : null, this.state === 'paused' ? 0.3 : 1);
     this.render(dt);
     this.renderPreview(dt);
     Input.endFrame();
@@ -1237,6 +1307,7 @@ const Proto = {
     if (this.view === 'cockpit') {
       this.cockpit.render(this.state === 'race' ? dt : 0, this.time);
       ctx.clearRect(0, 0, W, H);
+      if (live) WeatherGlass.draw(ctx, this.cockpit.wx, W, H, this.state === 'race' ? dt : 0, race.player.speed / 500);
       if (live) drawCockpitHUD(ctx, this, W, H, this.time);
       if (this.state === 'race' && !this.locked && !this.noLock) {
         ctx.fillStyle = 'rgba(0,0,0,0.5)';

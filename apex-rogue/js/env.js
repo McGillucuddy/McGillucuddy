@@ -866,7 +866,7 @@ const Env = {
     if (!env.th.fireworks) return;
     env.fwT -= dt;
     if (env.fwT <= 0) {
-      env.fwT = 0.8 + Math.random() * 1.6;
+      env.fwT = (0.8 + Math.random() * 1.6) / (env.fwMul || 1);
       const n = 48, pos = new Float32Array(n * 3), vel = [];
       const a = Math.random() * TAU, R = 500 + Math.random() * 700;
       const cx = x + Math.cos(a) * R, cy = 260 + Math.random() * 220, cz = z + Math.sin(a) * R;

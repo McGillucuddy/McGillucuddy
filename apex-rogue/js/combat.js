@@ -35,7 +35,8 @@ class Combat {
     this.lastFire = 9;
     // Suppressed guns keep you off the rivals' radar: they take longer to lock on.
     this.quiet = b.rack.some((w) => weaponStats(w).quiet);
-    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1) * (b.chip === 'showboat' ? 0.75 : 1);
+    this.weather = opts.weather || {};
+    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1) * (b.chip === 'showboat' ? 0.75 : 1) * (this.weather.lock || 1);
     this.stats = { dealt: 0, parries: 0, shotDown: 0, taken: 0, wrecked: 0, scrapBonus: 0 };
 
     // The player's car runs every hit through the build (armour, parts, trinkets).
@@ -186,7 +187,7 @@ class Combat {
     const slot = rel < 0.8 ? 'engine' : rel > 2.3 && info.kind !== 'wall' ? 'nitro' : 'tyres';
     const part = b.parts[slot];
     if (part.dur > 0) {
-      part.dur -= amount * 1.4 * wearMul(b, slot); // parts wear faster than the hull, so breakdowns come before wrecks
+      part.dur -= amount * 1.4 * wearMul(b, slot) * wearOf(this.weather, slot); // parts wear faster than the hull, so breakdowns come before wrecks
       if (part.dur <= 0) this.breakPart(slot);
     }
     if (has(b, 'rabbit_foot') && !this.footUsed && p.hp > 1 && p.hp - amount <= 0) {
@@ -318,7 +319,7 @@ class Combat {
     this.updatePlayerWeapons(dt, ctl);
     const s = this.shield;
     if (s.t > 0) { s.t -= dt; s.age += dt; }
-    for (const a of this.abil) if (a) a.cd -= dt;
+    for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1);
     this.swerveCd -= dt;
     this.invulnT -= dt;
     if (this.shoesHeal) {

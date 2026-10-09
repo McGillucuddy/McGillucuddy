@@ -514,3 +514,8 @@ body.proto #ui { z-index: 2; }
 .t-panel .unlock-list li.off { opacity: .55; border-style: dashed; background: transparent; }
 .t-panel .unlock-list li small { margin-left: 5px; color: #a8322a; font-weight: 700; }
 .t-panel h3 small { color: #6a5e4a; font-weight: 400; }
+
+/* Weather */
+.stop .wx { position: absolute; top: -9px; right: -11px; font-style: normal; font-size: 14px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.wx-line { margin: 4px auto 8px; max-width: 760px; color: #cfe0ff; }
+.wx-line span { font-size: 18px; }

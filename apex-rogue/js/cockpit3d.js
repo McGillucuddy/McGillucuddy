@@ -33,6 +33,66 @@ function canvasTex(w, h) {
   return { c, ctx: c.getContext('2d'), tex };
 }
 
+// How each gun bucks when it fires: push back (z), muzzle climb (pitch), a random sideways jitter (yaw) and roll,
+// a punch to the view, the size of the muzzle flash, smoke, and how hard the flash lights the cabin.
+const FIRE_KICK = {
+  pistol: { back: 0.55, climb: 0.2, yaw: 0.04, roll: 0.06, cam: 0.012, flash: 1, smoke: 0.5, light: 1 },
+  smg: { back: 0.32, climb: 0.07, yaw: 0.035, roll: 0.03, cam: 0.005, flash: 0.85, smoke: 0.25, light: 0.8 },
+  nailgun: { back: 0.28, climb: 0.06, yaw: 0.03, roll: 0.02, cam: 0.003, flash: 0, smoke: 0.15, light: 0 },
+  shotgun: { back: 1.3, climb: 0.38, yaw: 0.05, roll: 0.14, cam: 0.035, flash: 1.9, smoke: 1, light: 1.6 },
+  rocket: { back: 1.4, climb: 0.16, yaw: 0.03, roll: 0.05, cam: 0.04, flash: 2.6, smoke: 2, light: 2 },
+  flare: { back: 0.8, climb: 0.4, yaw: 0.04, roll: 0.1, cam: 0.02, flash: 1.3, smoke: 0.8, light: 1.2, color: '#ff6a3a' },
+  harpoon: { back: 0.9, climb: 0.14, yaw: 0.02, roll: 0.04, cam: 0.015, flash: 0, smoke: 0, light: 0 },
+  flamer: { back: 0.04, climb: 0.01, yaw: 0.015, roll: 0.01, cam: 0, flash: 0, smoke: 0, light: 0.5, color: '#ff7a2a' },
+};
+const FIRE_EVENTS = ['shoot', 'shotgun', 'nail', 'flame', 'harpoon', 'rocket', 'flare'];
+
+// Small canvas textures for the muzzle flash (a spiky star) and smoke puffs (a soft blob).
+const Cockpit3DTex = {
+  make(draw) { const cv = document.createElement('canvas'); cv.width = cv.height = 64; draw(cv.getContext('2d')); const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; },
+  // A few ragged flashes to pick from at random: a white-hot core, then a fringe of short, uneven flame tongues
+  // fading through yellow to a dull orange. No regular star points, which read as a cartoon.
+  flash() {
+    if (!this._f) this._f = [0, 1, 2, 3].map(() => this.make((g) => {
+      const c = 32, blob = (x, y, r, a, inner) => {
+        const rg = g.createRadialGradient(x, y, 0, x, y, r);
+        rg.addColorStop(0, inner); rg.addColorStop(1, `rgba(255,120,30,0)`);
+        g.globalAlpha = a; g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      };
+      g.globalCompositeOperation = 'lighter';
+      const tongues = 5 + Math.floor(Math.random() * 4);
+      for (let k = 0; k < tongues; k++) { // uneven flame tongues out from the core
+        const a = Math.random() * Math.PI * 2, len = 8 + Math.random() * 18;
+        for (let s2 = 0; s2 < 5; s2++) { const f = s2 / 5, wob = (Math.random() - 0.5) * 0.35; blob(c + Math.cos(a + wob) * len * f, c + Math.sin(a + wob) * len * f, (1 - f) * 7 + 2, 0.35, 'rgba(255,190,90,0.9)'); }
+      }
+      blob(c, c, 16, 0.8, 'rgba(255,230,170,1)');
+      blob(c, c, 7, 1, 'rgba(255,255,245,1)'); // white-hot core
+    }));
+    return this._f;
+  },
+  // The plume blown forward out of the barrel: brightest at the muzzle, ragged and orange towards its tip.
+  plume() {
+    return this._pl || (this._pl = this.make((g) => {
+      g.globalCompositeOperation = 'lighter';
+      for (let k = 0; k < 40; k++) {
+        const f = Math.random(), x = 32 + (Math.random() - 0.5) * 18 * f, y = 60 - f * 56, r = (1 - f) * 10 + 3;
+        const rg = g.createRadialGradient(x, y, 0, x, y, r);
+        rg.addColorStop(0, f < 0.3 ? 'rgba(255,240,200,0.8)' : 'rgba(255,170,70,0.5)'); rg.addColorStop(1, 'rgba(255,110,30,0)');
+        g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+      }
+    }));
+  },
+  puff() {
+    return this._p || (this._p = this.make((g) => {
+      for (let k = 0; k < 6; k++) {
+        const x = 22 + Math.random() * 20, y = 22 + Math.random() * 20, r = 12 + Math.random() * 8, rg = g.createRadialGradient(x, y, 0, x, y, r);
+        rg.addColorStop(0, 'rgba(255,255,255,0.5)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+      }
+    }));
+  },
+};
+
 class CockpitView {
   constructor(canvas) {
     this.canvas = canvas;
@@ -125,6 +185,7 @@ class CockpitView {
     PSX.apply(this.scene);
     PSX.apply(this.vmScene);
     this.setRetro(PSX.enabled);
+    this.wx = Weather3D.build(this, race.weather);
     this.resize(this.canvas.clientWidth || window.innerWidth, this.canvas.clientHeight || window.innerHeight);
   }
 
@@ -717,8 +778,30 @@ class CockpitView {
         g.userData.shell = shell;
       }
     });
-    const flash = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    // Muzzle flash: a starburst (a spiky core facing you, two fins along the barrel), plus a light that flares on the
+    // gun and hands and another that lights up the cabin for a frame or two.
+    const fm = new THREE.MeshBasicMaterial({ map: Cockpit3DTex.flash()[0], color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const pm = new THREE.MeshBasicMaterial({ map: Cockpit3DTex.plume(), color: '#ffffff', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    const flash = new THREE.Group();
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), fm);
+    // Two crossed planes carry the plume forward from the muzzle (its base at the muzzle, its tip ahead).
+    const plA = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 2.2), pm); plA.rotation.x = -Math.PI / 2; plA.position.z = -1.0;
+    const plB = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 2.2), pm); plB.rotation.set(-Math.PI / 2, 0, Math.PI / 2); plB.rotation.order = 'ZXY'; plB.position.z = -1.0;
+    flash.add(face, plA, plB);
+    flash.userData.mat = fm; flash.userData.plume = pm;
     this.vmCamera.add(flash);
+    this.muzzleLight = new THREE.PointLight('#ffc070', 0, 14, 2);
+    this.vmScene.add(this.muzzleLight);
+    this.cabinFlash = new THREE.PointLight('#ffc070', 0, 30, 2);
+    this.camera.add(this.cabinFlash);
+    this.cabinFlash.position.set(6, -2, -8);
+    // Smoke that curls off the muzzle after a shot.
+    this.gunSmoke = [];
+    for (let k = 0; k < 14; k++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: Cockpit3DTex.puff(), color: '#a09a90', transparent: true, depthWrite: false, opacity: 0 }));
+      m.visible = false; this.vmCamera.add(m); this.gunSmoke.push({ m, t: 9, life: 1 });
+    }
+    this.kick = { z: 0, vz: 0, p: 0, vp: 0, y: 0, vy: 0, r: 0, vr: 0, cp: 0, vcp: 0 };
     this.vm = { root: vm, guns, flash };
     // Spent casings flicked out of the ejection port, in the hand-held layer.
     this.casings = [];
@@ -779,6 +862,7 @@ class CockpitView {
 
   onEvent(ev) {
     if (ev.type === 'shoot' || ev.type === 'shotgun') this.ejectCasing(ev.type === 'shotgun');
+    if (FIRE_EVENTS.includes(ev.type)) this.fireKick(FIRE_KICK[this.combat.weapon.id] || FIRE_KICK.smg);
     if (ev.type === 'explode') this.burst(ev.x, ev.y, ev.big);
     if (ev.type === 'switch') this.anim.switchT = 0.38;
     else if (ev.type === 'empty') this.anim.dry = 0.14;
@@ -907,6 +991,7 @@ class CockpitView {
     }
 
     if (this.env) Env.update(this.env, dt, t, p.x, p.y, this.scene);
+    Weather3D.update(this, this.wx, dt, t);
 
     // Cars
     // Your own car's body motion, scaled by the cabin-sway setting (rolls the whole cabin and your view).
@@ -1001,6 +1086,7 @@ class CockpitView {
     this.camera.position.copy(eye);
     this.camera.up.set(0, 1, 0).applyQuaternion(this.playerGroup.quaternion);
     this.camera.lookAt(eye.clone().add(dir));
+    if (this.kick) this.camera.rotateX(this.kick.cp); // the punch of a big gun going off
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(yw) * sway);
   }
 
@@ -1130,6 +1216,7 @@ class CockpitView {
     const bump = (a, c, x) => Math.sin(Math.PI * clamp((x - a) / (c - a), 0, 1)); // 0 -> 1 -> 0 over a..c
     this.recoil = Math.max(0, this.recoil - dt * 6);
     this.flash -= dt;
+    this.updateKick(dt);
     A.switchT = Math.max(0, A.switchT - dt);
     A.pumpT = Math.max(0, A.pumpT - dt);
     A.dry = Math.max(0, A.dry - dt);
@@ -1282,18 +1369,83 @@ class CockpitView {
         rx += rack * 0.05;
       }
       const dry = A.dry > 0 ? Math.sin((A.dry / 0.14) * Math.PI) * 0.05 : 0;
-      g.position.set(x + sw.x * 0.5 + ox, y + bob + sw.y * 0.4 - this.dip - raise + oy, z + this.recoil * 0.8 + oz);
+      const K = this.kick; // the firing kick, on springs
+      g.position.set(x + sw.x * 0.5 + ox + K.y * 2, y + bob + sw.y * 0.4 - this.dip - raise + oy + K.p * 1.6, z + K.z + oz);
       const [hp, hy, hr] = u.holdRot || [0, 0, 0];
-      g.rotation.set(hp + this.recoil * 0.12 - this.dip * 0.15 + sw.y * 0.06 + rx + dry, hy + sw.r * 0.3 + ry, hr - sw.x * 0.1 + rz);
+      g.rotation.set(hp + K.p - this.dip * 0.15 + sw.y * 0.06 + rx + dry, hy + sw.r * 0.3 + ry + K.y, hr - sw.x * 0.1 + rz + K.r);
     });
     const held = vm.guns[combat.wi];
     vm.flash.visible = this.flash > 0;
+    vm.flash.scale.setScalar((this.flashK || 1) * 0.75);
+    vm.flash.userData.mat.opacity = vm.flash.userData.plume.opacity = clamp(this.flash / 0.02, 0, 1);
+    // A flicker of light on the hands and round the cabin, not a floodlight.
+    this.muzzleLight.intensity = Math.min(1.6, Math.max(0, this.flash) * 30 * (this.lightK || 0));
+    this.cabinFlash.intensity = Math.min(0.6, Math.max(0, this.flash) * 9 * (this.lightK || 0));
     // Flash at the gun's actual muzzle (the held gun is turned in, so a fixed offset would miss it).
     if (held.userData.barrel) {
       held.updateMatrix();
       vm.flash.position.copy(held.userData.barrel.position).applyMatrix4(held.matrix).add(new THREE.Vector3(0, 0, -0.6).applyEuler(held.rotation));
     } else vm.flash.position.set(held.userData.hold[0] + 0.2, held.userData.hold[1] + 0.3, held.userData.hold[2] - 6.5);
-    vm.flash.rotation.z = Math.random() * TAU;
+    vm.flash.quaternion.copy(held.quaternion); // the plume runs along the barrel
+    vm.flash.children[0].quaternion.copy(held.quaternion).invert(); // the core faces the camera
+    vm.flash.children[0].rotation.z = Math.random() * TAU;
+    this.muzzleLight.position.copy(vm.flash.position);
+    this.updatePuffs(dt);
+  }
+
+  // A shot: kick the gun on its springs, punch the view, light the flash, start a smoke puff.
+  fireKick(k) {
+    const K = this.kick, j = () => Math.random() * 2 - 1;
+    K.vz += k.back * 14;
+    K.vp += k.climb * (9 + Math.random() * 3);
+    K.vy += k.yaw * j() * 12;
+    K.vr += k.roll * j() * 12;
+    K.vcp += k.cam * 30;
+    if (k.flash) { // about two frames: a real flash is gone almost as soon as you see it
+      this.flash = 0.032 + k.flash * 0.006; this.flashK = k.flash;
+      const fl = this.vm.flash.userData, tint = k.color || '#ffffff', vars = Cockpit3DTex.flash();
+      fl.mat.map = vars[Math.floor(Math.random() * vars.length)]; fl.mat.color.set(tint); fl.plume.color.set(tint);
+      this.vm.flash.children[1].scale.set(0.8 + Math.random() * 0.4, 0.7 + Math.random() * 0.6, 1); this.vm.flash.children[2].scale.copy(this.vm.flash.children[1].scale);
+    }
+    this.lightK = k.light;
+    this.muzzleLight.color.set(k.color || '#ffc070');
+    this.cabinFlash.color.set(k.color || '#ffc070');
+    if (k.smoke) this.puff(k.smoke);
+  }
+
+  // Springs back to rest with a little overshoot (two substeps keep it stable at low frame rates).
+  updateKick(dt) {
+    const K = this.kick;
+    for (let s = 0; s < 2; s++) {
+      const h = dt / 2;
+      for (const [x, v, kk, cc] of [['z', 'vz', 210, 19], ['p', 'vp', 210, 19], ['y', 'vy', 170, 19], ['r', 'vr', 190, 19], ['cp', 'vcp', 260, 26]]) {
+        K[v] += (-kk * K[x] - cc * K[v]) * h;
+        K[x] += K[v] * h;
+      }
+    }
+  }
+
+  puff(size) {
+    const p = this.gunSmoke.find((q) => q.t >= q.life);
+    if (!p) return;
+    p.t = 0; p.life = 0.6 + size * 0.5; p.size = size;
+    p.pos = this.vm.flash.position.clone();
+    p.vel = new THREE.Vector3((Math.random() - 0.5) * 1.5, 1.2 + Math.random(), -1.5 - Math.random() * 2);
+    p.m.visible = true;
+  }
+
+  updatePuffs(dt) {
+    for (const p of this.gunSmoke) {
+      if (!p.pos || !(p.t < p.life)) { p.m.visible = false; continue; }
+      p.t += dt;
+      const f = p.t / p.life;
+      p.pos.addScaledVector(p.vel, dt);
+      p.vel.multiplyScalar(Math.max(0, 1 - dt * 1.5));
+      p.m.position.copy(p.pos);
+      p.m.scale.setScalar(p.size * (0.6 + f * 2.2));
+      p.m.material.opacity = 0.35 * (1 - f) * Math.min(1, f * 6);
+      p.m.rotation.z += dt * 0.8;
+    }
   }
 
   updateFx(dt, t) {

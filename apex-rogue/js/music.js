@@ -54,7 +54,11 @@ const Music = {
     this.bus.gain.value = 0;
     this.applied = this.level;
     this.bus.gain.setTargetAtTime(this.level, c.currentTime, 0.8);
-    this.bus.connect(Sound.master);
+    if (this.cfg.lowpass) { // a muffled mix (rain on the roof)
+      this.lp = c.createBiquadFilter();
+      this.lp.type = 'lowpass'; this.lp.frequency.value = this.cfg.lowpass; this.lp.Q.value = 0.5;
+      this.bus.connect(this.lp); this.lp.connect(Sound.master);
+    } else this.bus.connect(Sound.master);
     this.makeDuck(c);
     this.bar = 0;
     this.step = 0;
@@ -122,7 +126,7 @@ const Music = {
   send(node, verbAmt, echoAmt) {
     const c = Sound.ctx;
     const v = c.createGain();
-    v.gain.value = verbAmt * this.level;
+    v.gain.value = verbAmt * this.level * ((this.cfg && this.cfg.reverb) || 1);
     node.connect(v); v.connect(this.fxGain);
     if (echoAmt) {
       const e = c.createGain();
@@ -315,7 +319,7 @@ const Music = {
   // ---------- Race tracks ----------
 
   // A race's track. Act 0-3 sets the mood; elites and bosses push harder; the seed picks key, tempo and parts.
-  forRace(act, type, seed, final) {
+  forRace(act, type, seed, final, weather) {
     const r = mulberry32((seed ^ 0x5eed) >>> 0), pick = (a) => a[Math.floor(r() * a.length)];
     const AEOLIAN = [0, 2, 3, 5, 7, 8, 10], PHRYGIAN = [0, 1, 3, 5, 7, 8, 10], HARMONIC = [0, 2, 3, 5, 7, 8, 11], DORIAN = [0, 2, 3, 5, 7, 9, 10];
     const boss = type === 'boss', elite = type === 'elite';
@@ -345,12 +349,22 @@ const Music = {
     const choirs = prog.map((d, i) => { const c = chords[i]; return [c[0] - 12, c[1] - 12, c[2] - 12, root + deg(d + 1) - (act >= 3 && i === 3 ? 11 : 0)]; });
     let bpm = pick(P.bpm) + (boss ? 6 : elite ? 3 : 0);
     if (final) bpm += 4;
-    return Object.assign({}, P, {
-      id: 'race:' + act + ':' + type + ':' + seed, style: 'race', bpm, chords, roots, choirs,
+    const cfg = Object.assign({}, P, {
+      id: 'race:' + act + ':' + type + ':' + seed + ':' + (weather || 'clear'), style: 'race', bpm, chords, roots, choirs,
       intensity: boss ? 2 : elite ? 1 : 0, toms: P.toms || boss, act3: act >= 3,
       choir: P.choir + (final ? 0.4 : boss && act >= 2 ? 0.2 : 0),
       fourClimax: act >= 3 && (boss || final), // the final race lets the kick loose under the choir
     });
+    // The weather colours the track: rain muffles it, storms and furnaces drive it harder, fog and blackouts open
+    // up the reverb, a gala crashes in on every section.
+    const wm = (typeof WEATHER !== 'undefined' && WEATHER[weather] && WEATHER[weather].music) || {};
+    if (wm.lowpass) cfg.lowpass = wm.lowpass;
+    if (wm.padBright) cfg.padBright *= wm.padBright;
+    if (wm.intensity) cfg.intensity = Math.min(2, cfg.intensity + wm.intensity);
+    if (wm.toms) cfg.toms = true;
+    if (wm.reverb) cfg.reverb = wm.reverb;
+    if (wm.crash) cfg.crashEvery = true;
+    return cfg;
   },
 
   // Bars 0-3 intro; then a 20-bar loop: groove A (8), full B (8), breakdown (4).
@@ -375,7 +389,7 @@ const Music = {
       if (brk && loop === 19 && s === 0) this.riser(t, dt * 16);
       return;
     }
-    if ((loop === 0 || loop === 8) && s === 0) this.crash(t);
+    if ((loop === 0 || loop === 8 || (C.crashEvery && loop % 4 === 0)) && s === 0) this.crash(t);
     // Drums.
     const four = C.drums === 'four' || C.drums === 'drive' || (C.fourClimax && B);
     if (four) {

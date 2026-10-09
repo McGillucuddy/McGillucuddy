@@ -15,12 +15,14 @@ function wrapAngle(a) {
 // Deterministic PRNG so a track seed always rebuilds the same track.
 function mulberry32(seed) {
   let t = seed >>> 0;
-  return function () {
+  const next = function () {
     t = (t + 0x6d2b79f5) >>> 0;
     let r = Math.imul(t ^ (t >>> 15), 1 | t);
     r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
     return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
   };
+  next.state = () => t; // mulberry32(next.state()) carries on exactly where this one is (used to save a run)
+  return next;
 }
 
 const randRange = (rng, a, b) => a + (b - a) * rng();
