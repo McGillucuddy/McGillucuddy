@@ -97,6 +97,7 @@ const Proto = {
       for (const id of Object.keys(TRINKET_MOUNT)) Models.trinket(id);
       for (const id of ['hula', 'dog', 'saint', 'skull']) Models.ornament(id);
       for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.ammoItem(id);
+      Models.ammoItem('flare', 1);
       const M = Env.models; // the undercity first (act I), then the rest
       M.fireBarrel(); M.wreck(4); M.wreck(8); M.junk(5); Env.guardTower(); M.palm(3); M.palm(8); M.palm(5); M.palm(13);
       M.topiary(1); M.topiary(2); M.fountain(); M.statue(); M.colonnade(); M.flags(1); M.flags(2);

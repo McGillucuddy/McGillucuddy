@@ -26,7 +26,8 @@ One race, with a switchable first-person cockpit view and top-down view (press `
   grenade crate you can count, fuzzy dice and a bobblehead (trinkets) reacting to the car's movement,
   and a windshield that cracks when you take hits from the front.
 - A briefing screen before the race shows the track layout, hazards and which rivals are armed.
-- The cabin is a prisoner's death-race car: a rusty welded roll cage, a shackle and chain bolted to
+- The cabin is a prisoner's death-race car, every piece sculpted round and blended (cage tubes welded on foot
+  plates, a moulded gauge binnacle, screens in their own housings, padded and bolstered seats): a rusty welded roll cage, a shackle and chain bolted to
   the floor, "INMATE 4471" stencilled on the glovebox, tally marks scratched into the dash, a taped
   polaroid on the visor, torn and duct-taped seats, a taped-over dash crack, exposed wiring, riveted
   steel plate on the door, wire mesh over the rear windows, junk on the floor, a grimy windshield
@@ -109,7 +110,8 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **One spare part:** carry a spare of one fitted part; if that part breaks mid-race press `B` to fit
   it (your hands are busy for 2.5s, so no shooting).
 - **Weapons use ammo** (magazines, `R` to reload, ammo bought with scrap): SMG, pump shotgun, rocket
-  launcher, flare gun (blinds the driver it hits). Two rack slots, three with the Warden's Keys.
+  launcher, flare gun (an orange Orion-style 12-gauge flare pistol firing red and green cartridges; blinds
+  the driver it hits). Two rack slots, three with the Warden's Keys.
   Grenades are a separate consumable.
 - **Abilities** on `Space` and `E`: shield/parry, nitro burst, smoke screen, EMP pulse.
 - **Trinkets** (22 to earn) change the rules and physically appear in your cabin, hanging from the mirror

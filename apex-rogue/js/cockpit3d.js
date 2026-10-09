@@ -547,7 +547,7 @@ class CockpitView {
     this.rackGuns = b.rack.map((w, i) => {
       const m = Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (this.look3d.gunFinish || {})[w.id]);
       if (w.id === 'rocket') m.scale.setScalar(0.8);
-      m.position.set(-1.2, hooks[i] || 4.9, -7.4);
+      m.position.set(-1.2, hooks[i] || 4.9, -6.9); // resting on the J hooks, clear of the door bars
       m.rotation.y = -Math.PI / 2;
       I.add(m);
       return m;
@@ -635,23 +635,31 @@ class CockpitView {
     const R = new THREE.Group(), rows = b.rack.length, W = 1.95, rowH = 1.1;
     const webbing = LP.mat('#3a3a2a', { roughness: 1 }), board = LP.mat('#6a6448', { roughness: 0.95 }), steel = LP.mat('#8a8f94', { metalness: 0.8 }); // olive canvas so dark mags stand out
     const H = rows * rowH + 0.3;
-    R.add(LP.box(W + 0.2, H, 0.1, board, 0, 0, -0.05));
-    for (const x of [-W / 2, W / 2]) for (const y of [H / 2 - 0.12, -H / 2 + 0.12]) R.add(LP.cyl(0.06, 0.06, 0.05, 10, steel, x, y, 0.02).rotateX(Math.PI / 2));
-    for (const x of [-W / 2 + 0.3, W / 2 - 0.3]) R.add(LP.box(0.16, 0.16, 0.2, steel, x, H / 2 - 0.1, -0.15)); // brackets to the door
     // Per weapon: how many items, items per line, spacing, scale. Shells and flares sit in two lines.
     const PER = { smg: [5, 5, 0.38, 0.68], shotgun: [10, 5, 0.38, 0.85], rocket: [4, 4, 0.46, 0.4], flare: [8, 4, 0.46, 0.8] };
+    // The board, its screws, brackets and the elastic loops, as one rounded sculpt per layout.
+    const lineCounts = b.rack.map((w) => Math.ceil(PER[w.id][0] / PER[w.id][1]));
+    const bs = new Sculpt('ammoboard:' + lineCounts.join(''), 0.03);
+    bs.add(board, SDF.box([W + 0.2, H, 0.12], 0.05, [0, 0, -0.05]), 0.02);
+    for (const x of [-W / 2, W / 2]) for (const y of [H / 2 - 0.12, -H / 2 + 0.12]) bs.add(steel, SDF.ellipsoid([0.07, 0.07, 0.035], [x, y, 0.02]), 0.01); // screw heads
+    for (const x of [-W / 2 + 0.3, W / 2 - 0.3]) bs.add(steel, SDF.box([0.18, 0.16, 0.24], 0.06, [x, H / 2 - 0.1, -0.2]), 0.04); // brackets to the door
+    lineCounts.forEach((lines, r) => {
+      const yc = H / 2 - 0.15 - rowH / 2 - r * rowH;
+      bs.add(webbing, SDF.box([W, 0.12, 0.08], 0.035, [0, yc - (lines > 1 ? 0.5 : 0.2), 0.3]), 0.01); // elastic loop
+      for (const x of [-W / 2 + 0.02, W / 2 - 0.02]) bs.add(webbing, SDF.box([0.06, 0.12, 0.36], 0.025, [x, yc - (lines > 1 ? 0.5 : 0.2), 0.13]), 0.02); // stitched to the board
+    });
+    bs.build(R);
     this.ammoRack = b.rack.map((w, r) => {
       const [n, per, gap, sc] = PER[w.id], yc = H / 2 - 0.15 - rowH / 2 - r * rowH, lines = Math.ceil(n / per);
       const items = [];
       for (let k = 0; k < n; k++) {
         const col = k % per, line = Math.floor(k / per);
-        const it = Models.ammoItem(w.id);
+        const it = Models.ammoItem(w.id, k);
         it.position.set(-((per - 1) * gap) / 2 + col * gap, yc + (lines > 1 ? (0.5 - line) * 0.52 : 0), 0.16);
         it.scale.setScalar(sc * (lines > 1 ? 0.8 : 1));
         R.add(it);
         items.push(it);
       }
-      R.add(LP.box(W, 0.12, 0.06, webbing, 0, yc - (lines > 1 ? 0.5 : 0.2), 0.3)); // elastic loop
       return { items, wi: r, per: w.id === 'smg' ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
     });
     const tilt = 0.45, yaw = 0.2, h2 = H / 2;
@@ -683,7 +691,7 @@ class CockpitView {
     // see the gun's left side and both hands round the grips.
     const HOLD = {
       smg: [2.6, -1.6, -5.6, 1, 0.28, 0.05, 0.03], shotgun: [2.4, -1.5, -4.9, 0.85, 0.24, 0.06, 0.03],
-      rocket: [3.0, -1.9, -5.6, 0.7, 0.18, 0.04, 0.02], flare: [2.3, -1.15, -5.0, 1, 0.28, 0.06, 0.02],
+      rocket: [3.0, -1.9, -5.6, 0.7, 0.18, 0.04, 0.02], flare: [2.4, -1.3, -5.1, 1, 0.26, 0.06, 0.02],
     };
     const guns = this.combat.build.rack.map((w) => {
       const m = Models.hands(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]), w.id);
@@ -1218,11 +1226,11 @@ class CockpitView {
           const open = ss(0.08, 0.25, rp) * (1 - ss(0.78, 0.9, rp));
           u.barrelGrp.rotation.x = -0.75 * open;
           if (u.shell) {
-            if (rp > 0.25 && rp < 0.45) { const f = (rp - 0.25) / 0.2; u.shell.visible = true; u.shell.position.set(0.3 * f, 0.4 + 2.5 * f, 0.6 + 2 * f); u.shell.rotation.set(Math.PI / 2 + f * 3, 0, f * 2); }
+            if (rp > 0.25 && rp < 0.45) { const f = (rp - 0.25) / 0.2, B = u.breech || [0, 0.4, 0.6]; u.shell.visible = true; u.shell.position.set(B[0] + 0.3 * f, B[1] + 2.5 * f, B[2] + 2.5 * f); u.shell.rotation.set(Math.PI / 2 + f * 3, 0, f * 2); }
             else if (rp > 0.5 && rp < 0.75) {
               const f = ss(0.5, 0.72, rp), R = this.rackPoint(g, i) || new THREE.Vector3(0, -2.5, 1.5);
               u.shell.visible = true;
-              u.shell.position.lerpVectors(R, new THREE.Vector3(0, 0.3, 0.2), f);
+              u.shell.position.lerpVectors(R, new THREE.Vector3(...(u.breech || [0, 0.3, 0.2])), f);
               u.shell.rotation.set(Math.PI / 2, 0, 0);
             }
             if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.5 && rp < 0.75 ? 1 : 0;
