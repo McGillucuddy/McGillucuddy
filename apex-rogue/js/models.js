@@ -394,6 +394,22 @@ const DECALS = {
       g.fillStyle = gr; g.fillRect(0, 0, W, H);
       g.fillStyle = 'rgba(255,255,255,0.18)';
       g.beginPath(); g.moveTo(6, 0); g.lineTo(12, 0); g.lineTo(0, 20); g.lineTo(0, 10); g.fill();
+    } else if (kind === 'glasscrack' || kind === 'glassshot') {
+      // The glass, cracked: a star of cracks (and bullet holes when it's shot through).
+      const gr = g.createLinearGradient(0, 0, 0, H);
+      gr.addColorStop(0, '#6f7d86'); gr.addColorStop(0.45, '#262f38'); gr.addColorStop(1, '#0e1318');
+      g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      const rng = mulberry32(kind.length * 7);
+      g.strokeStyle = 'rgba(230,240,245,0.7)'; g.lineWidth = 1;
+      for (const [cx, cy] of [[W * 0.35, H * 0.4], [W * 0.75, H * 0.65]]) {
+        for (let k = 0; k < 9; k++) {
+          let x = cx, y = cy, a = rng() * TAU;
+          g.beginPath(); g.moveTo(x, y);
+          for (let n = 0; n < 5; n++) { a += (rng() - 0.5) * 0.8; x += Math.cos(a) * 3.5; y += Math.sin(a) * 3.5; g.lineTo(x, y); }
+          g.stroke();
+        }
+        if (kind === 'glassshot') { g.fillStyle = '#05070a'; g.beginPath(); g.arc(cx, cy, 2.2, 0, TAU); g.fill(); }
+      }
     } else if (kind === 'hazard') {
       g.fillStyle = '#c9a227'; g.fillRect(0, 0, W, H);
       g.fillStyle = '#1a1a1a';
@@ -588,6 +604,44 @@ const CAR_STYLES = {
       sc.cut(SDF.box([1.2, 0.7, 3.2], 0.15, [7.4, 7.55, 0]), 0.1); // its intake
     },
   },
+  // Sedan: a square-rigged 80s four-door, the kind every prison motor pool runs into the ground.
+  sedan: {
+    top: [[18.6, 1.9], [18.8, 4.8], [17.8, 6.0], [8.4, 6.9], [-12.5, 7.1], [-17.6, 6.7], [-18.2, 5.4], [-18.3, 2.0]],
+    cabin: [[8.2, 7.0], [3.6, 11.2], [-8.4, 11.2], [-12.8, 7.2]], cabinW: 14.6, bodyW: 16,
+    wheels: [11.6, -11.2], wheelR: 2.8, wheelZ: 7.3,
+    lightY: 4.6, tailY: 5.8, frontPlateY: 2.6, rearPlateY: 4.4, mirrorX: 7.4, mirrorY: 7.9,
+    bPillar: -2.2, seams: [6.6, -2.4, -10.2], cPillar: [[-7.2, 7.2], [-8.4, 11.2], [-12.8, 7.2]],
+    kit: { bumper: 'none', roof: 'none', spoiler: 'none' },
+    extras(sc, m) {
+      sc.add(m.body, SDF.box([0.8, 0.8, 13.4], 0.3, [-1.6, 11.6, 0]), 0.6); // roof drip ridge
+    },
+  },
+  // Pickup: a short cab and an open load bed.
+  pickup: {
+    top: [[18.8, 2.0], [19.0, 5.4], [18.0, 6.8], [9.0, 7.6], [-2.0, 7.9], [-18.4, 8.1], [-18.8, 7.4], [-18.9, 2.0]],
+    cabin: [[8.8, 7.7], [5.0, 12.2], [-1.0, 12.2], [-1.8, 7.9]], cabinW: 15.2, bodyW: 16.8,
+    wheels: [12.0, -11.6], wheelR: 3.2, wheelZ: 7.6,
+    lightY: 5.0, tailY: 6.4, frontPlateY: 2.8, rearPlateY: 4.6, mirrorX: 8.0, mirrorY: 8.6,
+    bPillar: -0.4, seams: [7.4, -1.6], cPillar: [[-0.4, 7.9], [-0.6, 12.2], [-1.0, 12.2], [-1.8, 7.9]],
+    kit: { bumper: 'pushbar', roof: 'lightbar', spoiler: 'none' },
+    extras(sc, m) {
+      sc.cut(SDF.box([16.2, 8, 14.6], 0.6, [-10.4, 8.6, 0]), 0.4); // the open load bed
+      for (const sd of [-1, 1]) sc.add(m.dark, SDF.box([15.2, 0.5, 0.7], 0.2, [-10.4, 8.3, sd * 7.6]), 0.3); // bed rail caps
+      for (const sd of [-1, 1]) sc.add(m.body, SDF.box([8.2, 3.6, 3.2], 1.2, [-11.6, 6.2, sd * 5.4]), 0.4); // wheel tubs in the bed
+    },
+  },
+  // Van: a tall panel van, blind at the back.
+  van: {
+    top: [[18.2, 2.0], [18.4, 6.2], [17.4, 7.6], [10.6, 8.4], [-17.6, 8.6], [-18.2, 7.6], [-18.4, 2.0]],
+    cabin: [[10.4, 8.5], [6.0, 14.6], [-17.4, 14.6], [-18.0, 8.7]], cabinW: 15.6, bodyW: 16.6,
+    wheels: [12.0, -11.6], wheelR: 3.0, wheelZ: 7.6,
+    lightY: 5.2, tailY: 7.0, frontPlateY: 2.8, rearPlateY: 4.8, mirrorX: 9.2, mirrorY: 9.2,
+    bPillar: 3.6, seams: [9.6, 3.2, -6.0], cPillar: [[-3.4, 8.7], [-3.4, 14.6], [-17.4, 14.6], [-18.0, 8.7]],
+    kit: { bumper: 'none', roof: 'rack', spoiler: 'none' },
+    extras(sc, m) {
+      for (const sd of [-1, 1]) sc.add(m.dark, SDF.box([13, 0.3, 0.3], 0.1, [-8.6, 9.8, sd * 8.0]), 0.1); // sliding door rail
+    },
+  },
 };
 
 // Chaikin corner cutting: rounds a polyline's corners (ends stay put).
@@ -689,11 +743,26 @@ const Models = {
       // Tinted glass sits inside the pillars; it leans in as it rises (tumblehome), like the roof around it.
       const cab = st.cabin, cw = st.cabinW, belt = cab[0][1], roofY = cab[1][1];
       const house = [LP.side(cab, cw, glass, 0.25)];
+      g.userData.glassMat = glass;
       for (const s of [-1, 1]) {
         house.push(LP.beam([cab[0][0] - 0.4, belt + 0.12, (cw / 2 + 0.12) * s], [cab[cab.length - 1][0] + 0.4, belt + 0.12, (cw / 2 + 0.12) * s], 0.22, chrome)); // belt trim
         house.push(LP.beam([cab[1][0] - 0.2, roofY - 0.05, (cw / 2 + 0.16) * s], [cab[2][0] + 0.3, roofY - 0.05, (cw / 2 + 0.16) * s], 0.2, dark)); // drip rail
       }
       LP.warp(house, (v) => { v.z *= 1 - 0.15 * clamp((v.y - belt) / (roofY - belt), 0, 1); });
+      // Glass UVs: each pane mapped once across its own extent (side windows from the side, screens from the front),
+      // so the reflection and any cracks land on the glass the right way up.
+      {
+        const gg = house[0].geometry, pos = gg.attributes.position, nrm = gg.attributes.normal;
+        gg.computeBoundingBox();
+        const bb = gg.boundingBox, uv = new Float32Array(pos.count * 2);
+        const nx = (v, a, b) => (v - a) / (b - a || 1);
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), ax = Math.abs(nrm.getX(i)), ay = Math.abs(nrm.getY(i)), az = Math.abs(nrm.getZ(i));
+          const [u, v] = az >= ax && az >= ay ? [nx(x, bb.min.x, bb.max.x), nx(y, bb.min.y, bb.max.y)] : ax >= ay ? [nx(z, bb.min.z, bb.max.z), nx(y, bb.min.y, bb.max.y)] : [nx(x, bb.min.x, bb.max.x), nx(z, bb.min.z, bb.max.z)];
+          uv[i * 2] = u; uv[i * 2 + 1] = 1 - v;
+        }
+        gg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      }
       g.add(...house);
       // Wipers at the base of the windscreen.
       for (const z of [-3.2, 1.6]) g.add(LP.beam([cab[0][0] - 0.2, belt + 0.25, z], [cab[0][0] - 1.6, belt + 1.1, z + 3.4], 0.15, dark));
@@ -785,8 +854,9 @@ const Models = {
   // mirrors all blend into one painted surface; the bumpers, valance, skirts and floor are one dark trim moulding.
   carBody(g, st, opts, m, W, bev, fx, rx) {
     const style = opts.style && CAR_STYLES[opts.style] ? opts.style : 'comet';
-    const kit = ['bumper', 'roof', 'spoiler'].map((k) => (opts[k] && opts[k] !== 'stock' ? opts[k] : st.kit[k]));
-    const sc = new Sculpt(['car', style, opts.shell ? 'shell' : 'full', m.roofMat !== m.body ? 'tt' : '', ...kit].join(':'), 0.2);
+    const spoiler = opts.spoiler && opts.spoiler !== 'stock' ? opts.spoiler : st.kit.spoiler; // moulded into the body
+    const sc = new Sculpt(['car', style, opts.shell ? 'shell' : 'full', m.roofMat !== m.body ? 'tt' : '', spoiler].join(':'), 0.2);
+    sc.maxEdge = 1.4; // an even mesh, so hits can dent the panels
     const hw = W / 2, [wf, wr] = st.wheels, ar = st.wheelR + 0.75, cy = st.wheelR - 0.2;
     const fX = st.top[0][0], rX = st.top[st.top.length - 1][0], cab = st.cabin, cw = st.cabinW, belt = cab[0][1], roofY = cab[1][1];
     if (opts.shell) {
@@ -841,13 +911,13 @@ const Models = {
       for (const s of [-1, 1]) sc.add(m.dark, SDF.box([sx1 - sx0, 0.7, 0.6], 0.25, [(sx0 + sx1) / 2, 1.75, (hw * 0.97 + bev - 0.1) * s]), 0.3);
       st.extras(sc, m);
     }
-    Models.bodyKit(g, st, opts, m, W, bev, fx, rx, sc);
+    Models.bodyKit(g, st, opts, m, W, bev, fx, rx, sc, style);
     sc.build(g);
   },
 
   // Bolt-ons: bumpers, roof gear, spoilers, exhausts, two-tone panels, mud. Bars, frames and spoilers are sculpted
   // into sc (welded tubes, spoilers moulded into the bodywork); cargo, lamps and pipes are separate parts.
-  bodyKit(g, st, opts, m, W, bev, fx, rx, sc) {
+  bodyKit(g, st, opts, m, W, bev, fx, rx, body, style) {
     const hw = W / 2;
     const steel = LP.mat('#8a8f94', { metalness: 0.7, roughness: 0.4 });
     const rusty = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.75 });
@@ -855,10 +925,21 @@ const Models = {
     const pickKit = (k) => (opts[k] && opts[k] !== 'stock' ? opts[k] : st.kit[k]);
     const [xd, yd] = st.top[st.top.length - 3]; // rear deck
     const cab = st.cabin, cw = st.cabinW, roofTop = cab[1][1] + 0.35;
+    let sc;
     const rod = (mat, a, b, r, k) => sc.add(mat, SDF.cone(a, b, r, r), k == null ? 0.25 : k);
+    // Bolt-on kit pieces are their own sculpts (one per style and kind), so any mix of them costs no new body.
+    const kitPiece = (kind, id, fill) => {
+      if (!id || id === 'none') return;
+      sc = new Sculpt(['kit', style, opts.shell ? 'shell' : 'full', kind, id].join(':'), 0.2);
+      const before = g.children.length;
+      fill();
+      sc.build(g);
+      for (const o of g.children.slice(before)) o.userData.kit = kind; // tagged so damage can knock it off
+    };
 
     // Bumper
     const bumper = pickKit('bumper');
+    kitPiece('bumper', bumper, () => {
     if (bumper === 'bullbar') {
       for (const s of [-1, 1]) rod(steel, [fx + 1.3, 1.3, 5 * s], [fx + 1.3, 6.3, 5 * s], 0.36);
       rod(steel, [fx + 1.3, st.lightY + 1.4, -6], [fx + 1.3, st.lightY + 1.4, 6], 0.36);
@@ -873,9 +954,12 @@ const Models = {
       for (const z of [-4, 0, 4]) sc.add(rusty, SDF.sideX([[fx + 0.5, 0.7], [fx + 4.6, 0.7], [fx + 1.2, st.lightY + 0.5]], 0.3, 0.08, [0, 0, z]), 0.25);
     }
 
+    });
+
     // Roof
     const roof = opts.shell ? 'none' : pickKit('roof');
     const rx0 = cab[2][0] + 0.6, rx1 = cab[1][0] - 0.6, rlen = rx1 - rx0, rmid = (rx0 + rx1) / 2;
+    kitPiece('roof', roof, () => {
     if (roof === 'rails' || roof === 'rack') {
       for (const s of [-1, 1]) {
         sc.add(m.dark, SDF.box([rlen, 0.4, 0.5], 0.18, [rmid, roofTop + 0.55, (cw / 2 - 0.7) * s]), 0.2);
@@ -903,7 +987,10 @@ const Models = {
       }
     }
 
+    });
+
     // Spoiler: moulded spoilers blend into the bodywork; wings stand on posts.
+    sc = body;
     const spoiler = pickKit('spoiler');
     if (spoiler === 'lip') {
       sc.add(m.body, SDF.inflate(SDF.sideX([[xd + 0.8, yd + 0.3], [xd + 3.7, yd + 0.6], [xd + 3.7, yd + 1.0], [xd + 0.4, yd + 0.9]], W - 2.4, 0), 0.12), 0.5);
@@ -1182,57 +1269,62 @@ const Models = {
     return g;
   },
 
-  // 12-gauge flare pistol: a moulded housing round the breech that the raked grip, the guard and the frame all
-  // grow out of as one piece; a thick barrel that tips down on a hinge; checkered panels set into the grip.
+  // 12-gauge flare pistol (Orion style): a long thick barrel that hinges down to load, sitting on a moulded frame
+  // whose breech block humps up behind it; the raked grip with a beavertail and finger swell, inset checkered
+  // panels and a flared butt; a big moulded trigger guard; a small spur hammer at the back.
   flareGun() {
     const g = new THREE.Group();
     g.name = 'flare gun';
-    const orange = LP.mat('#dd6420', { roughness: 0.42 });
-    const frameMat = LP.mat('#cf5c1c', { roughness: 0.55 });
+    const orange = LP.mat('#e0661f', { roughness: 0.4 });
+    const frameMat = LP.mat('#d55e1c', { roughness: 0.5 });
     const grip = LP.mat('#1c1c1c', { map: GUNTEX.get('checker'), roughness: 0.8 });
-    const black = LP.mat('#161616', { roughness: 0.55 });
+    const black = LP.mat('#161616', { roughness: 0.5 });
     const steel = LP.mat('#7a7c7e', { map: GUNTEX.get('steel'), metalness: 0.7, roughness: 0.35 });
-    const sc = new Sculpt('flare', 0.04);
-    const tilt = [-0.32, 0, 0];
-    // Barrel: swelling muzzle with a hollow bore, a sight rib and a low blade, all one moulding.
-    sc.add(orange, SDF.lathe([[0.48, 0.6], [0.48, -2.85], [0.53, -2.95], [0.58, -3.3], [0.5, -3.42]], [0, 0.3, 0]), 0.05, 'barrel');
-    sc.add(orange, SDF.box([0.1, 0.12, 2.4], 0.04, [0, 0.78, -1.65]), 0.1, 'barrel');
-    sc.add(orange, SDF.box([0.08, 0.2, 0.45], 0.035, [0, 0.84, -3.0]), 0.08, 'barrel');
-    sc.cut(SDF.cyl(0.36, 1.6, 'z', 0.03, [0, 0.3, -3.5]), 0.03, [orange]);
-    // Frame: housing, raked grip, flared butt and the trigger guard loop, blended into one shell.
-    sc.add(frameMat, SDF.box([1.1, 1.22, 1.8], 0.42, [0, 0.26, 0.55]), 0.1);
-    sc.add(frameMat, SDF.box([0.86, 2.5, 1.12], 0.4, [0, -1.25, 0.95], tilt), 0.3);
-    sc.add(frameMat, SDF.box([0.94, 0.26, 1.22], 0.12, [0, -2.44, 1.34], tilt), 0.18);
-    sc.add(frameMat, SDF.box([0.42, 0.32, 1.0], 0.12, [0, -0.28, -0.35]), 0.2);
-    sc.add(frameMat, SDF.path([[0, -0.38, -0.8], [0, -0.75, -0.95], [0, -1.08, -0.6], [0, -1.12, -0.05], [0, -0.9, 0.42]], 0.11), 0.16);
-    sc.cut(SDF.cyl(0.5, 0.06, 'z', 0.01, [0, 0.3, -0.33]), 0.01, [frameMat]); // hinge seam round the barrel
-    // Pockets in each grip side, filled by the checkered panels.
-    for (const s of [-1, 1]) {
-      sc.cut(SDF.box([0.2, 1.7, 0.78], 0.08, [0.45 * s, -1.25, 0.98], tilt), 0.03, [frameMat]);
-      sc.add(grip, SDF.box([0.1, 1.66, 0.74], 0.05, [0.39 * s, -1.25, 0.98], tilt), 0.02);
+    const sc = new Sculpt('flare', 0.035);
+    const R = (pts) => chaikin(pts.concat([pts[0]]), 2, 0.22); // round every corner of a side outline
+    // Barrel: plain thick tube from the breech face, a raised ring at the muzzle, a sight rib on top, open bore.
+    sc.add(orange, SDF.lathe([[0.36, 0.3], [0.42, 0.24], [0.42, -3.1], [0.47, -3.18], [0.47, -3.5], [0.4, -3.58]], [0, 0.3, 0]), 0.05, 'barrel');
+    sc.add(orange, SDF.box([0.12, 0.1, 3.0], 0.04, [0, 0.74, -1.55]), 0.12, 'barrel');
+    sc.add(orange, SDF.box([0.1, 0.2, 0.3], 0.04, [0, 0.8, -3.25]), 0.08, 'barrel'); // front sight blade
+    sc.add(orange, SDF.box([0.3, 0.26, 0.5], 0.1, [0, -0.08, -0.05]), 0.15, 'barrel'); // hinge lug under the breech
+    sc.cut(SDF.cyl(0.32, 1.4, 'z', 0.03, [0, 0.3, -3.6]), 0.03, [orange]);
+    // Frame: breech block (wide) and grip (narrower) blended into one moulding.
+    const breech = R([[-1.05, 0.84], [-0.3, 0.8], [-0.3, -0.14], [0.45, -0.14], [0.5, -0.36], [-0.3, -0.46], [-1.42, -0.2], [-1.42, 0.58]]);
+    sc.add(frameMat, SDF.side(breech, 1.04, 0.24), 0.1);
+    const gripPts = R([[-0.3, -0.3], [-0.46, -0.72], [-0.52, -1.0], [-0.47, -1.18], [-0.6, -1.5], [-0.75, -2.28], [-0.7, -2.5], [-1.76, -2.5],
+      [-1.74, -2.3], [-1.5, -1.0], [-1.44, -0.1], [-1.5, 0.3], [-1.56, 0.45], [-1.2, 0.3]]);
+    sc.add(frameMat, SDF.side(gripPts, 0.88, 0.3), 0.3);
+    sc.add(frameMat, SDF.box([0.98, 0.2, 1.16], 0.09, [0, -2.47, 1.23], [-0.19, 0, 0]), 0.15); // flared butt
+    // Trigger guard: a thick moulded loop from under the frame round to the front strap.
+    sc.add(frameMat, SDF.path([[0, -0.3, -0.35], [0, -0.68, -0.5], [0, -1.02, -0.3], [0, -1.12, 0.12], [0, -1.02, 0.52]], 0.1), 0.18);
+    sc.cut(SDF.cyl(0.5, 0.06, 'z', 0.01, [0, 0.3, 0.27]), 0.01, [frameMat]); // seam round the breech face
+    // Checkered panels set into pockets either side of the grip.
+    for (const sd of [-1, 1]) {
+      sc.cut(SDF.box([0.2, 1.55, 0.72], 0.1, [0.44 * sd, -1.38, 1.08], [-0.19, 0, 0]), 0.03, [frameMat]);
+      sc.add(grip, SDF.box([0.1, 1.5, 0.68], 0.06, [0.39 * sd, -1.38, 1.08], [-0.19, 0, 0]), 0.02);
     }
     sc.uv(grip, 1.2);
-    // Spur hammer and its grooved spur, trigger and barrel release, in black.
-    sc.add(black, SDF.box([0.3, 0.42, 0.42], 0.12, [0, 0.75, 1.25]), 0.06);
-    sc.add(black, SDF.path([[0, 0.85, 1.3], [0, 1.08, 1.5], [0, 1.12, 1.78]], 0.1), 0.08);
-    sc.add(black, SDF.path([[0, -0.4, -0.22], [0, -0.62, -0.34], [0, -0.85, -0.22]], 0.08), 0.03);
-    sc.add(black, SDF.box([0.1, 0.18, 0.6], 0.05, [-0.57, 0.5, 0.35], [0.2, 0, 0]), 0.03);
+    // Spur hammer at the back of the breech, trigger, barrel release lever.
+    sc.add(black, SDF.box([0.2, 0.36, 0.3], 0.09, [0, 0.74, 1.3]), 0.06);
+    sc.add(black, SDF.path([[0, 0.8, 1.36], [0, 0.88, 1.52], [0, 0.88, 1.68]], 0.075), 0.08); // spur, grooved by the thumb
+    sc.add(black, SDF.path([[0, -0.42, 0.02], [0, -0.64, -0.06], [0, -0.86, 0.06]], 0.08), 0.03);
+    sc.add(black, SDF.box([0.1, 0.16, 0.55], 0.05, [-0.55, 0.55, 0.75], [0.15, 0, 0]), 0.03);
     const sets = sc.build(g);
-    const bore = LP.mesh(new THREE.CircleGeometry(0.37, 20), LP.mat('#050505'), 0, 0.3, -2.75).rotateY(Math.PI);
+    const bore = LP.mesh(new THREE.CircleGeometry(0.31, 20), LP.mat('#050505'), 0, 0.3, -2.9).rotateY(Math.PI);
     g.add(bore);
-    g.userData.barrelGrp = LP.pivot(g, [...sets.barrel, bore], [0, -0.1, -0.15]); // tips down about the hinge pin
+    g.userData.barrelGrp = LP.pivot(g, [...sets.barrel, bore], [0, -0.1, -0.25]); // tips down about the hinge pin
     // A spent cartridge, shown while reloading.
-    const shell = LP.cyl(0.36, 0.36, 1.1, 16, LP.mat('#c9a443', { metalness: 0.7, roughness: 0.3 }));
+    const shell = LP.cyl(0.33, 0.33, 1.1, 16, LP.mat('#c9a443', { metalness: 0.7, roughness: 0.3 }));
     shell.rotation.x = Math.PI / 2;
     shell.visible = false;
     g.add(shell);
     g.userData.shell = shell;
-    for (const s of [-1, 1]) g.add(GUNTEX.screw(steel, 0.45 * s, -1.25, 0.98, 0.08));
+    for (const sd of [-1, 1]) g.add(GUNTEX.screw(steel, 0.45 * sd, -1.38, 1.08, 0.07));
     // Hinge pin and lanyard ring.
-    g.add(LP.cyl(0.13, 0.13, 1.16, 16, steel, 0, -0.1, -0.1).rotateZ(Math.PI / 2));
-    g.add(LP.mesh(new THREE.TorusGeometry(0.2, 0.05, 8, 16), steel, 0, -2.72, 1.42).rotateY(Math.PI / 2));
+    g.add(LP.cyl(0.1, 0.1, 1.08, 16, steel, 0, -0.1, -0.25).rotateZ(Math.PI / 2));
+    g.add(LP.mesh(new THREE.TorusGeometry(0.2, 0.05, 8, 16), steel, 0, -2.66, 1.5).rotateY(Math.PI / 2));
     const barrel = new THREE.Object3D(); // muzzle marker
-    barrel.position.set(0, 0.3, -3.42);
+    barrel.position.set(0, 0.3, -3.6);
     g.add(barrel);
     g.userData.barrel = barrel;
     return g;
@@ -1321,65 +1413,114 @@ const Models = {
       smg: { mag: [0, -3.6, -0.8], side: [0.55, 0.1, 0.2], muzzle: [0, 0.1, -4.3], under: [0, -0.6, -2.7] },
       shotgun: { mag: [0.5, -0.1, -1.5], side: [0.5, 0.1, -0.3], muzzle: [0, 0.3, -7.95], under: [0, -0.7, -5.4] },
       rocket: { mag: [1.0, -0.4, 1.6], side: [0.65, 0.4, -1.4], muzzle: [0, 0, -5.4], under: [0, -1.0, -3.0] },
-      flare: { mag: [0, -2.2, 0.0], side: [0.6, 0.25, -1.0], muzzle: [0, 0.2, -3.45], under: [0, -0.5, -2.6] },
+      flare: { mag: [0, -2.2, 0.0], side: [0.6, 0.25, -1.0], muzzle: [0, 0.3, -3.6], under: [0, -0.3, -2.4] },
     }[weaponId];
     const steel = LP.mat('#2b2d30', { metalness: 0.6, roughness: 0.45 });
     const add = (m) => { m.userData.modVis = true; gun.add(m); return m; };
+    // Each attachment is a small sculpt (cached per gun and mod); glowing strips and the beam stay plain.
+    const part = (id, fill) => {
+      const sc = new Sculpt('mod:' + weaponId + ':' + id, 0.03), g = new THREE.Group();
+      fill(sc);
+      sc.build(g);
+      g.traverse((o) => { if (o.isMesh) o.userData.modVis = true; });
+      gun.add(g);
+      return g;
+    };
+    const v = (p, d) => [p[0] + (d[0] || 0), p[1] + (d[1] || 0), p[2] + (d[2] || 0)];
     for (const id of mods.filter(Boolean)) {
       if (id === 'ext_mag') {
-        if (weaponId === 'smg') add(LP.box(0.62, 2.4, 0.95, steel, A.mag[0], A.mag[1], A.mag[2]));
-        else add(LP.box(0.9, 1.6, 2.2, LP.mat('#4a3a24'), A.mag[0], A.mag[1], A.mag[2])); // ammo pouch / shell carrier
+        if (weaponId === 'smg') part(id, (sc) => { // a longer magazine with a bumper pad
+          sc.add(steel, SDF.box([0.6, 2.4, 0.92], 0.1, A.mag), 0.05);
+          sc.add(LP.mat('#1a1a1a', { roughness: 0.9 }), SDF.box([0.72, 0.3, 1.05], 0.12, v(A.mag, [0, -1.25, 0])), 0.05);
+          for (let k = 0; k < 4; k++) sc.cut(SDF.box([0.7, 0.06, 0.6], 0.02, v(A.mag, [0, 0.8 - k * 0.45, 0])), 0.01);
+        });
+        else part(id, (sc) => { // canvas shell pouch with a flap
+          const canvas = LP.mat('#4a3a24', { roughness: 1 });
+          sc.add(canvas, SDF.box([0.9, 1.6, 2.2], 0.25, A.mag), 0.05);
+          sc.add(canvas, SDF.box([1.0, 0.5, 2.3], 0.2, v(A.mag, [0, 0.7, 0])), 0.1);
+          sc.add(LP.mat('#8a8f94', { metalness: 0.7 }), SDF.cyl(0.12, 0.1, 'x', 0.03, v(A.mag, [0.5, 0.4, 0])), 0.02); // snap
+        });
       } else if (id === 'quick_mag') {
-        add(LP.box(0.5, 1.2, 0.8, steel, A.side[0] + 0.25, A.side[1] - 0.8, A.side[2]));
-        add(LP.box(0.55, 0.25, 0.85, LP.mat('#d9b52c'), A.side[0] + 0.25, A.side[1] - 0.8, A.side[2])); // taped together
+        part(id, (sc) => { // a spare mag taped alongside
+          sc.add(steel, SDF.box([0.5, 1.2, 0.8], 0.08, v(A.side, [0.25, -0.8, 0])), 0.04);
+          sc.add(LP.mat('#d9b52c', { roughness: 0.9 }), SDF.box([0.6, 0.25, 0.9], 0.06, v(A.side, [0.25, -0.8, 0])), 0.02);
+        });
       } else if (id === 'incendiary') {
-        add(LP.box(0.06, 0.35, 2.2, LP.glow('#ff6a1a', 0.6), A.side[0] - 0.02, A.side[1], A.side[2]));
+        add(LP.rbox(0.06, 0.35, 2.2, 0.025, LP.glow('#ff6a1a', 0.6), A.side[0] - 0.02, A.side[1], A.side[2]));
       } else if (id === 'ap_rounds') {
-        add(LP.box(0.06, 0.35, 1.4, LP.mat('#3fc8c0', { metalness: 0.6 }), A.side[0] - 0.02, A.side[1] - 0.4, A.side[2]));
+        add(LP.rbox(0.06, 0.35, 1.4, 0.025, LP.mat('#3fc8c0', { metalness: 0.6 }), A.side[0] - 0.02, A.side[1] - 0.4, A.side[2]));
       } else if (id === 'laser') {
-        add(LP.box(0.35, 0.35, 0.9, steel, A.under[0], A.under[1], A.under[2]));
-        add(LP.box(0.2, 0.2, 0.05, LP.glow('#ff2020', 1.5), A.under[0], A.under[1], A.under[2] - 0.48));
+        part(id, (sc) => { // laser module on a rail clamp, lens at the front
+          sc.add(steel, SDF.box([0.35, 0.32, 0.9], 0.1, A.under), 0.04);
+          sc.add(steel, SDF.box([0.22, 0.2, 0.5], 0.06, v(A.under, [0, 0.2, 0.1])), 0.08);
+          sc.add(LP.mat('#3a3d40', { metalness: 0.7 }), SDF.cyl(0.13, 0.12, 'z', 0.03, v(A.under, [0, 0, -0.48])), 0.03);
+        });
+        add(LP.mesh(new THREE.CircleGeometry(0.09, 16), LP.glow('#ff2020', 1.5), A.under[0], A.under[1], A.under[2] - 0.55).rotateY(Math.PI));
         if (beam) {
           const b = LP.mesh(new THREE.BoxGeometry(0.03, 0.03, 80), new THREE.MeshBasicMaterial({ color: '#ff2020', transparent: true, opacity: 0.35, depthWrite: false }), A.under[0], A.under[1], A.under[2] - 40.5);
           add(b);
         }
       } else if (id === 'choke') {
-        const ring = LP.cyl(0.4, 0.4, 0.6, 8, steel, A.muzzle[0], A.muzzle[1], A.muzzle[2]);
-        ring.rotation.x = Math.PI / 2;
-        add(ring);
+        part(id, (sc) => { // knurled choke tube with flats
+          sc.add(steel, SDF.lathe([[0.38, -0.3], [0.42, -0.25], [0.42, 0.25], [0.38, 0.3]], A.muzzle), 0.02);
+          for (let k = 0; k < 6; k++) sc.cut(SDF.box([0.9, 0.06, 0.5], 0.01, A.muzzle, [0, 0, (k / 6) * Math.PI]), 0.01);
+          sc.cut(SDF.cyl(0.24, 0.8, 'z', 0.01, A.muzzle), 0.02);
+        });
       } else if (id === 'homing') {
-        add(LP.box(0.4, 0.5, 0.8, steel, A.side[0], A.side[1], A.side[2]));
-        add(LP.box(0.06, 1.0, 0.06, steel, A.side[0], A.side[1] + 0.7, A.side[2]));
-        add(LP.box(0.15, 0.15, 0.05, LP.glow('#ff2020', 1.2), A.side[0], A.side[1] + 0.2, A.side[2] - 0.43));
+        part(id, (sc) => { // seeker box with a whip antenna
+          sc.add(steel, SDF.box([0.4, 0.5, 0.8], 0.12, A.side), 0.04);
+          sc.add(steel, SDF.path([v(A.side, [0, 0.2, 0.2]), v(A.side, [0.02, 0.7, 0.25]), v(A.side, [0.05, 1.25, 0.32])], 0.03), 0.06);
+        });
+        add(LP.mesh(new THREE.CircleGeometry(0.08, 12), LP.glow('#ff2020', 1.2), A.side[0], A.side[1] + 0.2, A.side[2] - 0.41).rotateY(Math.PI));
       } else if (id === 'suppressor') {
-        add(LP.cyl(0.42, 0.42, 2.6, 8, steel, A.muzzle[0], A.muzzle[1], A.muzzle[2] - 1.2).rotateX(Math.PI / 2));
+        part(id, (sc) => { // can with end caps and a bore
+          sc.add(steel, SDF.lathe([[0.32, 0.05], [0.42, -0.05], [0.42, -2.45], [0.36, -2.55], [0.2, -2.6]], A.muzzle), 0.04);
+          for (let k = 0; k < 3; k++) sc.cut(SDF.torus(0.43, 0.025, v(A.muzzle, [0, 0, -0.6 - k * 0.6])), 0.01);
+          sc.cut(SDF.cyl(0.11, 0.5, 'z', 0.01, v(A.muzzle, [0, 0, -2.6])), 0.02);
+        });
       } else if (id === 'tracer') {
-        add(LP.box(0.06, 0.3, 1.8, LP.glow('#7aff5a', 0.8), A.side[0] - 0.02, A.side[1] + 0.35, A.side[2]));
+        add(LP.rbox(0.06, 0.3, 1.8, 0.025, LP.glow('#7aff5a', 0.8), A.side[0] - 0.02, A.side[1] + 0.35, A.side[2]));
       } else if (id === 'hair_trigger') {
-        add(LP.box(0.2, 0.5, 0.3, LP.mat('#c22a1a'), A.under[0], A.under[1] - 0.2, A.under[2] + 2.0));
+        part(id, (sc) => sc.add(LP.mat('#c22a1a', { metalness: 0.4 }), SDF.box([0.2, 0.5, 0.3], 0.08, v(A.under, [0, -0.2, 2.0])), 0.04));
       } else if (id === 'sawn_off') {
         const tape = DECALS.mat('tape', { roughness: 1 });
-        add(LP.box(1.0, 1.0, 0.5, tape, A.muzzle[0], A.muzzle[1] - 0.2, A.muzzle[2] + 1.2));
-        for (let k = 0; k < 4; k++) add(LP.box(0.12, 0.25, 0.25, steel, A.muzzle[0] - 0.3 + k * 0.2, A.muzzle[1] + 0.2, A.muzzle[2] + 0.2));
+        part(id, (sc) => {
+          sc.add(tape, SDF.box([1.0, 1.0, 0.5], 0.3, v(A.muzzle, [0, -0.2, 1.2])), 0.05);
+          sc.add(steel, SDF.warp(SDF.box([0.9, 0.35, 0.3], 0.08, v(A.muzzle, [0, 0.2, 0.2])), (x, y, z) => [x, y - 0.08 * Math.sin(x * 9), z], 0.1), 0.04); // ragged hacksaw edge
+        });
       } else if (id === 'slugs') {
-        for (let k = 0; k < 4; k++) add(LP.cyl(0.16, 0.16, 0.7, 6, LP.mat(k % 2 ? '#b8862a' : '#7a2a1a', { metalness: 0.5 }), A.side[0] + 0.1, A.side[1] - 0.2, A.side[2] - 0.6 + k * 0.4));
+        part(id, (sc) => {
+          for (let k = 0; k < 4; k++) {
+            const p = v(A.side, [0.1, -0.2, -0.6 + k * 0.4]);
+            sc.add(LP.mat(k % 2 ? '#b8862a' : '#7a2a1a', { metalness: 0.5 }), SDF.cyl(0.16, 0.7, 'y', 0.05, p), 0.02);
+          }
+        });
       } else if (id === 'bunker_buster') {
-        const cone = LP.mesh(new THREE.ConeGeometry(0.55, 1.4, 6), LP.mat('#5a5e62', { metalness: 0.7 }), A.muzzle[0], A.muzzle[1], A.muzzle[2] - 0.8);
-        cone.rotation.x = -Math.PI / 2;
-        add(cone);
+        part(id, (sc) => sc.add(LP.mat('#5a5e62', { metalness: 0.7 }), SDF.lathe([[0.02, -1.5], [0.25, -1.1], [0.5, -0.4], [0.55, 0.0], [0.4, 0.1]], A.muzzle), 0.03));
       } else if (id === 'twin_tube') {
-        add(LP.cyl(0.7, 0.7, 7.5, 8, LP.mat('#3a4a2a'), A.side[0] + 0.8, A.side[1] + 0.2, -1.6).rotateX(Math.PI / 2));
-        for (const z of [-4.2, 1.2]) add(LP.box(0.3, 1.6, 0.4, steel, A.side[0] + 0.3, A.side[1] + 0.2, z));
+        part(id, (sc) => {
+          sc.add(LP.mat('#3a4a2a'), SDF.lathe([[0.75, 2.2], [0.68, 2.0], [0.68, -5.2], [0.75, -5.4]], [A.side[0] + 0.8, A.side[1] + 0.2, 0]), 0.03);
+          sc.cut(SDF.cyl(0.55, 0.6, 'z', 0.04, [A.side[0] + 0.8, A.side[1] + 0.2, -5.4]), 0.04);
+          for (const z of [-4.2, 1.2]) sc.add(steel, SDF.box([0.9, 0.4, 0.4], 0.12, [A.side[0] + 0.35, A.side[1] + 0.2, z]), 0.15); // clamps welded to both tubes
+        });
       } else if (id === 'remote_det') {
-        add(LP.box(0.5, 0.6, 0.9, LP.mat('#d9b52c'), A.side[0], A.side[1] - 0.4, A.side[2] + 1.0));
-        add(LP.box(0.05, 1.4, 0.05, steel, A.side[0], A.side[1] + 0.5, A.side[2] + 1.2));
-        add(LP.box(0.12, 0.12, 0.12, LP.glow('#ffcf3a', 1.4), A.side[0], A.side[1] + 1.25, A.side[2] + 1.2));
+        part(id, (sc) => {
+          sc.add(LP.mat('#d9b52c'), SDF.box([0.5, 0.6, 0.9], 0.15, v(A.side, [0, -0.4, 1.0])), 0.04);
+          sc.add(steel, SDF.path([v(A.side, [0, -0.1, 1.2]), v(A.side, [0, 1.2, 1.2])], 0.03), 0.06);
+        });
+        add(LP.mesh(new THREE.SphereGeometry(0.08, 10, 8), LP.glow('#ffcf3a', 1.4), A.side[0], A.side[1] + 1.25, A.side[2] + 1.2));
       } else if (id === 'long_burn') {
-        add(LP.cyl(0.35, 0.35, 1.4, 6, LP.mat('#d9601e'), A.under[0], A.under[1] - 0.2, A.under[2]).rotateX(Math.PI / 2));
+        part(id, (sc) => {
+          sc.add(LP.mat('#d9601e'), SDF.cyl(0.35, 1.4, 'z', 0.08, v(A.under, [0, -0.2, 0])), 0.03);
+          sc.add(LP.mat('#c9a443', { metalness: 0.7 }), SDF.cyl(0.37, 0.2, 'z', 0.04, v(A.under, [0, -0.2, 0.7])), 0.02);
+        });
       } else if (id === 'phosphor') {
-        add(LP.box(0.06, 0.4, 1.6, LP.glow('#f4f8ff', 1.0), A.side[0] - 0.02, A.side[1], A.side[2]));
+        add(LP.rbox(0.06, 0.4, 1.6, 0.025, LP.glow('#f4f8ff', 1.0), A.side[0] - 0.02, A.side[1], A.side[2]));
       } else if (id === 'cluster') {
-        for (let k = 0; k < 3; k++) add(LP.cyl(0.18, 0.18, 0.9, 6, LP.mat('#d9601e'), A.side[0] + 0.1, A.side[1] - 0.3 - k * 0.4, A.side[2] + 0.8).rotateX(Math.PI / 2));
+        part(id, (sc) => {
+          for (let k = 0; k < 3; k++) sc.add(LP.mat('#d9601e'), SDF.cyl(0.18, 0.9, 'z', 0.06, v(A.side, [0.1, -0.3 - k * 0.4, 0.8])), 0.02);
+          sc.add(LP.mat('#2a2a2a'), SDF.box([0.15, 1.2, 0.3], 0.05, v(A.side, [0.0, -0.7, 0.8])), 0.06); // their bandolier strap
+        });
       }
     }
     return gun;
@@ -1418,47 +1559,61 @@ const Models = {
   ornament(id) {
     const g = new THREE.Group(), m3 = LP.mat;
     g.name = id + ' ornament';
-    const sway = new THREE.Group();
-    g.add(sway);
-    g.userData.sway = sway;
+    const sc = new Sculpt('orn:' + id, 0.035);
+    let pivot = [0, 0, 0], axis = 'z', stiff = false;
     if (id === 'hula') {
-      g.add(LP.cyl(0.9, 1, 0.3, 8, m3('#3a2a1a'), 0, 0.15, 0));
-      g.add(LP.cyl(0.25, 0.75, 1.3, 7, m3('#6a8a2a', { roughness: 1 }), 0, 0.95, 0)); // grass skirt
-      sway.position.y = 1.6;
-      sway.add(LP.cyl(0.32, 0.25, 1.1, 6, m3('#c98a5a'), 0, 0.55, 0));
-      sway.add(LP.box(0.2, 0.25, 0.7, m3('#d84a6a'), 0.12, 0.8, 0)); // top
-      sway.add(LP.mesh(new THREE.IcosahedronGeometry(0.42, 0), m3('#c98a5a'), 0, 1.4, 0));
-      sway.add(LP.mesh(new THREE.IcosahedronGeometry(0.44, 0), m3('#1a120a'), -0.12, 1.5, 0)); // hair
-      sway.add(LP.mesh(new THREE.TorusGeometry(0.35, 0.09, 4, 8), m3('#ff5a8a'), 0, 1.05, 0).rotateX(Math.PI / 2)); // lei
-      for (const z of [-1, 1]) sway.add(LP.beam([0, 0.95, 0.3 * z], [0.1, 1.5, 0.75 * z], 0.12, m3('#c98a5a')));
-      sway.userData.axis = 'z';
+      const skin = m3('#c98a5a'), grass = m3('#6a8a2a', { roughness: 1 }), lei = m3('#ff5a8a'), hair = m3('#1a120a');
+      sc.add(m3('#3a2a1a'), SDF.lathe([[0.95, 0], [1.0, 0.2], [0.9, 0.3], [0, 0.3]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.05);
+      // Grass skirt: a flared cone ruffled into strands.
+      sc.add(grass, SDF.warp(SDF.cone([0, 0.3, 0], [0, 1.6, 0], 0.75, 0.3), (x, y, z) => { const a = Math.atan2(z, x), k = 1 + 0.08 * Math.sin(a * 14); return [x / k, y, z / k]; }, 0.1), 0.05);
+      pivot = [0, 1.6, 0];
+      sc.add(skin, SDF.cone([0, 1.6, 0], [0, 2.4, 0], 0.3, 0.26), 0.12, 'sway'); // torso
+      sc.add(m3('#d84a6a'), SDF.ellipsoid([0.28, 0.16, 0.36], [0.06, 2.35, 0]), 0.08, 'sway'); // top
+      sc.add(skin, SDF.ellipsoid([0.38, 0.42, 0.38], [0, 3.0, 0]), 0.14, 'sway'); // head
+      sc.add(hair, SDF.ellipsoid([0.42, 0.46, 0.42], [-0.1, 3.1, 0]), 0.06, 'sway');
+      sc.add(hair, SDF.cone([-0.2, 3.0, 0], [-0.3, 2.3, 0], 0.28, 0.14), 0.15, 'sway'); // long hair down her back
+      sc.add(lei, SDF.torus(0.33, 0.09, [0, 2.6, 0], [Math.PI / 2, 0, 0]), 0.02, 'sway');
+      for (const sd of [-1, 1]) sc.add(skin, SDF.path([[0, 2.45, 0.28 * sd], [0.05, 2.75, 0.55 * sd], [0.12, 3.05, 0.72 * sd]], 0.09), 0.1, 'sway'); // arms up, swaying
     } else if (id === 'dog') {
-      g.add(LP.box(2.2, 1.2, 1.1, m3('#7a5a3a'), 0, 0.6, 0));
-      g.add(LP.box(0.6, 0.5, 0.25, m3('#e8e0c8'), 0.6, 0.5, 0.56)); // spot
-      sway.position.set(0.9, 1.25, 0);
-      sway.add(LP.box(1.1, 0.9, 0.9, m3('#7a5a3a'), 0.4, 0.3, 0));
-      sway.add(LP.box(0.5, 0.5, 0.6, m3('#e8e0c8'), 1.05, 0.15, 0)); // snout
-      sway.add(LP.box(0.18, 0.18, 0.2, m3('#111'), 1.32, 0.3, 0));
-      for (const z of [-0.5, 0.5]) sway.add(LP.box(0.4, 0.8, 0.12, m3('#4a3420'), 0.25, 0.1, z)); // ears
-      sway.userData.axis = 'nod';
+      const fur = m3('#7a5a3a'), pale = m3('#e8e0c8'), ear = m3('#4a3420'), black = m3('#111111');
+      sc.add(fur, SDF.box([2.2, 1.15, 1.05], 0.45, [0, 0.6, 0]), 0.1);
+      sc.add(pale, SDF.ellipsoid([0.3, 0.26, 0.06], [0.6, 0.55, 0.52]), 0.04); // spot
+      for (const [x, z] of [[0.8, 0.35], [0.8, -0.35], [-0.8, 0.35], [-0.8, -0.35]]) sc.add(fur, SDF.cone([x, 0.4, z], [x + 0.1, 0.05, z], 0.18, 0.16), 0.15); // legs tucked
+      pivot = [0.9, 1.25, 0];
+      axis = 'nod';
+      sc.add(fur, SDF.ellipsoid([0.55, 0.48, 0.46], [1.3, 1.55, 0]), 0.1, 'sway'); // head
+      sc.add(pale, SDF.ellipsoid([0.32, 0.25, 0.28], [1.8, 1.42, 0]), 0.14, 'sway'); // snout
+      sc.add(black, SDF.ellipsoid([0.1, 0.08, 0.1], [2.1, 1.5, 0]), 0.03, 'sway'); // nose
+      for (const z of [-0.5, 0.5]) sc.add(ear, SDF.ellipsoid([0.2, 0.42, 0.08], [1.15, 1.35, z], [z * 0.6, 0, 0]), 0.08, 'sway'); // floppy ears
+      for (const z of [-0.2, 0.2]) sc.add(black, SDF.ellipsoid([0.06, 0.07, 0.06], [1.75, 1.7, z]), 0.02, 'sway');
     } else if (id === 'saint') {
-      g.add(LP.cyl(0.6, 0.7, 0.3, 8, m3('#d8d0b8'), 0, 0.15, 0));
-      sway.position.y = 0.3;
-      sway.add(LP.mesh(new THREE.ConeGeometry(0.6, 2.2, 7), m3('#3a5a9a'), 0, 1.1, 0)); // robe
-      sway.add(LP.mesh(new THREE.IcosahedronGeometry(0.32, 0), m3('#e8c8a0'), 0, 2.35, 0));
-      sway.add(LP.mesh(new THREE.TorusGeometry(0.42, 0.06, 4, 10), LP.glow('#ffd86a', 0.8), -0.15, 2.55, 0).rotateY(Math.PI / 2));
-      sway.userData.axis = 'z';
-      sway.userData.stiff = true;
+      const robe = m3('#3a5a9a'), skin = m3('#e8c8a0'), plinth = m3('#d8d0b8');
+      sc.add(plinth, SDF.lathe([[0.65, 0], [0.7, 0.25], [0.6, 0.3], [0, 0.3]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.05);
+      pivot = [0, 0.3, 0];
+      stiff = true;
+      sc.add(robe, SDF.warp(SDF.cone([0, 0.3, 0], [0, 2.2, 0], 0.6, 0.26), (x, y, z) => { const a = Math.atan2(z, x), k = 1 + 0.05 * Math.sin(a * 7 + y * 2); return [x / k, y, z / k]; }, 0.05), 0.05, 'sway'); // folded robe
+      sc.add(robe, SDF.ellipsoid([0.36, 0.32, 0.34], [-0.02, 2.4, 0]), 0.12, 'sway'); // hood
+      sc.add(skin, SDF.ellipsoid([0.22, 0.26, 0.22], [0.2, 2.36, 0]), 0.05, 'sway');
+      sc.add(skin, SDF.path([[0.25, 1.5, -0.18], [0.42, 1.55, 0], [0.25, 1.5, 0.18]], 0.08), 0.12, 'sway'); // praying hands
     } else {
-      g.add(LP.cyl(0.7, 0.8, 0.25, 6, m3('#2a2a2a'), 0, 0.12, 0));
-      sway.position.y = 0.25;
-      sway.add(LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(0.8, 1), 0.06, 4), m3('#e0d8c0'), 0, 0.9, 0));
-      sway.add(LP.box(0.7, 0.4, 0.9, m3('#d8d0b8'), 0.25, 0.25, 0)); // jaw
-      for (const z of [-0.3, 0.3]) sway.add(LP.box(0.2, 0.3, 0.26, m3('#0a0a0a'), 0.72, 1.0, z));
-      sway.add(LP.box(0.15, 0.2, 0.14, m3('#0a0a0a'), 0.78, 0.65, 0));
-      sway.userData.axis = 'z';
-      sway.userData.stiff = true;
+      const bone = m3('#e0d8c0'), black = m3('#0a0a0a');
+      sc.add(m3('#2a2a2a'), SDF.lathe([[0.75, 0], [0.8, 0.18], [0.7, 0.25], [0, 0.25]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.05);
+      pivot = [0, 0.25, 0];
+      stiff = true;
+      sc.add(bone, SDF.ellipsoid([0.85, 0.78, 0.7], [-0.05, 1.05, 0]), 0.1, 'sway'); // cranium
+      sc.add(bone, SDF.box([0.75, 0.42, 0.95], 0.2, [0.32, 0.55, 0]), 0.3, 'sway'); // cheekbones and upper jaw
+      sc.add(bone, SDF.box([0.6, 0.3, 0.7], 0.14, [0.35, 0.25, 0]), 0.12, 'sway'); // jaw
+      for (const z of [-0.3, 0.3]) sc.cut(SDF.ellipsoid([0.2, 0.2, 0.17], [0.72, 0.98, z]), 0.06, [bone]); // eye sockets
+      sc.cut(SDF.ellipsoid([0.1, 0.16, 0.08], [0.8, 0.68, 0]), 0.04, [bone]); // nose hole
+      for (const z of [-0.3, 0.3]) sc.add(black, SDF.ellipsoid([0.08, 0.15, 0.12], [0.6, 0.98, z]), 0.02, 'sway');
+      for (let k = 0; k < 5; k++) sc.cut(SDF.box([0.2, 0.18, 0.03], 0.01, [0.64, 0.4, -0.24 + k * 0.12]), 0.01, [bone]); // teeth gaps
     }
+    const sets = sc.build(g);
+    const sway = LP.pivot(g, sets.sway || [], pivot);
+    if (id === 'saint') sway.add(LP.mesh(new THREE.TorusGeometry(0.42, 0.05, 8, 20), LP.glow('#ffd86a', 0.8), -0.2, 2.25, 0).rotateY(Math.PI / 2)); // halo
+    sway.userData.axis = axis;
+    if (stiff) sway.userData.stiff = true;
+    g.userData.sway = sway;
     return g;
   },
 
@@ -1656,22 +1811,27 @@ const Models = {
   // a rocket warhead or a flare cartridge.
   ammoItem(id) {
     const g = new THREE.Group();
-    if (id === 'smg') {
-      g.add(LP.rbox(0.32, 1.05, 0.2, 0.05, LP.mat('#2b2d30', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.4 }), 0, 0, 0));
-      g.add(LP.rbox(0.36, 0.14, 0.24, 0.04, LP.mat('#4a4d52', { metalness: 0.8, roughness: 0.3 }), 0, -0.55, 0)); // base plate
-      g.add(LP.cyl(0.05, 0.05, 0.12, 10, LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 }), 0, 0.56, 0)); // top round
-    } else if (id === 'shotgun') {
-      g.add(LP.cyl(0.13, 0.13, 0.55, 14, LP.mat('#a8221a', { roughness: 0.6 }), 0, 0.05, 0));
-      g.add(LP.cyl(0.14, 0.14, 0.14, 14, LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 }), 0, -0.27, 0));
-    } else if (id === 'rocket') {
-      const war = LP.lathe([[0.02, -0.75], [0.08, -0.7], [0.3, -0.35], [0.34, -0.1], [0.24, 0.12], [0.13, 0.25], [0.13, 0.6]], 16, LP.mat('#4b5a2e', { metalness: 0.3, roughness: 0.6 }));
-      war.rotation.x = -Math.PI / 2;
-      g.add(war);
-      g.add(LP.cyl(0.345, 0.345, 0.06, 16, LP.mat('#c9a227'), 0, -0.2, 0));
-    } else {
-      g.add(LP.cyl(0.17, 0.17, 0.62, 14, LP.mat('#d9601e', { roughness: 0.5 }), 0, 0.05, 0));
-      g.add(LP.cyl(0.19, 0.19, 0.12, 14, LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 }), 0, -0.3, 0));
+    const brass = LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 });
+    const sc = new Sculpt('ammo:' + id, 0.02);
+    if (id === 'smg') { // stamped magazine with ribs, a base plate and the top round showing
+      const steel = LP.mat('#2b2d30', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.4 });
+      sc.add(steel, SDF.box([0.3, 1.05, 0.2], 0.04, [0, 0, 0]), 0.02);
+      for (const y of [-0.25, 0.1]) sc.cut(SDF.box([0.4, 0.04, 0.1], 0.01, [0, y, 0]), 0.01, [steel]);
+      sc.add(LP.mat('#4a4d52', { metalness: 0.8, roughness: 0.3 }), SDF.box([0.36, 0.13, 0.25], 0.05, [0, -0.55, 0]), 0.03);
+      sc.add(brass, SDF.lathe([[0.05, -0.06], [0.05, 0.02], [0.03, 0.08]], [0, 0.55, 0], [-Math.PI / 2, 0, 0]), 0.02);
+    } else if (id === 'shotgun') { // red hull, crimped top, brass head with a rim
+      const hull = LP.mat('#a8221a', { roughness: 0.6 });
+      sc.add(hull, SDF.lathe([[0.12, -0.2], [0.13, -0.18], [0.13, 0.28], [0.1, 0.32], [0.03, 0.33]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.02);
+      for (let k = 0; k < 6; k++) sc.cut(SDF.box([0.02, 0.06, 0.3], 0.005, [0, 0.32, 0], [0, (k / 6) * Math.PI, 0]), 0.005, [hull]); // crimp folds
+      sc.add(brass, SDF.lathe([[0.14, -0.35], [0.15, -0.33], [0.15, -0.3], [0.135, -0.29], [0.135, -0.15]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.01);
+    } else if (id === 'rocket') { // warhead with fuse nose and a painted band
+      sc.add(LP.mat('#4b5a2e', { metalness: 0.3, roughness: 0.6 }), SDF.lathe([[0.02, -0.75], [0.08, -0.7], [0.3, -0.35], [0.34, -0.1], [0.24, 0.12], [0.13, 0.25], [0.13, 0.6]], [0, 0, 0], [Math.PI / 2, 0, 0]), 0.03);
+      sc.add(LP.mat('#c9a227'), SDF.lathe([[0.33, -0.24], [0.35, -0.2], [0.34, -0.16]], [0, 0, 0], [Math.PI / 2, 0, 0]), 0.01);
+    } else { // flare cartridge
+      sc.add(LP.mat('#d9601e', { roughness: 0.5 }), SDF.lathe([[0.16, -0.24], [0.17, -0.22], [0.17, 0.33], [0.14, 0.36], [0.0, 0.37]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.02);
+      sc.add(brass, SDF.lathe([[0.19, -0.38], [0.2, -0.35], [0.18, -0.33], [0.175, -0.2]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.01);
     }
+    sc.build(g);
     return g;
   },
 
@@ -1692,7 +1852,7 @@ const Models = {
       { kind: 'pistol', pos: [0, -1.35, -1.95], tilt: -0.15, grip: [0.35, 0.42], arm: [-7.4, -3.0, 5.6], mirror: true },
     ],
     flare: [
-      { kind: 'pistol', pos: [0, -1.35, 0.95], tilt: -0.32, grip: [0.45, 0.57], trigger: [0, -0.62, -0.44], arm: [-0.5, -3.0, 5.0] },
+      { kind: 'pistol', pos: [0, -1.3, 1.04], tilt: -0.19, grip: [0.45, 0.5], trigger: [0, -0.64, -0.14], arm: [-0.5, -3.0, 5.0] },
     ],
   },
 
@@ -1724,128 +1884,40 @@ const Models = {
 
   // ---------- Trinkets (each hangs or sits somewhere in the cabin) ----------
 
-  rabbitFoot() {
-    const g = new THREE.Group();
-    g.name = "rabbit's foot";
-    g.add(LP.box(0.05, 1.8, 0.05, LP.mat('#888'), 0, -0.9, 0));
-    g.add(LP.mesh(new THREE.TorusGeometry(0.18, 0.05, 4, 8), LP.mat('#c9b26a', { metalness: 0.7 }), 0, -1.9, 0));
-    const fur = LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(0.4, 0), 0.12, 5), LP.mat('#d8cfc0', { roughness: 1 }), 0, -2.5, 0);
-    fur.scale.set(0.8, 1.6, 0.8);
-    g.add(fur);
-    return g;
-  },
-
-  horseshoe() {
-    const g = new THREE.Group();
-    g.name = 'horseshoe';
-    const shoe = LP.mesh(new THREE.TorusGeometry(0.8, 0.16, 4, 10, Math.PI * 1.35), LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.8 }));
-    shoe.rotation.z = -Math.PI * 0.175;
-    g.add(shoe);
-    for (const a of [0.4, 1.2, 2.0, 2.8, 3.6]) g.add(LP.box(0.08, 0.08, 0.3, LP.mat('#999', { metalness: 0.8 }), Math.cos(a - 0.55) * 0.8, Math.sin(a - 0.55) * 0.8, 0.12));
-    return g;
-  },
-
-  keyRing() {
-    const g = new THREE.Group();
-    g.name = "warden's keys";
-    const brass = LP.mat('#b8963a', { metalness: 0.8, roughness: 0.35 });
-    g.add(LP.box(0.05, 1.4, 0.05, LP.mat('#888'), 0, -0.7, 0));
-    const ring = LP.mesh(new THREE.TorusGeometry(0.4, 0.05, 4, 10), LP.mat('#9aa0a6', { metalness: 0.8 }), 0, -1.75, 0);
-    g.add(ring);
-    for (const [a, len] of [[-0.5, 1.1], [0.1, 1.4], [0.6, 0.9]]) {
-      const k = new THREE.Group();
-      k.position.set(Math.sin(a) * 0.35, -2.1, 0);
-      k.rotation.z = a;
-      k.add(LP.mesh(new THREE.TorusGeometry(0.2, 0.07, 4, 6), brass, 0, 0, 0));
-      k.add(LP.box(0.1, len, 0.08, brass, 0, -len / 2 - 0.2, 0));
-      k.add(LP.box(0.3, 0.14, 0.08, brass, 0.15, -len - 0.1, 0));
-      g.add(k);
-    }
-    return g;
-  },
-
-  rosary() {
-    const g = new THREE.Group();
-    g.name = 'rosary';
-    const bead = LP.mat('#3a2418', { roughness: 0.6 });
-    const n = 14;
-    for (let k = 0; k < n; k++) {
-      const a = (k / n) * TAU;
-      g.add(LP.mesh(new THREE.OctahedronGeometry(0.11, 0), bead, Math.sin(a) * 0.5, -1.0 + Math.cos(a) * 0.9, 0));
-    }
-    const cross = LP.mat('#2a2a2a', { metalness: 0.5 });
-    g.add(LP.box(0.1, 0.7, 0.06, cross, 0, -2.35, 0));
-    g.add(LP.box(0.4, 0.1, 0.06, cross, 0, -2.2, 0));
-    g.add(LP.box(0.05, 0.4, 0.05, bead, 0, -2.0 + 0.0, 0));
-    return g;
-  },
-
-  airFreshener() {
-    const g = new THREE.Group();
-    g.name = 'air freshener';
-    g.add(LP.box(0.04, 1.2, 0.04, LP.mat('#ddd'), 0, -0.6, 0));
-    const tree = new THREE.Shape([[0, 0], [0.55, -0.6], [0.3, -0.6], [0.7, -1.1], [0.4, -1.1], [0.8, -1.6], [0.1, -1.6], [0.1, -1.9], [-0.1, -1.9], [-0.1, -1.6], [-0.8, -1.6], [-0.4, -1.1], [-0.7, -1.1], [-0.3, -0.6], [-0.55, -0.6]].map(([x, y]) => new THREE.Vector2(x, y)));
-    const card = new THREE.Mesh(new THREE.ExtrudeGeometry(tree, { depth: 0.04, bevelEnabled: false }), LP.mat('#2f7a3a', { roughness: 1 }));
-    card.position.y = -1.2;
-    g.add(card);
-    return g;
-  },
-
-  medal() {
-    const g = new THREE.Group();
-    g.name = 'st christopher medal';
-    const gold = LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 });
-    const disc = LP.cyl(0.55, 0.55, 0.1, 10, gold);
-    disc.rotation.x = Math.PI / 2;
-    g.add(disc);
-    g.add(LP.mesh(new THREE.TorusGeometry(0.55, 0.06, 4, 10), gold));
-    g.add(LP.box(0.12, 0.6, 0.05, LP.mat('#8a6a20', { metalness: 0.8 }), 0, 0.05, 0.06)); // figure
-    g.add(LP.box(0.35, 0.12, 0.05, LP.mat('#8a6a20', { metalness: 0.8 }), 0, 0.15, 0.06));
-    return g;
-  },
-
-  trinket(id) {
-    return {
-      dice: Models.fuzzyDice, rabbit_foot: Models.rabbitFoot, horseshoe: Models.horseshoe, keys: Models.keyRing,
-      rosary: Models.rosary, bobblehead: Models.bobblehead, freshener: Models.airFreshener, medal: Models.medal,
-    }[id]();
-  },
-
   rocket(color) {
     const g = new THREE.Group();
     g.name = 'rocket';
-    const body = LP.mat(color || '#dddddd', { metalness: 0.3 });
-    const b = LP.cyl(1.1, 1.1, 7, 6, body);
-    b.rotation.z = Math.PI / 2;
-    const nose = LP.cyl(0.05, 1.1, 2.6, 6, LP.mat('#ff5a3c'), 4.8, 0, 0);
-    nose.rotation.z = -Math.PI / 2;
-    g.add(b, nose);
-    const fin = LP.mat('#333');
+    const body = LP.mat(color || '#dddddd', { metalness: 0.3 }), red = LP.mat('#ff5a3c'), fin = LP.mat('#333333');
+    const sc = new Sculpt('rocket', 0.08);
+    // Along +X: body, a red ogive nose, four swept fins blended onto the tail, a nozzle.
+    sc.add(body, SDF.lathe([[1.0, -3.6], [1.1, -3.3], [1.1, 3.4]], [0, 0, 0], [0, Math.PI / 2, 0]), 0.1);
+    sc.add(red, SDF.lathe([[1.1, 3.35], [1.0, 4.2], [0.7, 5.2], [0.3, 5.9], [0.02, 6.1]], [0, 0, 0], [0, Math.PI / 2, 0]), 0.05);
     for (let k = 0; k < 4; k++) {
-      const f = LP.box(2, 0.2, 1.6, fin, -3, 0, 0);
-      f.geometry.translate(0, 0, 0.9);
-      f.rotation.x = (k * Math.PI) / 2;
-      g.add(f);
+      const a = (k / 4) * TAU;
+      sc.add(fin, SDF.sideX([[-3.8, 0], [-1.6, 0], [-2.6, 1.9], [-3.9, 2.1]], 0.2, 0.06, [0, 0, 0], [a, 0, 0]), 0.3);
     }
-    const flame = LP.mesh(new THREE.OctahedronGeometry(1.6, 0), new THREE.MeshBasicMaterial({ color: '#ffb13b' }), -4.6, 0, 0);
+    sc.add(fin, SDF.lathe([[0.6, -4.2], [0.85, -3.7], [0.95, -3.5]], [0, 0, 0], [0, Math.PI / 2, 0]), 0.1);
+    const sets = sc.build(g);
+    const flame = LP.mesh(new THREE.OctahedronGeometry(1.6, 0), new THREE.MeshBasicMaterial({ color: '#ffb13b' }), -4.9, 0, 0);
     flame.scale.set(1.6, 0.8, 0.8);
     g.add(flame);
-    g.userData.body = b;
+    g.userData.body = sets.main[0];
     return g;
   },
 
   mine() {
     const g = new THREE.Group();
     g.name = 'mine';
-    const metal = LP.mat('#2a2a2a', { metalness: 0.6, roughness: 0.5 });
-    g.add(LP.cyl(6.5, 7.5, 2.4, 8, metal, 0, 1.2, 0));
-    g.add(LP.cyl(3.5, 4, 1, 8, LP.mat('#3a3a3a', { metalness: 0.6 }), 0, 2.9, 0));
+    const metal = LP.mat('#2a2a2a', { metalness: 0.6, roughness: 0.5 }), steel = LP.mat('#9aa0a6', { metalness: 0.7 });
+    const sc = new Sculpt('mine', 0.18);
+    sc.add(metal, SDF.lathe([[7.5, 0], [7.4, 1.6], [6.6, 2.4], [4.2, 2.6], [3.8, 3.4], [0, 3.4]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.3);
+    for (let k = 0; k < 8; k++) sc.cut(SDF.box([0.3, 1.2, 1.4], 0.1, [Math.cos((k / 8) * TAU) * 7.4, 1.0, Math.sin((k / 8) * TAU) * 7.4], [0, -(k / 8) * TAU, 0]), 0.1, [metal]); // grip slots
     for (let k = 0; k < 4; k++) {
       const a = (k / 4) * TAU + Math.PI / 4;
-      const sp = LP.cyl(0.05, 0.6, 1.8, 4, LP.mat('#9aa0a6', { metalness: 0.7 }), Math.cos(a) * 5, 2.8, Math.sin(a) * 5);
-      g.add(sp);
+      sc.add(steel, SDF.cone([Math.cos(a) * 5, 2.3, Math.sin(a) * 5], [Math.cos(a) * 5, 3.9, Math.sin(a) * 5], 0.45, 0.06), 0.25); // trip spikes
     }
-    const led = LP.mesh(new THREE.OctahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: '#ff2a2a' }), 0, 3.8, 0);
+    sc.build(g);
+    const led = LP.mesh(new THREE.SphereGeometry(0.8, 12, 8), new THREE.MeshBasicMaterial({ color: '#ff2a2a' }), 0, 3.6, 0);
     g.add(led);
     g.userData.led = led;
     return g;
@@ -1853,55 +1925,22 @@ const Models = {
 
   // ---------- Trinkets & cabin props ----------
 
-  fuzzyDice() {
-    const g = new THREE.Group();
-    g.name = 'fuzzy dice';
-    g.add(LP.box(0.06, 2.3, 0.06, LP.mat('#eeeeee'), 0, -1.15, 0)); // string
-    const pip = LP.mat('#111');
-    const die = (color, x, y, z, rx, ry) => {
-      const d = new THREE.Group();
-      d.add(LP.mesh(LP.jitter(new THREE.BoxGeometry(0.8, 0.8, 0.8, 1, 1, 1), 0.08, Math.round(x * 100 + 3)), LP.mat(color, { roughness: 1 })));
-      for (const [px, py] of [[-0.2, -0.2], [0, 0], [0.2, 0.2]]) d.add(LP.box(0.12, 0.12, 0.04, pip, px, py, 0.42));
-      d.add(LP.box(0.04, 0.12, 0.12, pip, 0.42, 0.18, 0.18));
-      d.add(LP.box(0.04, 0.12, 0.12, pip, 0.42, -0.18, -0.18));
-      d.position.set(x, y, z);
-      d.rotation.set(rx, ry, 0.2);
-      return d;
-    };
-    g.add(die('#f2f2f2', 0, -2.6, -0.35, 0.4, 0.3), die('#ff3b6b', 0.1, -2.85, 0.42, -0.3, 0.6));
-    return g;
-  },
-
-  bobblehead() {
-    const g = new THREE.Group();
-    g.name = 'bobblehead';
-    g.add(LP.cyl(1, 1.1, 0.4, 8, LP.mat('#222'), 0, 0.2, 0)); // base
-    g.add(LP.cyl(0.55, 0.75, 1.5, 6, LP.mat('#2a62c9'), 0, 1.15, 0)); // body
-    g.add(LP.box(0.5, 0.35, 0.9, LP.mat('#2a62c9'), 0, 1.6, 0)); // shoulders
-    const neck = new THREE.Group();
-    neck.position.y = 1.9;
-    neck.add(LP.cyl(0.08, 0.08, 0.5, 4, LP.mat('#999'), 0, 0.15, 0)); // spring
-    neck.add(LP.mesh(new THREE.IcosahedronGeometry(0.95, 1), LP.mat('#f1c27d'), 0, 1.0, 0));
-    neck.add(LP.cyl(0.85, 1, 0.55, 8, LP.mat('#e8423f'), 0, 1.6, 0)); // cap
-    neck.add(LP.box(0.9, 0.12, 1.2, LP.mat('#e8423f'), 0.75, 1.38, 0)); // brim
-    for (const z of [-0.32, 0.32]) neck.add(LP.box(0.1, 0.18, 0.14, LP.mat('#111'), 0.88, 1.05, z)); // eyes
-    g.add(neck);
-    g.userData.neck = neck;
-    return g;
-  },
-
   grenadeCrate() {
     const g = new THREE.Group();
     g.name = 'grenade crate';
     const wood = LP.mat('#4a5a2a'), slat = LP.mat('#3b4822');
-    g.add(LP.box(4.2, 1.4, 3.6, wood, 0, 0, 0));
-    for (const x of [-1.6, 0, 1.6]) g.add(LP.box(0.3, 1.45, 3.65, slat, x, 0, 0));
-    g.add(LP.box(1.2, 0.5, 0.2, LP.mat('#d8c27a'), 0, 0, 1.85)); // stencil plate
+    const sc = new Sculpt('crate', 0.06);
+    sc.add(wood, SDF.box([4.2, 1.4, 3.6], 0.15, [0, 0, 0]), 0.05);
+    sc.cut(SDF.box([3.8, 1.0, 3.2], 0.1, [0, 0.5, 0]), 0.05, [wood]); // open top
+    for (const x of [-1.6, 0, 1.6]) sc.add(slat, SDF.box([0.3, 1.5, 3.7], 0.08, [x, 0, 0]), 0.05);
+    for (let k = 0; k < 3; k++) sc.cut(SDF.box([4.4, 0.04, 3.8], 0.01, [0, -0.45 + k * 0.45, 0]), 0.01, [wood]); // plank seams
+    sc.add(LP.mat('#d8c27a'), SDF.box([1.2, 0.5, 0.12], 0.04, [0, 0, 1.83]), 0.02); // stencil plate
+    sc.build(g);
     g.userData.nades = [];
     for (let k = 0; k < 3; k++) {
       const n = Models.grenade();
       n.scale.setScalar(0.5);
-      n.position.set(-1.1 + k * 1.1, 1.0, 0);
+      n.position.set(-1.1 + k * 1.1, 0.6, 0);
       g.add(n);
       g.userData.nades.push(n);
     }
@@ -1988,7 +2027,7 @@ const Models = {
     bulb.position.set(-7.5, 12.3, -1.5);
     bulb.add(beam([0, 0, 0], [0, -1.6, 0], 0.08, m3('#111')));
     bulb.add(LP.cyl(0.25, 0.25, 0.4, 6, m3('#8a8f94', { metalness: 0.7 }), 0, -1.7, 0));
-    const glass = LP.mesh(new THREE.IcosahedronGeometry(0.45, 0), LP.glow(cab.bulb, 1.4), 0, -2.2, 0);
+    const glass = LP.lathe([[0.02, -2.75], [0.3, -2.62], [0.46, -2.35], [0.42, -2.05], [0.22, -1.86], [0.2, -1.8]], 20, LP.glow(cab.bulb, 1.4)).rotateX(Math.PI / 2); // pear-shaped bulb
     bulb.add(glass);
     bulb.userData.glass = glass;
     I.add(bulb);
@@ -2052,19 +2091,19 @@ const Models = {
       I.add(mesh);
     }
 
-    // Shackle bolted to the floor by your feet: ring, chain, ankle cuff.
+    // Shackle bolted to the floor by your feet: plate, a chain of interlocking links, an ankle cuff with a hinge.
     const iron = LP.mat('#3a3b3c', { metalness: 0.7, roughness: 0.5 });
-    I.add(LP.cyl(0.6, 0.7, 0.3, 6, iron, 2.8, 1.85, 6.4)); // floor plate in your footwell
+    const shk = new Sculpt('shackle', 0.03);
+    shk.add(iron, SDF.lathe([[0.7, 0], [0.7, 0.18], [0.55, 0.3], [0, 0.3]], [2.8, 1.7, 6.4], [-Math.PI / 2, 0, 0]), 0.05);
+    shk.add(iron, SDF.torus(0.22, 0.07, [2.8, 2.08, 6.4], [0, 0.6, 0]), 0.05); // eye on the plate
     const links = 9;
     for (let k = 0; k < links; k++) {
-      const t = k / (links - 1);
-      const link = LP.mesh(new THREE.TorusGeometry(0.28, 0.08, 4, 6), iron, lerp(2.8, 1.2, t), 2.0 + Math.sin(t * Math.PI) * 0.25, lerp(6.4, 4.5, t));
-      link.rotation.set(k % 2 ? Math.PI / 2 : 0, 0.6, 0);
-      I.add(link);
+      const t = k / (links - 1), p = [lerp(2.8, 1.2, t), 2.0 + Math.sin(t * Math.PI) * 0.25, lerp(6.4, 4.5, t)];
+      shk.add(iron, SDF.torus(0.2, 0.06, p, [k % 2 ? Math.PI / 2 : 0, 0.6, 0]), 0.005);
     }
-    const cuff = LP.mesh(new THREE.TorusGeometry(0.75, 0.2, 4, 8), iron, 0.9, 2.2, 4.2);
-    cuff.rotation.set(Math.PI / 2, 0, 0.3);
-    I.add(cuff);
+    shk.add(iron, SDF.torus(0.7, 0.16, [0.9, 2.2, 4.2], [Math.PI / 2, 0, 0.3]), 0.02); // cuff
+    shk.add(iron, SDF.cyl(0.24, 0.5, 'y', 0.08, [1.55, 2.2, 4.5]), 0.08); // its hinge
+    shk.build(I);
 
     // Dash: crack taped over, scratched tally marks, inmate stencil on the glovebox.
     const crack = LP.mesh(new THREE.PlaneGeometry(4, 2), LP.mat('#ffffff', { map: DECALS.get('crackdash') }), 6.6, 6.82, 3.2);
@@ -2141,12 +2180,11 @@ const Models = {
 
     // Floor junk: crushed cans, crumpled paper, a cigarette pack.
     const can = LP.mat('#b8b0a0', { metalness: 0.7, roughness: 0.4 });
-    for (const [x, z, r] of [[2.4, -6.4, 0.4], [-6.2, 5.6, 1.6], [-6.4, -2.0, 2.4]]) {
-      const c = LP.cyl(0.42, 0.42, 1.2, 6, can, x, 2.05, z);
-      c.scale.set(1, 0.55, 1);
-      c.rotation.set(Math.PI / 2, r, 0.3);
-      I.add(c);
+    const cans = new Sculpt('cans', 0.045);
+    for (const [x, z, r] of [[2.4, -6.4, 0.4], [-6.2, 5.6, 1.6], [-6.4, -2.0, 2.4]]) { // crushed flat underfoot
+      cans.add(can, SDF.warp(SDF.lathe([[0.36, -0.6], [0.42, -0.5], [0.42, 0.5], [0.34, 0.6], [0, 0.6]], [x, 2.05, z], [0, r, 0.3]), (px, py, pz) => [px, 2.05 + (py - 2.05) / 0.55, pz], 0.3), 0.02);
     }
+    cans.build(I);
     for (const [x, z, s] of [[-6.6, 1.0, 0.9], [3.4, 7.2, 0.7], [-6.0, -6.4, 1.1]]) {
       I.add(LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(0.5 * s, 0), 0.25, Math.round(x * 10)), LP.mat('#ffffff', { map: DECALS.get('paper') }), x, 2.0, z));
     }
@@ -2171,35 +2209,25 @@ const Models = {
     // Glovebox seam and latch on the passenger side.
     I.add(box(0.06, 1.5, 4.2, m3('#0e0f10'), 3.98, 4.9, 4.6));
     I.add(box(0.12, 0.3, 0.8, plastic, 3.95, 5.4, 4.6));
-    // Sun visors.
-    for (const z of [-4.4, 4.4]) {
-      const visor = box(2.6, 0.3, 5.4, m3('#4a4740'), 1.6, 12.1, z);
-      visor.rotation.z = 0.25;
-      I.add(visor);
+    // Sun visors, gear stick in its gaiter, handbrake, door cards (armrest, pull handle, window crank, speaker).
+    const chromeI = m3('#8a8f94', { metalness: 0.7 }), blackI = m3('#111111'), headM = m3('#4a4740');
+    const det = new Sculpt('cabin-details', 0.065);
+    for (const z of [-4.4, 4.4]) det.add(headM, SDF.box([2.6, 0.3, 5.4], 0.14, [1.6, 12.1, z], [0, 0, 0.25]), 0.1);
+    det.add(blackI, SDF.warp(SDF.cone([4.6, 5.4, 0], [4.55, 6.3, 0], 0.85, 0.3), (x, y, z) => { const k = 1 + 0.08 * Math.sin(y * 18); return [4.6 + (x - 4.6) / k, y, z / k]; }, 0.1), 0.2); // pleated gaiter
+    det.add(chromeI, SDF.cone([4.58, 5.9, 0], [4.2, 7.3, 0], 0.13, 0.11), 0.1);
+    det.add(blackI, SDF.ellipsoid([0.42, 0.38, 0.42], [4.18, 7.55, 0]), 0.12); // knob
+    det.add(plastic, SDF.box([2.6, 0.45, 0.6], 0.2, [2.0, 5.85, 0.9], [0, 0, 0.25]), 0.15); // handbrake
+    det.add(plastic, SDF.cyl(0.18, 0.5, 'z', 0.06, [3.1, 6.2, 0.9]), 0.1); // its button
+    for (const sd of [-1, 1]) {
+      const z = 8.45 * sd;
+      det.add(fabric, SDF.box([7, 0.6, 0.9], 0.25, [-2.5, 5.0, z - 0.3 * sd]), 0.15); // armrest
+      det.add(chromeI, SDF.path([[1.7, 5.6, z - 0.05 * sd], [2.2, 5.65, z - 0.3 * sd], [2.7, 5.6, z - 0.05 * sd]], 0.08), 0.05); // pull handle
+      det.add(plastic, SDF.cyl(0.25, 0.3, 'z', 0.08, [-1, 4.1, z - 0.25 * sd]), 0.05); // crank boss
+      det.add(chromeI, SDF.path([[-1, 4.1, z - 0.4 * sd], [-1, 3.55, z - 0.42 * sd], [-1, 3.0, z - 0.4 * sd]], 0.06), 0.08); // crank arm
+      det.add(plastic, SDF.cyl(0.14, 0.4, 'z', 0.06, [-1, 3.0, z - 0.6 * sd]), 0.06); // knob
     }
-    // Gear stick and handbrake on the console.
-    I.add(box(1.6, 0.5, 1.6, m3('#111111'), 4.6, 5.7, 0)); // gaiter
-    I.add(beam([4.6, 5.8, 0], [4.2, 7.4, 0], 0.22, m3('#8a8f94', { metalness: 0.7 })));
-    I.add(LP.mesh(new THREE.IcosahedronGeometry(0.42, 0), m3('#111111'), 4.2, 7.5, 0));
-    const hb = box(2.6, 0.45, 0.6, plastic, 2.0, 5.85, 0.9);
-    hb.rotation.z = 0.25;
-    I.add(hb);
-    // Seat belt across the empty driver's seat.
-    const belt = beam([-4.3, 11.2, -7.2], [-1.2, 4.6, -2.2], 0.12, m3('#161616'));
-    belt.scale.x = 4;
-    I.add(belt);
-    // Door cards: armrest, pull handle, window crank, speaker.
-    for (const s of [-1, 1]) {
-      const z = 8.45 * s;
-      I.add(box(7, 0.6, 0.9, fabric, -2.5, 5.0, z - 0.3 * s)); // armrest
-      I.add(box(1.2, 0.3, 0.25, m3('#8a8f94', { metalness: 0.7 }), 2.2, 5.6, z - 0.15 * s)); // handle
-      const crank = new THREE.Group();
-      crank.position.set(-1, 4.1, z - 0.25 * s);
-      crank.add(LP.cyl(0.25, 0.25, 0.3, 6, plastic, 0, 0, 0).rotateX(Math.PI / 2));
-      crank.add(box(0.12, 1.1, 0.12, m3('#8a8f94', { metalness: 0.7 }), 0, -0.5, 0));
-      I.add(crank);
-      I.add(LP.mesh(new THREE.CircleGeometry(0.9, 8), m3('#0e0f10'), 3.8, 2.6, z - 0.42 * s).rotateY(-Math.PI / 2 * s));
-    }
+    det.build(I);
+    for (const sd of [-1, 1]) I.add(LP.mesh(new THREE.CircleGeometry(0.9, 20), m3('#0e0f10'), 3.8, 2.6, 8.45 * sd - 0.42 * sd).rotateY(-Math.PI / 2 * sd)); // speaker grille
 
     ws.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
     ws.position.set(5.45, 9.6, 0);
@@ -2213,28 +2241,33 @@ const Models = {
     const g = new THREE.Group();
     g.name = 'tree';
     const rng = mulberry32(seed || 3);
-    g.add(LP.cyl(1.6, 2.6, 30, 6, LP.mat('#4e3a28'), 0, 15, 0));
-    const b1 = LP.beam([0, 18, 0], [6, 26, 2], 0.9, LP.mat('#4e3a28'));
-    const b2 = LP.beam([0, 22, 0], [-5, 29, -2], 0.8, LP.mat('#4e3a28'));
-    g.add(b1, b2);
-    const leaves = ['#2f5a26', '#36652c', '#2a4f22'];
-    const blobs = [[0, 36, 0, 12], [6, 30, 3, 9], [-5, 32, -3, 9], [2, 42, -2, 8], [-2, 27, 4, 7]];
-    blobs.forEach(([x, y, z, r], i) => {
-      g.add(LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(r, 0), r * 0.35, (seed || 3) * 10 + i), LP.mat(leaves[Math.floor(rng() * 3)]), x, y, z));
+    const bark = LP.mat('#4e3a28'), leaves = ['#2f5a26', '#36652c', '#2a4f22'].map((c) => LP.mat(c, { roughness: 1 }));
+    const sc = new Sculpt('tree' + (seed || 3), 0.5);
+    // Trunk flaring into roots, two boughs, and a lumpy canopy of overlapping leaf masses.
+    sc.add(bark, SDF.cone([0, 0, 0], [0, 30, 0], 2.8, 1.5), 0.2);
+    for (let k = 0; k < 3; k++) { const a = k * 2.1 + 0.3; sc.add(bark, SDF.cone([0, 0.5, 0], [Math.cos(a) * 4.5, 0, Math.sin(a) * 4.5], 1.4, 0.5), 1.5); }
+    sc.add(bark, SDF.cone([0, 18, 0], [6, 26, 2], 1.0, 0.6), 1.0);
+    sc.add(bark, SDF.cone([0, 22, 0], [-5, 29, -2], 0.9, 0.5), 1.0);
+    [[0, 36, 0, 12], [6, 30, 3, 9], [-5, 32, -3, 9], [2, 42, -2, 8], [-2, 27, 4, 7]].forEach(([x, y, z, r]) => {
+      const m = leaves[Math.floor(rng() * 3)];
+      sc.add(m, SDF.warp(SDF.ellipsoid([r, r * 0.85, r], [x, y, z]), (px, py, pz) => { const n = 1 + 0.12 * Math.sin(px * 0.7 + seed) * Math.sin(py * 0.6) * Math.sin(pz * 0.8); return [x + (px - x) / n, y + (py - y) / n, z + (pz - z) / n]; }, r * 0.15), 3);
     });
+    sc.build(g);
     return g;
   },
 
   pine() {
     const g = new THREE.Group();
     g.name = 'pine';
-    g.add(LP.cyl(1.2, 2.0, 16, 6, LP.mat('#3e2c1e'), 0, 8, 0));
-    const leaf = LP.mat('#24463a'), snow = LP.mat('#e9eef2');
-    const layers = [[14, 12, 10], [12, 11, 18], [10, 10, 25], [7.5, 9, 31], [5, 8, 37]];
-    layers.forEach(([r, h, y], i) => {
-      g.add(LP.mesh(LP.jitter(new THREE.ConeGeometry(r, h, 7), 1.2, 40 + i), leaf, 0, y, 0));
-      g.add(LP.mesh(new THREE.ConeGeometry(r * 0.55, h * 0.35, 7), snow, 0, y + h * 0.33, 0));
+    const sc = new Sculpt('pine', 0.45);
+    const leaf = LP.mat('#24463a', { roughness: 1 }), snow = LP.mat('#e9eef2');
+    sc.add(LP.mat('#3e2c1e'), SDF.cone([0, 0, 0], [0, 16, 0], 2.0, 1.2), 0.2);
+    [[14, 12, 10], [12, 11, 18], [10, 10, 25], [7.5, 9, 31], [5, 8, 37]].forEach(([r, h, y], i) => {
+      // Each tier droops at the edge and is ragged with boughs.
+      sc.add(leaf, SDF.warp(SDF.cone([0, y - h / 2, 0], [0, y + h / 2, 0], r, 0.3), (x, yy, z) => { const a = Math.atan2(z, x), k = 1 + 0.12 * Math.sin(a * 9 + i); return [x / k, yy, z / k]; }, 1), 0.3);
+      sc.add(snow, SDF.cone([0, y + h * 0.05, 0], [0, y + h * 0.52, 0], r * 0.5, 0.25), 0.4);
     });
+    sc.build(g);
     return g;
   },
 
@@ -2242,22 +2275,26 @@ const Models = {
     const g = new THREE.Group();
     g.name = 'cactus';
     const green = LP.mat('#4f8a3c');
-    g.add(LP.cyl(3.6, 4.2, 34, 6, green, 0, 17, 0));
-    g.add(LP.cyl(3.6, 3.6, 2, 6, green, 0, 34.5, 0));
-    for (const [s, y, h] of [[1, 14, 12], [-1, 20, 10]]) {
-      const elbow = LP.cyl(2.4, 2.4, 7, 6, green, s * 6, y, 0);
-      elbow.rotation.z = Math.PI / 2;
-      g.add(elbow, LP.cyl(2.4, 2.4, h, 6, green, s * 9, y + h / 2, 0));
+    const sc = new Sculpt('cactus', 0.4);
+    // Ribbed column with two arms that elbow up; all one fleshy piece.
+    const ribs = (part) => SDF.warp(part, (x, y, z) => { const a = Math.atan2(z, x), k = 1 + 0.06 * Math.cos(a * 10); return [x / k, y, z / k]; }, 0.3);
+    sc.add(green, ribs(SDF.cone([0, 0, 0], [0, 34, 0], 4.0, 3.4)), 0.3);
+    for (const [sd, y, h] of [[1, 14, 12], [-1, 20, 10]]) {
+      sc.add(green, SDF.path([[sd * 2, y, 0], [sd * 7, y + 0.5, 0], [sd * 9, y + 3, 0], [sd * 9, y + h, 0]], 2.3), 1.5);
     }
+    sc.build(g);
     return g;
   },
 
   rock(seed) {
     const g = new THREE.Group();
     g.name = 'rock';
-    const r = LP.mesh(LP.jitter(new THREE.DodecahedronGeometry(12, 0), 5, seed || 11), LP.mat('#a07a4d'), 0, 4, 0);
-    r.scale.set(1.3, 0.65, 1);
-    g.add(r);
+    const sc = new Sculpt('rock' + (seed || 11), 0.5);
+    const rng = mulberry32(seed || 11), stone = LP.mat('#a07a4d', { roughness: 1 });
+    // A weathered boulder: a few overlapping masses with cracks.
+    for (let k = 0; k < 4; k++) sc.add(stone, SDF.box([14 + rng() * 8, 7 + rng() * 4, 10 + rng() * 6], 3, [(rng() - 0.5) * 8, 3.5 + rng() * 2, (rng() - 0.5) * 6], [rng() * 0.3, rng() * 3, rng() * 0.3]), 2.5);
+    sc.cut(SDF.box([0.6, 12, 20], 0.2, [2, 6, 0], [0.2, 0.5, 0.1]), 0.4);
+    sc.build(g);
     return g;
   },
 

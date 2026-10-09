@@ -277,6 +277,11 @@ class Race {
     const wasAlive = car.hp > 0;
     car.hp = Math.max(0, car.hp - amount);
     car.hitFlash = 0.25;
+    // Where it was hit, for the 3D view to dent the bodywork (kept short; nothing reads it headless).
+    if (info && info.ang != null) {
+      if (!car.hits) car.hits = [];
+      if (car.hits.length < 12) car.hits.push({ ang: info.ang, amt: amount, kind: info.kind });
+    }
     if (wasAlive && car.hp <= 0 && car === this.player) this.message('Engine wrecked! Limp mode', '#ff4040', true);
   }
 

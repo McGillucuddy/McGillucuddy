@@ -296,6 +296,7 @@ class CockpitView {
 
   buildCars() {
     this.carMeshes = new Map();
+    this.rivalSeed = 1 + Math.floor(Math.random() * 1e6); // a different field of heaps every race
     for (const car of this.race.cars) {
       if (car === this.race.player) {
         // Your own car is just a shell (hood, rear deck, wheels); the cockpit interior fills the middle.
@@ -305,17 +306,14 @@ class CockpitView {
         continue;
       }
       const g = new THREE.Group();
-      // Rivals get a mix of body styles and paint jobs.
+      // Rivals: every one a different heap. Bosses drive their own signature car.
       const k = this.carMeshes.size;
-      const style = ['comet', 'brick', 'wasp', 'phantom'][k % 4];
-      const livery = ['stencil', 'roundel', 'none', 'stripes', 'stencil', 'flames'][k % 6];
-      const finish = ['gloss', 'matte', 'rusty', 'patched'][(k * 3) % 4];
-      // Bosses drive their own signature car.
       const model = car.bossLook
         ? Models.car(Object.assign({ color: car.color, accent: car.accent, weapon: car.weapon, number: 1 }, car.bossLook))
-        : Models.car({ style, color: car.color, accent: car.accent, weapon: car.weapon, livery, finish, number: 10 + ((k * 37) % 89) });
+        : Models.car(this.rivalLook(car, k));
       if (car.bossLook) model.scale.setScalar(1.08);
       g.add(model);
+      const box = new THREE.Box3().setFromObject(model);
       const tag = canvasTex(256, 64);
       // Constant on-screen size so tags stay readable without filling the view up close.
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tag.tex, depthTest: false, transparent: true, sizeAttenuation: false }));
@@ -324,8 +322,176 @@ class CockpitView {
       g.add(sprite);
       this.scene.add(g);
       this.carMeshes.set(car, { g, model, bodyMat: model.userData.bodyMat, wheels: model.userData.wheels, tag, sprite, lastTag: '',
-        mo: { pvx: car.vx, pvy: car.vy, roll: 0, vroll: 0, pitch: 0, vpitch: 0, hp: car.hp, hop: 0, spin: 0, seed: Math.random() * 10 } });
+        mo: { pvx: car.vx, pvy: car.vy, roll: 0, vroll: 0, pitch: 0, vpitch: 0, hp: car.hp, hop: 0, spin: 0, seed: Math.random() * 10 },
+        dmg: { box, t: 0, queue: [], glass: 0, shed: false } });
+      car.hits = [];
     }
+  }
+
+  // A rival's car: a body style, a bolt-on kit, paint scheme, finish, dirt, wheels and number, all mixed per car.
+  rivalLook(car, k) {
+    const rng = mulberry32(((this.rivalSeed || 7) * 131 + k * 977) >>> 0), pick = (a) => a[Math.floor(rng() * a.length)];
+    const styles = ['comet', 'brick', 'wasp', 'phantom', 'sedan', 'pickup', 'van'];
+    const style = styles[(k + Math.floor(rng() * styles.length)) % styles.length];
+    const roof = car.weapon === 'rocket' ? 'none' : pick(['stock', 'stock', 'none', 'rails', 'rack', 'lightbar', 'cage']);
+    return {
+      style, color: car.color, accent: car.accent, weapon: car.weapon, number: 10 + ((k * 37) % 89),
+      bumper: pick(['stock', 'stock', 'pushbar', 'bullbar', 'plow']), roof,
+      twoTone: pick(['none', 'none', 'roof', 'hood', 'lower']), paint2: pick(['#2a2a2e', '#d8cfb0', '#6f6f68', '#c9a443', '#5a6b3a']),
+      finish: pick(['gloss', 'matte', 'rusty', 'patched', 'gloss']), grime: pick(['clean', 'dirty', 'dirty', 'filthy']),
+      livery: pick(['stencil', 'roundel', 'none', 'stripes', 'flames', 'skull']), rims: pick(['spoke5', 'steel', 'black', 'slotted', 'wire']),
+      exhaust: pick(['single', 'twin', 'side']),
+    };
+  }
+
+  // ---------- Damage you can see ----------
+
+  // Hits pile up on a rival and are applied in batches: the bodywork dents in where it was struck (pushed in and
+  // scuffed black), the glass cracks as the car weakens, and bolt-ons are shed when it is nearly done for.
+  updateDamage(car, m, dt) {
+    const D = m.dmg;
+    if (car.hits && car.hits.length) { D.queue.push(...car.hits); car.hits.length = 0; }
+    D.t -= dt;
+    if (D.queue.length && D.t <= 0) {
+      D.t = 0.15;
+      this.applyHits(m, car, D.queue.splice(0, 6));
+    }
+    const frac = car.hp / (car.stats.maxHp || 100), glass = m.model.userData.glassMat;
+    const stage = frac <= 0.25 ? 2 : frac <= 0.6 ? 1 : 0;
+    // The paint dulls and blackens as the car is knocked about.
+    if (m.bodyMat && D.paint == null) D.paint = m.bodyMat.color.clone();
+    const wear = 1 - clamp(frac, 0, 1);
+    if (m.bodyMat && Math.abs((D.wear || 0) - wear) > 0.02) { D.wear = wear; m.bodyMat.color.copy(D.paint).lerp(new THREE.Color('#2a2018'), wear * 0.45); }
+    if (glass && stage > D.glass) {
+      D.glass = stage;
+      glass.map = DECALS.get(stage === 2 ? 'glassshot' : 'glasscrack');
+      glass.needsUpdate = true;
+    }
+    if (!D.shed && frac <= 0.3) { // nearly done: the bolt-ons tear off
+      D.shed = true;
+      const loose = [];
+      m.model.traverse((o) => { if (o.userData.kit && !o.userData.loose) loose.push(o); });
+      for (const o of loose) this.shedPart(o, car);
+    }
+  }
+
+  // Each hit is traced onto the real bodywork: a ray from the side it came from finds the panel it struck.
+  // Gunfire leaves a bullet hole; blasts, rams and walls stave the panel in and scorch it black around the dent.
+  applyHits(m, car, hits) {
+    const D = m.dmg, model = m.model;
+    const meshes = [];
+    model.traverse((o) => { if (o.isMesh && o.userData.sculpted && !o.userData.loose) meshes.push(o); });
+    if (!meshes.length) return;
+    model.updateMatrixWorld(true);
+    const ray = new THREE.Raycaster(), box = D.box, size = box.getSize(new THREE.Vector3());
+    const dirty = new Set();
+    for (const h of hits) {
+      const big = h.kind === 'blast' || h.kind === 'ram' || h.kind === 'wall';
+      // From outside the car on the side the hit came from, aimed at a point inside the body.
+      const la = h.ang - car.heading, out = new THREE.Vector3(Math.cos(la), 0, Math.sin(la));
+      const aim = new THREE.Vector3((Math.random() - 0.5) * size.x * 0.5, size.y * (0.25 + Math.random() * 0.3), (Math.random() - 0.5) * size.z * 0.3);
+      const from = aim.clone().addScaledVector(out, 40).add(new THREE.Vector3(0, 4, 0));
+      ray.set(model.localToWorld(from.clone()), model.localToWorld(aim.clone()).sub(model.localToWorld(from.clone())).normalize());
+      const hit = ray.intersectObjects(meshes, false)[0];
+      if (!hit || !hit.face) continue;
+      const P = model.worldToLocal(hit.point.clone()), N = hit.face.normal.clone(); // meshes sit at the model origin, so face normals are model-local
+      // Dent: push the surface in along the panel normal, falling off with distance.
+      const r = big ? Math.min(5, 2.8 + h.amt * 0.04) : 1.2, depth = big ? Math.min(1.5, 0.6 + h.amt * 0.025) : 0.12;
+      for (const mesh of meshes) {
+        const geo = mesh.geometry, pos = geo.attributes.position, col = geo.attributes.color;
+        if (!geo.userData.orig) geo.userData.orig = Float32Array.from(pos.array);
+        const O = geo.userData.orig, R2 = (r * 1.6) ** 2;
+        let touched = false;
+        for (let i = 0; i < pos.count; i++) {
+          const dx = pos.getX(i) - P.x, dy = pos.getY(i) - P.y, dz = pos.getZ(i) - P.z, d2 = dx * dx + dy * dy + dz * dz;
+          if (d2 >= R2) continue;
+          const dd = Math.sqrt(d2), f = dd < r ? (1 - dd / r) ** 2 : 0, soot = 1 - dd / (r * 1.6);
+          let nx = pos.getX(i) - N.x * depth * f, ny = pos.getY(i) - N.y * depth * f, nz = pos.getZ(i) - N.z * depth * f;
+          const ox = nx - O[i * 3], oy = ny - O[i * 3 + 1], oz = nz - O[i * 3 + 2], ol = Math.hypot(ox, oy, oz);
+          if (ol > 1.8) { nx = O[i * 3] + (ox / ol) * 1.8; ny = O[i * 3 + 1] + (oy / ol) * 1.8; nz = O[i * 3 + 2] + (oz / ol) * 1.8; } // never crushed right through
+          pos.setXYZ(i, nx, ny, nz);
+          if (col && big) { const k = Math.max(0.15, 1 - 0.7 * soot * soot); col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k); }
+          touched = true;
+        }
+        if (touched) dirty.add(mesh);
+      }
+      // A mark on the surface: bullet hole or scorch.
+      const mark = this.damageDecal(big);
+      mark.position.copy(P).addScaledVector(N, 0.06 - depth * 0.8);
+      mark.lookAt(mark.position.clone().add(N));
+      mark.rotateZ(Math.random() * TAU);
+      if (big) mark.scale.setScalar(r * 0.55);
+      model.add(mark);
+      (D.marks = D.marks || []).push(mark);
+      if (D.marks.length > 36) model.remove(D.marks.shift());
+    }
+    for (const mesh of dirty) {
+      const geo = mesh.geometry;
+      geo.attributes.position.needsUpdate = true;
+      if (geo.attributes.color) geo.attributes.color.needsUpdate = true;
+      geo.computeVertexNormals();
+    }
+  }
+
+  // Shared decal materials: a ragged bullet hole and a soft soot scorch.
+  damageDecal(big) {
+    if (!this.decalMats) {
+      const tex = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 64; draw(c.getContext('2d')); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
+      const hole = tex((g) => {
+        g.fillStyle = 'rgba(160,150,140,0.9)'; g.beginPath(); g.arc(32, 32, 14, 0, TAU); g.fill(); // bare metal rim
+        g.fillStyle = '#050505'; g.beginPath();
+        for (let k = 0; k < 14; k++) { const a = (k / 14) * TAU, r = 7 + Math.random() * 4; g.lineTo(32 + Math.cos(a) * r, 32 + Math.sin(a) * r); }
+        g.fill();
+      });
+      const scorch = tex((g) => {
+        const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+        gr.addColorStop(0, 'rgba(8,6,4,0.95)'); gr.addColorStop(0.5, 'rgba(20,14,10,0.7)'); gr.addColorStop(1, 'rgba(20,14,10,0)');
+        g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      });
+      const mk = (map) => new THREE.MeshStandardMaterial({ map, transparent: true, depthWrite: false, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2 });
+      this.decalMats = { hole: mk(hole), scorch: mk(scorch), geo: new THREE.PlaneGeometry(1, 1) };
+    }
+    const m = new THREE.Mesh(this.decalMats.geo, big ? this.decalMats.scorch : this.decalMats.hole);
+    if (!big) m.scale.setScalar(0.95);
+    m.userData.noGrime = true;
+    return m;
+  }
+
+  // A bolt-on tears off: it tumbles away from the car and lies in the road for a while.
+  shedPart(o, car) {
+    o.userData.loose = true;
+    o.updateMatrixWorld(true);
+    const wp = new THREE.Vector3(), wq = new THREE.Quaternion(), ws = new THREE.Vector3();
+    o.matrixWorld.decompose(wp, wq, ws);
+    o.removeFromParent();
+    const holder = new THREE.Group();
+    holder.position.copy(wp); holder.quaternion.copy(wq); holder.scale.copy(ws);
+    o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1);
+    holder.add(o);
+    this.scene.add(holder);
+    const a = Math.random() * TAU;
+    (this.looseParts = this.looseParts || []).push({ obj: holder, vx: car.vx * 0.6 + Math.cos(a) * 40, vz: car.vy * 0.6 + Math.sin(a) * 40, vy: 30 + Math.random() * 30,
+      sx: (Math.random() - 0.5) * 6, sy: (Math.random() - 0.5) * 6, t: 0 });
+    this.sparkAt(car.x, car.y, 8);
+  }
+
+  updateLooseParts(dt) {
+    if (!this.looseParts) return;
+    for (const p of this.looseParts) {
+      p.t += dt;
+      const o = p.obj;
+      if (o.position.y > 0.5 || p.vy > 0) {
+        p.vy -= 160 * dt;
+        o.position.x += p.vx * dt; o.position.z += p.vz * dt; o.position.y = Math.max(0.5, o.position.y + p.vy * dt);
+        o.rotation.x += p.sx * dt; o.rotation.z += p.sy * dt;
+        if (o.position.y <= 0.5 && p.vy < 0) { p.vy = -p.vy * 0.3; p.vx *= 0.5; p.vz *= 0.5; p.sx *= 0.5; p.sy *= 0.5; if (Math.abs(p.vy) < 8) p.vy = 0; }
+      }
+    }
+    this.looseParts = this.looseParts.filter((p) => {
+      if (p.t < 12) return true;
+      this.scene.remove(p.obj);
+      return false;
+    });
   }
 
   // ---------- Interior ----------
@@ -389,23 +555,24 @@ class CockpitView {
     this.buildAmmoRack(I, b);
     this.hangers = [];
     this.bobNecks = [];
-    const hang = [[3.2, 10.8, 0.9], [3.2, 10.8, 0.25], [3.2, 10.8, -0.45], [3.2, 10.8, -1.1], [3.2, 10.8, 1.55]];
-    const dash = { bobblehead: [[6.2, 6.8, 7.2], Math.PI, 0.55], horseshoe: [[5.9, 6.95, 5.0], 0, 1], medal: [[5.5, 6.9, -1.4], 0, 1] };
-    let hi = 0;
+    // Mirror first, then the driver's visor (clear of your sightline); dash slots run in two rows clear of the ornament and the wheel.
+    const hang = [[3.2, 10.8, 0.9], [3.2, 10.8, 0.25], [3.2, 10.8, -0.45], [3.2, 10.8, -1.1], [3.2, 10.8, 1.55],
+      [1.6, 11.7, -3.0], [1.6, 11.7, -3.8], [1.6, 11.7, -4.6], [1.6, 11.7, -5.4]];
+    const dash = [[6.4, 6.85, 7.4], [4.8, 6.85, 7.0], [6.4, 6.85, 6.0], [4.8, 6.85, 5.6], [6.4, 6.85, 4.6], [4.8, 6.85, 4.2],
+      [6.4, 6.85, -6.2], [4.8, 6.85, -6.6], [6.4, 6.85, 1.2], [4.8, 6.85, 1.4], [6.4, 6.85, -7.4], [4.8, 6.85, -7.8]];
+    let hi = 0, di = 0;
     for (const id of b.trinkets) {
       const m = Models.trinket(id);
-      if (dash[id]) {
-        const [pos, ry, sc] = dash[id];
-        m.position.set(...pos);
-        m.rotation.y = ry;
-        m.scale.setScalar(sc);
-        if (id === 'horseshoe' || id === 'medal') { m.rotation.x = -Math.PI / 2 + 0.35; m.rotation.z = Math.PI / 2; }
-        if (id === 'bobblehead') this.bobNecks.push(m.userData.neck);
-      } else {
+      if (m.userData.mount === 'hang') {
         m.position.set(...hang[hi++ % hang.length]);
         m.scale.setScalar(id === 'dice' ? 0.65 : 0.8);
         m.userData.swing = 0.8 + 0.4 * ((hi * 37) % 10) / 10;
         this.hangers.push(m);
+      } else {
+        m.position.set(...dash[di++ % dash.length]);
+        m.rotation.y = Math.PI + (di * 0.7) % 0.9 - 0.45; // face the driver, each at its own angle
+        m.scale.setScalar(Math.min(0.55, 1.9 / new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y));
+        if (m.userData.neck) this.bobNecks.push(m.userData.neck);
       }
       I.add(m);
     }
@@ -697,6 +864,7 @@ class CockpitView {
         if (w.position.x > 0) w.rotation.y = -(car.input ? car.input.steer : 0) * 0.5; // front wheels steer
       }
       this.carMotion(car, m, dt, t);
+      this.updateDamage(car, m, dt);
       const flash = car.hitFlash > 0;
       if (car.burnT > 0 && this.puffs.length < this.pools.puff.length && Math.random() < 0.5) this.puffs.push({ x: car.x + (Math.random() - 0.5) * 20, y: car.y + (Math.random() - 0.5) * 12, t: 0, fire: true });
       m.bodyMat.emissive.set(flash ? '#ffffff' : car.burnT > 0 && Math.random() < 0.6 ? '#ff4a0a' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
@@ -751,6 +919,7 @@ class CockpitView {
 
     this.animateViewmodel(dt, t);
     this.updateFx(dt, t);
+    this.updateLooseParts(dt);
     this.drawRadar(t);
     this.drawStatus(t);
 

@@ -384,38 +384,53 @@ const Env = {
     },
     fireBarrel() {
       const g = new THREE.Group();
-      g.add(LP.cyl(3, 3, 8, 7, LP.mat('#5a3a22', { roughness: 1 }), 0, 4, 0));
-      g.add(LP.mesh(new THREE.ConeGeometry(2.6, 7, 5), LP.glow('#ff7a1a', 2.2), 0, 11, 0));
-      g.add(LP.mesh(new THREE.ConeGeometry(1.4, 5, 5), LP.glow('#ffd06a', 2.5), 0.4, 10, 0.3));
-      // Two figures warming their hands.
-      for (const [x, z] of [[6, 2], [-5, 4]]) {
-        g.add(LP.box(3, 10, 2.4, LP.mat('#1e1c1a'), x, 5, z));
-        g.add(LP.mesh(new THREE.IcosahedronGeometry(1.6, 0), LP.mat('#2a2622'), x, 11.5, z));
-      }
+      Env.sculpt(g, 'fireBarrel', 0.2, (sc) => {
+        const rust = LP.mat('#5a3a22', { roughness: 1 }), coat = LP.mat('#1e1c1a', { roughness: 1 }), hood = LP.mat('#2a2622', { roughness: 1 });
+        sc.add(rust, SDF.lathe([[2.9, 0], [3.05, 0.4], [3.0, 2.6], [3.15, 2.9], [3.0, 3.2], [3.0, 5.4], [3.15, 5.7], [3.0, 6.0], [3.0, 7.8], [2.8, 8], [0, 8]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.1);
+        sc.cut(SDF.cyl(2.6, 2, 'y', 0.2, [0, 8, 0]), 0.2, [rust]); // open top
+        for (let k = 0; k < 5; k++) sc.cut(SDF.ellipsoid([0.6, 0.45, 0.6], [Math.cos(k * 1.3) * 3, 1.4 + (k % 2) * 3, Math.sin(k * 1.3) * 3]), 0.1, [rust]); // air holes
+        // Two hooded figures hunched towards the fire, hands held out.
+        for (const [x, z] of [[6, 2], [-5, 4]]) {
+          const dir = Math.atan2(-z, -x), fx = Math.cos(dir), fz = Math.sin(dir);
+          sc.add(coat, SDF.cone([x, 0.5, z], [x + fx * 0.6, 8.5, z + fz * 0.6], 1.9, 1.5), 0.4);
+          sc.add(hood, SDF.ellipsoid([1.5, 1.7, 1.5], [x + fx * 1.0, 10.4, z + fz * 1.0]), 0.6);
+          for (const sd of [-1, 1]) {
+            const sx = -fz * sd, sz = fx * sd;
+            sc.add(coat, SDF.path([[x + sx * 1.4 + fx * 0.4, 8, z + sz * 1.4 + fz * 0.4], [x + sx * 1.0 + fx * 2.2, 7.2, z + sz * 1.0 + fz * 2.2], [x + sx * 0.5 + fx * 3.6, 7.6, z + sz * 0.5 + fz * 3.6]], 0.55), 0.4);
+          }
+        }
+      });
+      g.add(LP.mesh(new THREE.ConeGeometry(2.6, 7, 7), LP.glow('#ff7a1a', 2.2), 0, 11, 0));
+      g.add(LP.mesh(new THREE.ConeGeometry(1.4, 5, 7), LP.glow('#ffd06a', 2.5), 0.4, 10, 0.3));
       return g;
     },
     wreck(seed) {
       const g = new THREE.Group(), rng = mulberry32(seed);
       const paint = LP.mat(['#6a2a1e', '#3a4a5a', '#5a5a4a'][Math.floor(rng() * 3)], { roughness: 1 });
-      const body = LP.box(40, 8, 17, paint, 0, 5, 0);
-      body.rotation.z = 0.08;
-      g.add(body);
-      const cab = LP.box(18, 6, 15, paint, -3, 11, 0);
-      cab.rotation.set(0.1, 0, -0.15);
-      g.add(cab);
-      g.add(LP.box(16, 5, 13, LP.mat('#0a0a0a'), -3, 11, 0)); // gutted glass
-      const tyre = LP.mat('#151515');
-      for (const [x, z] of [[13, 9], [-13, -9], [-13, 9]]) g.add(LP.cyl(4, 4, 3, 8, tyre, x, 3, z).rotateX(Math.PI / 2));
+      Env.sculpt(g, 'wreck' + seed, 0.35, (sc) => {
+        // A crushed car: body and caved-in cabin as one dented shell, gutted windows, the wheels it has left.
+        const dent = (x, y, z) => [x, y + 0.6 * Math.sin(x * 0.35 + seed) * Math.cos(z * 0.4), z];
+        sc.add(paint, SDF.warp(SDF.box([40, 8, 17], 2.4, [0, 5, 0], [0, 0, 0.08]), dent, 1), 0.2);
+        sc.add(paint, SDF.warp(SDF.box([18, 6, 15], 2.2, [-3, 11, 0], [0.1, 0, -0.15]), dent, 1), 1.5);
+        sc.cut(SDF.box([16, 4.2, 18], 1.0, [-3, 11.2, 0], [0.1, 0, -0.15]), 0.6, [paint]); // gutted glass
+        sc.cut(SDF.ellipsoid([6, 3, 5], [12, 9, 6]), 1.0, [paint]); // a big dent in the bonnet
+        const tyre = LP.mat('#151515');
+        for (const [x, z] of [[13, 9], [-13, -9], [-13, 9]]) sc.add(tyre, SDF.torus(2.8, 1.3, [x, 3, z]), 0.1);
+      });
       g.rotation.z = rng() < 0.3 ? Math.PI * 0.95 : 0; // some on their roofs
       return g;
     },
     junk(seed) {
       const g = new THREE.Group(), rng = mulberry32(seed);
-      for (let k = 0; k < 6; k++) {
-        const r = 4 + rng() * 6;
-        g.add(LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(r, 0), r * 0.4, seed + k), LP.mat(['#4a4238', '#5a4a3a', '#3a3632'][k % 3], { roughness: 1 }), (rng() - 0.5) * 24, r * 0.5, (rng() - 0.5) * 24));
-      }
-      for (let k = 0; k < 4; k++) g.add(LP.mesh(new THREE.TorusGeometry(4, 1.6, 4, 8), LP.mat('#141414'), 12, 1.6 + k * 3.2, 8).rotateX(Math.PI / 2));
+      Env.sculpt(g, 'junk' + seed, 0.45, (sc) => {
+        const mats = ['#4a4238', '#5a4a3a', '#3a3632'].map((c) => LP.mat(c, { roughness: 1 }));
+        for (let k = 0; k < 6; k++) {
+          const r = 4 + rng() * 6;
+          sc.add(mats[k % 3], SDF.box([r * 1.6, r * 0.9, r * 1.3], r * 0.3, [(rng() - 0.5) * 24, r * 0.4, (rng() - 0.5) * 24], [rng(), rng() * 3, rng() * 0.5]), 1.5); // slumped scrap
+        }
+        const tyre = LP.mat('#141414');
+        for (let k = 0; k < 4; k++) sc.add(tyre, SDF.torus(4, 1.6, [12 + (k % 2) * 0.8, 1.6 + k * 3.2, 8], [Math.PI / 2, 0, 0]), 0.1);
+      });
       return g;
     },
     pillar() {
@@ -472,37 +487,39 @@ const Env = {
     },
     palm(seed) {
       const g = new THREE.Group(), rng = mulberry32(seed);
-      const bark = LP.mat('#8a7050', { roughness: 1 });
       const lean = 0.15 + rng() * 0.2;
-      let prev = [0, 0, 0];
-      for (let k = 1; k <= 6; k++) {
-        const p = [Math.sin(k / 6 * 1.3) * 14 * lean * 4, k * 9, 0];
-        g.add(LP.beam(prev, p, 1.8 - k * 0.12, bark));
-        prev = p;
-      }
-      const leaf = LP.mat('#3a7a32', { side: THREE.DoubleSide });
-      for (let k = 0; k < 8; k++) {
-        const pivot = new THREE.Group();
-        pivot.position.set(...prev);
-        pivot.rotation.set(0, (k / 8) * TAU + rng() * 0.3, -0.35 - rng() * 0.3);
-        const f = LP.box(22, 0.5, 5, leaf, 11, 0, 0);
-        f.rotation.z = -0.25;
-        pivot.add(f);
-        g.add(pivot);
-      }
-      g.add(LP.mesh(new THREE.IcosahedronGeometry(2.4, 0), LP.mat('#5a4020'), prev[0], prev[1] - 1, 0));
+      Env.sculpt(g, 'palm' + seed, 0.55, (sc) => {
+        const bark = LP.mat('#8a7050', { roughness: 1 }), leaf = LP.mat('#3a7a32', { side: THREE.DoubleSide }), nut = LP.mat('#5a4020');
+        const pts = [];
+        for (let k = 0; k <= 6; k++) pts.push([Math.sin((k / 6) * 1.3) * 14 * lean * 4, k * 9, 0]);
+        for (let k = 0; k < 6; k++) sc.add(bark, SDF.cone(pts[k], pts[k + 1], 1.9 - k * 0.12, 1.75 - k * 0.12), 0.25); // ringed trunk, tapering
+        const top = pts[6];
+        for (let k = 0; k < 9; k++) { // arching fronds: a flattened blade along a drooping curve
+          const a = (k / 9) * TAU + rng() * 0.3, c = Math.cos(a), sn = Math.sin(a), L = 20 + rng() * 4;
+          const p = (t) => [top[0] + c * L * t, top[1] + 4 * t - 10 * t * t, top[2] + sn * L * t];
+          sc.add(leaf, SDF.warp(SDF.path([p(0), p(0.35), p(0.7), p(1)], 1.0), (x, y, z) => {
+            const dx = x - top[0], dz = z - top[2], along = dx * c + dz * sn, side = -dx * sn + dz * c;
+            return [top[0] + along * c - side * sn / 3.2, y, top[2] + along * sn + side * c / 3.2];
+          }, 2), 0.6);
+        }
+        for (const [dx, dz] of [[1.2, 0.6], [-0.8, 1.1], [0.2, -1.3]]) sc.add(nut, SDF.ellipsoid([1.2, 1.4, 1.2], [top[0] + dx, top[1] - 1.6, top[2] + dz]), 0.3);
+      });
       return g;
     },
     topiary(seed) {
       const g = new THREE.Group(), rng = mulberry32(seed);
-      const hedge = LP.mat('#2f6a2a', { roughness: 1 }), pot = LP.mat('#f2efe6');
-      for (let k = 0; k < 3; k++) {
-        const x = (k - 1) * 16;
-        g.add(LP.cyl(4, 3.2, 5, 8, pot, x, 2.5, 0));
-        if ((k + seed) % 2) g.add(LP.mesh(new THREE.IcosahedronGeometry(5.5, 1), hedge, x, 10, 0));
-        else g.add(LP.mesh(new THREE.ConeGeometry(4.5, 16, 7), hedge, x, 13, 0));
-      }
-      g.add(LP.box(56, 6, 5, hedge, 0, 3, 12 + rng() * 2)); // hedge row
+      const ry = 12 + rng() * 2;
+      Env.sculpt(g, 'topiary' + seed, 0.35, (sc) => {
+        const hedge = LP.mat('#2f6a2a', { roughness: 1 }), pot = LP.mat('#f2efe6');
+        for (let k = 0; k < 3; k++) {
+          const x = (k - 1) * 16;
+          sc.add(pot, SDF.lathe([[3.2, 0], [3.0, 0.6], [4.0, 4.4], [4.4, 5.0], [0, 5.0]], [x, 0, 0], [-Math.PI / 2, 0, 0]), 0.3);
+          if ((k + seed) % 2) sc.add(hedge, SDF.ellipsoid([5.5, 5.5, 5.5], [x, 10.5, 0]), 0.4);
+          else sc.add(hedge, SDF.cone([x, 6, 0], [x, 20, 0], 4.6, 0.6), 0.4);
+          sc.add(hedge, SDF.cyl(0.6, 2.4, 'y', 0.2, [x, 5.5, 0]), 0.6); // stem into the pot
+        }
+        sc.add(hedge, SDF.box([56, 6, 5], 2.2, [0, 3, ry]), 0.5); // clipped hedge row
+      });
       return g;
     },
     villa(seed) {
@@ -519,41 +536,62 @@ const Env = {
       return g;
     },
     fountain() {
-      const g = new THREE.Group(), marble = LP.mat('#ece8de');
-      g.add(LP.cyl(22, 24, 4, 12, marble, 0, 2, 0));
-      g.add(LP.cyl(20, 20, 0.6, 12, LP.glow('#5ac8f0', 0.6), 0, 4, 0));
-      g.add(LP.cyl(3, 4, 16, 8, marble, 0, 10, 0));
-      g.add(LP.cyl(9, 4, 3, 10, marble, 0, 18, 0));
-      g.add(LP.mesh(new THREE.ConeGeometry(4, 12, 8), LP.mat('#e8f6ff', { transparent: true, opacity: 0.55 }), 0, 25, 0));
+      const g = new THREE.Group();
+      Env.sculpt(g, 'fountain', 0.45, (sc) => {
+        const marble = LP.mat('#ece8de');
+        sc.add(marble, SDF.lathe([[22, 0], [24, 0.6], [24, 3.6], [22.6, 4.2], [21.5, 4.2], [21.5, 1.4], [0, 1.4]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.3); // basin with a lip
+        sc.add(marble, SDF.lathe([[5, 1.4], [4, 3], [2.6, 6], [3, 12], [2.4, 15], [9, 17.6], [9.4, 18.6], [0, 18.6]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.3); // pedestal and upper bowl
+        sc.cut(SDF.cyl(8, 2, 'y', 0.4, [0, 18.8, 0]), 0.4, [marble]);
+      });
+      g.add(LP.cyl(21.4, 21.4, 0.6, 24, LP.glow('#5ac8f0', 0.6), 0, 3.4, 0));
+      g.add(LP.mesh(new THREE.ConeGeometry(4, 12, 12), LP.mat('#e8f6ff', { transparent: true, opacity: 0.55 }), 0, 25, 0));
       return g;
     },
     statue() {
-      const g = new THREE.Group(), marble = LP.mat('#ece8de'), gold = LP.mat('#e0b44a', { metalness: 0.6, roughness: 0.3 });
-      g.add(LP.box(14, 14, 14, marble, 0, 7, 0));
-      g.add(LP.box(16, 2, 16, gold, 0, 14.5, 0));
-      g.add(LP.cyl(2.6, 3.4, 16, 7, gold, 0, 23, 0)); // robed figure
-      g.add(LP.mesh(new THREE.IcosahedronGeometry(2.4, 0), gold, 0, 33, 0));
-      g.add(LP.beam([1.5, 28, 0], [4, 40, 0], 0.8, gold)); // raised arm
-      g.add(LP.mesh(new THREE.IcosahedronGeometry(1.6, 0), LP.glow('#ffd86a', 2), 4.2, 41.5, 0)); // trophy torch
+      const g = new THREE.Group();
+      Env.sculpt(g, 'statue', 0.3, (sc) => {
+        const marble = LP.mat('#ece8de'), gold = LP.mat('#e0b44a', { metalness: 0.6, roughness: 0.3 });
+        sc.add(marble, SDF.box([14, 14, 14], 1.0, [0, 7, 0]), 0.5);
+        sc.add(gold, SDF.box([16, 2, 16], 0.8, [0, 14.5, 0]), 0.5);
+        // A robed champion holding a torch aloft.
+        sc.add(gold, SDF.warp(SDF.cone([0, 15, 0], [0, 29, 0], 3.6, 2.2), (x, y, z) => { const a = Math.atan2(z, x), k = 1 + 0.06 * Math.sin(a * 9); return [x / k, y, z / k]; }, 0.4), 0.8);
+        sc.add(gold, SDF.ellipsoid([3.4, 1.8, 2.4], [0, 29.5, 0]), 1.2); // shoulders
+        sc.add(gold, SDF.ellipsoid([1.9, 2.3, 2.0], [0, 33.2, 0]), 0.8); // head
+        sc.add(gold, SDF.path([[2.6, 29.5, 0], [3.6, 34, 0.4], [4.1, 39, 0]], 0.75), 0.8); // raised arm
+        sc.add(gold, SDF.path([[-2.6, 29.5, 0], [-3.0, 25.5, 1.2], [-2.0, 22.5, 2.0]], 0.7), 0.8);
+        sc.add(gold, SDF.cone([4.1, 38.8, 0], [4.2, 41, 0], 0.6, 1.1), 0.4); // torch cup
+      });
+      g.add(LP.mesh(new THREE.SphereGeometry(1.4, 12, 8), LP.glow('#ffd86a', 2), 4.2, 41.8, 0)); // flame
       return g;
     },
     colonnade() {
-      const g = new THREE.Group(), marble = LP.mat('#f0ece2'), gold = LP.mat('#d9b24a', { metalness: 0.6, roughness: 0.3 });
-      for (let k = 0; k < 5; k++) g.add(LP.cyl(2.6, 3, 34, 8, marble, (k - 2) * 14, 17, 0));
-      g.add(LP.box(66, 5, 8, marble, 0, 36.5, 0));
-      g.add(LP.box(66, 1.2, 8.4, gold, 0, 34.4, 0));
-      g.add(LP.box(66, 3, 10, marble, 0, 1.5, 0));
+      const g = new THREE.Group();
+      Env.sculpt(g, 'colonnade', 0.5, (sc) => {
+        const marble = LP.mat('#f0ece2'), gold = LP.mat('#d9b24a', { metalness: 0.6, roughness: 0.3 });
+        for (let k = 0; k < 5; k++) {
+          const x = (k - 2) * 14;
+          sc.add(marble, SDF.lathe([[3.8, 3], [3.8, 4], [3.1, 4.8], [2.9, 6], [2.6, 32], [3.3, 32.8], [3.9, 34]], [x, 0, 0], [-Math.PI / 2, 0, 0]), 0.2); // base, tapering shaft, capital
+          for (let f = 0; f < 12; f++) { const a = (f / 12) * TAU; sc.cut(SDF.cone([x + Math.cos(a) * 2.95, 6.5, Math.sin(a) * 2.95], [x + Math.cos(a) * 2.65, 31.5, Math.sin(a) * 2.65], 0.32, 0.28), 0.1, [marble]); } // fluting
+        }
+        sc.add(marble, SDF.box([66, 5, 8], 0.6, [0, 36.5, 0]), 0.4);
+        sc.add(marble, SDF.box([66, 3, 10], 0.6, [0, 1.5, 0]), 0.4);
+        sc.add(gold, SDF.box([66, 1.2, 8.4], 0.3, [0, 34.4, 0]), 0.2);
+      });
       return g;
     },
     flags(seed) {
       const g = new THREE.Group();
       const cols = ['#d9b24a', '#a8322a', '#f4f2ec', '#1e3a6a'];
-      for (let k = 0; k < 3; k++) {
-        const x = (k - 1) * 14;
-        g.add(LP.cyl(0.6, 0.8, 50, 6, LP.mat('#e8e2d0', { metalness: 0.5 }), x, 25, 0));
-        g.add(LP.box(12, 7, 0.4, LP.mat(cols[(k + seed) % 4], { side: THREE.DoubleSide }), x + 6, 45, 0));
-        g.add(LP.mesh(new THREE.IcosahedronGeometry(1, 0), LP.mat('#d9b24a', { metalness: 0.7 }), x, 50.5, 0));
-      }
+      Env.sculpt(g, 'flags' + seed, 0.3, (sc) => {
+        const pole = LP.mat('#e8e2d0', { metalness: 0.5 }), gold = LP.mat('#d9b24a', { metalness: 0.7 });
+        for (let k = 0; k < 3; k++) {
+          const x = (k - 1) * 14;
+          sc.add(pole, SDF.cone([x, 0, 0], [x, 50, 0], 0.8, 0.55), 0.1);
+          sc.add(gold, SDF.ellipsoid([1, 1.2, 1], [x, 50.8, 0]), 0.3);
+          // Cloth rippling in the wind.
+          sc.add(LP.mat(cols[(k + seed) % 4], { side: THREE.DoubleSide }), SDF.warp(SDF.box([12, 7, 0.3], 0.12, [x + 6.4, 45, 0]), (px, py, pz) => [px, py, pz - 0.9 * Math.sin((px - x) * 0.6 + seed) * ((px - x) / 12)], 1), 0.05);
+        }
+      });
       return g;
     },
     // Trackside light masts: sodium floodlights in the undercity, white lamps up top.
@@ -599,14 +637,35 @@ const Env = {
     },
   },
 
+  // A sculpted scenery model (see js/sculpt.js), meshed once and shared by every copy.
+  sculpt(g, key, cell, fill) {
+    const sc = new Sculpt('env:' + key, cell);
+    fill(sc);
+    return sc.build(g);
+  },
+
   // Guard towers with sweeping searchlights (dystopian acts' answer to grandstands).
   guardTower() {
     const g = new THREE.Group();
     const steel = LP.mat('#3a3834', { metalness: 0.4 }), conc = LP.mat('#5a564e', { roughness: 1 });
-    for (const [x, z] of [[-8, -8], [8, -8], [-8, 8], [8, 8]]) g.add(LP.beam([x, 0, z], [x * 0.7, 64, z * 0.7], 1.2, steel));
-    g.add(LP.box(20, 14, 20, conc, 0, 71, 0));
-    g.add(LP.box(20.4, 5, 20.4, LP.glow('#ffd8a0', 0.6), 0, 73, 0)); // lit windows band
-    g.add(LP.box(24, 2, 24, steel, 0, 79, 0));
+    Env.sculpt(g, 'guardTower', 0.4, (sc) => {
+      // Splayed legs with welded cross braces, a concrete cab with a window slot, an overhanging roof.
+      const legs = [[-8, -8], [8, -8], [8, 8], [-8, 8]];
+      for (const [x, z] of legs) sc.add(steel, SDF.cone([x, 0, z], [x * 0.7, 64, z * 0.7], 0.9, 0.7), 0.6);
+      for (let i = 0; i < 4; i++) {
+        const [x1, z1] = legs[i], [x2, z2] = legs[(i + 1) % 4];
+        for (const [ya, yb] of [[8, 30], [30, 52]]) {
+          const fa = 1 - 0.3 * ya / 64, fb = 1 - 0.3 * yb / 64;
+          sc.add(steel, SDF.cone([x1 * fa, ya, z1 * fa], [x2 * fb, yb, z2 * fb], 0.4, 0.4), 0.5);
+          sc.add(steel, SDF.cone([x2 * fa, ya, z2 * fa], [x1 * fb, yb, z1 * fb], 0.4, 0.4), 0.5);
+        }
+      }
+      sc.add(conc, SDF.box([20, 14, 20], 1.2, [0, 71, 0]), 0.6);
+      sc.cut(SDF.box([22, 4.4, 17], 0.6, [0, 73, 0]), 0.3, [conc]);
+      sc.cut(SDF.box([17, 4.4, 22], 0.6, [0, 73, 0]), 0.3, [conc]);
+      sc.add(steel, SDF.box([24, 2, 24], 0.8, [0, 79, 0]), 0.4);
+    });
+    g.add(LP.box(18.6, 4.2, 18.6, LP.glow('#ffd8a0', 0.6), 0, 73, 0)); // lit inside, seen through the window slots
     const head = new THREE.Group();
     head.position.set(0, 82, 0);
     head.add(LP.cyl(2.2, 2.2, 4, 8, LP.mat('#222'), 0, 0, 0).rotateZ(Math.PI / 2));

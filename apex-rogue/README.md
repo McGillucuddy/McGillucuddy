@@ -93,7 +93,8 @@ clipboard beside it. You can click things in the room as well:
 - **Paint booth:** orbits the car. The cabin tab puts you in your seat, and the guns tab goes to the pegboard.
 - **The roll-up door:** takes you out to the next race.
 
-Trinkets sit on a shelf. A chalkboard shows the act, race, scrap, strikes and a tally of races
+Trinkets sit on the shelves: hanging ones on nails, flat ones leaned against the wall, standing ones
+below. A chalkboard shows the act, race, scrap, strikes and a tally of races
 survived. In the upper-city acts the sponsors have smartened the garage up, and the commissary becomes a
 concierge. See `js/garage3d.js`.
 
@@ -111,9 +112,11 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   launcher, flare gun (blinds the driver it hits). Two rack slots, three with the Warden's Keys.
   Grenades are a separate consumable.
 - **Abilities** on `Space` and `E`: shield/parry, nitro burst, smoke screen, EMP pulse.
-- **Trinkets** change the rules and physically appear in your cabin (hanging from the mirror or on the
-  dash): fuzzy dice, rabbit's foot, rusty horseshoe, warden's keys, burnt rosary, bobblehead, pine air
-  freshener, St. Christopher medal.
+- **Trinkets** (22 to earn) change the rules and physically appear in your cabin, hanging from the mirror
+  or the driver's visor, or standing and lying on the dash: fuzzy dice, rabbit's foot, warden's keys,
+  burnt rosary, pine air freshener, dog tags, bronzed baby shoes, four-leaf clover, bobblehead, troll
+  doll, prison teddy, snow globe, magic 8-ball, dash compass, Zippo lighter, rusty horseshoe,
+  St. Christopher medal, polaroid from home, pack of smokes, gold tooth, lucky spark plug and a mixtape.
 - **Driver chips** change how the AI drives your car, each with a downside: Hothead, Cautious,
   Daredevil, Gun Nut.
 
@@ -165,7 +168,7 @@ around each one and download it as a `.glb`. Pre-exported copies live in `models
 - **Cars:** real-world proportions and details (wheel arches, grille, lenses, plates, mirrors, door seams, rims, road grime). Comet is a 90s coupe, Brick a boxy estate, Wasp a hot hatch, Phantom a 70s fastback; rivals add a welded rocket pod or
   a mine dropper. Your own car is an open shell with the cockpit interior inside.
 - **Weapons:** SMG, rocket launcher, grenade, rocket, mine.
-- **Cabin and trinkets:** cockpit interior, fuzzy dice, bobblehead, grenade crate.
+- **Cabin and trinkets:** cockpit interior, grenade crate and all 22 trinkets.
 - **Scenery:** tree, pine, cactus, rock, neon building.
 
 The exported `.glb` files include the retro pixel textures (nearest-neighbour filtered). Untick
@@ -234,6 +237,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
 | `js/psx.js` | Retro PS1-style rendering: low-res dithered post pass, vertex snapping, grimy pixel textures |
 | `js/models.js`, `js/modelviewer.js` | Model library and the model viewer / `.glb` exporter |
+| `js/trinkets.js` | Sculpted trinket models and where each one mounts in the cabin |
 | `js/sculpt.js` | Sculpted models: signed distance parts blended per material and meshed into seamless surfaces |
 | `js/hud.js` | Race HUD shared by both pages |
 | `tools/sim.js` | Headless balance simulator: `node tools/sim.js [races] [botSkill]` |

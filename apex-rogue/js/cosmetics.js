@@ -6,6 +6,7 @@ const COSMETICS = {
   style: [
     { id: 'comet', name: 'Coupe', rep: 0 }, { id: 'brick', name: 'Estate', rep: 20 },
     { id: 'wasp', name: 'Hot Hatch', rep: 60 }, { id: 'phantom', name: 'Fastback', rep: 120 },
+    { id: 'sedan', name: 'Sedan', rep: 30 }, { id: 'pickup', name: 'Pickup', rep: 90 }, { id: 'van', name: 'Panel Van', rep: 160 },
   ],
   paint: [
     { id: 'red', name: 'Rust Red', color: '#a8322a', rep: 0 }, { id: 'primer', name: 'Primer Grey', color: '#6f6f68', rep: 0 },

@@ -72,6 +72,13 @@ class Combat {
     this.select((this.wi + dir + n) % n);
   }
 
+  // Four-leaf clover: a wreck refills the magazine of the gun in your hands.
+  cloverRefill() {
+    if (!has(this.build, 'clover')) return;
+    const w = this.weapon, def = this.weaponDef, take = Math.min(def.mag - w.mag, w.reserve);
+    if (take > 0) { w.mag += take; w.reserve -= take; this.wstate[this.wi].reloadT = 0; }
+  }
+
   reload() {
     const w = this.weapon, def = this.weaponDef, st = this.wstate[this.wi];
     if (st.reloadT > 0 || w.mag >= def.mag || w.reserve <= 0 || this.busy) return;
@@ -84,7 +91,7 @@ class Combat {
     if (!a || a.cd > 0 || p.finished || this.race.state !== 'racing') return false;
     a.cd = ABILITIES[a.id].cooldown;
     if (a.id === 'shield') {
-      this.shield.t = 1.1;
+      this.shield.t = 1.1 * (has(this.build, 'teddy') ? 1.5 : 1);
       this.shield.age = 0;
       this.events.push({ type: 'shield' });
     } else if (a.id === 'nitro_burst') {
@@ -163,6 +170,7 @@ class Combat {
     const b = this.build, p = this.player, s = p.stats;
     if (this.invulnT > 0) return 0;
     if (info.kind === 'wall' && b.chip === 'cautious') amount *= 0.3;
+    if (info.kind === 'wall' && has(b, 'troll')) amount *= 0.6;
     const arm = b.parts.armour;
     if (arm.dur > 0) {
       const a = info.kind === 'blast' && s.blastAbsorb ? s.blastAbsorb : info.kind === 'bullet' && s.bulletAbsorb ? s.bulletAbsorb : s.absorb;
@@ -183,6 +191,10 @@ class Combat {
       amount = p.hp - 1;
       this.race.message("Rabbit's foot: still alive", '#7CFC00', true);
     }
+    if (has(b, 'shoes') && !this.shoesUsed && p.hp - amount > 0 && p.hp - amount < s.maxHp * 0.3) {
+      this.shoesUsed = true;
+      this.shoesHeal = 25; // patched next frame
+    }
     this.stats.taken += amount;
     return amount;
   }
@@ -190,7 +202,7 @@ class Combat {
   // ctl: { aim (world angle), firing (held), pressed (edge) }
   updatePlayerWeapons(dt, ctl) {
     const p = this.player, b = this.build;
-    const speed = b.chip === 'gun_nut' ? 1.4 : 1;
+    const speed = (b.chip === 'gun_nut' ? 1.4 : 1) * (has(b, 'cassette') ? 1.2 : 1);
     for (const st of this.wstate) st.cd -= dt;
     const w = this.weapon, def = this.weaponDef, st = this.wstate[this.wi];
     if (st.reloadT > 0) {
@@ -242,7 +254,7 @@ class Combat {
           if (d < 950 && off < best) { best = off; target = c; }
         }
       }
-      const opts = { dmg: def.dmg, radius: def.radius, life: def.life, target, turn: target ? 1.6 : 0 };
+      const opts = { dmg: def.dmg, radius: def.radius, life: def.life, target, turn: target ? 1.6 * (has(this.build, 'compass') ? 1.4 : 1) : 0 };
       if (def.twin) {
         // Twin tube: a second rocket alongside, if there's a round for it.
         this.spawn('rocket', p, ctl.aim - 0.05, def.speed, 1, Object.assign({}, opts));
@@ -290,6 +302,11 @@ class Combat {
     for (const a of this.abil) if (a) a.cd -= dt;
     this.swerveCd -= dt;
     this.invulnT -= dt;
+    if (this.shoesHeal) {
+      p.hp = Math.min(p.stats.maxHp, p.hp + this.shoesHeal);
+      this.shoesHeal = 0;
+      race.message('Baby shoes: hull patched', '#7CFC00', true);
+    }
     if (this.fitT > 0) {
       this.fitT -= dt;
       if (this.fitT <= 0) {
@@ -311,7 +328,7 @@ class Combat {
         race.damage(c, c.burnDps * dt, { kind: 'fire' });
         if (c.burnBy === p && c !== p) {
           this.stats.dealt += before - c.hp;
-          if (before > 0 && c.hp <= 0) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.race.message(`${shortName(c)} burned out!`, '#ffd23f'); }
+          if (before > 0 && c.hp <= 0) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.cloverRefill(); this.race.message(`${shortName(c)} burned out!`, '#ffd23f'); }
         }
       }
     }
@@ -473,6 +490,7 @@ class Combat {
             c.vy += Math.sin(a) * pr.knock;
           }
           if (pr.burn) { c.burnT = 3; c.burnDps = pr.burn; c.burnBy = pr.owner; }
+          else if (pr.owner === p && c !== p && has(this.build, 'lighter') && Math.random() < 0.12) { c.burnT = 3; c.burnDps = 4; c.burnBy = p; }
           if (pr.tracer && c !== p) c.markT = 3;
           if (pr.type === 'flare') {
             c.blindT = pr.blind;
@@ -600,6 +618,7 @@ class Combat {
       if (before > 0 && c.hp <= 0) {
         this.stats.wrecked++;
         if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
+        this.cloverRefill();
         this.race.message(`${shortName(c)} wrecked!`, '#ffd23f');
       }
     }

@@ -93,7 +93,15 @@ const Proto = {
       for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
       Models.car(Object.assign({}, carLook(this.cos), { shell: true })); // your own car, seen from inside
       Models.interior('#888888', {});
-      Models.rocketPod(); Models.mineDropper(); Models.gunner(); Models.grenade();
+      Models.rocketPod(); Models.mineDropper(); Models.gunner(); Models.grenade(); Models.rocket(); Models.mine(); Models.grenadeCrate();
+      for (const id of Object.keys(TRINKET_MOUNT)) Models.trinket(id);
+      for (const id of ['hula', 'dog', 'saint', 'skull']) Models.ornament(id);
+      for (const id of ['smg', 'shotgun', 'rocket', 'flare']) Models.ammoItem(id);
+      const M = Env.models; // the undercity first (act I), then the rest
+      M.fireBarrel(); M.wreck(4); M.wreck(8); M.junk(5); Env.guardTower(); M.palm(3); M.palm(8); M.palm(5); M.palm(13);
+      M.topiary(1); M.topiary(2); M.fountain(); M.statue(); M.colonnade(); M.flags(1); M.flags(2);
+      // Last: every bolt-on kit piece on every body, so rivals' random kits never stall a race load.
+      for (const style of Object.keys(CAR_STYLES)) for (const [bumper, roof] of [['pushbar', 'rails'], ['bullbar', 'rack'], ['plow', 'lightbar'], ['stock', 'cage']]) Models.car({ style, color: '#888888', bumper, roof });
     } finally { Sculpt.collect = false; }
     const pump = () => { if (Sculpt.runJobs(10)) requestAnimationFrame(pump); };
     requestAnimationFrame(pump);
@@ -691,7 +699,7 @@ const Proto = {
     this.lastOk = ok;
     // Bank the race: hull carries over, scrap paid out, strikes for missing the cut.
     const show = b.chip === 'showboat' ? 1.5 : 1;
-    const placePay = Math.round((PLACE_SCRAP[p.place - 1] || 0) * show * (race.node.type === 'elite' ? 1.4 : 1)), wreckPay = Math.round((s.wrecked * WRECK_SCRAP + s.scrapBonus) * show);
+    const placePay = Math.round((PLACE_SCRAP[p.place - 1] || 0) * show * (race.node.type === 'elite' ? 1.4 : 1) * (has(b, 'tooth') ? 1.3 : 1)), wreckPay = Math.round((s.wrecked * WRECK_SCRAP + s.scrapBonus) * show);
     const bossPay = boss && ok ? 250 : 0;
     const bc = race.bountyCar, bountyPay = bc && bc.hp <= 0 ? bc.bounty : 0;
     let sponsorCut = 0;
@@ -700,6 +708,7 @@ const Proto = {
     if (run.flags.bet) { if (p.place <= 2) betPay = run.flags.bet; run.flags.bet = 0; }
     b.scrap += placePay + wreckPay + bossPay + betPay + bountyPay - sponsorCut;
     b.hull = Math.max(1, Math.round(p.hp));
+    if (has(b, 'snowglobe')) b.grenades = Math.min(MAX_GRENADES, b.grenades + 1);
     b.race++;
     if (p.place === 1) b.wins++;
     if (!ok) b.strikes++;

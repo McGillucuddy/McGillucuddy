@@ -237,13 +237,15 @@ class Sculpt {
     if (!cached) { geos.forEach((geo) => (geo.userData.shared = true)); Sculpt.cache[this.key] = geos; }
     this.groups.forEach((g, i) => {
       const m = new THREE.Mesh(geos[i], g.mat);
+      m.userData.sculpted = true;
       parent.add(m);
       sets[g.set].push(m);
     });
     return sets;
   }
   gen(g) {
-    return Sculpt.meshGen(g.parts, this.cuts.filter((c) => !c.mats || c.mats.includes(g.mat)), this.cell, g.opts);
+    const opts = this.maxEdge ? Object.assign({ maxEdge: this.maxEdge }, g.opts) : g.opts;
+    return Sculpt.meshGen(g.parts, this.cuts.filter((c) => !c.mats || c.mats.includes(g.mat)), this.cell, opts);
   }
   // Drive a mesher to completion right now.
   static run(it) {
@@ -370,7 +372,7 @@ class Sculpt {
     }
     // Simplify: flat and gently curved areas don't need the grid's density. Survivors are snapped back onto the
     // surface and re-shaded from the field, so the silhouette and shading stay true.
-    const D = opts && opts.decimate === false ? Sculpt.identity(P, idx) : yield* Sculpt.decimate(P, idx, cell);
+    const D = opts && opts.decimate === false ? Sculpt.identity(P, idx) : yield* Sculpt.decimate(P, idx, cell, opts && opts.maxEdge);
     const nv = D.keep.length, pos2 = new Float32Array(nv * 3), nrm = new Float32Array(nv * 3), uv = uvScale ? new Float32Array(nv * 2) : null;
     const col = colorFn ? new Float32Array(nv * 3) : null;
     for (let n = 0; n < nv; n++) {
@@ -404,7 +406,8 @@ class Sculpt {
     return { pos: P, idx: Array.from(idx), keep };
   }
 
-  static *decimate(P, idx, cell) {
+  static *decimate(P, idx, cell, maxEdge) {
+    const maxE2 = maxEdge ? maxEdge * maxEdge : Infinity; // keep panels meshed this finely (so they can be dented)
     const nV = P.length / 3, nF = idx.length / 3, F = Int32Array.from(idx), alive = new Uint8Array(nF).fill(1);
     const Q = new Float64Array(nV * 10), ver = new Int32Array(nV), dead = new Uint8Array(nV);
     // Vertex -> faces, as growable lists.
@@ -501,6 +504,19 @@ class Sculpt {
       for (const f of vf[a]) if (alive[f]) val++;
       for (const f of vf[b]) if (alive[f]) val++;
       if (val > 24) continue; // no hub vertices with huge fans
+      if (maxE2 < Infinity) {
+        let long = false;
+        for (const v of [a, b]) for (const f of vf[v]) {
+          if (!alive[f]) continue;
+          for (let k = 0; k < 3; k++) {
+            const c = F[f * 3 + k];
+            if (c === a || c === b) continue;
+            const ex = P[c * 3] - x, ey = P[c * 3 + 1] - y, ez = P[c * 3 + 2] - z;
+            if (ex * ex + ey * ey + ez * ez > maxE2) long = true;
+          }
+        }
+        if (long) continue;
+      }
       // Refuse if any surviving triangle would fold over.
       let ok = true;
       for (let pass = 0; pass < 2 && ok; pass++) {

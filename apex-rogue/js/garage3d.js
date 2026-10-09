@@ -92,6 +92,13 @@ class Garage3D {
     return t;
   }
 
+  // A sculpted prop (see js/sculpt.js): fill(sc) adds the parts; meshed once and shared.
+  sculpt(R, key, cell, fill) {
+    const sc = new Sculpt('garage:' + key, cell);
+    fill(sc);
+    return sc.build(R);
+  }
+
   plane(w, h, map, x, y, z, ry, extra) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), LP.mat('#ffffff', Object.assign({ map }, extra || {})));
     m.position.set(x, y, z);
@@ -190,16 +197,21 @@ class Garage3D {
     const steel = LP.mat(this.luxury ? '#d8d4cc' : '#c9a227', { metalness: 0.4, roughness: 0.5 });
     const dark = LP.mat('#2a2a2a', { metalness: 0.5 });
     const { x, z } = GARAGE_LIFT;
-    for (const sz of [-1, 1]) {
-      R.add(LP.box(3.4, 40, 3.4, steel, x, 20, z + sz * 21));
-      R.add(LP.box(6, 2, 6, dark, x, 1, z + sz * 21));
-      for (const sx of [-1, 1]) {
-        const arm = LP.box(1.6, 1.4, 16, dark, x + sx * 6, 5, z + sz * 13);
-        arm.rotation.y = sx * sz * 0.35;
-        R.add(arm);
+    this.sculpt(R, 'lift', 0.25, (sc) => {
+      for (const sz of [-1, 1]) {
+        const c = z + sz * 21;
+        sc.add(steel, SDF.box([3.4, 40, 3.4], 0.5, [x, 20, c]), 0.6); // post
+        sc.add(steel, SDF.box([5.4, 1.2, 5.4], 0.4, [x, 0.6, c]), 0.8); // base plate
+        sc.add(dark, SDF.box([4.2, 5, 4.2], 0.5, [x, 6, c]), 0.3); // carriage
+        for (const sx of [-1, 1]) {
+          const a = sx * sz * 0.35, cx = x + sx * 6, cz = z + sz * 13, dx = Math.sin(a) * 8, dz = Math.cos(a) * 8;
+          const outer = [cx + dx * sz, 5, cz + dz * sz], inner = [cx - dx * sz, 5, cz - dz * sz]; // outer end at the post
+          sc.add(dark, SDF.cone(outer, inner, 0.8, 0.65), 0.4); // swing arm
+          sc.add(dark, SDF.cyl(1.0, 1.6, 'y', 0.3, [inner[0], 5.8, inner[2]]), 0.3); // lifting pad under the sill
+        }
       }
-    }
-    R.add(LP.beam([x, 40, z - 21], [x, 40, z + 21], 0.8, dark)); // overhead hose
+      sc.add(dark, SDF.path([[x, 40, z - 21], [x, 41.5, z], [x, 40, z + 21]], 0.4), 0.3); // overhead hose
+    });
   }
 
   buildArmory(R, luxury) {
@@ -220,9 +232,17 @@ class Garage3D {
     R.add(LP.box(84, 2, 16, wood, -62, 18, -91));
     for (const x of [-100, -24]) for (const zz of [-97, -85]) R.add(LP.box(2, 18, 2, LP.mat('#2a2a2a'), x, 9, zz));
     R.add(LP.box(80, 1, 12, wood, -62, 6, -91)); // lower shelf
-    R.add(LP.box(2.6, 4, 2.6, LP.mat('#2a2a2a'), -28, 21, -95)); // vice
+    this.sculpt(R, 'vice', 0.1, (sc) => { // bench vice: body, jaws, screw and tommy bar
+      const iron = LP.mat('#2f4a5a', { metalness: 0.5, roughness: 0.6 }), steelV = LP.mat('#8a8f94', { metalness: 0.8 });
+      sc.add(iron, SDF.box([3.4, 1.2, 3.6], 0.4, [-28, 19.6, -95]), 0.3);
+      sc.add(iron, SDF.box([2.6, 2.4, 1.4], 0.4, [-28, 21.6, -96.2]), 0.4);
+      sc.add(iron, SDF.box([2.6, 2.4, 1.4], 0.4, [-28, 21.6, -93.6]), 0.4);
+      sc.add(steelV, SDF.cyl(0.25, 3.6, 'z', 0.05, [-28, 21.2, -92.6]), 0.1);
+      sc.add(steelV, SDF.cyl(0.15, 3.2, 'x', 0.05, [-28, 21.2, -91.0]), 0.1);
+    });
     // Trinket shelf and the chalkboard (act, race, strikes, scrap).
-    R.add(LP.box(26, 1.2, 6, wood, 0, 34, -97));
+    R.add(LP.box(30, 1.2, 6, wood, 0, 34, -97));
+    R.add(LP.box(30, 1.2, 6, wood, 0, 22, -97));
     this.chalk = { canvas: document.createElement('canvas') };
     this.chalk.canvas.width = 256; this.chalk.canvas.height = 160;
     this.chalk.tex = new THREE.CanvasTexture(this.chalk.canvas);
@@ -284,16 +304,28 @@ class Garage3D {
     R.add(this.plane(30, 6, sign, 109, 63, -55.2, 0));
     // The trader: hunched, cap, cigarette glowing.
     const t = new THREE.Group();
-    const coat = LP.mat(luxury ? '#1a1a1e' : '#3a3a2a'), skin = LP.mat('#c89a74');
-    t.add(LP.box(10, 18, 7, coat, 0, 23, 0));
-    t.add(LP.box(4, 12, 4, LP.mat('#222'), -2.5, 7, 0), LP.box(4, 12, 4, LP.mat('#222'), 2.5, 7, 0));
-    t.add(LP.mesh(new THREE.IcosahedronGeometry(3.4, 0), skin, 0, 35, 1));
-    t.add(LP.box(7.4, 2, 7.4, LP.mat(luxury ? '#141210' : '#5a2a1e'), 0, 38, 1));
-    t.add(LP.box(7, 0.6, 3, LP.mat(luxury ? '#141210' : '#5a2a1e'), 0, 37.2, 4.8));
-    if (luxury) t.add(LP.box(1.2, 4, 0.4, LP.mat('#a8322a'), 0, 28, 3.6)); // bow tie / tie
-    for (const s of [-1, 1]) t.add(LP.beam([s * 5, 30, 1], [s * 4, 21, 8], 1.4, coat));
-    t.add(LP.box(1.6, 0.4, 0.4, LP.mat('#f0e8d8'), 1.4, 34, 4.4));
-    this.ember = LP.box(0.5, 0.5, 0.5, LP.glow('#ff6a1a', 2), 2.3, 34, 4.4);
+    const coat = LP.mat(luxury ? '#1a1a1e' : '#3a3a2a'), skin = LP.mat('#c89a74'), capM = LP.mat(luxury ? '#141210' : '#5a2a1e');
+    this.sculpt(t, 'trader' + (luxury ? ':lux' : ''), 0.15, (sc) => {
+      // Hunched over the counter: coat with shoulders rolled forward, arms folded on the counter, cap pulled down.
+      sc.add(coat, SDF.cone([0, 15, -0.5], [0, 29, 1.2], 4.6, 5.2), 0.4);
+      sc.add(coat, SDF.ellipsoid([5.6, 2.6, 3.4], [0, 29.5, 1.6]), 1.2); // shoulders
+      for (const sd of [-1, 1]) {
+        sc.add(coat, SDF.cone([sd * 5, 29.5, 1.5], [sd * 4.6, 22.5, 6.5], 1.5, 1.3), 0.8); // upper arms
+        sc.add(coat, SDF.cone([sd * 4.6, 22.5, 6.5], [sd * -0.5, 22.2, 8.4], 1.3, 1.1), 0.5); // forearms folded
+        sc.add(skin, SDF.ellipsoid([1.1, 0.8, 1.2], [sd * -1.2, 22.4, 8.6]), 0.2); // hands
+        sc.add(LP.mat('#222222'), SDF.cone([sd * 2.4, 15, 0], [sd * 2.6, 1.5, 0.4], 2.1, 1.8), 0.6); // legs
+        sc.add(LP.mat('#1a1410'), SDF.box([3, 2, 5.5], 0.8, [sd * 2.6, 1, 1.4]), 0.3); // boots
+      }
+      sc.add(skin, SDF.cone([0, 30.5, 2], [0, 32.5, 2.6], 1.4, 1.3), 0.6); // neck, jutting forward
+      sc.add(skin, SDF.ellipsoid([3.0, 3.5, 3.1], [0, 35, 3]), 0.4); // head
+      sc.add(skin, SDF.ellipsoid([0.6, 1.0, 0.8], [0, 34.6, 6.1]), 0.4); // nose
+      for (const sd of [-1, 1]) sc.add(skin, SDF.ellipsoid([0.4, 0.9, 0.6], [sd * 3, 35, 2.8]), 0.3); // ears
+      sc.add(capM, SDF.ellipsoid([3.3, 1.8, 3.4], [0, 37.4, 2.8]), 0.3); // cap
+      sc.add(capM, SDF.box([5.6, 0.4, 3.4], 0.2, [0, 36.6, 6.2], [0.2, 0, 0]), 0.5); // brim
+      if (luxury) sc.add(LP.mat('#a8322a'), SDF.box([1.4, 3.6, 0.6], 0.25, [0, 27.5, 4.5]), 0.3); // tie
+      sc.add(LP.mat('#f0e8d8'), SDF.cyl(0.25, 1.8, 'x', 0.05, [1.4, 33.6, 6.3]), 0.05); // cigarette
+    });
+    this.ember = LP.mesh(new THREE.SphereGeometry(0.3, 8, 6), LP.glow('#ff6a1a', 2), 2.35, 33.6, 6.3);
     t.add(this.ember);
     t.position.set(109, 0, -72);
     this.trader = t;
@@ -324,10 +356,18 @@ class Garage3D {
       const x = -122 + (i % 6) * 5.5, y = 2.5 + Math.floor(i / 6) * 5.2;
       R.add(LP.cyl(2.2, 2.2, 5, 8, LP.mat(p.color, { metalness: 0.3 }), x, y, 94));
     });
-    R.add(LP.box(10, 10, 8, LP.mat('#a8322a'), -120, 5, 60)); // compressor
-    R.add(LP.cyl(3, 3, 8, 8, LP.mat('#a8322a'), -120, 14, 60).rotateZ(Math.PI / 2));
-    R.add(LP.beam([-115, 12, 60], [-100, 0.5, 70], 0.4, LP.mat('#1a1a1a'))); // hose
-    R.add(LP.box(6, 1.2, 3, LP.mat('#8a8f94', { metalness: 0.7 }), -100, 1.2, 72)); // spray gun on the floor
+    this.sculpt(R, 'compressor', 0.15, (sc) => { // tank on wheels, motor and pump on top, gauge, hose, spray gun
+      const red = LP.mat('#a8322a', { metalness: 0.3, roughness: 0.5 }), black = LP.mat('#1a1a1a'), metal = LP.mat('#8a8f94', { metalness: 0.7 });
+      sc.add(red, SDF.lathe([[0.1, -6], [3.2, -5.6], [3.6, -4.6], [3.6, 4.6], [3.2, 5.6], [0.1, 6]], [-120, 4.6, 60], [0, Math.PI / 2, 0]), 0.3);
+      sc.add(black, SDF.box([5, 3.6, 4.2], 0.8, [-121, 10, 60]), 0.5); // motor
+      sc.add(red, SDF.cyl(1.3, 3.4, 'y', 0.4, [-117, 10.5, 60]), 0.5); // pump head
+      sc.add(metal, SDF.cyl(0.9, 0.4, 'z', 0.15, [-116, 8.5, 63.6]), 0.2); // gauge
+      for (const sd of [-1, 1]) sc.add(black, SDF.cyl(1.3, 0.8, 'z', 0.3, [-124, 1.3, 60 + sd * 3.5]), 0.1);
+      sc.add(black, SDF.path([[-115, 8, 63], [-110, 2, 67], [-104, 0.6, 70], [-100.5, 1.4, 72]], 0.35), 0.2);
+      sc.add(metal, SDF.box([4.4, 1.0, 1.4], 0.4, [-99, 1.6, 72]), 0.3); // spray gun body
+      sc.add(metal, SDF.cone([-97, 1.8, 72], [-95.8, 1.9, 72], 0.4, 0.2), 0.2);
+      sc.add(metal, SDF.cyl(1.0, 1.6, 'y', 0.3, [-99.5, 3.2, 72]), 0.3); // paint cup
+    });
     const sign = this.tex(64, 16, (g, W, H) => { g.fillStyle = '#141210'; g.fillRect(0, 0, W, H); g.fillStyle = luxury ? '#e8c25a' : '#e8e0c8'; g.font = 'bold 12px Impact'; g.textAlign = 'center'; g.fillText('PAINT', W / 2, 13); });
     R.add(this.plane(16, 4, sign, -104, 60, 43, Math.PI));
   }
@@ -351,21 +391,47 @@ class Garage3D {
   buildClutter(R, luxury) {
     // Tool cart, tyre stack, oil drums.
     const red = LP.mat(luxury ? '#1a1a1e' : '#a8322a', { metalness: 0.4 });
-    R.add(LP.box(16, 20, 9, red, 40, 10, -20));
-    for (let k = 0; k < 4; k++) R.add(LP.box(16.2, 0.4, 9.2, LP.mat('#1a1a1a'), 40, 4 + k * 4.6, -20));
-    R.add(LP.box(8, 1, 4, LP.mat('#8a8f94', { metalness: 0.8 }), 38, 20.5, -20)); // wrench
-    const tyre = LP.mat('#151515');
-    for (let k = 0; k < 4; k++) R.add(LP.cyl(6, 6, 4, 10, tyre, -44 + (k > 2 ? 3 : 0), 2 + k * 4.2, 34));
-    for (const [x, z, c] of [[64, 64, '#2f5a6a'], [72, 56, '#7a3a22'], [58, 52, '#2f5a6a']]) {
-      R.add(LP.cyl(5, 5, 16, 10, LP.mat(luxury ? '#d8d4cc' : c, { metalness: 0.3 }), x, 8, z));
-      R.add(LP.cyl(5.1, 5.1, 1, 10, LP.mat('#222'), x, 6, z));
-    }
+    const metal = LP.mat('#8a8f94', { metalness: 0.8, roughness: 0.3 }), black = LP.mat('#1a1a1a');
+    this.sculpt(R, 'cart', 0.15, (sc) => { // tool cart: drawers with pull handles, castors, a wrench on top
+      sc.add(red, SDF.box([16, 18, 9], 0.8, [40, 11, -20]), 0.3);
+      for (let k = 0; k < 4; k++) {
+        sc.cut(SDF.box([15, 0.35, 10], 0.1, [40, 4.4 + k * 4.4, -20]), 0.1, [red]); // drawer gaps
+        sc.add(metal, SDF.cone([35, 6.4 + k * 4.4, -15.2], [45, 6.4 + k * 4.4, -15.2], 0.3, 0.3), 0.3); // handles
+      }
+      for (const [dx, dz] of [[-6.5, -3], [6.5, -3], [-6.5, 3], [6.5, 3]]) sc.add(black, SDF.cyl(1, 0.8, 'z', 0.3, [40 + dx, 1, -20 + dz]), 0.2);
+      sc.add(metal, SDF.box([7, 0.4, 0.9], 0.15, [38, 20.3, -20]), 0.1); // wrench shaft
+      for (const dx of [-3.6, 3.6]) sc.add(metal, SDF.torus(0.8, 0.3, [38 + dx, 20.3, -20], [Math.PI / 2, 0, 0]), 0.2);
+    });
+    this.sculpt(R, 'tyres', 0.2, (sc) => { // a stack of worn tyres, tread grooves cut round them
+      const tyre = LP.mat('#151515', { roughness: 0.95 });
+      for (let k = 0; k < 4; k++) {
+        const c = [-44 + (k > 2 ? 3 : 0), 2 + k * 4.2, 34];
+        sc.add(tyre, SDF.torus(4.6, 1.9, c, [Math.PI / 2, 0, 0]), 0.05);
+        for (let n = 0; n < 16; n++) { const a = (n / 16) * TAU; sc.cut(SDF.box([0.4, 2.2, 1.0], 0.1, [c[0] + Math.cos(a) * 6.5, c[1], c[2] + Math.sin(a) * 6.5], [0, -a, 0]), 0.1, [tyre]); }
+      }
+    });
+    this.sculpt(R, 'drums' + (luxury ? ':lux' : ''), 0.15, (sc) => { // oil drums with rolling hoops and a bung
+      for (const [x, z, c] of [[64, 64, '#2f5a6a'], [72, 56, '#7a3a22'], [58, 52, '#2f5a6a']]) {
+        const m = LP.mat(luxury ? '#d8d4cc' : c, { metalness: 0.3 });
+        sc.add(m, SDF.lathe([[4.8, 0], [5.0, 0.4], [5.0, 5.0], [5.25, 5.3], [5.0, 5.6], [5.0, 10.4], [5.25, 10.7], [5.0, 11.0], [5.0, 15.6], [4.8, 16], [0, 16]], [x, 0, z], [-Math.PI / 2, 0, 0]), 0.05);
+        sc.cut(SDF.cyl(4.3, 0.6, 'y', 0.2, [x, 16, z]), 0.2, [m]); // dished lid
+        sc.add(m, SDF.cyl(0.8, 0.8, 'y', 0.2, [x + 2.4, 15.8, z]), 0.2); // bung
+      }
+    });
     if (luxury) {
       // Sponsors' touches: a velvet rope and a champagne bucket.
-      for (const x of [20, 50]) { R.add(LP.cyl(0.6, 1.4, 10, 8, LP.mat('#d9b24a', { metalness: 0.7 }), x, 5, 40)); }
-      R.add(LP.beam([20, 9, 40], [50, 9, 40], 0.5, LP.mat('#8a1a2a')));
-      R.add(LP.cyl(2.6, 2, 5, 10, LP.mat('#d8dce0', { metalness: 0.8 }), 40, 21, -20));
-      R.add(LP.cyl(0.6, 0.8, 7, 6, LP.mat('#1a4a2a'), 40, 24, -20));
+      this.sculpt(R, 'rope', 0.15, (sc) => {
+        const brass = LP.mat('#d9b24a', { metalness: 0.7 });
+        for (const x of [20, 50]) {
+          sc.add(brass, SDF.lathe([[2.2, 0], [2.2, 0.5], [0.6, 1.2], [0.5, 9.4], [0.9, 10.2], [0, 10.6]], [x, 0, 40], [-Math.PI / 2, 0, 0]), 0.3);
+        }
+        sc.add(LP.mat('#8a1a2a'), SDF.path([[20.4, 9.4, 40], [35, 6.6, 40], [49.6, 9.4, 40]], 0.5), 0.2);
+      });
+      this.sculpt(R, 'champagne', 0.08, (sc) => {
+        sc.add(LP.mat('#d8dce0', { metalness: 0.8 }), SDF.lathe([[2.0, 0], [2.6, 4.6], [2.8, 5.0], [0, 5.0]], [40, 18.5, -20], [-Math.PI / 2, 0, 0]), 0.1);
+        sc.cut(SDF.cyl(2.3, 2, 'y', 0.2, [40, 23.4, -20]), 0.2);
+        sc.add(LP.mat('#1a4a2a', { metalness: 0.4, roughness: 0.2 }), SDF.lathe([[0.85, 0], [0.85, 3.6], [0.35, 5.0], [0.35, 6.2], [0.4, 6.4], [0, 6.4]], [40.5, 19.5, -20], [-Math.PI / 2 + 0.15, 0, 0]), 0.1);
+      });
     }
   }
 
@@ -408,11 +474,13 @@ class Garage3D {
     // Spare part on the floor by the lift.
     if (b.spare) D.add(LP.box(10, 6, 8, LP.mat('#5a6a3a'), 28, 3, 30));
     // Trinkets on their shelf: the only things that stay with you the whole run.
-    b.trinkets.forEach((id, i) => {
-      const m = Models.trinket(id);
-      m.scale.setScalar(1.6);
-      m.position.set(-10 + i * 5, 35, -97);
-      if (!['bobblehead', 'horseshoe', 'medal'].includes(id)) m.position.y = 44; // hung from a nail
+    // Hanging ones on nails above, flat ones leaned against the wall on the top shelf, standing ones below.
+    const slot = { hang: 0, flat: 0, stand: 0 };
+    b.trinkets.forEach((id) => {
+      const m = Models.trinket(id), mount = m.userData.mount, i = slot[mount]++;
+      if (mount === 'hang') { m.scale.setScalar(1.3); m.position.set(-13 + (i % 9) * 3.2, 47, -98); }
+      else if (mount === 'flat') { m.scale.setScalar(1.4); m.rotation.x = Math.PI / 2 - 0.3; m.position.set(-12.5 + (i % 8) * 3.6, 35.6, -98.6); }
+      else { m.scale.setScalar(Math.min(1.4, 5 / new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y)); m.rotation.y = -Math.PI / 2; m.position.set(-12.5 + (i % 8) * 3.6, 22.6, -97); }
       D.add(m);
     });
     // Goods on the commissary counter, with price tags. Click one to buy it.

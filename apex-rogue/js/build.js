@@ -67,6 +67,20 @@ const TRINKETS = {
   bobblehead: { name: 'Bobblehead', desc: '+40 scrap for every rival you wreck.' },
   freshener: { name: 'Pine Air Freshener', desc: 'Your parts are 25% more durable.' },
   medal: { name: 'St. Christopher Medal', desc: 'Swerve cooldown halved; swerving makes you untouchable for 0.4s.' },
+  lighter: { name: 'Zippo Lighter', desc: 'Your bullets have a 12% chance to set the car they hit alight.' },
+  photo: { name: 'Polaroid from Home', desc: 'Repairs in the workshop cost 30% less.' },
+  smokes: { name: 'Pack of Smokes', desc: 'Prison currency: everything in the commissary costs 15% less.' },
+  eightball: { name: 'Magic 8-Ball', desc: 'One extra card to choose from after every race.' },
+  troll: { name: 'Troll Doll', desc: 'Wall hits do 40% less damage to your hull.' },
+  sparkplug: { name: 'Lucky Spark Plug', desc: 'Nitro refills 35% faster.' },
+  tooth: { name: 'Gold Tooth', desc: '+30% scrap from placings.' },
+  dogtags: { name: 'Dog Tags', desc: '+20 maximum hull.' },
+  shoes: { name: 'Bronzed Baby Shoes', desc: 'Once per race, when your hull drops below 30%, patch 25 of it back.' },
+  compass: { name: 'Dash Compass', desc: 'Your rockets turn 40% harder towards their target.' },
+  cassette: { name: 'Mixtape', desc: 'Reloads 20% faster.' },
+  teddy: { name: 'Prison Teddy', desc: 'Your shield lasts 50% longer.' },
+  clover: { name: 'Four-Leaf Clover', desc: 'Wrecking a rival refills the magazine of the gun in your hands.' },
+  snowglobe: { name: 'Snow Globe', desc: 'Pick up a spare grenade after every race.' },
 };
 
 const CHIPS = {
@@ -230,6 +244,7 @@ function buildStats(b) {
   }
   if (partBroken(b, 'nitro')) { s.nitroCap = 0.001; s.nitroRegen = 0; }
   if (b.chip === 'daredevil') s.offroadMul *= 0.5;
+  if (has(b, 'sparkplug')) s.nitroRegen *= 1.35;
   return s;
 }
 
@@ -309,6 +324,7 @@ const ownsAbility = (b, id) => b.abilities.includes(id) || b.stash.abilities.inc
 const ownsChip = (b, id) => b.chip === id || b.stash.chips.includes(id);
 
 function rollRewards(b, rng, count) {
+  if (has(b, 'eightball')) count += 1; // one more card to choose from
   const pool = [];
   for (const id in PARTS) if (PARTS[id].price > 0 && !ownsPart(b, id)) pool.push(['part', id, 3]);
   for (const id in WEAPONS) if (!ownsWeapon(b, id)) pool.push(['weapon', id, 3]);
@@ -350,14 +366,20 @@ function rollShop(b, rng) {
   const weapons = pickN(Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id)), 1);
   const abil = pickN(Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id)), 1);
   const mods = pickN(Object.keys(MODS), 3);
-  return [
+  const out = [
     ...parts.map((id) => itemCard('part', id)), ...weapons.map((id) => itemCard('weapon', id)),
     ...abil.map((id) => itemCard('ability', id)), ...mods.map((id) => itemCard('mod', id)),
   ];
+  // Now and then a trinket under the counter, at a price.
+  const left = Object.keys(TRINKETS).filter((id) => !has(b, id));
+  if (left.length && rng() < 0.35) out.push(Object.assign(itemCard('trinket', left[Math.floor(rng() * left.length)]), { price: 260 }));
+  if (has(b, 'smokes')) for (const c of out) c.price = Math.round(c.price * 0.85);
+  return out;
 }
 
-const repairHullCost = (b) => Math.ceil((b.maxHull - b.hull) * 1.2);
-const repairPartCost = (b, slot) => Math.ceil((partMaxDur(b, b.parts[slot].id) - Math.max(0, b.parts[slot].dur)) * 0.8) + (partBroken(b, slot) ? 30 : 0);
+const repairMul = (b) => (has(b, 'photo') ? 0.7 : 1);
+const repairHullCost = (b) => Math.ceil((b.maxHull - b.hull) * 1.2 * repairMul(b));
+const repairPartCost = (b, slot) => Math.ceil(((partMaxDur(b, b.parts[slot].id) - Math.max(0, b.parts[slot].dur)) * 0.8 + (partBroken(b, slot) ? 30 : 0)) * repairMul(b));
 const spareCost = (b, slot) => Math.max(60, Math.round(PARTS[b.parts[slot].id].price * 0.6));
 
 // New items go into the stash, or straight into a free slot. Only trinkets are permanent.
@@ -379,6 +401,7 @@ function applyItem(b, card) {
   } else if (card.type === 'trinket') {
     b.trinkets.push(card.id);
     if (card.id === 'freshener') for (const inst of [...Object.values(b.parts), ...b.stash.parts]) inst.dur = Math.round(inst.dur * 1.25);
+    if (card.id === 'dogtags') { b.maxHull += 20; b.hull += 20; }
   } else if (card.type === 'chip') {
     if (!b.chip) b.chip = card.id;
     else b.stash.chips.push(card.id);
