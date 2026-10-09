@@ -291,52 +291,81 @@ class Garage3D {
     const frame = LP.mat('#2a2a2a', { metalness: 0.5 });
     for (const [x, z] of [[88, -56], [88, -100], [130, -56]]) R.add(LP.box(1.6, 60, 1.6, frame, x, 30, z));
     R.add(LP.box(44, 1.6, 1.6, frame, 109, 60, -56));
-    // Counter through the hatch.
-    const counter = LP.mat(luxury ? '#2a2826' : '#4a3a2a');
-    R.add(LP.box(16, 20, 10, counter, 109, 10, -60));
-    R.add(this.hot(LP.box(30, 1.6, 16, LP.mat(luxury ? '#e8e2d4' : '#6a5a44'), 109, 20.8, -56), 'tab', 'market', 'Commissary: buy from the black market'));
-    // Sign.
+    // Counter: planked front, a steel top worn bright, the barred hatch above it.
+    const wood = LP.mat(luxury ? '#2a2018' : '#5a4430', { roughness: 0.9 }), steel = LP.mat(luxury ? '#c9a443' : '#7a7c7e', { metalness: 0.6, roughness: 0.4 });
+    const dark = LP.mat('#1a1816', { roughness: 0.8 });
+    this.sculpt(R, 'counter' + (luxury ? ':lux' : ''), 0.35, (sc) => {
+      sc.add(wood, SDF.box([30, 19.4, 10], 0.4, [109, 9.7, -61]), 0.3);
+      for (let k = 0; k < 6; k++) sc.cut(SDF.box([0.4, 18, 0.6], 0.1, [96 + k * 5.2, 10, -55.9]), 0.1, [wood]); // plank seams
+      sc.add(steel, SDF.box([31, 1.2, 11], 0.4, [109, 20.2, -60.5]), 0.2); // the top
+      for (let k = 0; k < 9; k++) sc.add(steel, SDF.cyl(0.35, 18, 'y', 0.1, [96.5 + k * 3.1, 39.5, -56.2]), 0.1); // bars over the hatch
+      sc.add(steel, SDF.box([30, 1.4, 1.2], 0.3, [109, 30.6, -56.2]), 0.2); // the gap you pass scrap through
+      sc.add(steel, SDF.box([30, 1.4, 1.2], 0.3, [109, 48.6, -56.2]), 0.2);
+      sc.add(dark, SDF.box([6, 2.4, 4.4], 0.3, [119, 22.1, -63]), 0.2); // cash box
+      sc.add(steel, SDF.box([6.2, 0.3, 4.6], 0.1, [119, 23.4, -63]), 0.05);
+      sc.add(LP.mat('#6a1e1a', { roughness: 0.9 }), SDF.box([5, 0.9, 6.5], 0.2, [100, 21.2, -64], [0, 0.3, 0]), 0.1); // the ledger
+      sc.add(LP.mat('#3a3a3a', { metalness: 0.5 }), SDF.cyl(1.4, 0.6, 'y', 0.2, [124, 21.1, -59]), 0.2); // ashtray
+    });
+    R.add(this.hot(LP.box(30, 1.6, 16, LP.mat(luxury ? '#e8e2d4' : '#6a5a44', { transparent: true, opacity: 0 }), 109, 20.8, -56), 'tab', 'market', 'Commissary: buy from the black market'));
+    // Sign: lit letters on a dark board, and a string of bulbs along the cage.
     const sign = this.tex(128, 24, (g, W, H) => {
-      g.fillStyle = luxury ? '#141210' : '#c9a227'; g.fillRect(0, 0, W, H);
-      g.fillStyle = luxury ? '#e8c25a' : '#141210'; g.font = 'bold 16px Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillStyle = '#100e0c'; g.fillRect(0, 0, W, H);
+      g.fillStyle = luxury ? '#ffd86a' : '#ff9a3a'; g.font = 'bold 17px Impact, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(luxury ? 'CONCIERGE' : 'COMMISSARY', W / 2, H / 2 + 1);
     });
-    R.add(this.plane(30, 6, sign, 109, 63, -55.2, 0));
-    // The trader: hunched, cap, cigarette glowing.
-    const t = new THREE.Group();
-    const coat = LP.mat(luxury ? '#1a1a1e' : '#3a3a2a'), skin = LP.mat('#c89a74'), capM = LP.mat(luxury ? '#141210' : '#5a2a1e');
-    this.sculpt(t, 'trader' + (luxury ? ':lux' : ''), 0.15, (sc) => {
-      // Hunched over the counter: coat with shoulders rolled forward, arms folded on the counter, cap pulled down.
-      sc.add(coat, SDF.cone([0, 15, -0.5], [0, 29, 1.2], 4.6, 5.2), 0.4);
-      sc.add(coat, SDF.ellipsoid([5.6, 2.6, 3.4], [0, 29.5, 1.6]), 1.2); // shoulders
-      for (const sd of [-1, 1]) {
-        sc.add(coat, SDF.cone([sd * 5, 29.5, 1.5], [sd * 4.6, 22.5, 6.5], 1.5, 1.3), 0.8); // upper arms
-        sc.add(coat, SDF.cone([sd * 4.6, 22.5, 6.5], [sd * -0.5, 22.2, 8.4], 1.3, 1.1), 0.5); // forearms folded
-        sc.add(skin, SDF.ellipsoid([1.1, 0.8, 1.2], [sd * -1.2, 22.4, 8.6]), 0.2); // hands
-        sc.add(LP.mat('#222222'), SDF.cone([sd * 2.4, 15, 0], [sd * 2.6, 1.5, 0.4], 2.1, 1.8), 0.6); // legs
-        sc.add(LP.mat('#1a1410'), SDF.box([3, 2, 5.5], 0.8, [sd * 2.6, 1, 1.4]), 0.3); // boots
-      }
-      sc.add(skin, SDF.cone([0, 30.5, 2], [0, 32.5, 2.6], 1.4, 1.3), 0.6); // neck, jutting forward
-      sc.add(skin, SDF.ellipsoid([3.0, 3.5, 3.1], [0, 35, 3]), 0.4); // head
-      sc.add(skin, SDF.ellipsoid([0.6, 1.0, 0.8], [0, 34.6, 6.1]), 0.4); // nose
-      for (const sd of [-1, 1]) sc.add(skin, SDF.ellipsoid([0.4, 0.9, 0.6], [sd * 3, 35, 2.8]), 0.3); // ears
-      sc.add(capM, SDF.ellipsoid([3.3, 1.8, 3.4], [0, 37.4, 2.8]), 0.3); // cap
-      sc.add(capM, SDF.box([5.6, 0.4, 3.4], 0.2, [0, 36.6, 6.2], [0.2, 0, 0]), 0.5); // brim
-      if (luxury) sc.add(LP.mat('#a8322a'), SDF.box([1.4, 3.6, 0.6], 0.25, [0, 27.5, 4.5]), 0.3); // tie
-      sc.add(LP.mat('#f0e8d8'), SDF.cyl(0.25, 1.8, 'x', 0.05, [1.4, 33.6, 6.3]), 0.05); // cigarette
-    });
-    this.ember = LP.mesh(new THREE.SphereGeometry(0.3, 8, 6), LP.glow('#ff6a1a', 2), 2.35, 33.6, 6.3);
-    t.add(this.ember);
-    t.position.set(109, 0, -72);
+    R.add(this.plane(30, 6, sign, 109, 63, -55.2, 0, { emissive: '#ffffff', emissiveMap: sign, emissiveIntensity: 0.9 }));
+    for (let k = 0; k < 11; k++) R.add(LP.mesh(new THREE.SphereGeometry(0.55, 8, 6), LP.glow(k % 3 ? '#ffd27a' : luxury ? '#ffe8b0' : '#ff8a3a', 1.6), 89 + k * 4, 58.5 - Math.sin((k / 10) * Math.PI) * 2.4, -55.6));
+    // Hand-lettered notices on the cage.
+    const note = (text, w, h, x, y, z, ry, bg) => R.add(this.plane(w, h, this.tex(64, Math.round(64 * h / w), (g, W, H) => {
+      g.fillStyle = bg; g.fillRect(0, 0, W, H); g.fillStyle = '#1a1410'; g.font = 'bold 10px monospace'; g.textAlign = 'center';
+      text.split('|').forEach((ln, i, all) => g.fillText(ln, W / 2, H / 2 - (all.length - 1) * 6 + i * 12 + 4));
+    }), x, y, z, ry));
+    if (luxury) { note('BY|APPOINTMENT', 10, 6, 99, 40, -55.4, 0, '#f0e8d0'); note('ALL SALES|DISCREET', 10, 6, 121, 40, -55.4, 0, '#f0e8d0'); }
+    else { note('CASH ONLY|SCRAP ONLY', 10, 6, 99, 40, -55.4, 0, '#e8d8a8'); note('NO CREDIT|NO REFUNDS', 10, 6, 121, 40, -55.4, 0, '#d8b090'); note('THE WARDEN|TAKES 10%', 9, 6, 88.4, 34, -66, Math.PI / 2, '#c8c0a8'); }
+    // The trader: a big man with his arms folded, cap down, cigarette going.
+    const t = People.figure({ seed: luxury ? 77 : 41, pose: 'stand', role: 'trader', cell: 0.1, suit: luxury ? '#1a1a1e' : '#3a3a2a', looks: { gear: 'cap', hat: luxury ? '#141210' : '#5a2a1e', beard: !luxury, shades: false } });
+    t.scale.setScalar(2.3);
+    t.position.set(109, 19.8, -72);
+    t.rotation.y = -Math.PI / 2;
+    this.ember = LP.mesh(new THREE.SphereGeometry(0.13, 8, 6), LP.glow('#ff6a1a', 2), 1.05, 0.48, 0.2);
+    t.userData.head.add(this.ember);
+    t.userData.head.add(LP.mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.6, 6).rotateZ(Math.PI / 2), LP.mat('#f0e8d8'), 0.85, 0.48, 0.18)); // the cigarette
     this.trader = t;
     R.add(t);
-    // Shelves of contraband behind him.
-    for (const y of [16, 30, 44]) {
-      R.add(LP.box(4, 1.2, 40, counter, 127, y, -78));
-      for (let k = 0; k < 6; k++) R.add(LP.box(3, 4 + (k % 3) * 2, 4, LP.mat(['#6a5a3a', '#3a4a5a', '#7a3a2a', '#4a5a3a'][(k + y) % 4]), 127, y + 2.6 + (k % 3), -94 + k * 6.4));
-    }
+    // Shelves of contraband behind him: cartons of smokes, tins, bottles, ammo, oil.
+    const shelfWood = LP.mat(luxury ? '#3a2a1e' : '#4a3a2a', { roughness: 0.9 });
+    const goods = {
+      carton: LP.mat('#e8e4dc', { roughness: 0.8 }), band: LP.mat('#b0281e'), tin: LP.mat('#9aa0a6', { metalness: 0.6, roughness: 0.4 }),
+      label: LP.mat('#d9b52c'), bottle: LP.mat('#3a5a2a', { metalness: 0.2, roughness: 0.15 }), amber: LP.mat('#7a4a1a', { metalness: 0.2, roughness: 0.2 }),
+      ammo: LP.mat('#4b5a2e', { roughness: 0.7 }), stencil: LP.mat('#e8c21a'), oil: LP.mat('#b5452a', { roughness: 0.5 }),
+    };
+    this.sculpt(R, 'shelves' + (luxury ? ':lux' : ''), 0.3, (sc) => {
+      const rnd = mulberry32(luxury ? 9 : 4);
+      for (const y of [14, 27, 40]) {
+        sc.add(shelfWood, SDF.box([6, 1.2, 40], 0.2, [126, y, -78]), 0.1);
+        for (let z = -96; z < -61;) {
+          const k = Math.floor(rnd() * 5), x = 126 + (rnd() - 0.5) * 1.5;
+          if (k === 0) { for (let s = 0; s < 3; s++) { sc.add(goods.carton, SDF.box([3, 1.3, 2.2], 0.15, [x, y + 1.3 + s * 1.35, z + 1.1]), 0.05); sc.add(goods.band, SDF.box([3.05, 0.4, 2.25], 0.05, [x, y + 1.3 + s * 1.35, z + 1.1]), 0.02); } z += 3.2; }
+          else if (k === 1) { for (let s = 0; s < 3; s++) { sc.add(goods.tin, SDF.cyl(0.85, 1.9, 'y', 0.12, [x, y + 1.6, z + 1 + s * 1.9]), 0.05); sc.add(goods.label, SDF.cyl(0.88, 0.9, 'y', 0.05, [x, y + 1.6, z + 1 + s * 1.9]), 0.02); } z += 6.2; }
+          else if (k === 2) { for (let s = 0; s < 2; s++) { const m = s ? goods.amber : goods.bottle; sc.add(m, SDF.lathe([[0, 0], [0.85, 0.05], [0.9, 2.8], [0.4, 3.8], [0.3, 4.6], [0, 4.7]], [x, y + 0.6, z + 1 + s * 2.2], [-Math.PI / 2, 0, 0]), 0.1); } z += 4.8; }
+          else if (k === 3) { sc.add(goods.ammo, SDF.box([4, 2.6, 4.4], 0.25, [x, y + 1.9, z + 2.2]), 0.1); sc.add(goods.stencil, SDF.box([0.1, 0.8, 2.6], 0.05, [x - 2.0, y + 2.1, z + 2.2]), 0.02); z += 5; }
+          else { sc.add(goods.oil, SDF.box([2.4, 4.2, 1.8], 0.3, [x, y + 2.7, z + 1]), 0.1); sc.add(goods.tin, SDF.cyl(0.35, 0.6, 'y', 0.1, [x, y + 5.0, z + 0.6]), 0.05); z += 2.6; }
+          z += 0.6;
+        }
+      }
+      // Crates stacked in the corner of the booth.
+      for (const [cx, cy, cz] of [[95, 3.5, -94], [95, 10.5, -94], [102, 3.5, -95]]) {
+        sc.add(shelfWood, SDF.box([7, 7, 7], 0.4, [cx, cy, cz]), 0.2);
+        for (const d of [-1, 1]) sc.add(goods.ammo, SDF.box([7.2, 0.8, 7.2], 0.2, [cx, cy + d * 2.4, cz]), 0.1);
+      }
+    });
+    // A warm lamp over the counter, and its light.
     R.add(LP.beam([109, 72, -66], [109, 54, -66], 0.15, LP.mat('#111')));
-    R.add(LP.mesh(new THREE.IcosahedronGeometry(1.2, 0), LP.glow('#ffc878', 2), 109, 53, -66));
+    R.add(LP.mesh(new THREE.ConeGeometry(3.2, 2.6, 12, 1, true), LP.mat('#2a3a2a', { side: THREE.DoubleSide, metalness: 0.4 }), 109, 54.4, -66));
+    R.add(LP.mesh(new THREE.IcosahedronGeometry(1.0, 1), LP.glow('#ffc878', 2.4), 109, 53.2, -66));
+    const lamp = new THREE.PointLight('#ffb870', 2.4, 90, 1.4);
+    lamp.position.set(109, 50, -66);
+    R.add(lamp);
   }
 
   buildBooth(R, luxury) {
@@ -510,13 +539,9 @@ class Garage3D {
       let m;
       if (c.type === 'weapon') { m = Models.weapon(c.id); m.rotation.set(-Math.PI / 2, 0, Math.PI / 2); m.scale.setScalar(0.5); }
       else if (c.type === 'trinket') { m = Models.trinket(c.id); m.scale.setScalar(0.9); }
-      else if (c.type === 'mod') { m = LP.box(3, 2.2, 3, LP.mat('#3a3632')); m.add(LP.box(3.1, 0.6, 3.1, LP.mat(rarity[c.rarity] || '#888'), 0, 0.5, 0)); }
-      else if (c.type === 'ability') m = LP.cyl(1.4, 1.4, 4, 8, LP.mat('#d9b52c'));
-      else if (c.type === 'chip') m = LP.box(3.4, 0.6, 2.4, LP.mat('#2a6a3a'));
-      else m = LP.box(4.6, 3.4, 3.6, LP.mat('#5a6a3a'));
+      else m = Models.shopProp(c, rarity[c.rarity] || '#888'); // a little prop per kind of goods
       const g = new THREE.Group();
       g.add(m);
-      if (c.type === 'ability' || c.type === 'mod' || c.type === 'part') m.position.y = 1.4;
       const tag = this.tex(32, 16, (t, W, H) => { t.fillStyle = '#f0e8d0'; t.fillRect(0, 0, W, H); t.fillStyle = '#1a1a1a'; t.font = 'bold 11px monospace'; t.textAlign = 'center'; t.fillText(String(c.price), W / 2, 12); });
       const tg = this.plane(2.4, 1.2, tag, 0, 4 + (i % 2) * 1.5, 1.6, 0);
       g.add(tg);
@@ -650,7 +675,7 @@ class Garage3D {
     this.lights[1].intensity = Math.sin(t * 23) > 0.94 ? 0.2 : 1.2;
     this.ember.material.emissiveIntensity = 1.4 + Math.sin(t * 3) * 0.8;
     this.cctv.visible = Math.floor(t * 1.2) % 2 === 0;
-    this.trader.rotation.y = Math.sin(t * 0.4) * 0.15;
+    this.trader.rotation.y = -Math.PI / 2 + Math.sin(t * 0.4) * 0.15;
     // Hovered goods glow warm (no movement, so the click always lands on what you hovered).
     if (this.glowing !== this.hover) {
       const set = (o, on) => o && o.userData.baseY != null && o.traverse((m) => {

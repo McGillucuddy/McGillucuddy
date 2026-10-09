@@ -588,12 +588,59 @@ class CockpitView {
 
   // ---------- Interior ----------
 
+  // People in your car: your driver at the wheel (arms re-posed every frame so the hands stay on the rim as it
+  // turns), and your own body in the passenger seat (no head: the camera is your head) for when you look down.
+  buildCrew(I) {
+    const cab = this.look3d.cabin || {}, inmate = String(cab.inmate || '4471'), seed = (parseInt(inmate, 10) || 4471) * 3 + 11;
+    const drv = People.figure({ seed, role: 'driver', arms: 'none', cell: 0.08 });
+    drv.position.set(-1.9, 4.45, -4.5);
+    I.add(drv);
+    const me = People.figure({ seed: seed + 1, role: 'passenger', head: false, arms: 'none', cell: 0.08, number: inmate, looks: { suit: '#a8521e' } });
+    me.position.set(EYE.x - 0.95, 4.45, EYE.z);
+    I.add(me);
+    // Fists on the rim at ten to two (in the wheel's own frame its +x is the driver's left), riding the wheel.
+    const M = drv.userData.M, fists = [];
+    for (const [a, side] of [[0.55, -1], [Math.PI - 0.55, 1]]) {
+      const f = new THREE.Group(), sc = new Sculpt('person:fist:' + side, 0.05);
+      People.fist(sc, M, [0, 0, -0.15], [0, 0, 1], side);
+      sc.build(f);
+      f.position.set(Math.cos(a) * 2.6, Math.sin(a) * 2.6, 0);
+      this.wheel.add(f);
+      fists.push(f);
+    }
+    this.myCrew = { drv, me, I, fists, arms: People.liveArms(I, M.suit, 2), glance: 0, glanceT: 3 };
+  }
+
+  animateMyCrew(dt, t) {
+    const C = this.myCrew;
+    if (!C) return;
+    const d = C.drv.userData, I = C.I, p = this.race.player;
+    // Head: watching the road, a glance at the mirror now and then, a look over at you when you open fire.
+    C.glanceT -= dt;
+    if (C.glanceT <= 0) { C.glanceT = 2.5 + Math.random() * 5; C.glance = Math.random() < 0.5 ? 0.55 : -0.3; C.glanceDur = 0.6 + Math.random() * 0.6; }
+    if (this.combat.lastFire < 0.05 && Math.random() < 0.02) { C.glance = 0.7; C.glanceDur = 0.5; }
+    C.glanceDur = (C.glanceDur || 0) - dt;
+    const want = C.glanceDur > 0 ? C.glance : 0;
+    C.yaw = lerp(C.yaw || 0, want, Math.min(1, dt * 8));
+    d.head.rotation.set(Math.sin(t * 7) * 0.02 * Math.min(1, p.speed / 300), C.yaw, Math.sin(t * 0.7) * 0.03);
+    d.torso.rotation.x = clamp(-(this.acc ? this.acc.lat : 0) * 0.00008, -0.12, 0.12); // leaning into the corners
+    // Arms: shoulder to the fist on the rim, elbows down and out.
+    C.drv.updateMatrixWorld(true);
+    this.wheel.updateMatrixWorld(true);
+    d.shoulders.forEach((sh, k) => {
+      const S = I.worldToLocal(d.torso.localToWorld(new THREE.Vector3(...sh)));
+      const W = I.worldToLocal(C.fists[k].localToWorld(new THREE.Vector3(-0.15, -0.1, -0.45)));
+      People.poseArm(C.arms[k], S, W, new THREE.Vector3(-0.2, -1, (k === 0 ? -1 : 1) * 0.6));
+    });
+  }
+
   buildInterior() {
     const { group: I, refs } = Models.interior(this.race.player.color, { cabin: this.look3d.cabin });
     this.ornament = refs.ornament ? refs.ornament.userData.sway : null;
     this.wheel = refs.wheel;
     this.nadeMeshes = refs.nades;
     this.buildLoadout(I);
+    this.buildCrew(I);
     // Live textures: mirror feed, dashboard screens, windshield cracks.
     const mirTex = this.mirrorRT.texture;
     mirTex.wrapS = THREE.RepeatWrapping;
@@ -1071,6 +1118,7 @@ class CockpitView {
     }
 
     this.wheel.rotation.z = -(p.input ? p.input.steer : 0) * 2.2;
+    this.animateMyCrew(dt, t);
 
     // Bad wiring: the bulb mostly glows, sometimes stutters or drops out.
     if (Math.random() < dt * 1.5) this.flickerT = 0.05 + Math.random() * 0.35;

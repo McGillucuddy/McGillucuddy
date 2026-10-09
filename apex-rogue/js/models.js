@@ -1129,12 +1129,13 @@ const Models = {
       // A crew you can see through the glass (rivals): the driver on the left, a gunner beside them if armed.
       if (opts.crew) {
         glass.transparent = true; glass.opacity = 0.42; glass.depthWrite = false;
-        const hx = cab[1][0] - 0.35 * (cab[1][0] - cab[2][0]), hipY = Math.max(belt - 2.6, roofY - 6.3);
+        const hx = cab[1][0] - 0.35 * (cab[1][0] - cab[2][0]), hipY = Math.max(belt - 3.8, roofY - 7.2); // heads (and hats) clear of the roof
         const crew = {};
         for (const role of ['driver', 'gunner']) {
           if (role === 'gunner' && !opts.crew.gunner) continue;
           const f = Models.crewFigure(role, opts.crew.seed + (role === 'gunner' ? 7 : 0), opts.crew.helmet);
           f.position.set(hx - 0.3, hipY, (role === 'driver' ? -1 : 1) * cw * 0.26);
+          f.scale.setScalar(0.88);
           g.add(f);
           crew[role] = f;
         }
@@ -2911,40 +2912,46 @@ const Models = {
       : id === 'nailgun' ? Models.nailGun() : id === 'flamer' ? Models.flamer() : id === 'harpoon' ? Models.harpoonGun() : Models.smg();
   },
 
+  // Goods on the commissary counter: an engine block, a tyre, an armour plate, a nitro bottle; an attachment in a
+  // taped cardboard box (tape in its rarity's colour); an ability canister; a driver chip on its board.
+  shopProp(card, rarityCol) {
+    const g = new THREE.Group(), kind = card.type === 'part' ? PARTS[card.id].slot : card.type;
+    const sc = new Sculpt('shopprop:' + kind, 0.08);
+    const steel = LP.mat('#6a6c6e', { metalness: 0.6, roughness: 0.45 }), dark = LP.mat('#2a2a2a', { roughness: 0.7 });
+    if (kind === 'engine') {
+      sc.add(steel, SDF.box([3.6, 2.2, 2.4], 0.3, [0, 1.1, 0]), 0.2);
+      for (let k = 0; k < 3; k++) sc.add(dark, SDF.cyl(0.5, 0.6, 'y', 0.1, [-1.1 + k * 1.1, 2.5, 0]), 0.1); // cylinder heads
+      sc.add(LP.mat('#a8221a'), SDF.box([3.4, 0.4, 0.6], 0.1, [0, 2.3, 0.9]), 0.05);
+    } else if (kind === 'tyres') {
+      sc.add(dark, SDF.torus(1.5, 0.7, [0, 0.7, 0], [Math.PI / 2, 0, 0]), 0.1);
+      sc.add(steel, SDF.cyl(0.9, 1.1, 'y', 0.1, [0, 0.7, 0]), 0.05);
+    } else if (kind === 'armour') {
+      sc.add(DECALS.mat('rust', { metalness: 0.5, roughness: 0.85 }), SDF.box([4, 0.5, 3], 0.15, [0, 0.3, 0], [0.1, 0, 0]), 0.05);
+      for (const [x, z] of [[-1.6, -1.1], [1.6, -1.1], [-1.6, 1.1], [1.6, 1.1]]) sc.add(steel, SDF.ellipsoid([0.2, 0.15, 0.2], [x, 0.6, z]), 0.03);
+    } else if (kind === 'nitro') {
+      sc.add(LP.mat('#2a4a8a', { metalness: 0.4, roughness: 0.4 }), SDF.lathe([[0, -1.8], [0.75, -1.7], [0.8, 1.2], [0.4, 1.7], [0, 1.8]], [0, 1.0, 0], [Math.PI / 2, 0, 0]), 0.05);
+      sc.add(steel, SDF.cyl(0.25, 0.6, 'y', 0.05, [0, 3.0, 0]), 0.05);
+    } else if (kind === 'mod') {
+      sc.add(LP.mat('#8a6a3a', { roughness: 0.95 }), SDF.box([3, 2.2, 3], 0.08, [0, 1.1, 0]), 0.03);
+      sc.add(LP.mat(rarityCol, { roughness: 0.9 }), SDF.box([3.05, 0.5, 0.8], 0.05, [0, 2.0, 0]), 0.02); // the tape
+    } else if (kind === 'ability') {
+      sc.add(LP.mat('#d9b52c', { metalness: 0.3, roughness: 0.5 }), SDF.cyl(1.2, 3.6, 'y', 0.25, [0, 1.8, 0]), 0.1);
+      sc.add(dark, SDF.cyl(1.25, 0.6, 'y', 0.1, [0, 2.6, 0]), 0.05);
+      sc.add(steel, SDF.cyl(0.4, 0.5, 'y', 0.1, [0, 3.8, 0]), 0.05);
+    } else { // chip
+      sc.add(LP.mat('#2a6a3a', { roughness: 0.6 }), SDF.box([3.4, 0.3, 2.4], 0.08, [0, 0.15, 0]), 0.02);
+      for (let k = 0; k < 3; k++) sc.add(dark, SDF.box([0.8, 0.3, 0.8], 0.05, [-1 + k, 0.4, 0]), 0.02);
+    }
+    sc.build(g);
+    return g;
+  },
+
   // ---------- Crew: the people in the rival cars ----------
 
   // A seated figure in a prison jumpsuit, hands on the wheel (driver) or on a gun (gunner). Origin at the hips,
   // +x forward. The torso and head are their own pivots so the 3D view can make them flinch and slump.
   crewFigure(role, seed, helmet) {
-    const r = mulberry32((seed * 7919) >>> 0);
-    const g = new THREE.Group();
-    const suit = LP.mat(['#d96a1e', '#c85a14', '#d9a01e', '#6f6f68'][Math.floor(r() * 4)], { roughness: 0.95 });
-    const skin = LP.mat(['#e0b89a', '#c48a64', '#8a5a3a', '#5a3a26', '#f0cdb0'][Math.floor(r() * 5)], { roughness: 0.8 });
-    const dark = LP.mat('#1c1c1c', { roughness: 0.7 }), hatC = LP.mat(['#2a2a2e', '#7a1e1a', '#2a4a6a', '#3a4a2a'][Math.floor(r() * 4)], { roughness: 0.9 });
-    const key = 'crew:' + role + ':' + (helmet ? 'h' : 'n');
-    const hv = Math.floor(r() * 3); // which headgear
-    const body = new Sculpt(key + ':body', 0.12), head = new Sculpt(key + ':head:' + hv, 0.1);
-    body.add(suit, SDF.box([1.8, 3.2, 2.7], 0.75, [0, 1.8, 0], [0, 0, 0.12]), 0.4); // torso, leaning back a touch
-    body.add(suit, SDF.box([2.6, 1.2, 2.5], 0.5, [0.9, 0.1, 0]), 0.4); // lap
-    const hands = role === 'driver' ? [[2.9, 2.9, -0.85], [2.9, 2.9, 0.85]] : [[2.4, 2.2, 0.2], [1.6, 2.0, -0.6]];
-    for (const [k, sd] of [[0, -1], [1, 1]]) {
-      const sh = [0.1, 3.0, sd * 1.25], el = [1.4, 2.2, sd * 1.45], h = hands[k];
-      body.add(suit, SDF.path([sh, el, h], 0.42), 0.25); // arm
-      body.add(skin, SDF.ellipsoid([0.42, 0.36, 0.36], h), 0.15); // hand
-    }
-    if (role === 'driver') body.add(dark, SDF.torus(1.25, 0.16, [3.1, 3.0, 0], [0, Math.PI / 2 - 0.35, 0]), 0.05); // steering wheel
-    else body.add(dark, SDF.box([2.6, 0.5, 0.4], 0.12, [2.6, 2.4, 0]), 0.1); // the gun
-    body.add(skin, SDF.cyl(0.42, 0.7, 'y', 0.15, [0.15, 3.6, 0]), 0.2); // neck
-    head.add(skin, SDF.ellipsoid([1.0, 1.15, 0.92], [0, 0.95, 0]), 0.2);
-    if (helmet) head.add(dark, SDF.ellipsoid([1.15, 1.0, 1.05], [-0.1, 1.45, 0]), 0.15); // a boss's helmet
-    else if (hv > 0) head.add(hatC, hv === 1 ? SDF.ellipsoid([1.05, 0.62, 0.98], [-0.08, 1.6, 0]) : SDF.box([2.0, 0.42, 1.95], 0.2, [-0.05, 1.55, 0]), 0.2); // beanie, bandana, or a shaved head
-    head.add(dark, SDF.box([0.25, 0.22, 1.5], 0.08, [0.9, 1.05, 0]), 0.05); // dark glasses
-    const torso = new THREE.Group(); g.add(torso);
-    body.build(torso);
-    const hg = new THREE.Group(); hg.position.set(0.15, 3.9, 0); torso.add(hg);
-    head.build(hg);
-    g.userData = { torso, head: hg };
-    return g;
+    return People.figure({ seed, role, helmet, cell: 0.14 }); // see js/people.js
   },
 
   // ---------- Track features: ramps and obstacles (local +x runs along the track) ----------

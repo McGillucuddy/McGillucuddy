@@ -62,6 +62,13 @@ Big guns punch the view. A brief ragged muzzle flame flickers light over your ha
   - **Gunner:** hits break their lock, and killing them silences the car's weapon.
   - **Bosses:** they wear helmets, so their crews take several times the punishment.
   - **Feedback:** a red X on the crosshair marks a crew hit, and a gold one a kill.
+- **People** (`js/people.js`): one sculpted body for everyone. Each has a head with a jaw, brow, nose, eyes and ears, under a beanie, bandana, cap, helmet or a shaved scalp, with an optional beard and shades.
+  The jumpsuit has a collar, pockets, a number patch and creased legs, and the limbs are posed from joint positions.
+  - **Your driver:** sits at the wheel with arms re-posed every frame, so their fists ride the rim as it turns. They glance at the mirror, look over when you open fire, and lean into corners.
+  - **You:** look down and you see your own chest, lap and legs.
+- **Commissary:** a planked counter with a barred hatch, a cash box, ledger and ashtray, and shelves of contraband (smokes, tins, bottles, ammo, oil).
+  It has crates, hand-lettered notices, a lit sign and a string of bulbs, all under a warm lamp. The trader is built from the same body, arms folded, cigarette going.
+  Goods on the counter are props: an engine block, a tyre, a plate, a bottle, a taped box for attachments, a canister, a chip board.
 - **Physics:** cars have a height and a body on springs. The nose dips under braking and lifts under power, and the body leans out of turns.
   Braking loads the front tyres for a sharper turn-in.
 
@@ -334,6 +341,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
 | `js/input.js`, `js/audio.js`, `js/music.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound, the menu theme |
 | `js/tutorial.js` | Tutorial steps and the in-race coach card |
+| `js/people.js` | People: the sculpted body used for drivers, crews, your own body and the trader; live two-bone arms |
 | `js/weather.js` | Weather: per-stop forecasts, effects, cockpit particles and lightning, windshield drops, ambience |
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
