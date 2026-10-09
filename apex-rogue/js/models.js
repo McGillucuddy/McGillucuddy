@@ -557,6 +557,59 @@ const DECALS = {
   },
 };
 
+// Camo patterns for gun finishes: seamless 128px tiles, every shape drawn wrapped round the edges.
+const CAMO = {
+  cache: {},
+  PAL: {
+    camo: ['#5a6040', '#3a3a26', '#7a6a48', '#262a1c'], // woodland
+    camo_desert: ['#c8b088', '#a08660', '#e2d2ac', '#7a6448'],
+    camo_urban: ['#8a8c8e', '#5a5c60', '#b8babc', '#2e3034'],
+    camo_arctic: ['#e6eaee', '#b8c0c8', '#8a949e', '#fafcfd'],
+    camo_tiger: ['#6a7448', '#2a2e1a', '#3c4428', '#8a8a5a'],
+    camo_digital: ['#5a6240', '#3a4228', '#7e8058', '#22281a'],
+    camo_crimson: ['#8a1a14', '#1a0a08', '#4a0e0a', '#b0281e'],
+  },
+  get(id) {
+    if (this.cache[id]) return this.cache[id];
+    const S = 128, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const g = c.getContext('2d'), pal = this.PAL[id] || this.PAL.camo, r = mulberry32(id.length * 977 + 13);
+    g.fillStyle = pal[0]; g.fillRect(0, 0, S, S);
+    const wrap = (fn) => { for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) { g.save(); g.translate(dx, dy); fn(); g.restore(); } };
+    if (id === 'camo_digital') { // clumps of square pixels
+      const P = 4;
+      for (const col of pal.slice(1)) for (let k = 0; k < 9; k++) {
+        let x = Math.floor(r() * 32), y = Math.floor(r() * 32);
+        g.fillStyle = col;
+        for (let j = 0; j < 26; j++) { g.fillRect(((x + 32) % 32) * P, ((y + 32) % 32) * P, P, P); x += Math.floor(r() * 3) - 1; y += Math.floor(r() * 3) - 1; }
+      }
+    } else if (id === 'camo_tiger' || id === 'camo_crimson') { // wavy, broken horizontal stripes
+      for (let k = 0; k < 11; k++) {
+        const y0 = r() * S, len = 40 + r() * 70, x0 = r() * S, th = 3 + r() * 5, col = pal[1 + (k % 3)];
+        wrap(() => {
+          g.fillStyle = col; g.beginPath();
+          for (let t = 0; t <= 1.001; t += 0.1) g.lineTo(x0 + t * len, y0 + Math.sin(t * 6 + k) * 5 - th * Math.sin(t * Math.PI));
+          for (let t = 1; t >= -0.001; t -= 0.1) g.lineTo(x0 + t * len, y0 + Math.sin(t * 6 + k) * 5 + th * Math.sin(t * Math.PI));
+          g.fill();
+        });
+      }
+    } else { // organic blobs, each a cluster of overlapping circles
+      for (const col of pal.slice(1)) for (let k = 0; k < 7; k++) {
+        const cx = r() * S, cy = r() * S, n = 3 + Math.floor(r() * 4), pts = [];
+        for (let j = 0; j < n; j++) pts.push([cx + (r() - 0.5) * 22, cy + (r() - 0.5) * 16, 5 + r() * 9]);
+        wrap(() => { g.fillStyle = col; for (const [x, y, rad] of pts) { g.beginPath(); g.arc(x, y, rad, 0, TAU); g.fill(); } });
+      }
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(0.6, 0.6);
+    tex.name = 'camo_' + id;
+    this.cache[id] = tex;
+    return tex;
+  },
+};
+
 // Points along a wheel arch, from the rear edge over the top to the front edge.
 function archPts(cx, cy, r, n) {
   const out = [];
@@ -1334,16 +1387,6 @@ const Models = {
     for (const sd of [-1, 1]) g.add(GUNTEX.screw(steel, 0.45 * sd, -1.2, 0.85, 0.07));
     g.add(LP.cyl(0.08, 0.08, 1.04, 16, steel, 0, -0.16, -1.56).rotateZ(Math.PI / 2)); // hinge pin
     g.add(LP.mesh(new THREE.TorusGeometry(0.18, 0.045, 8, 16), steel, 0, -2.5, 1.2).rotateY(Math.PI / 2)); // lanyard ring
-    // The maker's name moulded into both sides of the housing.
-    const c = document.createElement('canvas'); c.width = 128; c.height = 40;
-    const x = c.getContext('2d');
-    x.fillStyle = '#1a1a1a'; x.font = 'bold 30px Arial, sans-serif'; x.textBaseline = 'middle'; x.fillText('ORION', 6, 21);
-    const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-    for (const sd of [-1, 1]) {
-      const m = LP.mesh(new THREE.PlaneGeometry(0.62, 0.19), LP.mat('#ffffff', { map: tex, transparent: true, alphaTest: 0.3, roughness: 0.5 }), 0.505 * sd, 0.1, -0.78);
-      m.rotation.y = (sd * Math.PI) / 2;
-      g.add(m);
-    }
     const barrel = new THREE.Object3D(); // muzzle marker
     barrel.position.set(0, 0.3, -3.6);
     g.add(barrel);
@@ -1550,18 +1593,21 @@ const Models = {
   // Gun finish: re-skins the metal and furniture; mod attachments and glowing bits keep their own look.
   gunFinish(gun, finish) {
     if (!finish || finish === 'stock') return gun;
-    const tint = { rust: '#6b4a32', chrome: '#eef2f6', gold: '#e0b44a', camo: '#ffffff' }[finish];
+    const camo = finish.startsWith('camo');
+    const tint = camo ? '#ffffff' : { rust: '#6b4a32', chrome: '#eef2f6', gold: '#e0b44a' }[finish];
+    const checker = GUNTEX.get('checker');
     gun.traverse((o) => {
       if (!o.isMesh || o.userData.modVis || !o.material || !o.material.isMeshStandardMaterial) return;
       const m = o.material;
       if (m.emissiveIntensity > 0 && m.emissive && m.emissive.getHex() !== 0) return;
       if (finish === 'tape') return;
+      if (camo && m.map === checker) return; // grip panels stay as they are
       const nm = m.clone();
       nm.color.set(tint);
       if (finish === 'rust') { nm.color.lerp(m.color, 0.3); nm.metalness = 0.4; nm.roughness = 0.95; }
       else if (finish === 'chrome') { nm.metalness = 0.55; nm.roughness = 0.25; } // no env map, so full metal would read black
       else if (finish === 'gold') { nm.metalness = 0.45; nm.roughness = 0.3; }
-      else if (finish === 'camo') { nm.map = DECALS.get('camo'); nm.metalness = 0.1; nm.roughness = 0.9; }
+      else if (camo) { nm.map = CAMO.get(finish); nm.metalness = 0.15; nm.roughness = 0.75; } // painted-on camo wrapping the whole gun
       o.material = nm;
     });
     if (finish === 'tape') {
@@ -1955,8 +2001,9 @@ const Models = {
     const wood = LP.mat('#4a5a2a'), slat = LP.mat('#3b4822');
     const sc = new Sculpt('crate', 0.06);
     sc.add(wood, SDF.box([4.2, 1.4, 3.6], 0.15, [0, 0, 0]), 0.05);
-    sc.cut(SDF.box([3.8, 1.0, 3.2], 0.1, [0, 0.5, 0]), 0.05, [wood]); // open top
-    for (const x of [-1.6, 0, 1.6]) sc.add(slat, SDF.box([0.3, 1.5, 3.7], 0.08, [x, 0, 0]), 0.05);
+    for (const x of [-1.6, 0, 1.6]) sc.add(slat, SDF.box([0.3, 1.5, 3.7], 0.08, [x, 0, 0]), 0.05); // bands round the outside
+    sc.cut(SDF.box([3.8, 1.0, 3.2], 0.1, [0, 0.5, 0]), 0.05, [wood, slat]); // open top, inside the bands too
+    for (const x of [-0.64, 0.64]) sc.add(wood, SDF.box([0.1, 0.6, 3.2], 0.04, [x, 0.3, 0]), 0.04); // low dividers between the slots
     for (let k = 0; k < 3; k++) sc.cut(SDF.box([4.4, 0.04, 3.8], 0.01, [0, -0.45 + k * 0.45, 0]), 0.01, [wood]); // plank seams
     sc.add(LP.mat('#d8c27a'), SDF.box([1.2, 0.5, 0.12], 0.04, [0, 0, 1.83]), 0.02); // stencil plate
     sc.build(g);
@@ -1964,7 +2011,7 @@ const Models = {
     for (let k = 0; k < 3; k++) {
       const n = Models.grenade();
       n.scale.setScalar(0.5);
-      n.position.set(-1.1 + k * 1.1, 0.6, 0);
+      n.position.set((k - 1) * 1.27, 0.54, 0); // one in each slot, resting on the floor
       g.add(n);
       g.userData.nades.push(n);
     }
@@ -1991,7 +2038,7 @@ const Models = {
     sc.add(dark, SDF.box([5, 2.6, 17.2], 0.6, [6.5, 5, 0]), 0.3); // dashboard
     sc.add(dark, SDF.box([3.5, 0.7, 17.2], 0.3, [5.6, 6.45, 0]), 0.5); // dash top lip, rolled into the dash
     sc.add(dark, SDF.box([10, 3.6, 3], 0.6, [0.5, 3.7, 0]), 0.3); // centre console
-    sc.add(dark, SDF.cone([6, 5.6, -4.5], [3.6, 7.5, -4.5], 0.45, 0.38), 0.4); // steering column out of the dash
+    sc.add(dark, SDF.cone([5.2, 6.85, -4.5], [3.62, 7.3, -4.5], 0.42, 0.34), 0.4); // steering column out of the binnacle, along the wheel's axis
     for (const s of [-1, 1]) {
       sc.add(body, SDF.cone([8.4, 6.6, 8.6 * s], [2.5, 12.6, 8.2 * s], 0.6, 0.55), 0.6); // A-pillars
       sc.add(body, SDF.box([1.4, 7.4, 1.4], 0.5, [-4, 9.05, 8.6 * s]), 0.6); // B-pillars
@@ -2067,8 +2114,8 @@ const Models = {
     else if (wrap !== 'fur' && wrap !== 'chain') { const tapeW = DECALS.mat('tape', { roughness: 1 }); for (const a of [0.4, 2.2, 4.0]) ws0.add(tapeW, arc(a - 0.22, a + 0.22, 0.33), 0.03); } // duct tape round the rim
     const wparts = ws0.build(new THREE.Group());
     const wheelTilt = new THREE.Group();
-    wheelTilt.position.set(3.4, 7.7, -4.5);
-    wheelTilt.rotation.z = 0.45;
+    wheelTilt.position.set(3.4, 7.4, -4.5);
+    wheelTilt.rotation.z = -0.35; // top leaning away from the seat, like a real wheel, so the rim clears the dash
     const wheelFace = new THREE.Group();
     wheelFace.rotation.y = Math.PI / 2;
     const wheel = new THREE.Group();

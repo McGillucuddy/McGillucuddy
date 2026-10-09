@@ -79,7 +79,11 @@ const COSMETICS = {
   // Guns (one finish per weapon type)
   gunFinish: [
     { id: 'stock', name: 'Stock', rep: 0 }, { id: 'rust', name: 'Rusted', rep: 0 }, { id: 'tape', name: 'Duct-Taped', rep: 20 },
-    { id: 'camo', name: 'Camo', rep: 50 }, { id: 'chrome', name: 'Chrome', rep: 100 }, { id: 'gold', name: 'Gold', rep: 220 },
+    { id: 'camo', name: 'Woodland Camo', rep: 50 }, { id: 'camo_desert', name: 'Desert Camo', rep: 60 },
+    { id: 'camo_urban', name: 'Urban Camo', rep: 75 }, { id: 'camo_tiger', name: 'Tiger Stripe', rep: 90 },
+    { id: 'camo_digital', name: 'Digital Camo', rep: 110 }, { id: 'camo_arctic', name: 'Arctic Camo', rep: 130 },
+    { id: 'camo_crimson', name: 'Crimson Tiger', rep: 160 },
+    { id: 'chrome', name: 'Chrome', rep: 100 }, { id: 'gold', name: 'Gold', rep: 220 },
   ],
 };
 
