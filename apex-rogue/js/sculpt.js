@@ -382,7 +382,9 @@ class Sculpt {
       if (uv) {
         const ax = Math.abs(nrm[n * 3]), ay = Math.abs(nrm[n * 3 + 1]), az = Math.abs(nrm[n * 3 + 2]);
         const x = pos2[n * 3], y = pos2[n * 3 + 1], z = pos2[n * 3 + 2];
-        const [u, w] = ax >= ay && ax >= az ? [z, y] : ay >= az ? [x, z] : [x, y];
+        // Flip u by the way the face points, so text and patterns read the right way round on both sides.
+        const nx = nrm[n * 3], ny = nrm[n * 3 + 1], nz = nrm[n * 3 + 2];
+        const [u, w] = ax >= ay && ax >= az ? [nx > 0 ? -z : z, y] : ay >= az ? [ny > 0 ? x : -x, ny > 0 ? -z : z] : [nz > 0 ? x : -x, y];
         uv[n * 2] = u * uvScale; uv[n * 2 + 1] = w * uvScale;
       }
     }
