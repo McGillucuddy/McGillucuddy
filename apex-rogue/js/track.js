@@ -209,12 +209,51 @@ function generateTrack(seed, biomeKey, opts = {}) {
   const track = {
     seed, biomeKey, biome, pts, ang, curv, nx, ny, N, step,
     length: N * step, hw, runoff, wallT: WALL_T, clearance,
-    hazards: [], decos: [],
+    hazards: [], decos: [], ramps: [], obstacles: [],
   };
 
   placeHazards(track, rng, opts.hazardLevel || 0);
   placeDecos(track, rng);
+  if (opts.features) placeFeatures(track, mulberry32((seed ^ 0xfea7) >>> 0), opts.features); // its own stream, so decos don't move
   return track;
+}
+
+// Ramps and obstacles (the gunner races). Ramps sit on straights, half the road wide, so you can take them or
+// not; obstacles sit off-centre with room to pass on at least one side. level 1..3 adds more of both.
+// Obstacle kinds: barrier (concrete, solid), tyres (soft), wreck (big, solid), barrels (explosive: shoot them).
+const OBSTACLES = {
+  barrier: { r: 15, h: 9, dmg: 1.2, bounce: 0.5 },
+  tyres: { r: 13, h: 10, dmg: 0.35, bounce: 0.9 },
+  wreck: { r: 21, h: 13, dmg: 1, bounce: 0.4 },
+  barrels: { r: 11, h: 10, dmg: 0.6, bounce: 0.6, hp: 10, blast: 70 },
+};
+function placeFeatures(track, rng, level) {
+  const { N, hw, step } = track;
+  const used = track.hazards.map((h) => h.idx);
+  const free = (i, gap) => used.every((u) => Math.min(Math.abs(u - i), N - Math.abs(u - i)) > gap);
+  const at = (i, lat) => ({ x: track.pts[i].x + track.nx[i] * lat, y: track.pts[i].y + track.ny[i] * lat, ang: track.ang[i] });
+  // Ramps: a wedge 60 long rising to 13, on a straight with a straight run-out to land on.
+  const ramps = 1 + Math.floor(rng() * (1 + level * 0.6));
+  for (let tries = 0, placed = 0; placed < ramps && tries < 400; tries++) {
+    const i = randInt(rng, 70, N - 60);
+    if (!free(i, 40) || cornerness(track, i - 6, 30) > 0.25) continue;
+    used.push(i);
+    placed++;
+    const lat = (rng() < 0.5 ? -1 : 1) * hw * (0.2 + rng() * 0.25);
+    track.ramps.push(Object.assign({ idx: i, lat, w: hw * 0.85, len: 60, h: 13 }, at(i, lat)));
+  }
+  // Obstacles, in small clusters.
+  const kinds = ['barrier', 'barrier', 'tyres', 'tyres', 'wreck', 'barrels', 'barrels'];
+  const count = 3 + Math.floor(rng() * 2) + level * 2;
+  for (let tries = 0, placed = 0; placed < count && tries < 600; tries++) {
+    const i = randInt(rng, 50, N - 20);
+    if (!free(i, 14)) continue;
+    used.push(i);
+    placed++;
+    const kind = kinds[Math.floor(rng() * kinds.length)], o = OBSTACLES[kind];
+    const lat = (rng() < 0.5 ? -1 : 1) * (hw * 0.3 + rng() * (hw * 0.62 - o.r - hw * 0.3));
+    track.obstacles.push(Object.assign({ kind, idx: i, lat, r: o.r, hp: o.hp || 0, alive: true, spin: rng() * Math.PI * 2 }, at(i, lat)));
+  }
 }
 
 function cornerness(track, i, ahead) {

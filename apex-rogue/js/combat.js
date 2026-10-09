@@ -251,7 +251,7 @@ class Combat {
         const a = ctl.aim + randRange(this.rng, -def.spread, def.spread);
         this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0, tracer: !!def.tracer, puncture: def.puncture || 0, shock: def.shock || 0 });
       }
-      this.events.push({ type: def.pellets > 1 ? 'shotgun' : def.puncture ? 'nail' : 'shoot' });
+      this.events.push({ type: def.pellets > 1 ? 'shotgun' : def.puncture ? 'nail' : 'shoot', w: this.weapon.id });
     } else if (def.kind === 'flame') {
       // A gout of burning fuel: short-lived blobs that spread and slow, lighting whatever they touch.
       for (let k = 0; k < def.pellets; k++) {
@@ -317,6 +317,8 @@ class Combat {
   update(dt, ctl) {
     const race = this.race, p = this.player;
     this.updatePlayerWeapons(dt, ctl);
+    // Barrels the race says have blown (hit by a car, a bullet or another blast).
+    for (const bl of race.blasts.splice(0)) this.explode(bl.x, bl.y, bl.r, bl.dmg, bl.owner, 'barrel');
     const s = this.shield;
     if (s.t > 0) { s.t -= dt; s.age += dt; }
     for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1);
@@ -507,6 +509,19 @@ class Combat {
         if (pr.dead) continue;
       }
 
+      // Obstacles stop shots: bullets spark off, rockets go off, and barrels take the hit (enough and they blow).
+      for (const o of this.race.track.obstacles || []) {
+        if (!o.alive || (o.x - pr.x) ** 2 + (o.y - pr.y) ** 2 > o.r * o.r) continue;
+        pr.dead = true;
+        if (pr.type === 'rocket') this.explode(pr.x, pr.y, pr.radius, pr.dmg, pr.owner, pr);
+        else {
+          this.explosions.push({ x: pr.x, y: pr.y, r: 8, t: 0, kind: 'spark' });
+          if (o.kind === 'barrels' && (o.hp -= pr.dmg * (pr.type === 'flame' ? 3 : 1)) <= 0) this.race.blowBarrel(o, pr.owner);
+        }
+        break;
+      }
+      if (pr.dead) continue;
+
       const armed = pr.t > 0.12;
       for (const c of cars) {
         if (c === pr.owner && !armed) continue;
@@ -629,6 +644,8 @@ class Combat {
   explode(x, y, radius, dmg, owner, src) {
     const p = this.player;
     this.explosions.push({ x, y, r: radius, t: 0 });
+    // Barrels caught in a blast go up too (a chain reaction, one blast per frame).
+    for (const o of this.race.track.obstacles || []) if (o.alive && o.kind === 'barrels' && Math.hypot(o.x - x, o.y - y) < radius + o.r) this.race.blowBarrel(o, owner);
     this.events.push({ type: 'explode', x, y, big: radius > 55 });
     if (has(this.build, 'rosary') && Math.hypot(p.x - x, p.y - y) < 150) {
       for (const a of this.abil) if (a) a.cd = Math.max(0, a.cd - 2);

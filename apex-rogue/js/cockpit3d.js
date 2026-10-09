@@ -191,6 +191,36 @@ class CockpitView {
 
   // ---------- World ----------
 
+  // Ramps and obstacles from the track. Obstacles that get destroyed (barrels, scattered tyres) vanish in a
+  // shower of debris.
+  buildFeatures() {
+    const tr = this.race.track;
+    this.featureMeshes = [];
+    for (const r of tr.ramps || []) {
+      const m = Models.ramp(r.len, r.w, r.h);
+      m.position.set(r.x, 0, r.y);
+      m.rotation.y = -r.ang;
+      this.scene.add(m);
+    }
+    for (const o of tr.obstacles || []) {
+      const m = Models.obstacle(o.kind);
+      m.position.set(o.x, 0, o.y);
+      m.rotation.y = -o.ang + (o.kind === 'barrier' ? 0 : o.spin);
+      this.scene.add(m);
+      this.featureMeshes.push({ o, m, alive: true });
+    }
+  }
+
+  updateFeatures() {
+    for (const f of this.featureMeshes || []) {
+      if (f.alive && !f.o.alive) {
+        f.alive = false;
+        f.m.visible = false;
+        this.burst(f.o.x, f.o.y, f.o.kind === 'barrels', true); // barrels go up in flames; tyres just scatter
+      }
+    }
+  }
+
   buildWorld() {
     const tr = this.race.track, bio = tr.biome, b = tr.bounds, scene = this.scene;
     this.env = null;
@@ -202,6 +232,7 @@ class CockpitView {
       this.sun = this.env.sun;
       this.buildGround();
       this.buildHazards();
+      this.buildFeatures();
       this.buildGantry(this.env.th.banner, this.env.th.luxury ? '#d9b24a' : '#4a4038');
       return;
     }
@@ -875,6 +906,7 @@ class CockpitView {
     else if (ev.type === 'shotgun') { this.recoil = 1.5; this.flash = 0.07; this.shake = Math.max(this.shake, 0.3); }
     else if (ev.type === 'flare') { this.recoil = 0.9; this.flash = 0.06; }
     else if (ev.type === 'partBreak') this.shake = Math.max(this.shake, 0.7);
+    else if (ev.type === 'land') { this.shake = Math.max(this.shake, Math.min(1.2, ev.power / 500)); if (this.cabinMo) this.cabinMo.vpitch -= ev.power * 0.0012; }
     else if (ev.type === 'hurt') {
       this.shake = Math.max(this.shake, Math.min(1.5, ev.dmg / 12));
       const p = this.race.player;
@@ -992,6 +1024,7 @@ class CockpitView {
 
     if (this.env) Env.update(this.env, dt, t, p.x, p.y, this.scene);
     Weather3D.update(this, this.wx, dt, t);
+    this.updateFeatures();
 
     // Cars
     // Your own car's body motion, scaled by the cabin-sway setting (rolls the whole cabin and your view).
@@ -1001,13 +1034,15 @@ class CockpitView {
       cm.vroll += ((clamp(-this.acc.lat * 0.0001, -0.09, 0.09) - cm.roll) * k - cm.vroll * d) * dt; cm.roll += cm.vroll * dt;
       cm.vpitch += ((clamp(this.acc.fwd * 0.00006, -0.05, 0.05) - cm.pitch) * k - cm.vpitch * d) * dt; cm.pitch += cm.vpitch * dt;
     }
-    this.playerGroup.position.set(p.x, Math.sin(t * 13) * 0.05 * Math.min(1, p.speed / 300) * sway, p.y);
+    this.playerGroup.position.set(p.x, (p.z || 0) + Math.sin(t * 13) * 0.05 * Math.min(1, p.speed / 300) * sway, p.y);
     this.playerGroup.rotation.order = 'YXZ';
-    this.playerGroup.rotation.set(cm.roll * sway, -p.heading, cm.pitch * sway);
+    // Off a ramp the nose lifts and drops with the jump (always shown: it's the jump, not cabin sway).
+    this.playerGroup.rotation.set(cm.roll * sway, -p.heading, cm.pitch * sway - (p.air ? p.pitch : 0));
     this.playerGroup.updateMatrixWorld(true); // localToWorld below needs this frame's transform
     for (const [car, m] of this.carMeshes) {
-      m.g.position.set(car.x, 0, car.y);
-      m.g.rotation.y = -car.heading;
+      m.g.position.set(car.x, car.z || 0, car.y);
+      m.g.rotation.order = 'YXZ';
+      m.g.rotation.set(0, -car.heading, car.air ? -car.pitch : 0); // nose up off a ramp, down as it falls
       for (const w of m.wheels) {
         w.rotation.z -= (car.forwardSpeed * dt) / 3.8;
         if (w.position.x > 0) w.rotation.y = -(car.input ? car.input.steer : 0) * 0.5; // front wheels steer

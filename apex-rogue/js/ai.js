@@ -84,6 +84,18 @@ class AIDriver {
     }
     const laneMax = this.insideMul > 1 ? 1.15 : 0.7; // a daredevil happily cuts through the dirt
     let lane = clamp(this.laneTarget + inside + avoid * (this.rammer ? -0.4 : 0.6), -laneMax, laneMax);
+    // Obstacles ahead on our line: pass on the roomier side. Some drivers aim for ramps for the fun of it.
+    const tr2 = race.track, look = ahead + 26;
+    for (const o of tr2.obstacles || []) {
+      if (!o.alive) continue;
+      let k = (o.idx - i + N) % N;
+      if (k > N / 2) k -= N;
+      if (k < -5 || k > look) continue; // keep clear until it's well behind, not just alongside
+      const half = (o.r + CAR_RADIUS + 10) / tr2.hw, ol = o.lat / tr2.hw;
+      if (Math.abs(lane - ol) < half) lane = ol > 0 ? Math.max(-laneMax, ol - half - 0.05) : Math.min(laneMax, ol + half + 0.05);
+    }
+    if (this.jumper === undefined) this.jumper = this.rng() < 0.35;
+    if (this.jumper) for (const r of tr2.ramps || []) { const k = (r.idx - i + N) % N; if (k > 4 && k < look) lane = clamp(r.lat / tr2.hw, -laneMax, laneMax); }
     // Hothead: line up on whoever is close alongside or just ahead.
     if (this.rammer) {
       for (const o of race.cars) {

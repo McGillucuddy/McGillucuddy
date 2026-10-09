@@ -19,6 +19,7 @@ class Race {
     this.overtakes = 0;
     this.overtakeCash = 0;
     this.events = []; // for audio: {type, ...}
+    this.blasts = []; // barrels that blew this frame, for the combat layer to turn into explosions
     this.endTimer = 0;
     this.throttleHeldEarly = false;
     this.launchArmed = true;
@@ -67,6 +68,7 @@ class Race {
     car.placeAt(tr.pts[i].x + tr.nx[i] * clamp(q.lat, -tr.hw * 0.5, tr.hw * 0.5),
       tr.pts[i].y + tr.ny[i] * clamp(q.lat, -tr.hw * 0.5, tr.hw * 0.5), tr.ang[i]);
     car.spinT = 0; car.oilT = 0;
+    car.air = false; car.z = 0; car.vz = 0; car.onRamp = null;
   }
 
   rankCars() {
@@ -127,7 +129,9 @@ class Race {
         inp.throttle *= 0.6;
       }
       car.input = inp;
+      if (tr.ramps && tr.ramps.length) this.rampCheck(car);
       car.step(inp, dt, bio.grip);
+      if (car.landImpact) this.landed(car);
     }
 
     this.collideCars();
@@ -250,6 +254,29 @@ class Race {
       }
     }
 
+    // Obstacles: solid (or soft) things to steer round; jump high enough and you clear them.
+    for (const o of tr.obstacles || []) {
+      if (!o.alive) continue;
+      const def = OBSTACLES[o.kind], dx = car.x - o.x, dy = car.y - o.y, rr = o.r + CAR_RADIUS, d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr || (car.z || 0) > def.h) continue;
+      const d = Math.sqrt(d2) || 1, nx = dx / d, ny = dy / d;
+      car.x += nx * (rr - d); car.y += ny * (rr - d);
+      const vn = car.vx * nx + car.vy * ny;
+      if (vn >= 0) continue;
+      const imp = -vn;
+      car.vx -= nx * vn * (1 + def.bounce); car.vy -= ny * vn * (1 + def.bounce);
+      if (imp > 40) { car.vx *= 0.82; car.vy *= 0.82; } // a scrape just slides you off it; a real hit costs speed
+      car.obHits = (car.obHits || 0) + 1;
+      if (imp > 140) { car.spinT = Math.max(car.spinT, Math.min(0.4, imp / 900)); car.spinDir = Math.sign(dx * Math.sin(car.heading) - dy * Math.cos(car.heading)) || 1; }
+      if (imp > 50) {
+        this.damage(car, (imp - 50) * 0.06 * def.dmg, { kind: 'wall', ang: Math.atan2(-ny, -nx) });
+        this.spark(o.x + nx * o.r, o.y + ny * o.r, imp);
+        if (car === this.player) this.events.push({ type: 'hit', power: imp });
+      }
+      if (o.kind === 'barrels' && imp > 70) this.blowBarrel(o, null);
+      else if (o.kind === 'tyres' && imp > 160) { o.alive = false; this.events.push({ type: 'scatter', x: o.x, y: o.y }); } // a hard hit scatters the stack
+    }
+
     // Hazards
     for (const h of tr.hazards) {
       const d2 = (h.x - car.x) ** 2 + (h.y - car.y) ** 2;
@@ -268,6 +295,44 @@ class Race {
         if (car === this.player) this.message('Oil!', '#ccc');
       }
     }
+  }
+
+  // Ramps: ride up the wedge (height follows it); leave over the lip with speed and you're airborne.
+  rampCheck(car) {
+    if (car.air) return;
+    let on = null;
+    for (const r of this.track.ramps) {
+      const dx = car.x - r.x, dy = car.y - r.y, c = Math.cos(r.ang), s = Math.sin(r.ang);
+      const d = dx * c + dy * s, l = -dx * s + dy * c;
+      if (Math.abs(l) < r.w / 2 && d >= 0 && d <= r.len) { on = { r, d }; break; }
+    }
+    if (on) { car.z = (on.r.h * on.d) / on.r.len; car.onRamp = on.r; car.rampD = on.d; return; }
+    const r = car.onRamp;
+    car.onRamp = null;
+    const fs = car.forwardSpeed;
+    if (r && car.rampD > r.len * 0.75 && fs > 90) {
+      car.air = true; car.airT = 0;
+      car.vz = fs * (r.h / r.len) * 1.9;
+      if (car === this.player) { this.events.push({ type: 'jump' }); if (fs > 300) this.message('Airborne!', '#ffd23f'); }
+    } else car.z = 0;
+  }
+
+  // Touchdown: a hard one rattles the car (and its parts).
+  landed(car) {
+    const imp = car.landImpact;
+    car.landImpact = 0;
+    if (car === this.player) this.events.push({ type: 'land', power: imp });
+    if (imp > 240) {
+      this.damage(car, (imp - 240) * 0.05, { kind: 'wall', ang: car.heading + Math.PI });
+      this.spark(car.x, car.y, imp);
+    }
+  }
+
+  blowBarrel(o, owner) {
+    if (!o.alive) return;
+    o.alive = false;
+    this.blasts.push({ x: o.x, y: o.y, r: OBSTACLES.barrels.blast, dmg: 24, owner });
+    if (this.blasts.length > 12) this.blasts.shift();
   }
 
   // info: { kind: 'wall'|'ram'|'bullet'|'blast', ang: world angle toward the source }
@@ -292,7 +357,7 @@ class Race {
       for (let b = a + 1; b < cars.length; b++) {
         const A = cars[a], B = cars[b];
         const ghost = (A.isPlayer && A.perks.has('ghost')) || (B.isPlayer && B.perks.has('ghost'));
-        if (ghost) continue;
+        if (ghost || Math.abs((A.z || 0) - (B.z || 0)) > 14) continue; // one sailing over the other
         const dx = B.x - A.x, dy = B.y - A.y;
         const d2 = dx * dx + dy * dy;
         if (d2 >= R2 || d2 === 0) continue;
@@ -395,6 +460,19 @@ class Race {
     ctx.translate(-cam.x, -cam.y);
 
     ctx.drawImage(tr.canvas, tr.bounds.minX, tr.bounds.minY);
+
+    // Ramps and obstacles (simple shapes for the top-down fallback view).
+    for (const r of tr.ramps || []) {
+      ctx.save(); ctx.translate(r.x, r.y); ctx.rotate(r.ang);
+      ctx.fillStyle = '#6a4a32'; ctx.fillRect(0, -r.w / 2, r.len, r.w);
+      ctx.fillStyle = '#e8b81a'; ctx.fillRect(r.len - 4, -r.w / 2, 4, r.w);
+      ctx.restore();
+    }
+    for (const o of tr.obstacles || []) {
+      if (!o.alive) continue;
+      ctx.fillStyle = { barrier: '#8a8680', tyres: '#1c1c1c', wreck: '#3a2a20', barrels: '#a8221a' }[o.kind];
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, TAU); ctx.fill();
+    }
 
     for (const h of tr.hazards) {
       ctx.save();

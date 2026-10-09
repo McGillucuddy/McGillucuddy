@@ -2897,6 +2897,57 @@ const Models = {
       : id === 'nailgun' ? Models.nailGun() : id === 'flamer' ? Models.flamer() : id === 'harpoon' ? Models.harpoonGun() : Models.smg();
   },
 
+  // ---------- Track features: ramps and obstacles (local +x runs along the track) ----------
+
+  // A welded steel jump: a rusty plate wedge, its lip painted in hazard stripes, side rails and struts behind.
+  ramp(len, w, h) {
+    const g = new THREE.Group();
+    const rust = DECALS.mat('rust', { metalness: 0.5, roughness: 0.85 }), steel = LP.mat('#4a4c4e', { metalness: 0.6, roughness: 0.55 });
+    const hazard = LP.mat('#ffffff', { map: CAMO.get('camo_hazard'), roughness: 0.7 });
+    const sc = new Sculpt('ramp:' + [len, w, h].map((v) => Math.round(v)).join(':'), 0.45);
+    sc.add(rust, SDF.sideX([[0, 0], [len, 0], [len, h], [len - 1.5, h + 0.4]], w, 0.3, [0, 0, 0]), 0.2);
+    for (let k = 1; k < 5; k++) sc.cut(SDF.box([0.5, 3, w + 2], 0.1, [len * k / 5, (h * k) / 5 + 0.2, 0], [0, 0, Math.atan2(h, len)]), 0.1, [rust]); // plate seams
+    for (const sd of [-1, 1]) sc.add(steel, SDF.path([[0, 0.6, sd * (w / 2 - 0.4)], [len, h + 1.2, sd * (w / 2 - 0.4)]], 0.45), 0.2); // side rails
+    for (const x of [len * 0.55, len * 0.85]) for (const sd of [-1, 0, 1]) sc.add(steel, SDF.box([0.8, (h * x) / len, 0.8], 0.2, [x, (h * x) / len / 2, sd * (w / 2 - 2)]), 0.2); // struts
+    sc.add(hazard, SDF.box([1.6, 0.5, w], 0.15, [len - 0.9, h + 0.3, 0], [0, 0, Math.atan2(h, len)]), 0.1); // the lip
+    sc.build(g);
+    return g;
+  },
+
+  // Obstacles. kind: barrier | tyres | wreck | barrels. Sized to their collision radius (see OBSTACLES in track.js).
+  obstacle(kind) {
+    const g = new THREE.Group();
+    const sc = new Sculpt('obstacle:' + kind, 0.3);
+    if (kind === 'barrier') { // a jersey barrier, chipped and sprayed, a hazard band along it
+      const conc = LP.mat('#8a8680', { roughness: 0.95 }), hazard = LP.mat('#ffffff', { map: CAMO.get('camo_hazard'), roughness: 0.8 });
+      sc.add(conc, SDF.box([26, 3.5, 8], 0.6, [0, 1.75, 0]), 0.5);
+      sc.add(conc, SDF.box([26, 6, 3.6], 0.8, [0, 5.5, 0]), 1.6);
+      for (const x of [-9, 4]) sc.cut(SDF.ellipsoid([2.2, 1.6, 1.5], [x, 7.6, 1.6]), 0.4, [conc]); // chips
+      sc.add(hazard, SDF.box([24, 1.2, 4.0], 0.2, [0, 6.4, 0]), 0.1);
+    } else if (kind === 'tyres') { // two stacks of bald tyres, a third leaning on them
+      const rubber = LP.mat('#1c1c1c', { roughness: 0.9 });
+      for (const [x, z] of [[-3.6, -2.5], [3.6, 2.5], [3.4, -4.2]]) for (let k = 0; k < (x < 0 ? 3 : 2); k++) sc.add(rubber, SDF.torus(3.2, 1.5, [x, 1.5 + k * 3, z], [Math.PI / 2, 0, 0]), 0.3);
+      sc.add(rubber, SDF.torus(3.2, 1.5, [-3.5, 3.6, 4.4], [0.4, 0, 0]), 0.3);
+    } else if (kind === 'wreck') { // a burnt-out car hulk on its rims, glass gone
+      const burnt = LP.mat('#2a2420', { roughness: 0.95, metalness: 0.2 }), rust = DECALS.mat('rust', { metalness: 0.4, roughness: 0.9 });
+      sc.add(rust, SDF.box([30, 5.5, 15], 1.2, [0, 4.2, 0]), 0.6);
+      sc.add(burnt, SDF.box([14, 5, 13], 1.4, [-1.5, 9, 0]), 1.2);
+      sc.cut(SDF.box([10, 3.2, 14], 0.6, [-1.5, 9.5, 0]), 0.3, [burnt]); // windows blown out
+      sc.cut(SDF.box([7, 3, 16], 0.5, [8.5, 7.5, 0]), 0.5, [rust]); // crumpled hood
+      for (const x of [-9, 9]) for (const sd of [-1, 1]) sc.add(burnt, SDF.cyl(2.6, 1.6, 'z', 0.3, [x, 2.4, sd * 7.4]), 0.3); // bare rims
+    } else { // barrels: three red oil drums, hazard-banded, ribbed
+      const red = LP.mat('#a8221a', { roughness: 0.55, metalness: 0.3 }), hazard = LP.mat('#ffffff', { map: CAMO.get('camo_hazard'), roughness: 0.6 }), steel = LP.mat('#6a6c6e', { metalness: 0.6 });
+      for (const [x, z] of [[-3.4, -2.6], [3.4, -2.6], [0, 3.4]]) {
+        sc.add(red, SDF.cyl(3.1, 9, 'y', 0.4, [x, 4.5, z]), 0.2);
+        for (const y of [3, 6]) sc.add(steel, SDF.torus(3.15, 0.25, [x, y, z]), 0.1);
+        sc.add(hazard, SDF.cyl(3.16, 1.4, 'y', 0.1, [x, 7.4, z]), 0.05);
+        sc.add(steel, SDF.cyl(0.5, 0.4, 'y', 0.1, [x + 1.4, 9.1, z]), 0.1); // bung
+      }
+    }
+    sc.build(g);
+    return g;
+  },
+
   // ---------- Trinkets (each hangs or sits somewhere in the cabin) ----------
 
   rocket(color) {

@@ -741,7 +741,7 @@ const Proto = {
     const biome = this.act.biome;
     const boss = node.type === 'boss' ? BOSSES[run.act] : null;
     const d = run.act * 4 + Math.round((Math.min(node.row, MAP_ROWS - 1) * 3) / (MAP_ROWS - 1)) + (node.type === 'elite' ? 2 : 0);
-    const track = generateTrack(this.seed, biome, { hazardLevel: 1 });
+    const track = generateTrack(this.seed, biome, { hazardLevel: 1, features: 1 + Math.min(2, run.act) }); // ramps and obstacles, more each act
     renderTrack(track);
     const base = CARS.comet;
     // Stats come from the parts you have fitted; the driver chip changes how the AI drives.

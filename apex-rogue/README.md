@@ -35,6 +35,31 @@ Everything else unlocks for good with reputation, the same rep that unlocks pain
 Bosses push the tempo and add pounding toms. The final race lets the kick loose under the full choir.
 The music plays from the briefing, ducks while paused and fades at the flag. **Settings → Race music** sets its volume.
 
+**Weather.** Every race stop on the route sheet has a forecast, shown as an icon on the stop and in the briefing, so it can steer your route.
+- **Classics:** rain, thunderstorm, smog and cloud bank.
+- **Undercity:** Acid Drip (corrodes parts) and Blackout.
+- **Stacks:** Ash Fall and Furnace Day (engines run hot).
+- **Terraces:** Golden Hour (+25% scrap, but you're lit up for gunners) and Sprinkler Mist.
+- **Crown:** Firework Gala (+50% rep), Ion Storm (abilities recharge faster) and Smog Tide.
+
+Weather changes fog, light and sky tint. It adds particles kept out of the cabin, drops on the windshield, lightning and thunder, an ambience bed and race-music tweaks.
+In play it can change grip, rival lock-on time, part wear, payouts and ability recharge.
+
+**Saving.** The run in progress is saved at the route sheet, garage and reward pick, and **Continue** resumes it after a reload.
+A stop that was underway replays from the same random state, so it's the identical race. The run's save clears when it ends.
+
+**Firing.** Each gun kicks on springs: push back, muzzle climb, a little jitter and roll, settling with an overshoot.
+Big guns punch the view. A brief ragged muzzle flame flickers light over your hands and the cabin, and smoke curls off the barrel.
+
+**Ramps, obstacles and car physics.** Every gunner race now has steel ramps and obstacles, and there are more of each act by act.
+- **Ramps:** ride up the wedge, leave the lip at speed and you're airborne. You get no grip and only a touch of steering in the air.
+  You land with a nose-slam bounce, and a hard landing costs speed and hull.
+- **Obstacles:** concrete jersey barriers, tyre stacks (they scatter if you hit them hard), burnt-out wrecks, and red barrel clusters.
+  Barrels explode when shot or rammed, set off any barrels nearby, and hurt any car in the blast. Clear an obstacle in the air and you sail over it.
+- **AI:** drivers steer round obstacles, and some go out of their way to hit the ramps.
+- **Physics:** cars have a height and a body on springs. The nose dips under braking and lifts under power, and the body leans out of turns.
+  Braking loads the front tyres for a sharper turn-in.
+
 It opens on a **start menu** over the garage, with your car swinging slowly on the lift. The menu has:
 - **Continue**, shown while a run is in progress, with its act, scrap and strikes;
 - **New run**, which asks before throwing away a run in progress;
@@ -304,6 +329,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
 | `js/input.js`, `js/audio.js`, `js/music.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound, the menu theme |
 | `js/tutorial.js` | Tutorial steps and the in-race coach card |
+| `js/weather.js` | Weather: per-stop forecasts, effects, cockpit particles and lightning, windshield drops, ambience |
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |

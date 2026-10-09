@@ -104,7 +104,13 @@ const Sound = {
       case 'hit': this.noiseBurst(0.18, 300, Math.min(0.5, ev.power / 600), 120); break;
       case 'boost': this.noiseBurst(0.5, 400, 0.25, 2400); break;
       case 'finish': [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.25, 'triangle', 0.18), i * 110)); break;
-      case 'shoot': this.noiseBurst(0.06, 2200, 0.12, 900); break;
+      case 'shoot':
+        if (ev.w === 'pistol') { this.noiseBurst(0.1, 1600, 0.2, 420); this.tone(150, 0.05, 'square', 0.06); } // a sharper, heavier crack
+        else this.noiseBurst(0.06, 2200, 0.12, 900);
+        break;
+      case 'jump': this.noiseBurst(0.35, 600, 0.12, 1800); break;
+      case 'land': this.noiseBurst(0.3, 160, Math.min(0.6, 0.15 + ev.power / 900), 60); this.tone(60, 0.2, 'sine', Math.min(0.3, ev.power / 1500)); break;
+      case 'scatter': this.noiseBurst(0.25, 220, 0.3, 90); break;
       case 'nail': this.noiseBurst(0.05, 3200, 0.1, 1800); break;
       case 'flame': this.noiseBurst(0.09, 500, 0.05, 160); break;
       case 'harpoon': this.noiseBurst(0.25, 900, 0.2, 300); this.tone(180, 0.2, 'sawtooth', 0.05); break;

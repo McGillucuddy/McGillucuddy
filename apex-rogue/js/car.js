@@ -4,6 +4,7 @@
 const CAR_LEN = 36;
 const CAR_WID = 18;
 const CAR_RADIUS = 13;
+const GRAVITY = 900; // for jumps off ramps
 
 class Car {
   constructor(opts) {
@@ -26,6 +27,9 @@ class Car {
     this.hitFlash = 0; this.place = 0; this.lapsDone = 0;
     this.wallHits = 0; this.input = null;
     this.lastWheels = null;
+    // Height off the ground (ramps, jumps) and the body's pitch and roll on its springs (the 3D view shows them).
+    this.z = 0; this.vz = 0; this.air = false; this.airT = 0; this.landImpact = 0;
+    this.pitch = 0; this.vpitch = 0; this.roll = 0; this.vroll = 0;
   }
 
   get speed() { return Math.hypot(this.vx, this.vy); }
@@ -40,6 +44,7 @@ class Car {
   // inp: {throttle, brake, steer, handbrake, nitro}
   step(inp, dt, gripMul) {
     const s = this.stats;
+    if (this.air) { this.stepAir(inp, dt); return; }
     const fx = Math.cos(this.heading), fy = Math.sin(this.heading);
     let vF = this.vx * fx + this.vy * fy;
     let vR = -this.vx * fy + this.vy * fx;
@@ -77,10 +82,12 @@ class Car {
     if (vF > top) vF = Math.max(top, vF - 380 * dt);
     if (this.offroad) vF -= vF * this.offroadDrag * s.offroadMul * dt;
 
-    // Steering: needs speed to turn; slightly less authority at top speed.
+    // Steering: needs speed to turn; slightly less authority at top speed. Weight transfer: braking loads the
+    // front tyres for a sharper turn-in, hard throttle lightens them.
     const sf = clamp(vF / 130, -1, 1);
     const hi = 1 - 0.28 * clamp(Math.abs(vF) / s.top, 0, 1);
-    let turn = inp.steer * s.handling * sf * hi;
+    const load = 1 + 0.16 * (inp.brake || 0) * clamp(vF / 200, 0, 1) - 0.08 * (inp.throttle || 0) * clamp(vF / s.top, 0, 1);
+    let turn = inp.steer * s.handling * sf * hi * load;
     if (inp.handbrake) turn *= 1.35;
     if (this.spinT > 0) { turn += this.spinDir * 3.5; this.spinT -= dt; }
     this.heading += turn * dt;
@@ -100,11 +107,46 @@ class Car {
     this.drifting = this.slip > 85 && speed > 140;
     this.braking = inp.brake > 0 && vF > 120;
 
+    // Body on its springs: the nose dips under braking and lifts under power, the body leans out of a turn.
+    const vF0 = this.vx * fx + this.vy * fy, aF = dt > 0 ? (vF - vF0) / dt : 0, aLat = vF * turn;
+    this.springBody(dt, clamp(-aF * 0.00011, -0.07, 0.07), clamp(aLat * 0.00009, -0.09, 0.09));
+
     this.vx = fx * vF - fy * vR;
     this.vy = fy * vF + fx * vR;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     if (this.hitFlash > 0) this.hitFlash -= dt;
+  }
+
+  // Pitch (+ = nose down) and roll follow their targets on damped springs, with a little overshoot.
+  springBody(dt, pT, rT) {
+    const k = 90, c = 11;
+    this.vpitch += ((pT - this.pitch) * k - this.vpitch * c) * dt;
+    this.pitch += this.vpitch * dt;
+    this.vroll += ((rT - this.roll) * k - this.vroll * c) * dt;
+    this.roll += this.vroll * dt;
+  }
+
+  // In the air: no grip and no throttle, a touch of steering, gravity. Lands back on its springs.
+  stepAir(inp, dt) {
+    this.airT += dt;
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    const drag = 1 - 0.04 * dt;
+    this.vx *= drag; this.vy *= drag;
+    this.heading += (inp.steer || 0) * 0.3 * dt;
+    this.vz -= GRAVITY * dt;
+    this.z += this.vz * dt;
+    this.springBody(dt, clamp(-this.vz * 0.0011, -0.3, 0.3), this.roll * 0.5); // nose up on the way up, down on the way down
+    this.nitro = Math.min(this.stats.nitroCap, this.nitro + this.stats.nitroRegen * dt);
+    if (this.hitFlash > 0) this.hitFlash -= dt;
+    if (this.z <= 0) {
+      this.landImpact = -this.vz;
+      this.z = 0; this.vz = 0; this.air = false;
+      this.vpitch += this.landImpact * 0.004; // the nose slams down and bounces
+      const keep = 1 - Math.min(0.12, this.landImpact / 4000); // a hard landing scrubs speed
+      this.vx *= keep; this.vy *= keep;
+    }
   }
 
   wheelPositions() {
