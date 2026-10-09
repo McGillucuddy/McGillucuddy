@@ -5,6 +5,17 @@
 
 // Eye position in the passenger seat (the driver's seat is empty).
 const EYE = { x: -2.6, y: 9.8, z: 4.2 };
+// Windshield in the cabin: the glass meets the cowl at (x0, y0) and leans back by run/rise.
+const WINDSHIELD = { x0: 8.4, y0: 6.6, lean: 5.9 / 6, yAt(x) { return this.y0 + (this.x0 - x) / this.lean; } };
+// Sun visors in the cabin: the driver's is flipped down (trinkets hang off it), yours is up against the headliner.
+// Each: hinge (x, y), tilt about Z, panel length, centre, face normal (towards the seats) and the bottom edge.
+const VISOR = (() => {
+  const make = (hinge, tilt, len) => {
+    const c = Math.cos(tilt), sn = Math.sin(tilt);
+    return { hinge, tilt, len, c: [hinge[0] + (len / 2) * sn, hinge[1] - (len / 2) * c], n: [-c, -sn], up: [-sn, c], bottom: [hinge[0] + len * sn, hinge[1] - len * c] };
+  };
+  return { driver: make([1.4, 12.3], -0.2, 1.7), passenger: make([1.0, 12.3], 1.4, 1.6) };
+})();
 
 const LP = {
   mat(color, opts) {
@@ -2124,12 +2135,17 @@ const Models = {
     sten.rotation.y = -Math.PI / 2;
     I.add(sten);
 
-    // Polaroid taped to the passenger sun visor.
-    const photo = LP.mesh(new THREE.PlaneGeometry(1.4, 1.4), LP.mat('#ffffff', { map: DECALS.get('photo') }), 1.0, 11.6, 4.4);
-    photo.rotation.set(0, -Math.PI / 2, 0.08);
-    photo.rotateX(-0.25);
-    I.add(photo);
-    I.add(box(0.05, 0.25, 0.9, tapeMat, 0.98, 12.3, 4.4));
+    // Polaroid taped to the underside of your sun visor.
+    if (!noRoof) {
+      const V = VISOR.passenger, n = V.n, f = [V.c[0] + n[0] * 0.17, V.c[1] + n[1] * 0.17];
+      const photo = LP.mesh(new THREE.PlaneGeometry(1.4, 1.4), LP.mat('#ffffff', { map: DECALS.get('photo') }), f[0], f[1], 4.4);
+      photo.lookAt(f[0] + n[0], f[1] + n[1], 4.4);
+      photo.rotateZ(0.08);
+      I.add(photo);
+      const tape = box(0.05, 0.25, 0.9, tapeMat, f[0] + n[0] * 0.02 + V.up[0] * 0.66, f[1] + n[1] * 0.02 + V.up[1] * 0.66, 4.4);
+      tape.rotation.z = V.tilt;
+      I.add(tape);
+    }
 
     // Torn seats: exposed foam and duct-tape patches.
     const foam = LP.mesh(new THREE.PlaneGeometry(2.4, 2.4), LP.mat('#ffffff', { map: DECALS.get('foam') }), -3.75, 8.6, -4.5);
@@ -2211,8 +2227,12 @@ const Models = {
     I.add(box(0.12, 0.3, 0.8, plastic, 3.95, 5.4, 4.6));
     // Sun visors, gear stick in its gaiter, handbrake, door cards (armrest, pull handle, window crank, speaker).
     const chromeI = m3('#8a8f94', { metalness: 0.7 }), blackI = m3('#111111'), headM = m3('#4a4740');
-    const det = new Sculpt('cabin-details', 0.065);
-    for (const z of [-4.4, 4.4]) det.add(headM, SDF.box([2.6, 0.3, 5.4], 0.14, [1.6, 12.1, z], [0, 0, 0.25]), 0.1);
+    const det = new Sculpt('cabin-details' + (noRoof ? ':open' : ''), 0.065);
+    // Sun visors on hinge rods under the headliner: the driver's flipped down (trinkets hang off it), yours up.
+    if (!noRoof) for (const [v, z] of [[VISOR.driver, -4.4], [VISOR.passenger, 4.4]]) {
+      det.add(headM, SDF.cyl(0.1, 5.0, 'z', 0.04, [v.hinge[0], v.hinge[1], z]), 0.12);
+      det.add(headM, SDF.box([0.3, v.len, 5.2], 0.14, [v.c[0], v.c[1], z], [0, 0, v.tilt]), 0.08);
+    }
     det.add(blackI, SDF.warp(SDF.cone([4.6, 5.4, 0], [4.55, 6.3, 0], 0.85, 0.3), (x, y, z) => { const k = 1 + 0.08 * Math.sin(y * 18); return [4.6 + (x - 4.6) / k, y, z / k]; }, 0.1), 0.2); // pleated gaiter
     det.add(chromeI, SDF.cone([4.58, 5.9, 0], [4.2, 7.3, 0], 0.13, 0.11), 0.1);
     det.add(blackI, SDF.ellipsoid([0.42, 0.38, 0.42], [4.18, 7.55, 0]), 0.12); // knob

@@ -555,26 +555,75 @@ class CockpitView {
     this.buildAmmoRack(I, b);
     this.hangers = [];
     this.bobNecks = [];
-    // Mirror first, then the driver's visor (clear of your sightline); dash slots run in two rows clear of the ornament and the wheel.
-    const hang = [[3.2, 10.8, 0.9], [3.2, 10.8, 0.25], [3.2, 10.8, -0.45], [3.2, 10.8, -1.1], [3.2, 10.8, 1.55],
-      [1.6, 11.7, -3.0], [1.6, 11.7, -3.8], [1.6, 11.7, -4.6], [1.6, 11.7, -5.4]];
-    const dash = [[6.4, 6.85, 7.4], [4.8, 6.85, 7.0], [6.4, 6.85, 6.0], [4.8, 6.85, 5.6], [6.4, 6.85, 4.6], [4.8, 6.85, 4.2],
-      [6.4, 6.85, -6.2], [4.8, 6.85, -6.6], [6.4, 6.85, 1.2], [4.8, 6.85, 1.4], [6.4, 6.85, -7.4], [4.8, 6.85, -7.8]];
-    let hi = 0, di = 0;
+    // Hanging trinkets: their cords start out of sight behind the rear-view mirror, then along the bottom edge
+    // of the driver's sun visor, each turned to face you. Dash trinkets are packed along rows on the dash top,
+    // clear of the screens, the ornament, the steering column and the sills, and kept under the windshield.
+    const vb = VISOR.driver.bottom, hang = [[3.3, 11.3, 0.9], [3.3, 11.3, 0.25], [3.3, 11.3, -0.45], [3.3, 11.3, -1.1], [3.3, 11.3, 1.55],
+      [vb[0] + 0.05, vb[1] + 0.1, -3.0], [vb[0] + 0.05, vb[1] + 0.1, -3.9], [vb[0] + 0.05, vb[1] + 0.1, -4.8], [vb[0] + 0.05, vb[1] + 0.1, -5.7]];
+    // Rows: x, then z from start to end. Your side has a back row, a front row and the cowl under the glass; the
+    // driver's side has one row beyond the gauge-cluster hood. Rows are shared, so the packing never overlaps.
+    const rows = {
+      stand: [[6.1, 7.3, 3.6], [4.7, 7.0, 2.3], [6.6, -4.3, -7.3]],
+      flat: [[7.4, 7.3, 3.6], [6.6, -4.3, -7.3], [4.7, 7.0, 2.3], [6.1, 7.3, 3.6]],
+    };
+    const cursor = new Map(); // row -> next free z
+    const surfaces = [];
+    I.updateMatrixWorld(true);
+    I.traverse((o) => { if (o.isMesh && !(o.material && o.material.transparent)) surfaces.push(o); });
+    const ray = new THREE.Raycaster(), bb = new THREE.Box3(), v3 = new THREE.Vector3();
+    const groundAt = (x, z) => { // height of whatever the cabin has under (x, z), in the cabin's own space
+      const from = I.localToWorld(new THREE.Vector3(x, 14, z)), to = I.localToWorld(new THREE.Vector3(x, 0, z));
+      ray.set(from, to.sub(from).normalize());
+      const hit = ray.intersectObjects(surfaces, false)[0];
+      return hit ? I.worldToLocal(hit.point.clone()).y : 6.8;
+    };
+    const local = (m) => { I.updateMatrixWorld(true); bb.setFromObject(m); return bb.applyMatrix4(new THREE.Matrix4().copy(I.matrixWorld).invert()); };
+    let hi = 0;
     for (const id of b.trinkets) {
-      const m = Models.trinket(id);
-      if (m.userData.mount === 'hang') {
-        m.position.set(...hang[hi++ % hang.length]);
+      const m = Models.trinket(id), mount = m.userData.mount;
+      if (mount === 'hang') {
+        const at = hang[hi++ % hang.length], pivot = new THREE.Group();
+        pivot.position.set(...at);
+        m.rotation.y = Math.atan2(EYE.x - at[0], EYE.z - at[2]); // its face (+Z) towards you
         m.scale.setScalar(id === 'dice' ? 0.65 : 0.8);
-        m.userData.swing = 0.8 + 0.4 * ((hi * 37) % 10) / 10;
-        this.hangers.push(m);
-      } else {
-        m.position.set(...dash[di++ % dash.length]);
-        m.rotation.y = Math.PI + (di * 0.7) % 0.9 - 0.45; // face the driver, each at its own angle
-        m.scale.setScalar(Math.min(0.55, 1.9 / new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y));
-        if (m.userData.neck) this.bobNecks.push(m.userData.neck);
+        pivot.add(m);
+        pivot.userData.swing = 0.8 + 0.4 * ((hi * 37) % 10) / 10;
+        this.hangers.push(pivot);
+        I.add(pivot);
+        continue;
       }
       I.add(m);
+      m.scale.setScalar(1);
+      m.position.set(0, 0, 0);
+      const h = local(m).getSize(v3).y;
+      let sc = Math.min(0.55, (mount === 'stand' ? 1.6 : 1.9) / Math.max(h, 0.01));
+      m.scale.setScalar(sc);
+      // Find a row with room, packing along it with a small gap.
+      let placed = false;
+      for (const r of rows[mount]) {
+        const [x, z0, z1] = r, dir = Math.sign(z1 - z0), key = r.join();
+        const zc = cursor.has(key) ? cursor.get(key) : z0;
+        m.position.set(x, 0, 0);
+        m.rotation.y = Math.atan2(-(EYE.z - zc), EYE.x - x) + ((id.length * 0.37) % 0.5) - 0.25; // turned to face you, give or take
+        const box = local(m), half = (box.max.z - box.min.z) / 2, mid = (box.max.z + box.min.z) / 2;
+        const z = zc + dir * half;
+        if ((z1 - (z + dir * half)) * dir < 0) continue; // no room left on this row
+        m.position.set(x, 0, z - mid);
+        cursor.set(key, z + dir * (half + 0.12));
+        placed = true;
+        break;
+      }
+      if (!placed) m.position.set(4.7, 0, 5);
+      m.position.y = groundAt(m.position.x, m.position.z);
+      // Keep it under the glass: nudge it back from the windshield, then shrink it if it still touches.
+      for (let k = 0; k < 30; k++) {
+        const box = local(m);
+        if (box.max.y < WINDSHIELD.yAt(box.max.x) - 0.12) break;
+        if (k < 10) m.position.x -= 0.06;
+        else { sc *= 0.95; m.scale.setScalar(sc); }
+        m.position.y = groundAt(m.position.x, m.position.z);
+      }
+      if (m.userData.neck) this.bobNecks.push(m.userData.neck);
     }
   }
 

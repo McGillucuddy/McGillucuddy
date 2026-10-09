@@ -474,13 +474,33 @@ class Garage3D {
     // Spare part on the floor by the lift.
     if (b.spare) D.add(LP.box(10, 6, 8, LP.mat('#5a6a3a'), 28, 3, 30));
     // Trinkets on their shelf: the only things that stay with you the whole run.
-    // Hanging ones on nails above, flat ones leaned against the wall on the top shelf, standing ones below.
-    const slot = { hang: 0, flat: 0, stand: 0 };
+    // Hanging ones on nails in the wall above, flat ones leaned against the wall on the top shelf, standing ones
+    // on the bottom shelf. Each is set down by its real bounds so nothing floats or sinks into the wood.
+    const slot = { hang: 0, flat: 0, stand: 0 }, nailMat = LP.mat('#8a8f94', { metalness: 0.8, roughness: 0.4 });
+    const wall = -100, bb = new THREE.Box3();
     b.trinkets.forEach((id) => {
       const m = Models.trinket(id), mount = m.userData.mount, i = slot[mount]++;
-      if (mount === 'hang') { m.scale.setScalar(1.3); m.position.set(-13 + (i % 9) * 3.2, 47, -98); }
-      else if (mount === 'flat') { m.scale.setScalar(1.4); m.rotation.x = Math.PI / 2 - 0.3; m.position.set(-12.5 + (i % 8) * 3.6, 35.6, -98.6); }
-      else { m.scale.setScalar(Math.min(1.4, 5 / new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()).y)); m.rotation.y = -Math.PI / 2; m.position.set(-12.5 + (i % 8) * 3.6, 22.6, -97); }
+      if (mount === 'hang') {
+        const x = -13 + (i % 9) * 3.2, y = 47;
+        m.scale.setScalar(1.3);
+        m.position.set(x, y, 0);
+        m.updateMatrixWorld(true);
+        const z = Math.max(wall + 1.1, wall + 0.15 - bb.setFromObject(m).min.z); // clear of the wall
+        m.position.z = z;
+        D.add(LP.cyl(0.12, 0.12, z - wall + 0.3, 6, nailMat, x, y + 0.05, (z + wall + 0.3) / 2).rotateX(Math.PI / 2)); // the nail it hangs from
+        D.add(LP.cyl(0.25, 0.25, 0.08, 8, nailMat, x, y + 0.05, z + 0.3).rotateX(Math.PI / 2)); // its head
+      } else {
+        const flat = mount === 'flat', x = -12.5 + (i % 8) * 3.6;
+        m.scale.setScalar(1);
+        const h = bb.setFromObject(m).getSize(new THREE.Vector3()).y;
+        m.scale.setScalar(flat ? 1.4 : Math.min(1.4, 5 / h));
+        if (flat) m.rotation.x = Math.PI / 2 - 0.3; else m.rotation.y = -Math.PI / 2; // leaned on the wall / facing out
+        m.position.set(x, 0, -97);
+        m.updateMatrixWorld(true);
+        bb.setFromObject(m);
+        m.position.y += (flat ? 34.6 : 22.6) - bb.min.y; // resting on the shelf
+        if (flat) m.position.z += wall + 0.05 - bb.min.z; // its top edge against the wall
+      }
       D.add(m);
     });
     // Goods on the commissary counter, with price tags. Click one to buy it.

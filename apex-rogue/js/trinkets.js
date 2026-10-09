@@ -32,8 +32,11 @@ const Trinkets = {
   },
   // A ball chain or a cord from the origin down to y.
   chain(sc, mat, y, beads) {
-    if (beads) for (let k = 0; k * 0.14 < -y; k++) sc.add(mat, SDF.ellipsoid([0.05, 0.05, 0.05], [0, -k * 0.14, 0]), 0.03);
-    else sc.add(mat, SDF.path([[0, 0, 0], [0.02, y * 0.5, 0.01], [0, y, 0]], 0.03), 0.02);
+    if (beads) {
+      const n = Math.max(1, Math.round(-y / 0.14));
+      sc.add(mat, SDF.cyl(0.014, -y, 'y', 0.005, [0, y / 2, 0]), 0.005); // the links between the balls
+      for (let k = 0; k <= n; k++) sc.add(mat, SDF.ellipsoid([0.05, 0.05, 0.05], [0, (y * k) / n, 0]), 0.005);
+    } else sc.add(mat, SDF.path([[0, 0, 0], [0.02, y * 0.5, 0.01], [0, y, 0]], 0.03), 0.02);
   },
 };
 
@@ -41,60 +44,81 @@ const TRINKET_BUILD = {
   // ---------- Hung from the mirror ----------
 
   dice() {
-    return Trinkets.make('dice', 0.028, (sc, M) => {
+    return Trinkets.make('dice', 0.028, (sc) => {
       const cord = LP.mat('#eeeeee'), pip = LP.mat('#111111', { roughness: 1 });
-      sc.add(cord, SDF.path([[0, 0, 0], [0, -1.5, 0], [0.04, -2.15, -0.36], [0, -1.5, 0], [0.08, -2.4, 0.42]], 0.03), 0.02);
+      const A = [0, -2.6, -0.36], B = [0.1, -2.86, 0.42];
+      // One cord doubled through a knot, each end sewn into the middle of a die.
+      sc.add(cord, SDF.path([[0, 0, 0], [0, -1.5, 0], [0.02, -2.0, -0.2], A], 0.03), 0.02);
+      sc.add(cord, SDF.path([[0, -1.5, 0], [0.05, -2.1, 0.22], B], 0.03), 0.02);
       sc.add(cord, SDF.ellipsoid([0.1, 0.12, 0.1], [0, -1.5, 0]), 0.04); // the knot
+      // Opposite faces add up to seven, like a real die.
+      const pips = {
+        1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]],
+        5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [-1, 0], [-1, 1], [1, -1], [1, 0], [1, 1]],
+      };
       const die = (mat, p, rot) => {
-        // Plush: a soft, very rounded cube with a fuzzy surface and pips sewn in.
-        sc.add(mat, SDF.warp(SDF.box([0.82, 0.82, 0.82], 0.28, p, rot), (x, y, z) => { const n = 1 + 0.02 * Math.sin(x * 40) * Math.sin(y * 37) * Math.sin(z * 43); return [p[0] + (x - p[0]) / n, p[1] + (y - p[1]) / n, p[2] + (z - p[2]) / n]; }, 0.03), 0.02);
+        // Plush: a soft rounded cube with a fuzzy surface and pips sewn into its flat faces.
+        sc.add(mat, SDF.warp(SDF.box([0.82, 0.82, 0.82], 0.2, p, rot), (x, y, z) => { const n = 1 + 0.015 * Math.sin(x * 40) * Math.sin(y * 37) * Math.sin(z * 43); return [p[0] + (x - p[0]) / n, p[1] + (y - p[1]) / n, p[2] + (z - p[2]) / n]; }, 0.02), 0.02);
         const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot));
         const at = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(m).add(new THREE.Vector3(...p)).toArray();
-        const pips = [[[0, 0]], [[-0.2, -0.2], [0.2, 0.2]], [[-0.2, -0.2], [0, 0], [0.2, 0.2]], [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]]];
-        const face = (n, axis) => {
-          for (const [u, v] of pips[n]) {
-            const q = axis === 'z' ? at(u, v, 0.41) : axis === 'x' ? at(0.41, u, v) : at(u, 0.41, v);
-            sc.cut(SDF.ellipsoid([0.075, 0.075, 0.075], q), 0.02, [mat]);
-            sc.add(pip, SDF.ellipsoid([0.065, 0.065, 0.065], q), 0.01);
+        for (const [n, axis, sd] of [[1, 'y', 1], [6, 'y', -1], [2, 'x', 1], [5, 'x', -1], [3, 'z', 1], [4, 'z', -1]]) {
+          for (const [u0, v0] of pips[n]) {
+            const u = u0 * 0.15, v = v0 * 0.15, f = 0.41 * sd;
+            const q = axis === 'z' ? at(u, v, f) : axis === 'x' ? at(f, u, v) : at(u, f, v);
+            sc.cut(SDF.ellipsoid([0.07, 0.07, 0.07], q), 0.015, [mat]);
+            sc.add(pip, SDF.ellipsoid([0.06, 0.06, 0.06], q), 0.005);
           }
-        };
-        face(2, 'z'); face(1, 'x'); face(0, 'y');
+        }
       };
-      die(LP.mat('#f2f2f2', { roughness: 1 }), [0, -2.6, -0.36], [0.4, 0.3, 0.2]);
-      die(LP.mat('#ff3b6b', { roughness: 1 }), [0.1, -2.86, 0.42], [-0.3, 0.6, 0.2]);
+      die(LP.mat('#f2f2f2', { roughness: 1 }), A, [0.4, 0.3, 0.2]);
+      die(LP.mat('#ff3b6b', { roughness: 1 }), B, [-0.3, 0.6, 0.2]);
     }).g;
   },
 
   rabbit_foot() {
-    return Trinkets.make('rabbit_foot', 0.025, (sc, M) => {
-      const fur = LP.mat('#d8cfc0', { roughness: 1 }), claw = LP.mat('#3a3028', { roughness: 0.5 });
-      Trinkets.chain(sc, M.steel(), -1.75, true);
-      sc.add(M.gold(), SDF.lathe([[0.1, 0.0], [0.2, 0.1], [0.28, 0.3], [0.3, 0.42]], [0, -1.8, 0], [Math.PI / 2, 0, 0]), 0.04); // cap
-      // Fur: a tapering foot with a shaggy surface and three toes.
-      sc.add(fur, SDF.warp(SDF.cone([0, -2.1, 0], [0.04, -3.0, 0.1], 0.3, 0.34), (x, y, z) => { const n = 1 + 0.07 * Math.sin(y * 31 + x * 13) * Math.sin(z * 29); return [x / n, y, z / n]; }, 0.05), 0.08);
-      for (const [x, z] of [[-0.14, 0.18], [0.03, 0.26], [0.18, 0.16]]) {
-        sc.add(fur, SDF.ellipsoid([0.13, 0.17, 0.12], [x, -3.2, z]), 0.12);
-        sc.add(claw, SDF.cone([x, -3.3, z + 0.08], [x, -3.42, z + 0.16], 0.04, 0.01), 0.01);
+    return Trinkets.make('rabbit_foot', 0.022, (sc, M) => {
+      const fur = LP.mat('#d8cfc0', { roughness: 1 }), claw = LP.mat('#3a3028', { roughness: 0.5 }), gold = M.gold();
+      Trinkets.chain(sc, M.steel(), -1.62, true);
+      sc.add(gold, SDF.torus(0.08, 0.025, [0, -1.66, 0], [0, Math.PI / 2, 0]), 0.01); // eye the chain hangs from
+      sc.add(gold, SDF.lathe([[0.06, 0.0], [0.17, 0.06], [0.24, 0.2], [0.26, 0.3]], [0, -1.72, 0], [Math.PI / 2, 0, 0]), 0.03); // crimped cap
+      // The foot: slim at the cap, swelling to the paw, which bends forward; shaggy fur and three toes with claws.
+      const shag = (x, y, z) => { const n = 1 + 0.035 * Math.sin(y * 47 + x * 19) * Math.sin(z * 41 - y * 13) + 0.02 * Math.sin(x * 71 + z * 67); return [x / n, y, (z - 0.05) / n + 0.05]; };
+      sc.add(fur, SDF.warp(SDF.union([
+        SDF.cone([0, -1.95, 0], [0, -2.55, 0.04], 0.24, 0.28),
+        SDF.cone([0, -2.55, 0.04], [0.02, -2.95, 0.16], 0.28, 0.3),
+      ]), shag, 0.03), 0.1);
+      for (const [x, z] of [[-0.15, 0.3], [0.02, 0.38], [0.18, 0.28]]) {
+        sc.add(fur, SDF.ellipsoid([0.12, 0.14, 0.12], [x, -3.1, z]), 0.12);
+        sc.add(claw, SDF.cone([x, -3.14, z + 0.06], [x, -3.24, z + 0.16], 0.035, 0.008), 0.01);
       }
     }).g;
   },
 
   keys() {
-    return Trinkets.make('keys', 0.025, (sc, M) => {
+    return Trinkets.make('keys', 0.02, (sc, M) => {
       const brass = M.brass(), steel = M.steel(), leather = LP.mat('#5a3a22', { roughness: 0.8 });
-      sc.add(steel, SDF.path([[0, 0, 0], [0.02, -0.7, 0], [0, -1.35, 0]], 0.03), 0.02);
-      sc.add(steel, SDF.torus(0.4, 0.05, [0, -1.75, 0]), 0.03);
-      sc.add(leather, SDF.box([0.36, 0.9, 0.08], 0.08, [-0.42, -2.4, 0.05], [0, 0, 0.3]), 0.03); // leather fob
-      sc.cut(SDF.box([0.2, 0.4, 0.2], 0.05, [-0.4, -2.45, 0.05], [0, 0, 0.3]), 0.02, [leather]); // stamped number plate recess
-      const rot = (x, y, a) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
-      for (const [a, len] of [[-0.2, 1.1], [0.15, 1.4], [0.55, 0.9]]) {
-        const ox = Math.sin(a) * 0.35, oy = -2.1, at = (x, y) => { const [u, v] = rot(x, y, a); return [ox + u, oy + v, 0]; };
-        sc.add(brass, SDF.cyl(0.22, 0.08, 'z', 0.03, at(0, 0), [0, 0, a]), 0.03); // bow
-        sc.cut(SDF.cyl(0.09, 0.4, 'z', 0.01, at(0, 0)), 0.01, [brass]);
-        sc.add(brass, SDF.box([0.11, len, 0.08], 0.03, at(0, -len / 2 - 0.2), [0, 0, a]), 0.05); // blade
-        sc.add(brass, SDF.box([0.3, 0.16, 0.08], 0.03, at(0.13, -len - 0.1), [0, 0, a]), 0.03); // bit
-        sc.cut(SDF.box([0.08, 0.08, 0.2], 0.01, at(0.2, -len - 0.08), [0, 0, a]), 0.01, [brass]); // ward cut
+      const R = 0.4, cy = -1.75, wire = (x) => cy - Math.sqrt(R * R - x * x); // the bottom of the split ring
+      sc.add(steel, SDF.path([[0, 0, 0], [0.02, -0.7, 0], [0, cy + R + 0.02, 0]], 0.03), 0.02);
+      sc.add(steel, SDF.torus(R, 0.045, [0, cy, 0]), 0.02); // split ring, in the XY plane
+      // Keys hang across the ring, so the wire runs straight through each bow's hole.
+      for (const [ox, a, len] of [[-0.2, 0.25, 1.1], [0, -0.05, 1.4], [0.2, -0.3, 0.9]]) {
+        const P = [ox, wire(ox), 0];
+        const at = (v, w) => [P[0], P[1] + v * Math.cos(a) - w * Math.sin(a), P[2] + v * Math.sin(a) + w * Math.cos(a)];
+        const rot = [a, 0, 0];
+        sc.add(brass, SDF.cyl(0.22, 0.08, 'x', 0.03, at(-0.12, 0), rot), 0.03); // bow
+        sc.cut(SDF.cyl(0.09, 0.4, 'x', 0.01, at(-0.02, 0), rot), 0.01, [brass]); // the hole the ring passes through
+        sc.add(brass, SDF.box([0.08, len, 0.11], 0.03, at(-len / 2 - 0.3, 0), rot), 0.05); // blade
+        sc.add(brass, SDF.box([0.08, 0.16, 0.3], 0.03, at(-len - 0.2, 0.13), rot), 0.03); // bit
+        sc.cut(SDF.box([0.2, 0.08, 0.08], 0.01, at(-len - 0.18, 0.2), rot), 0.01, [brass]); // ward cut
       }
+      // Leather fob on its own little ring, linked through the split ring.
+      const t = Math.PI * 1.22, rx = Math.cos(t), ry = Math.sin(t), wp = [R * rx, cy + R * ry, 0];
+      const c = [wp[0] + rx * 0.07, wp[1] + ry * 0.07, 0];
+      sc.add(steel, SDF.torus(0.1, 0.022, c, [Math.PI / 2, 0, Math.atan2(ry, rx)]), 0.01);
+      const top = [c[0] + rx * 0.1, c[1] + ry * 0.1];
+      sc.add(leather, SDF.box([0.36, 0.86, 0.08], 0.08, [top[0], top[1] - 0.38, 0]), 0.03);
+      sc.cut(SDF.cyl(0.05, 0.3, 'z', 0.01, [top[0], top[1] - 0.06, 0]), 0.01, [leather]); // punched hole
+      sc.cut(SDF.box([0.2, 0.4, 0.2], 0.05, [top[0], top[1] - 0.48, 0.1]), 0.02, [leather]); // stamped number plate recess
     }).g;
   },
 
@@ -129,36 +153,46 @@ const TRINKET_BUILD = {
   },
 
   dogtags() {
-    return Trinkets.make('dogtags', 0.02, (sc, M) => {
+    return Trinkets.make('dogtags', 0.018, (sc, M) => {
       const steel = M.steel();
-      Trinkets.chain(sc, steel, -1.6, true);
-      // Two stamped tags with a rolled rim, one hanging a little lower and turned.
-      for (const [dy, rz, dz] of [[0, 0.08, 0], [-0.3, -0.12, 0.06]]) {
-        const p = [0.05, -2.15 + dy, dz];
-        sc.add(steel, SDF.box([0.62, 1.0, 0.05], 0.22, p, [0, 0, rz]), 0.01);
-        sc.add(steel, SDF.warp(SDF.box([0.62, 1.0, 0.07], 0.22, p, [0, 0, rz]), (x, y, z) => [p[0] + (x - p[0]) * 1.08, p[1] + (y - p[1]) * 1.05, z], 0.05), 0.0001);
-        sc.cut(SDF.box([0.48, 0.86, 0.05], 0.16, [p[0], p[1], p[2] + 0.04], [0, 0, rz]), 0.01); // pressed face
-        for (let k = 0; k < 4; k++) sc.add(steel, SDF.box([0.3 - (k % 2) * 0.08, 0.04, 0.03], 0.01, [p[0] - 0.03, p[1] + 0.25 - k * 0.15, p[2] + 0.03], [0, 0, rz]), 0.005); // stamped lines
-        sc.cut(SDF.cyl(0.05, 0.2, 'z', 0.01, [p[0], p[1] + 0.38, p[2]]), 0.01);
+      const H = [0.05, -1.86, 0]; // where the holes line up
+      Trinkets.chain(sc, steel, -1.63, true);
+      // A jump ring through both holes, hanging from the end of the chain.
+      sc.add(steel, SDF.torus(0.1, 0.018, [H[0], H[1] + 0.09, 0.035], [0, Math.PI / 2, 0]), 0.005);
+      // Two stamped tags with a rolled rim, turned a little apart on the ring.
+      for (const [rz, dz] of [[0.1, 0], [-0.16, 0.07]]) {
+        const p = [H[0] + 0.38 * Math.sin(rz), H[1] - 0.38 * Math.cos(rz), dz];
+        const rot = [0, 0, rz];
+        sc.add(steel, SDF.box([0.62, 1.0, 0.04], 0.018, p, rot), 0.01);
+        sc.cut(SDF.box([0.5, 0.86, 0.04], 0.016, [p[0], p[1], p[2] + 0.03], rot), 0.008); // pressed face, leaving a rim
+        for (let k = 0; k < 4; k++) {
+          const v = 0.2 - k * 0.15, q = [p[0] - 0.03 * Math.cos(rz) - v * Math.sin(rz), p[1] - 0.03 * Math.sin(rz) + v * Math.cos(rz), p[2] + 0.012];
+          sc.add(steel, SDF.box([0.3 - (k % 2) * 0.08, 0.04, 0.02], 0.008, q, rot), 0.004); // stamped lines
+        }
+        sc.cut(SDF.cyl(0.05, 0.3, 'z', 0.01, [H[0], H[1], dz]), 0.008); // the hole
       }
     }).g;
   },
 
   shoes() {
-    return Trinkets.make('shoes', 0.022, (sc, M) => {
+    return Trinkets.make('shoes', 0.018, (sc, M) => {
       const bronze = M.bronze(), lace = M.cord();
-      sc.add(lace, SDF.path([[0, 0, 0], [0, -1.3, 0], [-0.3, -1.7, 0], [0, -1.3, 0], [0.32, -1.85, 0]], 0.025), 0.02);
-      // Two bronzed baby shoes hung by their laces: sole, toe cap, heel counter and an open collar.
-      for (const [x, y, rz] of [[-0.35, -2.2, 0.4], [0.35, -2.4, -0.3]]) {
-        const p = [x, y, 0], rot = [Math.PI / 2 - 0.3, 0, rz];
-        const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot));
-        const at = (u, v, w) => new THREE.Vector3(u, v, w).applyMatrix4(m).add(new THREE.Vector3(...p)).toArray();
-        sc.add(bronze, SDF.ellipsoid([0.28, 0.6, 0.22], at(0, 0, 0), rot), 0.08); // foot
-        sc.add(bronze, SDF.ellipsoid([0.24, 0.24, 0.26], at(0, -0.36, 0.06), rot), 0.15); // toe
-        sc.add(bronze, SDF.cone(at(0, 0.28, 0.05), at(0, 0.32, 0.36), 0.22, 0.2), 0.15); // heel and ankle
-        sc.cut(SDF.ellipsoid([0.15, 0.2, 0.2], at(0, 0.24, 0.42), rot), 0.04, [bronze]); // collar opening
-        sc.add(bronze, SDF.box([0.3, 0.68, 0.06], 0.05, at(0, -0.04, -0.2), rot), 0.06); // sole
-      }
+      const ends = [[-0.3, -1.72, 0], [0.32, -1.86, 0]];
+      sc.add(lace, SDF.path([[0, 0, 0], [0, -1.3, 0], ends[0]], 0.025), 0.02);
+      sc.add(lace, SDF.path([[0, -1.3, 0], ends[1]], 0.025), 0.02);
+      // Two bronzed baby shoes hung toe-down by their laces: sole, toe box, heel, ankle collar, an instep strap.
+      [[ends[0], 1.15, 0.5, 0.2], [ends[1], 1.3, -0.4, -0.15]].forEach(([L, rx, ry, rz]) => {
+        const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(rx, ry, rz));
+        const collar = new THREE.Vector3(0, 0.36, -0.14).applyMatrix4(m);
+        const o = new THREE.Vector3(...L).sub(collar);
+        const at = (u, v, w) => new THREE.Vector3(u, v, w).applyMatrix4(m).add(o).toArray(), rot = [rx, ry, rz];
+        sc.add(bronze, SDF.box([0.34, 0.07, 0.78], 0.03, at(0, 0.035, 0), rot), 0.04); // sole
+        sc.add(bronze, SDF.ellipsoid([0.17, 0.15, 0.25], at(0, 0.13, 0.15), rot), 0.1); // toe box
+        sc.add(bronze, SDF.ellipsoid([0.16, 0.19, 0.2], at(0, 0.17, -0.17), rot), 0.1); // heel
+        sc.add(bronze, SDF.cyl(0.15, 0.16, 'y', 0.05, at(0, 0.3, -0.14), rot), 0.08); // ankle
+        sc.cut(SDF.ellipsoid([0.1, 0.16, 0.11], at(0, 0.42, -0.13), rot), 0.03, [bronze]); // collar opening
+        sc.add(bronze, SDF.box([0.36, 0.05, 0.1], 0.02, at(0, 0.27, 0.02), [rx + 0.5, ry, rz]), 0.03); // strap
+      });
     }).g;
   },
 
@@ -208,8 +242,8 @@ const TRINKET_BUILD = {
       // Pot belly, stubby legs and arms, a big grinning head, huge ears and a shock of upright hair.
       sc.add(skin, SDF.ellipsoid([0.62, 0.7, 0.56], [0, 0.95, 0]), 0.1);
       for (const sd of [-1, 1]) {
-        sc.add(skin, SDF.ellipsoid([0.24, 0.32, 0.26], [0.08, 0.25, sd * 0.3]), 0.15); // legs
-        sc.add(skin, SDF.ellipsoid([0.32, 0.12, 0.2], [0.26, 0.06, sd * 0.32]), 0.12); // feet
+        sc.add(skin, SDF.ellipsoid([0.24, 0.32, 0.26], [0.08, 0.32, sd * 0.3]), 0.15); // legs
+        sc.add(skin, SDF.ellipsoid([0.32, 0.12, 0.2], [0.26, 0.12, sd * 0.32]), 0.12); // feet, flat on the base
         sc.add(skin, SDF.path([[0, 1.3, sd * 0.5], [0.15, 1.0, sd * 0.75], [0.35, 0.85, sd * 0.68]], 0.12), 0.12); // arms
         sc.add(skin, SDF.ellipsoid([0.1, 0.32, 0.2], [-0.05, 2.0, sd * 0.68], [sd * 0.5, 0, 0]), 0.1); // ears
       }
@@ -219,7 +253,13 @@ const TRINKET_BUILD = {
       sc.add(LP.mat('#2a1a10'), SDF.ellipsoid([0.06, 0.08, 0.08], [0.5, 2.08, -0.2]), 0.01);
       sc.add(LP.mat('#2a1a10'), SDF.ellipsoid([0.06, 0.08, 0.08], [0.5, 2.08, 0.2]), 0.01);
       sc.add(gem, SDF.ellipsoid([0.08, 0.12, 0.12], [0.6, 1.0, 0]), 0.03); // belly gem
-      sc.add(hair, SDF.warp(SDF.cone([0, 2.3, 0], [0, 3.6, 0], 0.5, 0.14), (x, y, z) => { const a = Math.atan2(z, x), k = 1 + 0.25 * Math.sin(a * 11 + y * 4); return [x / k, y, z / k]; }, 0.2), 0.15);
+      // Hair: strands rooted in the crown, sweeping up into one tall flame of a tuft.
+      const rnd = mulberry32(5);
+      for (let k = 0; k < 36; k++) {
+        const a = k * 2.4, r = 0.12 + 0.24 * Math.sqrt((k + 0.5) / 36), bx = Math.cos(a) * r, bz = Math.sin(a) * r;
+        const h = 3.3 + rnd() * 0.45, tw = 0.25 + rnd() * 0.15;
+        sc.add(hair, SDF.path([[bx * 0.9, 2.3, bz * 0.9], [bx * 1.35, 2.75, bz * 1.35], [bx * tw + (rnd() - 0.5) * 0.12, h, bz * tw + (rnd() - 0.5) * 0.12]], 0.06), 0.08);
+      }
     }).g;
   },
 
@@ -249,17 +289,20 @@ const TRINKET_BUILD = {
       const wood = LP.mat('#4a2e1a', { roughness: 0.6 }), white = LP.mat('#f2f4f8', { roughness: 1 }), tower = LP.mat('#6a6a6a', { roughness: 0.8 }), lit = LP.glow('#ffd27a', 0.8);
       sc.add(wood, SDF.lathe([[0.85, 0], [0.9, 0.08], [0.8, 0.5], [0.62, 0.62], [0, 0.62]], [0, 0, 0], [-Math.PI / 2, 0, 0]), 0.05);
       sc.add(white, SDF.ellipsoid([0.55, 0.14, 0.55], [0, 0.66, 0]), 0.05); // snow drift
-      // The prison inside: a little watchtower and wall.
-      sc.add(tower, SDF.cone([0, 0.7, 0], [0, 1.35, 0], 0.13, 0.1), 0.03);
+      // The prison inside: a little watchtower and a stretch of wall, both standing in the snow.
+      sc.add(tower, SDF.cone([0, 0.66, 0], [0, 1.35, 0], 0.13, 0.1), 0.03);
       sc.add(tower, SDF.box([0.36, 0.18, 0.36], 0.05, [0, 1.42, 0]), 0.05);
       sc.add(lit, SDF.box([0.38, 0.06, 0.38], 0.02, [0, 1.42, 0]), 0.01);
-      sc.add(tower, SDF.box([0.8, 0.22, 0.1], 0.03, [-0.1, 0.8, 0.25], [0, 0.4, 0]), 0.04);
+      sc.add(tower, SDF.box([0.5, 0.26, 0.1], 0.03, [-0.12, 0.8, 0.22], [0, 0.4, 0]), 0.04);
     });
     const glass = LP.mesh(new THREE.SphereGeometry(0.7, 28, 20), LP.mat('#d8ecff', { transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.2, depthWrite: false }), 0, 1.25, 0);
     g.add(glass);
-    for (let k = 0; k < 18; k++) { // snow drifting in the water
-      const a = k * 2.4, r = 0.15 + ((k * 37) % 10) / 22;
-      g.add(LP.mesh(new THREE.SphereGeometry(0.025, 6, 4), LP.mat('#ffffff'), Math.cos(a) * r, 0.8 + ((k * 53) % 10) / 12, Math.sin(a) * r));
+    const rnd = mulberry32(9), flake = LP.mat('#ffffff');
+    for (let k = 0; k < 18;) { // snow drifting in the water, all of it inside the glass and above the drift
+      const x = (rnd() - 0.5) * 1.2, y = 0.85 + rnd() * 0.95, z = (rnd() - 0.5) * 1.2;
+      if (Math.hypot(x, y - 1.25, z) > 0.6) continue;
+      g.add(LP.mesh(new THREE.SphereGeometry(0.025, 6, 4), flake, x, y, z));
+      k++;
     }
     return g;
   },
@@ -279,34 +322,46 @@ const TRINKET_BUILD = {
   },
 
   compass() {
-    const { g } = Trinkets.make('compass', 0.025, (sc, M) => {
-      const black = LP.mat('#1a1a1a', { roughness: 0.5 }), card = LP.mat('#f2ead6'), red = LP.mat('#c22a1a'), steel = M.steel();
-      // A dash-top ball compass: a base plate, a bracket, a black housing and a domed top over the card.
-      sc.add(black, SDF.box([0.9, 0.08, 0.7], 0.04, [0, 0.04, 0]), 0.03);
-      sc.add(steel, SDF.box([0.1, 0.5, 0.5], 0.04, [-0.1, 0.32, 0]), 0.06);
-      sc.add(black, SDF.ellipsoid([0.48, 0.42, 0.48], [0, 0.72, 0]), 0.08);
-      sc.add(card, SDF.cyl(0.38, 0.08, 'x', 0.03, [0.42, 0.74, 0]), 0.02); // the card behind the glass
-      sc.add(red, SDF.box([0.05, 0.28, 0.04], 0.015, [0.46, 0.74, 0]), 0.01); // lubber line
-      sc.add(black, SDF.box([0.05, 0.04, 0.14], 0.01, [0.46, 0.92, 0]), 0.005); // N mark
-      for (const sd of [-1, 1]) sc.add(steel, SDF.cyl(0.05, 0.1, 'z', 0.02, [-0.1, 0.5, sd * 0.24]), 0.02); // adjusting screws
+    const { g } = Trinkets.make('compass', 0.022, (sc, M) => {
+      const black = LP.mat('#1a1a1a', { roughness: 0.5 }), card = LP.mat('#f2ead6'), red = LP.mat('#c22a1a'), ink = LP.mat('#111111'), steel = M.steel();
+      // A dash-top ball compass: base plate, a U bracket, the black ball with a window, the card floating inside.
+      const C = [0, 0.78, 0], R = 0.45;
+      sc.add(steel, SDF.box([0.7, 0.08, 1.2], 0.03, [0, 0.04, 0]), 0.02);
+      for (const sd of [-1, 1]) {
+        sc.add(steel, SDF.box([0.22, 0.82, 0.06], 0.03, [0, 0.45, sd * 0.5]), 0.03); // bracket arms
+        sc.add(steel, SDF.cyl(0.07, 0.12, 'z', 0.02, [0, C[1], sd * 0.56]), 0.01); // pivot screws
+      }
+      sc.add(black, SDF.ellipsoid([R, R, R], C), 0.01);
+      sc.cut(SDF.ellipsoid([0.32, 0.32, 0.32], [C[0] + 0.42, C[1], 0]), 0.02, [black]); // the window bowl
+      sc.add(card, SDF.cyl(0.27, 0.05, 'x', 0.02, [0.13, C[1], 0]), 0.005); // the card
+      sc.add(red, SDF.box([0.03, 0.3, 0.03], 0.01, [0.16, C[1], 0]), 0.005); // lubber line
+      sc.add(ink, SDF.box([0.03, 0.06, 0.12], 0.01, [0.16, C[1] + 0.19, 0]), 0.005); // N
+      for (const a of [Math.PI / 2, Math.PI, -Math.PI / 2]) sc.add(ink, SDF.box([0.03, 0.03, 0.08], 0.01, [0.16, C[1] + Math.sin(a) * 0.2, Math.cos(a) * 0.2], [a, 0, 0]), 0.005); // E S W ticks
     });
-    g.add(LP.mesh(new THREE.SphereGeometry(0.4, 20, 14, 0, TAU, 0, Math.PI / 2), LP.mat('#e8f4ff', { transparent: true, opacity: 0.25, roughness: 0.05, depthWrite: false }), 0.44, 0.74, 0).rotateZ(-Math.PI / 2));
+    // Glass: a cap over the window only, so it never fights the housing.
+    g.add(LP.mesh(new THREE.SphereGeometry(0.452, 24, 8, 0, TAU, 0, 0.8).rotateZ(-Math.PI / 2), LP.mat('#e8f4ff', { transparent: true, opacity: 0.18, roughness: 0.05, depthWrite: false }), 0, 0.78, 0));
     return g;
   },
 
   lighter() {
-    const { g } = Trinkets.make('lighter', 0.02, (sc, M) => {
-      const steel = LP.mat('#b8bcc2', { map: GUNTEX.get('steel'), metalness: 0.85, roughness: 0.32 });
-      // Brushed steel case, the hinged lid thrown back, the chimney with its holes, the striker wheel.
-      sc.add(steel, SDF.box([0.5, 0.95, 0.3], 0.07, [0, 0.48, 0]), 0.02);
-      sc.add(steel, SDF.box([0.5, 0.42, 0.3], 0.07, [-0.12, 1.02, 0], [0, 0, 1.0]), 0.02); // open lid
-      sc.add(steel, SDF.box([0.36, 0.32, 0.24], 0.03, [0.04, 1.1, 0]), 0.02); // chimney
-      for (const y of [1.02, 1.16]) for (const z of [-0.06, 0.06]) sc.cut(SDF.cyl(0.03, 0.6, 'x', 0.005, [0.04, y, z]), 0.005);
-      sc.cut(SDF.box([0.28, 0.28, 0.2], 0.03, [0.04, 1.14, 0]), 0.01); // hollow chimney
-      sc.add(LP.mat('#4a4a4a', { metalness: 0.8 }), SDF.cyl(0.07, 0.12, 'z', 0.02, [0.18, 1.16, 0]), 0.01); // striker wheel
-      sc.add(LP.mat('#f2f0e6'), SDF.cyl(0.04, 0.12, 'y', 0.02, [0.04, 1.2, 0]), 0.01); // wick
+    const { g } = Trinkets.make('lighter', 0.018, (sc) => {
+      const steel = LP.mat('#b8bcc2', { metalness: 0.85, roughness: 0.32 }), dark = LP.mat('#4a4a4a', { metalness: 0.8 });
+      // Brushed steel case, the lid thrown back on its hinge, the chimney with its holes, the striker wheel and wick.
+      sc.add(steel, SDF.box([0.5, 0.95, 0.3], 0.06, [0, 0.475, 0]), 0.02);
+      const hinge = [-0.25, 0.95], a = 1.75, ca = Math.cos(a), sa = Math.sin(a);
+      const lid = (u, v) => [hinge[0] + u * ca - v * sa, hinge[1] + u * sa + v * ca, 0]; // lid space: hinge at its corner
+      sc.add(steel, SDF.box([0.5, 0.42, 0.3], 0.06, lid(0.25, 0.21), [0, 0, a]), 0.02);
+      sc.cut(SDF.box([0.42, 0.38, 0.22], 0.03, lid(0.25, 0.17), [0, 0, a]), 0.01, [steel]); // hollow inside of the lid
+      sc.add(dark, SDF.cyl(0.04, 0.3, 'z', 0.01, [hinge[0], hinge[1], 0]), 0.01); // hinge pin
+      sc.add(steel, SDF.box([0.34, 0.3, 0.24], 0.03, [0.04, 1.1, 0]), 0.02); // chimney
+      sc.cut(SDF.box([0.28, 0.3, 0.18], 0.03, [0.04, 1.16, 0]), 0.01, [steel]); // open top of the chimney
+      for (const y of [1.02, 1.14]) for (const z of [-0.06, 0.06]) sc.cut(SDF.cyl(0.028, 0.6, 'x', 0.005, [0.04, y, z]), 0.005, [steel]);
+      sc.add(dark, SDF.cyl(0.07, 0.1, 'z', 0.02, [0.18, 1.2, 0]), 0.01); // striker wheel
+      sc.add(LP.mat('#f2f0e6'), SDF.cyl(0.035, 0.22, 'y', 0.015, [0.04, 1.16, 0]), 0.005); // wick
     });
-    const flame = LP.mesh(new THREE.ConeGeometry(0.08, 0.32, 10), LP.glow('#ffb03a', 2.2), 0.04, 1.42, 0);
+    // A small teardrop flame sitting on the wick.
+    const prof = [[0, 0], [0.04, 0.03], [0.055, 0.08], [0.045, 0.14], [0.02, 0.21], [0, 0.26]].map(([x, y]) => new THREE.Vector2(x, y));
+    const flame = LP.mesh(new THREE.LatheGeometry(prof, 12), LP.glow('#ffb03a', 2.2), 0.04, 1.26, 0);
     flame.userData.flame = true;
     g.add(flame);
     return g;
@@ -341,29 +396,32 @@ const TRINKET_BUILD = {
   },
 
   photo() {
+    const curl = (x) => 0.03 * Math.sin(x * 2.5); // how far the card has curled up at x
     const { g } = Trinkets.make('photo', 0.02, (sc) => {
       const card = LP.mat('#f2efe6', { roughness: 0.9 }), tape = LP.mat('#d8d0a0', { roughness: 1, transparent: true, opacity: 0.85 });
-      sc.add(card, SDF.warp(SDF.box([1.1, 0.03, 1.3], 0.01, [0, 0.02, 0]), (x, y, z) => [x, y - 0.03 * Math.sin(x * 2.5), z], 0.04), 0.0001); // a curled polaroid
-      sc.add(tape, SDF.box([0.18, 0.02, 0.6], 0.01, [0.48, 0.05, -0.55], [0, 0.6, 0]), 0.0001);
+      sc.add(card, SDF.warp(SDF.box([1.1, 0.03, 1.3], 0.01, [0, 0.045, 0]), (x, y, z) => [x, y - curl(x), z], 0.04), 0.0001); // a curled polaroid
+      sc.add(tape, SDF.warp(SDF.box([0.14, 0.02, 0.4], 0.008, [0.36, 0.07, -0.45], [0, 0.6, 0]), (x, y, z) => [x, y - curl(x), z], 0.04), 0.0001);
     });
-    const pic = LP.mesh(new THREE.PlaneGeometry(0.92, 0.92), LP.mat('#ffffff', { map: DECALS.get('photo') }), 0, 0.045, -0.08);
-    pic.rotation.x = -Math.PI / 2;
-    g.add(pic);
+    const geo = new THREE.PlaneGeometry(0.92, 0.92, 12, 1).rotateX(-Math.PI / 2), pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) pos.setY(i, 0.064 + curl(pos.getX(i)));
+    geo.computeVertexNormals();
+    g.add(LP.mesh(geo, LP.mat('#ffffff', { map: DECALS.get('photo') }), 0, 0, -0.08));
     return g;
   },
 
   smokes() {
     return Trinkets.make('smokes', 0.02, (sc) => {
       const pack = LP.mat('#c23a2a', { roughness: 0.7 }), white = LP.mat('#f2efe6'), foil = LP.mat('#c8c8c8', { metalness: 0.8, roughness: 0.3 }), filter = LP.mat('#c98a3a');
-      // A crushed soft pack lying on its back, flip top open, three cigarettes sliding out.
-      sc.add(pack, SDF.warp(SDF.box([1.4, 0.32, 0.9], 0.08, [0, 0.16, 0]), (x, y, z) => [x, y + 0.04 * Math.sin(x * 3) * Math.cos(z * 4), z], 0.05), 0.02);
-      sc.add(white, SDF.box([0.5, 0.33, 0.92], 0.06, [-0.3, 0.165, 0]), 0.01); // white band
-      sc.add(pack, SDF.box([0.36, 0.06, 0.88], 0.03, [0.82, 0.38, 0], [0, 0, 0.9]), 0.02); // the lid flipped open
-      sc.cut(SDF.box([0.25, 0.26, 0.76], 0.04, [0.62, 0.2, 0]), 0.02, [pack]);
-      sc.add(foil, SDF.box([0.06, 0.22, 0.74], 0.02, [0.58, 0.2, 0]), 0.01);
+      // A pack lying on its back, flip top open, three cigarettes sliding out.
+      sc.add(pack, SDF.box([1.4, 0.32, 0.9], 0.06, [0, 0.16, 0]), 0.02);
+      sc.add(white, SDF.box([0.5, 0.336, 0.916], 0.065, [-0.3, 0.16, 0]), 0.005); // white band round the pack
+      const hx = 0.7, hy = 0.32, a = 0.9; // the lid hinges on the top edge of the open end
+      sc.add(pack, SDF.box([0.36, 0.06, 0.88], 0.03, [hx + 0.18 * Math.cos(a) - 0.03 * Math.sin(a), hy + 0.18 * Math.sin(a) + 0.03 * Math.cos(a) - 0.03, 0], [0, 0, a]), 0.02);
+      sc.cut(SDF.box([0.25, 0.26, 0.76], 0.04, [0.62, 0.17, 0]), 0.02, [pack]);
+      sc.add(foil, SDF.box([0.06, 0.22, 0.74], 0.02, [0.58, 0.17, 0]), 0.01);
       for (const [z, out] of [[-0.2, 0.25], [0.02, 0.45], [0.24, 0.12]]) {
-        sc.add(white, SDF.cyl(0.07, 0.9, 'x', 0.03, [0.3 + out, 0.18, z]), 0.005);
-        sc.add(filter, SDF.cyl(0.072, 0.24, 'x', 0.03, [0.62 + out, 0.18, z]), 0.005);
+        sc.add(white, SDF.cyl(0.07, 0.9, 'x', 0.03, [0.3 + out, 0.17, z]), 0.005);
+        sc.add(filter, SDF.cyl(0.072, 0.24, 'x', 0.03, [0.62 + out, 0.17, z]), 0.005);
       }
     }).g;
   },
@@ -371,11 +429,11 @@ const TRINKET_BUILD = {
   tooth() {
     return Trinkets.make('tooth', 0.015, (sc, M) => {
       const gold = M.gold(), cloth = LP.mat('#5a1a2a', { roughness: 1 });
-      sc.add(cloth, SDF.warp(SDF.box([0.9, 0.04, 0.9], 0.02, [0, 0.02, 0], [0, 0.4, 0]), (x, y, z) => [x, y - 0.03 * Math.sin(x * 4 + z * 3), z], 0.04), 0.0001); // a little velvet square
-      // A gold molar on its side: crown with cusps and two roots.
-      sc.add(gold, SDF.box([0.36, 0.3, 0.32], 0.12, [0, 0.2, 0]), 0.05);
-      for (const [x, z] of [[-0.09, -0.08], [0.09, -0.08], [-0.09, 0.08], [0.09, 0.08]]) sc.add(gold, SDF.ellipsoid([0.08, 0.06, 0.08], [x, 0.34, z]), 0.05);
-      for (const z of [-0.08, 0.08]) sc.add(gold, SDF.cone([0, 0.12, z], [0.42, 0.08, z * 1.4], 0.1, 0.035), 0.06);
+      sc.add(cloth, SDF.warp(SDF.box([0.9, 0.04, 0.9], 0.015, [0, 0.035, 0], [0, 0.4, 0]), (x, y, z) => [x, y - 0.015 * Math.sin(x * 4 + z * 3), z], 0.02), 0.0001); // a little velvet square
+      // A gold molar lying on its side on the cloth: crown with four cusps facing -x, two roots reaching +x.
+      sc.add(gold, SDF.box([0.32, 0.34, 0.36], 0.12, [-0.08, 0.24, 0]), 0.05); // crown
+      for (const [y, z] of [[0.15, -0.09], [0.15, 0.09], [0.33, -0.09], [0.33, 0.09]]) sc.add(gold, SDF.ellipsoid([0.07, 0.08, 0.08], [-0.24, y, z]), 0.05); // cusps
+      for (const z of [-0.09, 0.09]) sc.add(gold, SDF.cone([0.05, 0.22, z], [0.4, 0.17, z * 1.4], 0.1, 0.05), 0.06); // roots
     }).g;
   },
 
