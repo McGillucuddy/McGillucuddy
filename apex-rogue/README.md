@@ -24,9 +24,27 @@ It opens on a **start menu** over the garage, with your car swinging slowly on t
 - **Settings** and **How to play**;
 - **Exit**. Browsers only let a page close a tab it opened itself, so otherwise Exit shows a "lights out" screen.
 
-The menu has its own theme, synthesized live in `js/music.js` like the rest of the sound (there are no audio files). It's a slow industrial piece in D minor:
-a far-off prison siren and pipe clanks, then kick, a driving bass, and a saturated lead over Dm–B♭–Gm–A. Browsers hold sound back until your first click or key press.
-The music fades out when you leave the menu. **Settings → Menu music** sets its volume; the main volume and mute apply too.
+The menu has its own theme, synthesized live in `js/music.js` like the rest of the sound (there are no audio files). It's straight synthwave in D minor at 104 BPM, over Dm–B♭–F–C:
+- four-on-the-floor kick and a big reverb-drenched snare;
+- a pumping saw bass with a deep sub;
+- supersaw pads and a 16th-note arpeggio with a dotted echo.
+
+Everything but the drums ducks under the kick. Browsers hold sound back until your first click or key press. The music fades out when you leave the menu.
+**Settings → Menu music** sets its volume; the main volume and mute apply too.
+
+**Tutorial** (on the menu) is a practice race with a coach card that ticks off each skill as you use it:
+1. Look around.
+2. Fire, and land hits on a rival.
+3. Reload.
+4. Swap guns and fire a rocket.
+5. Swerve.
+6. Throw a grenade.
+7. Raise the shield.
+8. Learn the threats.
+9. Finish.
+
+`Enter` skips a step. Rivals are unarmed and slower, and your hull is reinforced. There are no strikes, scrap or rep. Any run in progress is set aside and handed back afterwards.
+The end screen explains the route sheet, garage, strikes and rep.
 
 You can reach the menu from the route sheet and garage (`☰ Menu`), the pause screen, the race briefing, and the end screens.
 `Esc` backs out of a menu panel, or returns to your run. `prototype.html?run` skips the menu and starts a run straight away.
@@ -268,6 +286,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/campaign.js` | Run structure, route choices, opponents, prize money |
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
 | `js/input.js`, `js/audio.js`, `js/music.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound, the menu theme |
+| `js/tutorial.js` | Tutorial steps and the in-race coach card |
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |

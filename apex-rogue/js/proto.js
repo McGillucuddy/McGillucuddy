@@ -221,7 +221,9 @@ const Proto = {
         break;
       }
       case 'new-run': this.titleFrom = null; this.newRun(); break;
-      case 'menu': if (!this.picking) this.showTitle(); break;
+      case 'menu': if (this.picking) break; if (this.tutorial) this.leaveTutorial(); else this.showTitle(this.state === 'tutdone' ? this.titleFrom || null : undefined); break;
+      case 'tutorial': this.startTutorial(); break;
+      case 'tut-real': if (this.titleFrom) this.continueRun(); else this.action('new-run'); break;
       case 'title': this.showTitle(this.titleFrom || null); break;
       case 'title-new': if (this.titleFrom) this.showTitle(this.titleFrom, 'confirm'); else this.action('new-run'); break;
       case 'continue': this.continueRun(); break;
@@ -324,6 +326,7 @@ const Proto = {
         <p class="t-tag">Win the Crown and walk free. Three strikes and you go back to the cell.</p>
         ${from ? `<button class="btn primary big" data-action="continue">Continue ▶<small>${where}</small></button>` : ''}
         <button class="btn ${from ? '' : 'primary big'}" data-action="title-new">New run</button>
+        <button class="btn" data-action="tutorial">Tutorial${Settings.data.tutorialDone ? '' : '<small>New here? Start with a practice race.</small>'}</button>
         <button class="btn" data-action="settings">Settings</button>
         <button class="btn" data-action="how-to">How to play</button>
         <button class="btn ghost" data-action="exit">Exit</button>
@@ -359,6 +362,60 @@ const Proto = {
         <button class="btn" data-action="title">Back to the menu</button>
       </div>`);
     }, 150);
+  },
+
+  // ---------- Tutorial ----------
+
+  // A practice race with a coach. Any run in progress is set aside and handed back afterwards.
+  startTutorial() {
+    if (this.locked) document.exitPointerLock();
+    this.stash = this.build ? { build: this.build, run: this.run, runRng: this.runRng, race: this.race, combat: this.combat, driver: this.driver, seed: this.seed, from: this.titleFrom } : null;
+    this.titleFrom = null;
+    const b = this.build = newBuild();
+    b.hull = b.maxHull = 300; // room to learn without wrecking
+    this.runRng = mulberry32(20261009);
+    this.run = { act: 0, map: genActMap(this.runRng, 0), cur: null, node: null, flags: { disarm: true } };
+    this.tutorial = new Tutorial(this);
+    this.newRace({ type: 'race', row: 0, tutorial: true });
+  },
+
+  // Put back whatever run was going before the tutorial (or nothing).
+  restoreStash() {
+    if (this.tutorial) { this.tutorial.destroy(); this.tutorial = null; }
+    const s = this.stash;
+    this.stash = null;
+    if (!s) { this.build = this.run = this.race = this.combat = null; this.titleFrom = null; return; }
+    Object.assign(this, { build: s.build, run: s.run, runRng: s.runRng, race: s.race, combat: s.combat, driver: s.driver, seed: s.seed });
+    this.titleFrom = s.from;
+    if (s.race && this.cockpit && ['paused', 'briefing'].includes(s.from)) this.cockpit.load(s.race, s.combat, carLook(this.cos, s.build));
+  },
+
+  leaveTutorial() {
+    if (this.locked) document.exitPointerLock();
+    this.restoreStash();
+    this.showTitle(this.titleFrom || null);
+  },
+
+  finishTutorial() {
+    const p = this.race.player;
+    this.race.rankCars();
+    const place = p.place;
+    Settings.data.tutorialDone = true;
+    Settings.save();
+    this.restoreStash();
+    this.state = 'tutdone';
+    this.setUI(`<div class="screen tut-end">
+      <h1>Training done</h1>
+      <p>You finished <b>${ordinal(place)}</b>. In a real race that ${place <= 3 ? '<b class="good">qualifies</b>' : '<b class="bad">is a strike</b>'}.</p>
+      <h2>Between races</h2>
+      <div class="tut-cards">
+        <div class="panel"><h3>🗺 Route sheet</h3><p>Each act is a map of stops. Pick your path: races pay scrap, shops sell gear, the mechanic patches you up, and events can go either way. The boss waits at the top.</p></div>
+        <div class="panel"><h3>🔧 Garage</h3><p>Fit better engines, tyres, armour and nitro, then tune them. Load the gun rack, fit attachments, buy ammo and grenades, and paint the car.</p></div>
+        <div class="panel"><h3>⚖ Strikes and rep</h3><p>Miss the top 3 and you take a strike; three ends the run. Wrecks and podiums earn rep, which unlocks paint and finishes for every run after.</p></div>
+      </div>
+      <button class="btn primary big" data-action="tut-real">${this.titleFrom ? 'Back to my run' : 'Start a real run ▶'}</button>
+      <button class="btn" data-action="menu">Main menu</button>
+    </div>`);
   },
 
   // ---------- Run flow ----------
@@ -602,7 +659,8 @@ const Proto = {
     driver.rammer = b.chip === 'hothead';
     driver.insideMul = b.chip === 'daredevil' ? 2.2 : 1;
     // Rivals as quick as a stock car from the start, getting sharper through the run; the boss drives above the field.
-    const opponents = buildOpponents(rng, 0, { aiBonus: 0 }, false).map((o) => Object.assign(o, { skill: RIVAL_SKILL(d) + randRange(rng, -0.035, 0.03) }));
+    const tut = !!node.tutorial; // practice: slower rivals
+    const opponents = buildOpponents(rng, 0, { aiBonus: 0 }, false).map((o) => Object.assign(o, { skill: RIVAL_SKILL(d) + randRange(rng, -0.035, 0.03) - (tut ? 0.08 : 0) }));
     if (boss) opponents[opponents.length - 1] = { name: boss.name, color: boss.color, accent: '#111', skill: RIVAL_SKILL(d) + boss.skill, isBoss: true };
     this.race = new Race({
       track, laps: boss ? 4 : 3, playerCar: player, rng, qualify: boss && boss.mustWin ? 1 : 3,
@@ -701,9 +759,10 @@ const Proto = {
       ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.bounty ? `<em class="tag yellow">💰 Bounty ${c.bounty}</em>` : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
-      <h1>${race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : race.node.type === 'bounty' ? 'Bounty race' : 'Race briefing'}</h1>
+      <h1>${race.node.tutorial ? 'Tutorial: practice race' : race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : race.node.type === 'bounty' ? 'Bounty race' : 'Race briefing'}</h1>
       <p class="act-line">Act ${ROMAN[this.run.act]} · ${this.act.title}${race.boss && race.boss.mustWin ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
-      ${race.boss ? `<p class="boss-line"><b>${race.boss.title}.</b> ${race.boss.desc}</p>` : race.node.type === 'elite' ? '<p class="boss-line">Sharper drivers and more guns on the grid. A trinket waits for you if you make the cut.</p>' : ''}
+      ${race.node.tutorial ? '<p class="boss-line">No strikes, no scrap, no armed rivals. A coach card will walk you through every gun and trick, one step at a time.</p>' : ''}
+      ${race.node.tutorial ? '' : race.boss ? `<p class="boss-line"><b>${race.boss.title}.</b> ${race.boss.desc}</p>` : race.node.type === 'elite' ? '<p class="boss-line">Sharper drivers and more guns on the grid. A trinket waits for you if you make the cut.</p>' : ''}
       <p class="muted">${this.build.scrap} scrap · hull ${Math.ceil(this.build.hull)}/${this.build.maxHull} · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
       <div class="brief-grid">
         <div class="panel"><canvas id="preview" width="320" height="320"></canvas>
@@ -740,8 +799,8 @@ const Proto = {
       ${this.cockpit ? `<button class="btn" data-action="${this.view === 'cockpit' ? 'view-top' : 'view-cockpit'}">Switch to ${this.view === 'cockpit' ? 'top-down' : 'cockpit'} view</button>` : ''}
       ${this.cockpit ? `<button class="btn" data-action="retro">Retro filter: ${PSX.enabled ? 'ON' : 'OFF'} (F)</button>` : ''}
       <button class="btn" data-action="settings">Settings</button>
-      <button class="btn" data-action="menu">Main menu</button>
-      <button class="btn ghost" data-action="abandon">Abandon run</button>
+      ${this.tutorial ? '<button class="btn ghost" data-action="menu">Leave tutorial</button>' : `<button class="btn" data-action="menu">Main menu</button>
+      <button class="btn ghost" data-action="abandon">Abandon run</button>`}
     </div>`);
   },
 
@@ -1058,6 +1117,7 @@ const Proto = {
       else if (this.view === 'cockpit' && !this.locked && !this.noLock) Sound.engine(0, 0, false, false); // wait for a click
       else this.updateRace(dt);
     }
+    if (this.tutorial) this.tutorial.update(dt);
     Music.want(this.state === 'title');
     this.render(dt);
     this.renderPreview(dt);
@@ -1092,6 +1152,7 @@ const Proto = {
       for (const ev of combat.events) {
         Sound.play(ev);
         if (this.cockpit) this.cockpit.onEvent(ev);
+        if (this.tutorial) this.tutorial.onEvent(ev);
       }
       combat.events.length = 0;
     }
@@ -1103,7 +1164,11 @@ const Proto = {
     this.cam.y = lerp(this.cam.y, p.y + p.vy * lead, Math.min(1, dt * 5));
     this.cam.zoom = lerp(this.cam.zoom, this.baseZoom() * clamp(1.0 - p.speed / 2600, 0.78, 1), Math.min(1, dt * 1.5));
 
-    if (race.state === 'done') {
+    if (race.state === 'done' && this.tutorial) {
+      if (this.locked) document.exitPointerLock();
+      Sound.engine(0, 0, false, false);
+      this.finishTutorial();
+    } else if (race.state === 'done') {
       this.state = 'results';
       if (this.locked) document.exitPointerLock();
       Sound.engine(0, 0, false, false);
@@ -1133,7 +1198,7 @@ const Proto = {
   render(dt) {
     const ctx = this.ctx, W = this.W, H = this.H, race = this.race;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    const offTrack = ['garage', 'reward', 'over', 'title', 'bye'].includes(this.state);
+    const offTrack = ['garage', 'reward', 'over', 'title', 'bye', 'tutdone'].includes(this.state);
     this.c3d.style.visibility = offTrack ? 'hidden' : 'visible';
     if (!race || offTrack) { ctx.fillStyle = '#100f0c'; ctx.fillRect(0, 0, W, H); return; }
     const live = this.state !== 'briefing';

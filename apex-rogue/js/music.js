@@ -1,28 +1,15 @@
 'use strict';
 // Menu theme, synthesized live like the rest of the sound: no audio files.
-// A slow industrial grind in D minor. A distant siren opens it, pipe clanks and a kick come in, then a
-// driving bass and a lonely lead. Notes are scheduled a little ahead of the audio clock.
+// Straight synthwave in D minor: four-on-the-floor kick, a gated snare, a big pumping saw bass under a
+// supersaw pad and a 16th-note arpeggio with a dotted echo. Everything but the drums ducks under the kick.
 
 const MUSIC = {
-  bpm: 88,
-  // Dm, Bb, Gm, A: one chord a bar, voiced close so the pad barely moves.
-  roots: [38, 34, 31, 33],
-  chords: [[62, 65, 69], [62, 65, 70], [62, 67, 70], [61, 64, 69]],
-  // Bass per bar: [step, semitones above the root].
-  bass: [[0, 0], [3, 0], [6, 12], [8, 0], [10, 0], [11, 12], [14, 7]],
-  // Lead over four bars: [bar, step, midi, length in steps].
-  lead: [
-    [0, 0, 74, 6], [0, 6, 72, 2], [0, 8, 74, 4], [0, 12, 77, 4],
-    [1, 0, 74, 6], [1, 6, 70, 2], [1, 8, 72, 8],
-    [2, 0, 70, 4], [2, 4, 69, 4], [2, 8, 67, 6], [2, 14, 69, 2],
-    [3, 0, 69, 12], [3, 12, 73, 4],
-  ],
-  lead2: [
-    [0, 0, 81, 4], [0, 4, 77, 4], [0, 8, 76, 2], [0, 10, 74, 6],
-    [1, 0, 77, 4], [1, 4, 74, 4], [1, 8, 72, 8],
-    [2, 0, 74, 3], [2, 3, 70, 3], [2, 6, 67, 4], [2, 10, 70, 6],
-    [3, 0, 69, 8], [3, 8, 64, 4], [3, 12, 61, 4],
-  ],
+  bpm: 104,
+  // Dm, Bb, F, C: one chord a bar.
+  roots: [38, 34, 41, 36],
+  chords: [[62, 65, 69], [62, 65, 70], [60, 65, 69], [60, 64, 67]],
+  // Arp walks the chord and its octave: 0-2 are the chord tones, 3 is the root an octave up.
+  arp: [0, 1, 2, 3, 2, 1, 2, 3, 0, 1, 2, 3, 2, 3, 1, 2],
 };
 
 const Music = {
@@ -47,10 +34,10 @@ const Music = {
     this.bus.gain.value = 0;
     this.bus.gain.setTargetAtTime(this.level, c.currentTime, 0.8);
     this.bus.connect(Sound.master);
+    this.makeDuck(c);
     this.bar = 0;
     this.step = 0;
     this.next = c.currentTime + 0.1;
-    this.siren(this.next);
     this.timer = setInterval(() => this.schedule(), 40);
   },
 
@@ -69,37 +56,43 @@ const Music = {
     if (this.bus) this.bus.gain.setTargetAtTime(this.level, Sound.ctx.currentTime, 0.05);
   },
 
-  // Shared space: a long dark reverb and a filtered dotted echo, both feeding the master.
+  // The sidechain: bass, pad and arp run through this gain, which dips on every kick.
+  makeDuck(c) {
+    this.duck = c.createGain();
+    this.duck.gain.value = 1;
+    this.duck.connect(this.bus);
+  },
+
+  // Shared space: a long reverb and a dotted-eighth echo, both feeding the master.
   buildFx(c) {
-    const len = c.sampleRate * 2.6, ir = c.createBuffer(2, len, c.sampleRate);
+    const len = c.sampleRate * 2.2, ir = c.createBuffer(2, len, c.sampleRate);
     for (let ch = 0; ch < 2; ch++) {
       const d = ir.getChannelData(ch);
-      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
     }
     const verb = c.createConvolver();
     verb.buffer = ir;
     const wet = c.createGain();
-    wet.gain.value = 0.5;
+    wet.gain.value = 0.45;
     verb.connect(wet);
     wet.connect(Sound.master);
     const echo = c.createDelay(1);
     echo.delayTime.value = (60 / MUSIC.bpm) * 0.75;
     const fb = c.createGain(), tone = c.createBiquadFilter();
-    fb.gain.value = 0.38;
+    fb.gain.value = 0.35;
     tone.type = 'lowpass';
-    tone.frequency.value = 1600;
+    tone.frequency.value = 2400;
     echo.connect(tone); tone.connect(fb); fb.connect(echo);
     tone.connect(verb);
     tone.connect(Sound.master);
-    // Echo and reverb tails ride on the music level too, so muting the music silences them.
     this.fxGain = c.createGain();
     this.fxGain.connect(verb);
     this.echoIn = c.createGain();
     this.echoIn.connect(echo);
     this.fx = { verb, echo };
-    // Saturation for the lead: a soft clip curve.
+    // Warm saturation for the bass.
     const curve = new Float32Array(1024);
-    for (let i = 0; i < 1024; i++) { const x = (i / 511.5) - 1; curve[i] = Math.tanh(x * 3.5); }
+    for (let i = 0; i < 1024; i++) { const x = (i / 511.5) - 1; curve[i] = Math.tanh(x * 2.2); }
     this.curve = curve;
   },
 
@@ -133,29 +126,29 @@ const Music = {
     }
   },
 
-  // Bars 0-3 are the intro; then a 24-bar loop: groove, lead, groove, second lead, breakdown.
+  // Bars 0-3 are the intro; then a 20-bar loop: groove (8), full groove (8), breakdown (4).
   play(bar, s, t, dt) {
-    const ch = bar % 4, intro = bar < 4, loop = intro ? -1 : (bar - 4) % 24;
-    const groove = loop >= 0 && loop < 20, full = loop >= 4 && loop < 20, breakdown = loop >= 20;
-    const leadOn = (loop >= 8 && loop < 12) || (loop >= 16 && loop < 20) || breakdown;
-    if (s === 0) this.pad(t, MUSIC.chords[ch], dt * 16, breakdown ? 1.4 : 1);
-    if (intro) {
-      if (s === 0 && bar % 2 === 1) this.clank(t, 0.5);
-      if (s % 4 === 2 && bar >= 2) this.hat(t, 0.05, false);
+    const ch = bar % 4, intro = bar < 4, loop = intro ? -1 : (bar - 4) % 20;
+    const full = loop >= 8 && loop < 16, breakdown = loop >= 16;
+    const root = MUSIC.roots[ch], chord = MUSIC.chords[ch];
+    if (s === 0) this.pad(t, chord, dt * 16);
+    // Arp: muffled in the intro, opening up through the groove, bright in the full section.
+    const tones = [...chord, chord[0] + 12];
+    const bright = intro ? 0.35 + bar * 0.12 : breakdown ? 0.6 : full ? 1 : 0.75;
+    this.arpNote(t, tones[MUSIC.arp[s]] + (full && s % 4 === 3 ? 12 : 0), bright);
+    if (intro || breakdown) {
+      if (s % 4 === 2) this.hat(t, 0.05, false);
+      if (breakdown && loop === 19 && s === 0) this.riser(t, dt * 16);
       return;
     }
-    if (groove) {
-      if (s === 0 || s === 6 || s === 8 || (s === 10 && ch === 3)) this.kick(t);
-      if (full && (s === 4 || s === 12)) this.snare(t);
-      if (s % 2 === 0) this.hat(t, s === 14 ? 0.1 : 0.07, s === 14);
-      for (const [st, off] of MUSIC.bass) if (st === s) this.bassNote(t, MUSIC.roots[ch] + off, dt * (st === 14 ? 2 : 1.6));
-      if (s === 12 && ch === 1) this.clank(t, 0.5);
-      if ((s === 14 || s === 15) && ch === 3 && loop % 8 === 7) this.snare(t);
-    } else if (s === 0 && ch % 2) this.clank(t, 0.4);
-    if (leadOn) {
-      const line = loop >= 16 ? MUSIC.lead2 : MUSIC.lead;
-      for (const [b, st, n, len] of line) if (b === ch && st === s) this.leadNote(t, n - (breakdown ? 12 : 0), dt * len);
-    }
+    if ((loop === 0 || loop === 8) && s === 0) this.crash(t);
+    if (s % 4 === 0) this.kick(t);
+    if (s === 4 || s === 12) this.snare(t);
+    if (full) this.hat(t, s % 2 ? 0.05 : s % 4 === 2 ? 0.09 : 0.06, s === 14);
+    else if (s % 2 === 0) this.hat(t, s % 4 === 2 ? 0.09 : 0.05, s === 14);
+    // Driving eighth-note bass, with an octave kick-up late in each half-bar of the full section.
+    if (s % 2 === 0) this.bassNote(t, root + (full && (s === 6 || s === 14) ? 12 : 0), dt * 1.8);
+    if (ch === 3 && s === 15 && loop % 8 === 7) this.snare(t);
   },
 
   hz(m) { return 440 * Math.pow(2, (m - 69) / 12); },
@@ -171,11 +164,16 @@ const Music = {
 
   kick(t) {
     const c = Sound.ctx, o = c.createOscillator(), g = c.createGain();
-    o.frequency.setValueAtTime(150, t);
-    o.frequency.exponentialRampToValueAtTime(38, t + 0.14);
-    this.env(g, t, 0.004, 0.75, 0.38);
+    o.frequency.setValueAtTime(165, t);
+    o.frequency.exponentialRampToValueAtTime(44, t + 0.11);
+    this.env(g, t, 0.003, 0.95, 0.42);
     o.connect(g); g.connect(this.bus);
-    o.start(t); o.stop(t + 0.45);
+    o.start(t); o.stop(t + 0.5);
+    // Pump: everything melodic dips under the kick and swells back.
+    const d = this.duck.gain;
+    d.setValueAtTime(1, t);
+    d.linearRampToValueAtTime(0.28, t + 0.012);
+    d.setTargetAtTime(1, t + 0.03, 0.1);
   },
 
   noise(t, dur, type, freq, q, vol, verb) {
@@ -185,105 +183,102 @@ const Music = {
     this.env(g, t, 0.002, vol, dur);
     src.connect(f); f.connect(g); g.connect(this.bus);
     if (verb) this.send(g, verb);
-    src.start(t, Math.random() * 0.3); src.stop(t + dur + 0.05);
+    src.start(t, Math.random() * 0.2); src.stop(t + dur + 0.05);
   },
 
+  // The big eighties snare: a noise crack and a body tone thrown into the reverb.
   snare(t) {
-    this.noise(t, 0.2, 'bandpass', 1900, 0.8, 0.45, 0.9);
+    this.noise(t, 0.22, 'bandpass', 1600, 0.6, 0.5, 1.8);
     const c = Sound.ctx, o = c.createOscillator(), g = c.createGain();
     o.type = 'triangle';
-    o.frequency.setValueAtTime(210, t);
-    o.frequency.exponentialRampToValueAtTime(150, t + 0.08);
-    this.env(g, t, 0.002, 0.3, 0.1);
+    o.frequency.setValueAtTime(200, t);
+    o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
+    this.env(g, t, 0.002, 0.35, 0.12);
     o.connect(g); g.connect(this.bus);
-    o.start(t); o.stop(t + 0.15);
+    this.send(g, 1);
+    o.start(t); o.stop(t + 0.16);
   },
 
-  hat(t, vol, open) { this.noise(t, open ? 0.16 : 0.035, 'highpass', 7500, 0.5, vol, open ? 0.3 : 0); },
+  hat(t, vol, open) { this.noise(t, open ? 0.2 : 0.035, 'highpass', 8000, 0.5, vol, open ? 0.3 : 0); },
 
-  // A struck pipe: inharmonic partials ringing down into the reverb.
-  clank(t, vol) {
-    const c = Sound.ctx, g = c.createGain(), f = c.createBiquadFilter();
-    f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 1.2;
-    // Sine partials and a soft 8ms attack: a ring rather than a click.
-    this.env(g, t, 0.008, vol * 0.3, 0.9);
-    f.connect(g); g.connect(this.bus);
-    this.send(g, 1.6);
-    for (const r of [1, 1.47, 2.09, 2.76]) {
-      const o = c.createOscillator();
-      o.frequency.value = 410 * r;
-      o.connect(f); o.start(t); o.stop(t + 1);
-    }
+  // A long noise wash on the downbeat of a new section; the noise buffer loops so it can ring out.
+  crash(t) {
+    const c = Sound.ctx, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = Sound.noise; src.loop = true;
+    f.type = 'highpass'; f.frequency.value = 4500;
+    this.env(g, t, 0.003, 0.14, 1.9);
+    src.connect(f); f.connect(g); g.connect(this.bus);
+    this.send(g, 0.8);
+    src.start(t); src.stop(t + 2);
   },
 
+  // A filtered noise sweep up through the last bar of the breakdown.
+  riser(t, dur) {
+    const c = Sound.ctx, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = Sound.noise; src.loop = true;
+    f.type = 'bandpass'; f.Q.value = 2;
+    f.frequency.setValueAtTime(300, t);
+    f.frequency.exponentialRampToValueAtTime(7000, t + dur);
+    g.gain.value = 0;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + dur);
+    g.gain.linearRampToValueAtTime(0, t + dur + 0.02);
+    src.connect(f); f.connect(g); g.connect(this.bus);
+    this.send(g, 0.6);
+    src.start(t); src.stop(t + dur + 0.05);
+  },
+
+  // Big bass: two detuned saws, saturated, through a snapping low-pass, over a clean sine sub an octave down.
   bassNote(t, m, dur) {
-    const c = Sound.ctx, f = c.createBiquadFilter(), g = c.createGain();
-    f.type = 'lowpass'; f.Q.value = 6;
-    f.frequency.setValueAtTime(260, t);
-    f.frequency.exponentialRampToValueAtTime(1100, t + 0.02);
-    f.frequency.exponentialRampToValueAtTime(240, t + dur);
-    this.env(g, t, 0.006, 0.26, dur);
-    f.connect(g); g.connect(this.bus);
-    for (const [type, mul, det] of [['sawtooth', 1, -6], ['sawtooth', 1, 6], ['sine', 0.5, 0]]) {
+    const c = Sound.ctx, f = c.createBiquadFilter(), sh = c.createWaveShaper(), g = c.createGain();
+    f.type = 'lowpass'; f.Q.value = 5;
+    f.frequency.setValueAtTime(300, t);
+    f.frequency.exponentialRampToValueAtTime(1500, t + 0.015);
+    f.frequency.exponentialRampToValueAtTime(320, t + dur);
+    sh.curve = this.curve;
+    this.env(g, t, 0.005, 0.22, dur);
+    f.connect(sh); sh.connect(g); g.connect(this.duck);
+    for (const det of [-8, 8]) {
       const o = c.createOscillator();
-      o.type = type; o.frequency.value = this.hz(m) * mul; o.detune.value = det;
+      o.type = 'sawtooth'; o.frequency.value = this.hz(m); o.detune.value = det;
       o.connect(f); o.start(t); o.stop(t + dur + 0.05);
     }
+    const sub = c.createOscillator(), sg = c.createGain();
+    sub.frequency.value = this.hz(m - 12);
+    this.env(sg, t, 0.005, 0.32, dur);
+    sub.connect(sg); sg.connect(this.duck);
+    sub.start(t); sub.stop(t + dur + 0.05);
   },
 
-  pad(t, notes, dur, bright) {
+  // Supersaw pad: three detuned saws a note, a quick swell, held for the bar.
+  pad(t, notes, dur) {
     const c = Sound.ctx, f = c.createBiquadFilter(), g = c.createGain();
-    f.type = 'lowpass';
-    f.frequency.setValueAtTime(500 * bright, t);
-    f.frequency.linearRampToValueAtTime(1300 * bright, t + dur * 0.5);
-    f.frequency.linearRampToValueAtTime(600 * bright, t + dur);
+    f.type = 'lowpass'; f.frequency.value = 1700; f.Q.value = 0.7;
     g.gain.value = 0;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.08, t + 0.9);
-    g.gain.setValueAtTime(0.08, t + dur - 0.3);
-    g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.6);
-    f.connect(g); g.connect(this.bus);
-    this.send(g, 1.2);
-    for (const n of notes) for (const det of [-9, 9]) {
+    g.gain.linearRampToValueAtTime(0.045, t + 0.35);
+    g.gain.setValueAtTime(0.045, t + dur - 0.15);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.25);
+    f.connect(g); g.connect(this.duck);
+    this.send(g, 0.7);
+    for (const n of notes) for (const det of [-14, 0, 14]) {
       const o = c.createOscillator();
       o.type = 'sawtooth'; o.frequency.value = this.hz(n - 12); o.detune.value = det;
-      o.connect(f); o.start(t); o.stop(t + dur + 0.7);
+      o.connect(f); o.start(t); o.stop(t + dur + 0.3);
     }
   },
 
-  leadNote(t, m, dur) {
-    const c = Sound.ctx, o = c.createOscillator(), sh = c.createWaveShaper(), f = c.createBiquadFilter(), g = c.createGain();
-    const lfo = c.createOscillator(), lg = c.createGain();
-    o.type = 'square';
-    o.frequency.setValueAtTime(this.hz(m - 0.4), t);
-    o.frequency.exponentialRampToValueAtTime(this.hz(m), t + 0.06); // a little scoop into each note
-    lfo.frequency.value = 5.2; lg.gain.value = this.hz(m) * 0.012;
-    lfo.connect(lg); lg.connect(o.frequency);
-    sh.curve = this.curve;
-    f.type = 'lowpass'; f.frequency.value = 1900; f.Q.value = 2;
-    g.gain.value = 0;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.07, t + 0.04);
-    g.gain.setValueAtTime(0.07, t + Math.max(0.05, dur - 0.08));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.15);
-    o.connect(sh); sh.connect(f); f.connect(g); g.connect(this.bus);
-    this.send(g, 0.8, 0.5);
-    o.start(t); lfo.start(t + 0.15); o.stop(t + dur + 0.2); lfo.stop(t + dur + 0.2);
-  },
-
-  // A prison siren wailing far off over the intro.
-  siren(t) {
-    const c = Sound.ctx, o = c.createOscillator(), lfo = c.createOscillator(), lg = c.createGain(), f = c.createBiquadFilter(), g = c.createGain();
-    o.type = 'triangle'; o.frequency.value = 640;
-    lfo.frequency.value = 0.22; lg.gain.value = 170;
-    lfo.connect(lg); lg.connect(o.frequency);
-    f.type = 'bandpass'; f.frequency.value = 800; f.Q.value = 1.5;
-    g.gain.value = 0;
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(0.035, t + 3);
-    g.gain.linearRampToValueAtTime(0.0001, t + 10);
-    o.connect(f); f.connect(g); g.connect(this.bus);
-    this.send(g, 2.5);
-    o.start(t); lfo.start(t); o.stop(t + 10.2); lfo.stop(t + 10.2);
+  // Arp pluck: a saw and a square with a fast filter snap, into the dotted echo.
+  arpNote(t, m, bright) {
+    const c = Sound.ctx, o = c.createOscillator(), o2 = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+    o.type = 'sawtooth'; o2.type = 'square';
+    o.frequency.value = this.hz(m); o2.frequency.value = this.hz(m); o2.detune.value = 6;
+    f.type = 'lowpass'; f.Q.value = 3;
+    f.frequency.setValueAtTime(600 + 3400 * bright, t);
+    f.frequency.exponentialRampToValueAtTime(400 + 500 * bright, t + 0.16);
+    this.env(g, t, 0.003, 0.05, 0.2);
+    o.connect(f); o2.connect(f); f.connect(g); g.connect(this.duck);
+    this.send(g, 0.4, 0.55);
+    o.start(t); o2.start(t); o.stop(t + 0.26); o2.stop(t + 0.26);
   },
 };

@@ -478,3 +478,28 @@ body.proto #ui { z-index: 2; }
   .t-logo { font-size: 42px; }
   .t-logo span { font-size: 76px; }
 }
+
+/* Tutorial coach: a clipboard card pinned top-left over the race */
+#coach { position: fixed; top: 204px; right: 12px; width: 330px; z-index: 6; pointer-events: none; color: #2a241c; font-family: 'Courier New', monospace; font-size: 14px;
+  background: repeating-linear-gradient(#efe7d2 0 23px, #d9cfb6 23px 24px), #efe7d2; border: 8px solid #6a4a2e; border-radius: 6px; box-shadow: 0 8px 30px rgba(0,0,0,.6); padding: 10px 14px; }
+#coach.hidden { display: none; }
+.coach-head { display: flex; justify-content: space-between; align-items: baseline; text-transform: uppercase; letter-spacing: 2px; font-size: 12px; color: #6a5e4a; }
+.coach-head b { font-family: Impact, 'Arial Black', sans-serif; font-weight: 400; color: #a8322a; font-size: 15px; }
+.coach-dots { display: flex; gap: 4px; margin: 6px 0 4px; }
+.coach-dots i { flex: 1; height: 5px; border-radius: 2px; background: rgba(60,40,20,.2); }
+.coach-dots i.on { background: #3a7a32; }
+.coach-dots i.cur { background: #c8641a; }
+.coach-body h3 { margin: 6px 0 4px; font-family: Impact, 'Arial Black', sans-serif; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; font-size: 20px; color: #3a2a1a; }
+.coach-body p { margin: 0 0 4px; line-height: 1.35; }
+.coach-body small { color: #6a5e4a; }
+.coach-body.done h3 { color: #3a7a32; }
+.coach-body kbd, .tut-end kbd { background: #f6f0e0; border: 1px solid #3a2a1a; border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; color: #2a241c; font-size: 12px; }
+.coach-body .bad { color: #a8322a; }
+.tut-end { margin-top: 8vh; max-width: 900px; }
+.tut-end h1 { font-family: Impact, 'Arial Black', sans-serif; font-size: 56px; letter-spacing: 3px; color: var(--accent); margin-bottom: 4px; }
+.tut-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 10px 0 22px; text-align: left; }
+.tut-cards .panel { background: var(--panel); border-radius: 10px; padding: 12px 14px; }
+.tut-cards h3 { margin: 0 0 6px; }
+.tut-cards p { margin: 0; color: var(--muted); line-height: 1.4; }
+.t-menu .btn small { display: block; }
+.tut-end .good { color: var(--good); } .tut-end .bad { color: var(--bad); }
