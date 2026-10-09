@@ -557,9 +557,11 @@ const DECALS = {
   },
 };
 
-// Camo patterns for gun finishes: seamless 128px tiles, every shape drawn wrapped round the edges.
+// Camo patterns for gun finishes: seamless 128px tiles, every shape drawn wrapped round the edges. Animated ones
+// (anim_*) also glow and move: CAMO.animate runs from each mesh's onBeforeRender, so only guns on screen cost anything.
 const CAMO = {
   cache: {},
+  state: {},
   PAL: {
     camo: ['#5a6040', '#3a3a26', '#7a6a48', '#262a1c'], // woodland
     camo_desert: ['#c8b088', '#a08660', '#e2d2ac', '#7a6448'],
@@ -568,24 +570,77 @@ const CAMO = {
     camo_tiger: ['#6a7448', '#2a2e1a', '#3c4428', '#8a8a5a'],
     camo_digital: ['#5a6240', '#3a4228', '#7e8058', '#22281a'],
     camo_crimson: ['#8a1a14', '#1a0a08', '#4a0e0a', '#b0281e'],
+    camo_jungle: ['#3e5a2a', '#1f3a1a', '#6a8a3a', '#2a2a1a'],
+    camo_navy: ['#2a3a5a', '#1a2438', '#4a5e80', '#8a9ab0'],
+    camo_midnight: ['#2a2c30', '#141518', '#3a3e46', '#08090a'],
+    camo_fleck: ['#6a7046', '#3a4a28', '#8a6a3a', '#1e2416'],
+    camo_splinter: ['#8a8a62', '#4a5a34', '#6a5236', '#2e3420'],
+    camo_zebra: ['#f0f0ea', '#141414', '#141414', '#2a2a2a'],
+    camo_candy: ['#f2a6c8', '#c25a9a', '#8a4ab8', '#fbe0ee'],
+    camo_hex: ['#3a3e42', '#22262a', '#5a6066', '#c8a02a'],
+    camo_graffiti: ['#141416', '#ff3aa8', '#3af0ff', '#ffe23a', '#7aff3a', '#ff7a1a'],
+    camo_hazard: ['#f2c21a', '#141414', '#141414', '#2a2a2a'],
+    camo_splatter: ['#d8d4cc', '#ff2a7a', '#2ad8ff', '#a8ff2a', '#ff8a1a', '#8a3aff'],
+    camo_patchwork: ['#5a3a22', '#2a8a8a', '#d86a2a', '#c8a02a', '#b0281e', '#4a6a8a'],
+    camo_chipped: ['#2a9a9a', '#8a4a22', '#5a2e14', '#c86a2a'],
+    anim_lava: ['#1a0d08', '#ff7a1a', '#ffd04a', '#2a1208'],
+    anim_neon: ['#0a0a10', '#ffffff', '#c8c8ff', '#14141e'],
+    anim_prism: ['#ffffff', '#ffffff', '#ffffff', '#ffffff'],
+    anim_galaxy: ['#0a0818', '#3a1a6a', '#1a3a8a', '#8a2a8a'],
+    anim_static: ['#808080', '#202020', '#e0e0e0', '#505050'],
+    anim_toxic: ['#16240c', '#5aff3a', '#2a8a1a', '#0c1406'],
+  },
+  STYLE: {
+    camo_digital: 'digital', camo_navy: 'digital', camo_tiger: 'stripes', camo_crimson: 'stripes', camo_zebra: 'zebra',
+    camo_midnight: 'splinter', camo_splinter: 'splinter', camo_fleck: 'fleck', camo_hex: 'hex',
+    camo_graffiti: 'graffiti', camo_hazard: 'hazard', camo_splatter: 'splatter', camo_patchwork: 'patch', camo_chipped: 'chips',
+    anim_lava: 'cracks', anim_neon: 'circuit', anim_prism: 'rainbow', anim_galaxy: 'galaxy', anim_static: 'static', anim_toxic: 'blobs',
+  },
+  // How each animated finish moves: texture scroll per second, emissive colour and pulse, hue cycling, redraw rate.
+  ANIM: {
+    anim_lava: { scroll: [0, 0.025], emissive: '#ff5a10', glow: [0.9, 0.45, 2.0], rough: 0.85 },
+    anim_neon: { scroll: [0.02, 0], hue: [0.5, 0.35, 0.6], glow: [1.4, 0.5, 3.0], base: '#3a3a3a', rough: 0.4 },
+    anim_prism: { scroll: [0.06, 0.06], emissive: '#ffffff', glow: [0.35, 0.1, 0.8], rough: 0.25, metal: 0.3 },
+    anim_galaxy: { scroll: [0.01, 0.006], emissive: '#ffffff', glow: [0.7, 0.15, 1.2], redraw: 10, rough: 0.3 },
+    anim_static: { emissive: '#ffffff', glow: [0.35, 0, 0], redraw: 15, rough: 0.6 },
+    anim_toxic: { scroll: [0, -0.04], emissive: '#4aff2a', glow: [0.8, 0.5, 1.6], rough: 0.5 },
   },
   get(id) {
     if (this.cache[id]) return this.cache[id];
     const S = 128, c = document.createElement('canvas');
     c.width = c.height = S;
-    const g = c.getContext('2d'), pal = this.PAL[id] || this.PAL.camo, r = mulberry32(id.length * 977 + 13);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(0.6, 0.6);
+    tex.name = 'camo_' + id;
+    this.state[id] = { c, tex, last: -1, frame: 0 };
+    this.draw(id, 0);
+    this.cache[id] = tex;
+    return tex;
+  },
+  draw(id, frame) {
+    const st = this.state[id], S = 128, g = st.c.getContext('2d'), pal = this.PAL[id] || this.PAL.camo;
+    const style = this.STYLE[id] || 'blobs', r = mulberry32(id.length * 977 + 13 + (style === 'static' ? frame * 31 : 0));
     g.fillStyle = pal[0]; g.fillRect(0, 0, S, S);
     const wrap = (fn) => { for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) { g.save(); g.translate(dx, dy); fn(); g.restore(); } };
-    if (id === 'camo_digital') { // clumps of square pixels
+    const blob = (col, size) => {
+      const cx = r() * S, cy = r() * S, n = 3 + Math.floor(r() * 4), pts = [];
+      for (let j = 0; j < n; j++) pts.push([cx + (r() - 0.5) * 22 * size, cy + (r() - 0.5) * 16 * size, (5 + r() * 9) * size]);
+      wrap(() => { g.fillStyle = col; for (const [x, y, rad] of pts) { g.beginPath(); g.arc(x, y, rad, 0, TAU); g.fill(); } });
+    };
+    if (style === 'digital') { // clumps of square pixels
       const P = 4;
       for (const col of pal.slice(1)) for (let k = 0; k < 9; k++) {
         let x = Math.floor(r() * 32), y = Math.floor(r() * 32);
         g.fillStyle = col;
         for (let j = 0; j < 26; j++) { g.fillRect(((x + 32) % 32) * P, ((y + 32) % 32) * P, P, P); x += Math.floor(r() * 3) - 1; y += Math.floor(r() * 3) - 1; }
       }
-    } else if (id === 'camo_tiger' || id === 'camo_crimson') { // wavy, broken horizontal stripes
-      for (let k = 0; k < 11; k++) {
-        const y0 = r() * S, len = 40 + r() * 70, x0 = r() * S, th = 3 + r() * 5, col = pal[1 + (k % 3)];
+    } else if (style === 'stripes' || style === 'zebra') { // wavy, broken stripes
+      const n = style === 'zebra' ? 9 : 11;
+      for (let k = 0; k < n; k++) {
+        const y0 = style === 'zebra' ? (k + r() * 0.4) * (S / n) : r() * S, len = style === 'zebra' ? 90 + r() * 60 : 40 + r() * 70;
+        const x0 = r() * S, th = style === 'zebra' ? 3.5 + r() * 2.5 : 3 + r() * 5, col = pal[1 + (k % 3)];
         wrap(() => {
           g.fillStyle = col; g.beginPath();
           for (let t = 0; t <= 1.001; t += 0.1) g.lineTo(x0 + t * len, y0 + Math.sin(t * 6 + k) * 5 - th * Math.sin(t * Math.PI));
@@ -593,20 +648,155 @@ const CAMO = {
           g.fill();
         });
       }
-    } else { // organic blobs, each a cluster of overlapping circles
-      for (const col of pal.slice(1)) for (let k = 0; k < 7; k++) {
-        const cx = r() * S, cy = r() * S, n = 3 + Math.floor(r() * 4), pts = [];
-        for (let j = 0; j < n; j++) pts.push([cx + (r() - 0.5) * 22, cy + (r() - 0.5) * 16, 5 + r() * 9]);
+    } else if (style === 'splinter') { // sharp angular shards
+      for (const col of pal.slice(1)) for (let k = 0; k < 6; k++) {
+        const cx = r() * S, cy = r() * S, pts = [];
+        for (let j = 0; j < 4 + Math.floor(r() * 3); j++) { const a = (j / 5) * TAU + r() * 0.8, d = 6 + r() * 22; pts.push([cx + Math.cos(a) * d * 1.4, cy + Math.sin(a) * d * 0.6]); }
+        wrap(() => { g.fillStyle = col; g.beginPath(); for (const [x, y] of pts) g.lineTo(x, y); g.fill(); });
+      }
+    } else if (style === 'fleck') { // flecktarn: clusters of small dots
+      for (const col of pal.slice(1)) for (let k = 0; k < 14; k++) {
+        const cx = r() * S, cy = r() * S, pts = [];
+        for (let j = 0; j < 10; j++) pts.push([cx + (r() - 0.5) * 18, cy + (r() - 0.5) * 18, 1.2 + r() * 2]);
         wrap(() => { g.fillStyle = col; for (const [x, y, rad] of pts) { g.beginPath(); g.arc(x, y, rad, 0, TAU); g.fill(); } });
       }
+    } else if (style === 'hex') { // a honeycomb with some cells filled
+      const R = 8, w = R * Math.sqrt(3);
+      for (let row = -1; row < S / (R * 1.5) + 1; row++) for (let col = -1; col < S / w + 1; col++) {
+        const x = col * w + (row % 2 ? w / 2 : 0), y = row * R * 1.5, k = r();
+        g.beginPath();
+        for (let j = 0; j < 6; j++) { const a = (j / 6) * TAU + Math.PI / 6; g.lineTo(x + Math.cos(a) * (R - 1), y + Math.sin(a) * (R - 1)); }
+        g.fillStyle = k < 0.08 ? pal[3] : k < 0.45 ? pal[1] : k < 0.7 ? pal[2] : pal[0];
+        g.fill();
+      }
+    } else if (style === 'cracks') { // dark crust split by glowing cracks
+      for (let k = 0; k < 10; k++) blob(pal[3], 1.2);
+      for (let k = 0; k < 14; k++) {
+        let x = r() * S, y = r() * S;
+        const pts = [[x, y]];
+        for (let j = 0; j < 8; j++) { x += (r() - 0.5) * 22; y += (r() - 0.5) * 22; pts.push([x, y]); }
+        const w = 1 + r() * 2.5;
+        wrap(() => {
+          for (const [col, lw] of [[pal[1], w + 2], [pal[2], w * 0.6]]) { g.strokeStyle = col; g.lineWidth = lw; g.lineJoin = 'round'; g.beginPath(); for (const [px, py] of pts) g.lineTo(px, py); g.stroke(); }
+        });
+      }
+    } else if (style === 'circuit') { // circuit traces on black, snapped to a grid, with pads
+      const P = 8;
+      for (let k = 0; k < 22; k++) {
+        let x = Math.floor(r() * 16) * P, y = Math.floor(r() * 16) * P;
+        const pts = [[x, y]];
+        for (let j = 0; j < 4; j++) { if (r() < 0.5) x += (Math.floor(r() * 5) - 2) * P; else y += (Math.floor(r() * 5) - 2) * P; pts.push([x, y]); }
+        wrap(() => {
+          g.strokeStyle = pal[1]; g.lineWidth = 1.5; g.beginPath(); for (const [px, py] of pts) g.lineTo(px, py); g.stroke();
+          g.fillStyle = pal[1]; for (const [px, py] of [pts[0], pts[pts.length - 1]]) { g.beginPath(); g.arc(px, py, 2.2, 0, TAU); g.fill(); }
+        });
+      }
+    } else if (style === 'rainbow') { // diagonal bands through every hue, with a soft marbling
+      const img = g.createImageData(S, S), col = new THREE.Color();
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        const u = (x / S) * TAU, v = (y / S) * TAU, h = ((x + y) / S + 0.06 * Math.sin(u * 2 + Math.cos(v * 2) * 2)) % 1;
+        col.setHSL((h + 1) % 1, 0.9, 0.58);
+        const i = (y * S + x) * 4;
+        img.data[i] = col.r * 255; img.data[i + 1] = col.g * 255; img.data[i + 2] = col.b * 255; img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+    } else if (style === 'graffiti') { // spray-painted tags and drips over black
+      for (let k = 0; k < 16; k++) {
+        const col = pal[1 + (k % (pal.length - 1))], pts = [];
+        let x = r() * S, y = r() * S;
+        for (let j = 0; j < 6; j++) { pts.push([x, y]); x += (r() - 0.5) * 34; y += (r() - 0.5) * 22; }
+        const w = 2 + r() * 4, drips = Array.from({ length: 3 }, () => [pts[Math.floor(r() * pts.length)], 4 + r() * 16]);
+        wrap(() => {
+          g.strokeStyle = col; g.lineWidth = w; g.lineCap = g.lineJoin = 'round'; g.globalAlpha = 0.92;
+          g.beginPath(); g.moveTo(...pts[0]); for (let j = 1; j < pts.length - 1; j++) g.quadraticCurveTo(pts[j][0], pts[j][1], (pts[j][0] + pts[j + 1][0]) / 2, (pts[j][1] + pts[j + 1][1]) / 2); g.stroke();
+          g.lineWidth = 1.2; for (const [[dx, dy], len] of drips) { g.beginPath(); g.moveTo(dx, dy); g.lineTo(dx, dy + len); g.stroke(); g.beginPath(); g.arc(dx, dy + len, 1.4, 0, TAU); g.fillStyle = col; g.fill(); }
+          g.globalAlpha = 1;
+        });
+      }
+    } else if (style === 'hazard') { // yellow and black chevrons, worn at the edges
+      g.fillStyle = pal[1];
+      for (let k = -2; k < 6; k++) { g.beginPath(); g.moveTo(k * 32, 0); g.lineTo(k * 32 + 16, 0); g.lineTo(k * 32 + 16 + S, S); g.lineTo(k * 32 + S, S); g.fill(); }
+      for (let k = 0; k < 40; k++) { g.fillStyle = r() < 0.5 ? 'rgba(90,60,30,0.55)' : 'rgba(255,255,255,0.12)'; g.fillRect(r() * S, r() * S, 1 + r() * 4, 1 + r() * 2); }
+    } else if (style === 'splatter') { // neon paint thrown at it
+      for (let k = 0; k < 22; k++) {
+        const col = pal[1 + (k % (pal.length - 1))], cx = r() * S, cy = r() * S, rad = 4 + r() * 9, dots = [];
+        for (let j = 0; j < 9; j++) { const a = r() * TAU, d = rad * (1 + r() * 1.6); dots.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d, 0.8 + r() * 2.2]); }
+        wrap(() => { g.fillStyle = col; g.beginPath(); g.arc(cx, cy, rad, 0, TAU); g.fill(); for (const [x, y, rr] of dots) { g.beginPath(); g.arc(x, y, rr, 0, TAU); g.fill(); } });
+      }
+    } else if (style === 'patch') { // scrap patches of mismatched paint, seams and rivets
+      for (let y = 0; y < S; y += 32) for (let x = 0; x < S; x += 32) {
+        const w = 32 + (r() < 0.3 ? 32 : 0);
+        g.fillStyle = pal[1 + Math.floor(r() * (pal.length - 1))]; g.fillRect(x, y, Math.min(w, S - x), 32);
+        g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(x, y, Math.min(w, S - x), 1.5); g.fillRect(x, y, 1.5, 32);
+        g.fillStyle = 'rgba(220,220,210,0.7)'; for (const [rx, ry] of [[4, 4], [w - 5, 4], [4, 27], [w - 5, 27]]) if (x + rx < S) { g.beginPath(); g.arc(x + rx, y + ry, 1.3, 0, TAU); g.fill(); }
+        for (let k = 0; k < 6; k++) { g.fillStyle = 'rgba(120,60,20,0.5)'; g.fillRect(x + r() * w, y + r() * 32, 2 + r() * 5, 1 + r() * 3); }
+      }
+    } else if (style === 'chips') { // bright paint chipped back to rust
+      for (let k = 0; k < 60; k++) {
+        const cx = r() * S, cy = r() * S, n = 5 + Math.floor(r() * 3), sz = 1.5 + r() * 6, pts = [];
+        for (let j = 0; j < n; j++) { const a = (j / n) * TAU, d = sz * (0.5 + r()); pts.push([cx + Math.cos(a) * d, cy + Math.sin(a) * d]); }
+        const col = pal[1 + Math.floor(r() * 3)];
+        wrap(() => { g.fillStyle = col; g.beginPath(); for (const p of pts) g.lineTo(...p); g.fill(); });
+      }
+    } else if (style === 'swirl') { // soft marbled bands
+      const img = g.createImageData(S, S);
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        const u = (x / S) * TAU, v = (y / S) * TAU, f = 0.5 + 0.25 * Math.sin(u * 2 + Math.sin(v * 3) * 1.5) + 0.25 * Math.sin(v * 2 + Math.cos(u * 3));
+        const k = Math.round(150 + 105 * f), i = (y * S + x) * 4;
+        img.data[i] = img.data[i + 1] = img.data[i + 2] = k; img.data[i + 3] = 255;
+      }
+      g.putImageData(img, 0, 0);
+    } else if (style === 'galaxy') { // nebula clouds and twinkling stars
+      if (!this.state[id].base) {
+        const b = document.createElement('canvas'); b.width = b.height = S;
+        const bg = b.getContext('2d'), rr = mulberry32(77);
+        bg.fillStyle = pal[0]; bg.fillRect(0, 0, S, S);
+        for (let k = 0; k < 16; k++) {
+          const x = rr() * S, y = rr() * S, rad = 14 + rr() * 30, col = pal[1 + (k % 3)];
+          for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) {
+            const gr = bg.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, rad);
+            gr.addColorStop(0, col + 'aa'); gr.addColorStop(1, col + '00');
+            bg.fillStyle = gr; bg.fillRect(x + dx - rad, y + dy - rad, rad * 2, rad * 2);
+          }
+        }
+        this.state[id].base = b;
+        this.state[id].stars = Array.from({ length: 70 }, () => [rr() * S, rr() * S, rr() * TAU, 0.6 + rr() * 1.2]);
+      }
+      g.drawImage(this.state[id].base, 0, 0);
+      for (const [x, y, ph, sz] of this.state[id].stars) {
+        const a = 0.35 + 0.65 * Math.abs(Math.sin(frame * 0.35 + ph));
+        g.fillStyle = `rgba(255,255,255,${a})`; g.fillRect(x, y, sz, sz);
+      }
+    } else if (style === 'static') { // TV noise with the odd coloured glitch bar
+      for (let y = 0; y < S; y += 2) for (let x = 0; x < S; x += 2) { const k = Math.floor(r() * 200 + 30); g.fillStyle = `rgb(${k},${k},${k})`; g.fillRect(x, y, 2, 2); }
+      for (let k = 0; k < 3; k++) if (r() < 0.6) { g.fillStyle = ['rgba(255,40,80,0.5)', 'rgba(40,255,200,0.5)', 'rgba(80,120,255,0.5)'][k]; g.fillRect(0, r() * S, S, 2 + r() * 6); }
+    } else { // organic blobs, each a cluster of overlapping circles
+      for (const col of pal.slice(1)) for (let k = 0; k < 7; k++) blob(col, 1);
     }
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(0.6, 0.6);
-    tex.name = 'camo_' + id;
-    this.cache[id] = tex;
-    return tex;
+    st.tex.needsUpdate = true;
+  },
+  // Set a fresh material up for an animated finish (called once from gunFinish).
+  setup(id, mat) {
+    const A = this.ANIM[id];
+    mat.map = this.get(id);
+    mat.color.set(A.base || '#ffffff');
+    mat.metalness = A.metal || 0.1;
+    mat.roughness = A.rough;
+    if (A.emissive || A.hue) { mat.emissive = new THREE.Color(A.emissive || '#ffffff'); mat.emissiveMap = mat.map; mat.emissiveIntensity = A.glow[0]; }
+  },
+  // Per frame, per mesh: moves the shared texture (once per frame per finish) and pulses / tints the material.
+  animate(id, mat, t) {
+    const A = this.ANIM[id], st = this.state[id];
+    if (!A || !st) return;
+    if (st.last !== t) {
+      st.last = t;
+      if (A.scroll) st.tex.offset.set((t * A.scroll[0]) % 1, (t * A.scroll[1]) % 1);
+      if (A.redraw) { const f = Math.floor(t * A.redraw); if (f !== st.frame) { st.frame = f; this.draw(id, f); } }
+    }
+    const [g0, amp, sp] = A.glow;
+    if (mat.emissiveMap) mat.emissiveIntensity = g0 + amp * Math.sin(t * sp * TAU * 0.5);
+    if (A.hue) mat.emissive.setHSL(A.hue[0] + A.hue[1] * (0.5 + 0.5 * Math.sin(t * A.hue[2] * TAU * 0.25)), 1, 0.55);
+    if (A.hueMap) { mat.color.setHSL((t * A.hueMap) % 1, 0.85, 0.62); if (!mat.emissiveMap) mat.emissive.setHSL((t * A.hueMap) % 1, 0.9, 0.2); }
   },
 };
 
@@ -1593,21 +1783,25 @@ const Models = {
   // Gun finish: re-skins the metal and furniture; mod attachments and glowing bits keep their own look.
   gunFinish(gun, finish) {
     if (!finish || finish === 'stock') return gun;
-    const camo = finish.startsWith('camo');
-    const tint = camo ? '#ffffff' : { rust: '#6b4a32', chrome: '#eef2f6', gold: '#e0b44a' }[finish];
+    const camo = finish.startsWith('camo'), anim = finish.startsWith('anim');
+    const tint = camo || anim ? '#ffffff' : { rust: '#6b4a32', chrome: '#eef2f6', gold: '#e0b44a' }[finish];
     const checker = GUNTEX.get('checker');
     gun.traverse((o) => {
       if (!o.isMesh || o.userData.modVis || !o.material || !o.material.isMeshStandardMaterial) return;
       const m = o.material;
       if (m.emissiveIntensity > 0 && m.emissive && m.emissive.getHex() !== 0) return;
       if (finish === 'tape') return;
-      if (camo && m.map === checker) return; // grip panels stay as they are
+      if ((camo || anim) && m.map === checker) return; // grip panels stay as they are
       const nm = m.clone();
       nm.color.set(tint);
       if (finish === 'rust') { nm.color.lerp(m.color, 0.3); nm.metalness = 0.4; nm.roughness = 0.95; }
       else if (finish === 'chrome') { nm.metalness = 0.55; nm.roughness = 0.25; } // no env map, so full metal would read black
       else if (finish === 'gold') { nm.metalness = 0.45; nm.roughness = 0.3; }
       else if (camo) { nm.map = CAMO.get(finish); nm.metalness = 0.15; nm.roughness = 0.75; } // painted-on camo wrapping the whole gun
+      else if (anim) { // a live finish: glows, flows and shifts while the gun is on screen
+        CAMO.setup(finish, nm);
+        o.onBeforeRender = (r, sc, cam, geo, mat) => CAMO.animate(finish, mat, performance.now() / 1000);
+      }
       o.material = nm;
     });
     if (finish === 'tape') {
@@ -1618,6 +1812,117 @@ const Models = {
         band.userData.modVis = true;
         gun.add(band);
       }
+    }
+    return gun;
+  },
+
+  // Junk welded onto a gun (cosmetic): hanging chains, barbed wire, scrap armour plates, spikes and a rebar bayonet,
+  // a skull charm, or all of it. Placed per weapon from measured anchors, kept off the grips and the support hand.
+  // On the flare gun the barrel pieces ride on the barrel so they tip open with it.
+  KIT_ANCHOR: {
+    smg: { wraps: [[0, 0.1, -4.1, -2.75, 0.4, 0.4]], chain: [[-0.58, 0.62, -0.7], [-0.58, 0.62, 1.9], 0.62], plate: [-0.55, -0.9, 1.9, -0.35, 0.78],
+      spikes: [0.44, -4.0, -2.85], bayonet: [[0, -0.22, -3.9], [0, -0.22, -5.7]], skull: [-0.58, 0.6, 2.35] },
+    shotgun: { wraps: [[0, 0.02, -7.3, -5.2, 0.44, 0.64]], chain: [[-0.48, 0.45, -1.2], [-0.48, 0.45, 1.8], 0.6], plate: [-0.46, -1.3, 1.8, -0.4, 0.56],
+      spikes: [0.68, -7.3, -5.6], bayonet: [[0, -0.3, -7.6], [0, -0.3, -9.5]], skull: [-0.48, 0.4, 1.95] },
+    rocket: { wraps: [[0, 0, 2.7, 4.4, 0.6, 0.6], [0, 0, -4.6, -2.8, 0.5, 0.5]], chain: [[-1.0, 0.5, -0.45], [-1.0, 0.5, 2.15], 0.95], tube: [0, 0, 0.52, 2.7, 4.5],
+      spikes: [0.52, 2.6, 4.3], skull: [-1.0, 0.5, 2.35] },
+    flare: { barrel: true, wraps: [[0, 0.3, -3.25, -1.85, 0.52, 0.52]], chain: [[-0.46, 0.4, -3.2], [-0.46, 0.4, -1.7], 0.85], plate: [-0.52, -1.1, 0.1, -0.12, 0.76],
+      spikes: [0.72, -3.25, -1.95], bayonet: [[0, -0.12, -3.3], [0, -0.12, -4.7]], skull: [0, -2.68, 1.2], skullDrop: true },
+  },
+  gunKit(gun, id, kit) {
+    const A = Models.KIT_ANCHOR[id];
+    if (!kit || kit === 'none' || !A) return gun;
+    const want = kit === 'deathrow' ? ['chains', 'barbed', 'plates', 'spikes', 'skull'] : [kit];
+    const steel = LP.mat('#5e6062', { metalness: 0.75, roughness: 0.45 }), wire = LP.mat('#7a7672', { metalness: 0.6, roughness: 0.6 });
+    const rusty = DECALS.mat('rust', { metalness: 0.5, roughness: 0.85 }), weld = LP.mat('#2e2a26', { metalness: 0.4, roughness: 0.8 });
+    const teal = LP.mat('#2a8a8a', { metalness: 0.3, roughness: 0.7 }), hazard = LP.mat('#e8b81a', { metalness: 0.2, roughness: 0.7 }), bone = LP.mat('#e2d8bc', { roughness: 0.6 });
+    const main = new Sculpt('gunkit:' + id + ':' + kit, 0.028), onBarrel = new Sculpt('gunkit:' + id + ':' + kit + ':barrel', 0.028);
+    const B = A.barrel ? onBarrel : main; // the flare's barrel tips open
+    const rnd = mulberry32(id.length * 31 + kit.length * 7);
+    const linkChain = (sc, pts, R) => { // round links along a curve, every other one turned a quarter
+      const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p))), n = Math.max(3, Math.round(curve.getLength() / (R * 1.6)));
+      for (let k = 0; k <= n; k++) {
+        const p = curve.getPointAt(k / n), t = curve.getTangentAt(k / n), up = Math.abs(t.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        const y = new THREE.Vector3().crossVectors(up, t).normalize(), z = new THREE.Vector3().crossVectors(t, y);
+        const m = new THREE.Matrix4().makeBasis(t, k % 2 ? y : z, k % 2 ? z.clone().negate() : y);
+        const e = new THREE.Euler().setFromRotationMatrix(m);
+        sc.add(steel, SDF.torus(R, R * 0.32, p.toArray(), [e.x, e.y, e.z]), 0.004);
+      }
+    };
+    if (want.includes('chains')) { // a loose loop of chain hanging off the left side, bolted at both ends
+      const push = want.includes('plates') && A.plate ? -0.16 : 0; // hang it clear of the scrap plates
+      const [a0, b0, sag] = A.chain, a = [a0[0] + push, a0[1], a0[2]], b = [b0[0] + push, b0[1], b0[2]], mid = [(a[0] + b[0]) / 2 - 0.08, Math.min(a[1], b[1]) - sag, (a[2] + b[2]) / 2];
+      const sc = A.barrel ? B : main;
+      linkChain(sc, [a, [a[0] - 0.05, a[1] - sag * 0.75, a[2] + (b[2] - a[2]) * 0.22], mid, [b[0] - 0.05, b[1] - sag * 0.75, b[2] - (b[2] - a[2]) * 0.22], b], 0.105);
+      for (const p of [a, b]) { sc.add(weld, SDF.ellipsoid([0.08, 0.13, 0.13], [p[0] + 0.03, p[1], p[2]]), 0.03); sc.add(steel, SDF.cyl(0.07, 0.08, 'x', 0.02, [p[0] - 0.03, p[1], p[2]]), 0.02); }
+    }
+    if (want.includes('barbed')) { // barbed wire coiled round the barrel, barbs every so often
+      for (const [cx, cy, z0, z1, rx, ry] of A.wraps) {
+        const turns = Math.max(3, Math.round(Math.abs(z1 - z0) / 0.32)), pts = [];
+        for (let k = 0; k <= turns * 9; k++) { const a = (k / 9) * TAU, f = k / (turns * 9); pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, z0 + (z1 - z0) * f]); }
+        B.add(wire, SDF.path(pts, 0.034), 0.01);
+        for (let k = 2; k < pts.length - 2; k += 4) {
+          const [x, y, z] = pts[k], nx = (x - cx) / rx, ny = (y - cy) / ry;
+          for (const [dx, dy, dz] of [[ny, -nx, 0.6], [-ny, nx, -0.6]]) B.add(wire, SDF.path([[x - dx * 0.09 + nx * 0.02, y - dy * 0.09 + ny * 0.02, z - dz * 0.09], [x + dx * 0.09 + nx * 0.05, y + dy * 0.09 + ny * 0.05, z + dz * 0.09]], 0.014), 0.005);
+        }
+      }
+    }
+    if (want.includes('plates')) { // welded scrap armour: mismatched plates, bolts, a bead of weld
+      if (A.plate) {
+        const [x, z0, z1, y0, y1] = A.plate, zm = (z0 + z1) / 2, ym = (y0 + y1) / 2, zl = z1 - z0, yl = y1 - y0;
+        const plates = [[rusty, [x - 0.04, ym + yl * 0.08, zm - zl * 0.18], [0.07, yl * 0.75, zl * 0.62], 0.06], [teal, [x - 0.09, ym - yl * 0.12, zm + zl * 0.22], [0.06, yl * 0.62, zl * 0.5], -0.08]];
+        for (const [mat, c, size, rot] of plates) {
+          main.add(mat, SDF.box(size, 0.025, c, [rot, 0, 0]), 0.01);
+          for (const [dy, dz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) main.add(steel, SDF.ellipsoid([0.035, 0.06, 0.06], [c[0] - size[0] / 2 - 0.01, c[1] + dy * (size[1] / 2 - 0.09), c[2] + dz * (size[2] / 2 - 0.09)]), 0.01);
+          for (let k = 0; k < 7; k++) main.add(weld, SDF.ellipsoid([0.04, 0.05, 0.06], [c[0] + size[0] / 2 - 0.01, c[1] + size[1] / 2 - 0.02, c[2] - size[2] / 2 + (k / 6) * size[2]]), 0.02);
+        }
+        main.add(hazard, SDF.box([0.05, yl * 0.18, zl * 0.3], 0.02, [x - 0.12, ym - yl * 0.3, zm + zl * 0.24], [-0.08, 0, 0]), 0.01); // a stencilled strip on it
+      }
+      if (A.tube) { // curved plates strapped round the tube
+        const [cx, cy, R, z0, z1] = A.tube;
+        for (const [a0, len, mat] of [[2.4, 1.1, rusty], [3.9, 0.9, teal]]) {
+          main.add(mat, { d: (x, y, z) => { const dx = x - cx, dy = y - cy, rr = Math.hypot(dx, dy), a = Math.atan2(dy, dx), da = Math.abs(((a - a0 + 3 * Math.PI) % TAU) - Math.PI);
+            return Math.max(Math.abs(rr - R - 0.05) - 0.035, (da - len / 2) * rr, Math.abs(z - (z0 + z1) / 2) - (z1 - z0) / 2 + 0.1); }, box: [cx - R - 0.2, cy - R - 0.2, z0, cx + R + 0.2, cy + R + 0.2, z1] }, 0.01);
+        }
+        for (const z of [z0 + 0.15, z1 - 0.15]) main.add(steel, SDF.torus(R + 0.1, 0.04, [cx, cy, z]), 0.01); // straps
+      }
+    }
+    if (want.includes('spikes')) { // nails and spikes welded along the top, a sharpened rebar bayonet
+      const [y, z0, z1] = A.spikes, n = 4;
+      for (let k = 0; k < n; k++) {
+        const z = z0 + ((k + 0.5) / n) * (z1 - z0), lean = (rnd() - 0.5) * 0.3, side = k % 2 ? 0.08 : -0.08;
+        B.add(weld, SDF.ellipsoid([0.1, 0.05, 0.1], [side, y, z]), 0.03);
+        B.add(steel, SDF.cone([side, y, z], [side * 3.5 + lean * 0.4, y + 0.6, z + lean], 0.09, 0.006), 0.02);
+      }
+      if (A.bayonet) {
+        const [a, b] = A.bayonet, rebar = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.75 });
+        const tip = [b[0], b[1], b[2]], body = [b[0], b[1], b[2] + Math.sign(a[2] - b[2]) * 0.45];
+        B.add(rebar, SDF.cone(a, body, 0.075, 0.075), 0.02);
+        B.add(rebar, SDF.cone(body, tip, 0.075, 0.008), 0.03);
+        for (let k = 1; k < 8; k++) { const f = k / 8; B.add(rebar, SDF.torus(0.075, 0.018, [a[0], a[1], a[2] + (body[2] - a[2]) * f], [0, 0, 0]), 0.004); } // ribs
+        B.add(weld, SDF.ellipsoid([0.13, 0.16, 0.22], [a[0], a[1] + 0.08, a[2]]), 0.05);
+        B.add(wire, SDF.torus(0.2, 0.025, [a[0], a[1] + 0.12, a[2] - 0.3], [0, 0, 0]), 0.01); // lashed on with wire
+      }
+    }
+    if (want.includes('skull')) { // a little skull charm on a short chain
+      const p = A.skull, drop = A.skullDrop ? [0, -0.6, 0] : [-0.2, -0.6, 0.04], K = 1.5; // skull scale
+      const s = [p[0] + drop[0], p[1] + drop[1], p[2] + drop[2]];
+      linkChain(main, [p, [(p[0] + s[0]) / 2, (p[1] + s[1]) / 2, (p[2] + s[2]) / 2], [s[0], s[1] + 0.2, s[2]]], 0.055);
+      main.add(bone, SDF.ellipsoid([0.15 * K, 0.15 * K, 0.17 * K], [s[0], s[1] - 0.1, s[2]]), 0.03); // cranium
+      main.add(bone, SDF.box([0.18 * K, 0.1 * K, 0.14 * K], 0.04 * K, [s[0], s[1] - 0.1 - 0.15 * K, s[2]]), 0.06); // jaw
+      for (const dz of [-0.06, 0.06]) main.cut(SDF.ellipsoid([0.06 * K, 0.045 * K, 0.045 * K], [s[0] - 0.13 * K, s[1] - 0.1 - 0.02 * K, s[2] + dz * K]), 0.01, [bone]); // eyes
+      main.cut(SDF.ellipsoid([0.04 * K, 0.03 * K, 0.02 * K], [s[0] - 0.14 * K, s[1] - 0.1 - 0.09 * K, s[2]]), 0.005, [bone]); // nose
+      for (let k = 0; k < 4; k++) main.cut(SDF.box([0.1, 0.05, 0.012], 0.004, [s[0] - 0.13 * K, s[1] - 0.1 - 0.17 * K, s[2] + (k - 1.5) * 0.045 * K]), 0.003, [bone]); // teeth gaps
+      if (A.skullDrop) main.add(steel, SDF.torus(0.06, 0.018, [p[0], p[1] + 0.05, p[2]], [0, Math.PI / 2, 0]), 0.005);
+    }
+    const tag = (o) => { o.traverse((m) => { if (m.isMesh) m.userData.modVis = true; }); return o; };
+    if (main.groups.length) { const holder = new THREE.Group(); main.build(holder); gun.add(tag(holder)); }
+    if (onBarrel.groups.length) {
+      const host = gun.userData.barrelGrp, holder = new THREE.Group();
+      if (host) holder.position.copy(host.position).negate();
+      onBarrel.build(holder);
+      tag(holder);
+      (host || gun).add(holder);
     }
     return gun;
   },

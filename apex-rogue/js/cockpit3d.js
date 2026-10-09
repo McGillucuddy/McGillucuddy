@@ -545,7 +545,7 @@ class CockpitView {
     const b = this.combat.build;
     const hooks = [7.3, 6.1, 4.9];
     this.rackGuns = b.rack.map((w, i) => {
-      const m = Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (this.look3d.gunFinish || {})[w.id]);
+      const m = Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (this.look3d.gunFinish || {})[w.id]), w.id, (this.look3d.gunKit || {})[w.id]);
       if (w.id === 'rocket') m.scale.setScalar(0.8);
       m.position.set(-1.2, hooks[i] || 4.9, -6.9); // resting on the J hooks, clear of the door bars
       m.rotation.y = -Math.PI / 2;
@@ -694,7 +694,7 @@ class CockpitView {
       rocket: [3.0, -1.9, -5.6, 0.7, 0.18, 0.04, 0.02], flare: [2.4, -1.3, -5.1, 1, 0.26, 0.06, 0.02],
     };
     const guns = this.combat.build.rack.map((w) => {
-      const m = Models.hands(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]), w.id);
+      const m = Models.hands(Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]), w.id, (this.look3d.gunKit || {})[w.id]), w.id);
       const [x, y, z, sc, yaw, roll, pitch] = HOLD[w.id];
       m.position.set(x, y, z);
       m.scale.setScalar(sc);

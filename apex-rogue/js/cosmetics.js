@@ -79,16 +79,40 @@ const COSMETICS = {
   // Guns (one finish per weapon type)
   gunFinish: [
     { id: 'stock', name: 'Stock', rep: 0 }, { id: 'rust', name: 'Rusted', rep: 0 }, { id: 'tape', name: 'Duct-Taped', rep: 20 },
-    { id: 'camo', name: 'Woodland Camo', rep: 50 }, { id: 'camo_desert', name: 'Desert Camo', rep: 60 },
-    { id: 'camo_urban', name: 'Urban Camo', rep: 75 }, { id: 'camo_tiger', name: 'Tiger Stripe', rep: 90 },
-    { id: 'camo_digital', name: 'Digital Camo', rep: 110 }, { id: 'camo_arctic', name: 'Arctic Camo', rep: 130 },
-    { id: 'camo_crimson', name: 'Crimson Tiger', rep: 160 },
-    { id: 'chrome', name: 'Chrome', rep: 100 }, { id: 'gold', name: 'Gold', rep: 220 },
+    { id: 'camo', name: 'Woodland Camo', rep: 50, color: '#5a6040' }, { id: 'camo_desert', name: 'Desert Camo', rep: 60, color: '#c8b088' },
+    { id: 'camo_jungle', name: 'Jungle Camo', rep: 65, color: '#3e5a2a' }, { id: 'camo_urban', name: 'Urban Camo', rep: 75, color: '#8a8c8e' },
+    { id: 'camo_fleck', name: 'Flecktarn', rep: 80, color: '#6a7046' }, { id: 'camo_tiger', name: 'Tiger Stripe', rep: 90, color: '#6a7448' },
+    { id: 'camo_splinter', name: 'Splinter', rep: 100, color: '#8a8a62' }, { id: 'camo_digital', name: 'Digital Camo', rep: 110, color: '#5a6240' },
+    { id: 'camo_navy', name: 'Navy Digital', rep: 120, color: '#2a3a5a' }, { id: 'camo_arctic', name: 'Arctic Camo', rep: 130, color: '#e6eaee' },
+    { id: 'camo_midnight', name: 'Midnight', rep: 140, color: '#2a2c30' }, { id: 'camo_hex', name: 'Hex', rep: 150, color: '#3a3e42' },
+    { id: 'camo_crimson', name: 'Crimson Tiger', rep: 160, color: '#8a1a14' }, { id: 'camo_zebra', name: 'Zebra', rep: 170, color: 'repeating-linear-gradient(60deg,#f0f0ea 0 4px,#141414 4px 8px)' },
+    { id: 'camo_candy', name: 'Candy Camo', rep: 190, color: '#f2a6c8' },
+    // Colourful scrap-yard paint jobs.
+    { id: 'camo_hazard', name: 'Hazard Stripes', rep: 40, color: 'repeating-linear-gradient(45deg,#f2c21a 0 4px,#141414 4px 8px)' },
+    { id: 'camo_chipped', name: 'Chipped Teal', rep: 70, color: 'linear-gradient(135deg,#2a9a9a 60%,#8a4a22 60%)' },
+    { id: 'camo_patchwork', name: 'Scrap Patchwork', rep: 115, color: 'conic-gradient(#2a8a8a 0 25%,#d86a2a 0 50%,#c8a02a 0 75%,#b0281e 0)' },
+    { id: 'camo_graffiti', name: 'Graffiti', rep: 145, color: 'linear-gradient(135deg,#141416 30%,#ff3aa8 30% 45%,#3af0ff 45% 60%,#ffe23a 60% 75%,#141416 75%)' },
+    { id: 'camo_splatter', name: 'Riot Splatter', rep: 175, color: 'radial-gradient(circle at 30% 30%,#ff2a7a 20%,transparent 21%),radial-gradient(circle at 70% 60%,#2ad8ff 18%,#d8d4cc 19%)' },
+    { id: 'chrome', name: 'Chrome', rep: 100, color: '#dfe4ea' }, { id: 'gold', name: 'Gold', rep: 220, color: '#e0b44a' },
+    // Animated: they glow and move.
+    { id: 'anim_toxic', name: 'Toxic Ooze ✦', rep: 250, color: 'radial-gradient(#5aff3a,#16240c)' },
+    { id: 'anim_lava', name: 'Molten ✦', rep: 280, color: 'linear-gradient(135deg,#1a0d08,#ff7a1a,#1a0d08)' },
+    { id: 'anim_static', name: 'Static ✦', rep: 300, color: 'repeating-linear-gradient(0deg,#ddd 0 2px,#333 2px 4px)' },
+    { id: 'anim_neon', name: 'Neon Circuit ✦', rep: 340, color: 'linear-gradient(135deg,#0a0a10,#3af0ff,#ff3ad8)' },
+    { id: 'anim_galaxy', name: 'Galaxy ✦', rep: 380, color: 'radial-gradient(#8a2a8a,#0a0818)' },
+    { id: 'anim_prism', name: 'Prism ✦', rep: 450, color: 'linear-gradient(90deg,#f55,#fd5,#5f8,#5af,#c5f)' },
   ],
 };
 
+// Junk welded onto each gun.
+COSMETICS.gunKit = [
+  { id: 'none', name: 'Clean', rep: 0 }, { id: 'chains', name: 'Hanging Chains', rep: 25 }, { id: 'barbed', name: 'Barbed Wire', rep: 55 },
+  { id: 'plates', name: 'Scrap Plating', rep: 85 }, { id: 'spikes', name: 'Spikes & Bayonet', rep: 120 }, { id: 'skull', name: 'Skull Charm', rep: 150 },
+  { id: 'deathrow', name: 'Death Row (all of it)', rep: 260 },
+];
+
 const COSMETIC_KEY = 'apexrogue_cosmetics_v1';
-const LOOK_KEYS = ['style', 'paint', 'paint2', 'twoTone', 'finish', 'grime', 'livery', 'number', 'rims', 'bumper', 'roof', 'spoiler', 'exhaust', 'underglow', 'seats', 'wheelWrap', 'dash', 'bulb', 'ornament', 'gunFinish', 'inmate', 'plate'];
+const LOOK_KEYS = ['style', 'paint', 'paint2', 'twoTone', 'finish', 'grime', 'livery', 'number', 'rims', 'bumper', 'roof', 'spoiler', 'exhaust', 'underglow', 'seats', 'wheelWrap', 'dash', 'bulb', 'ornament', 'gunFinish', 'gunKit', 'inmate', 'plate'];
 
 function loadCosmetics() {
   const def = {
@@ -96,11 +120,13 @@ function loadCosmetics() {
     rims: 'spoke5', bumper: 'stock', roof: 'stock', spoiler: 'stock', exhaust: 'single', underglow: 'none',
     seats: 'vinyl', wheelWrap: 'tape', dash: 'black', bulb: 'warm', ornament: 'none',
     gunFinish: { smg: 'stock', shotgun: 'stock', rocket: 'stock', flare: 'stock' },
+    gunKit: { smg: 'none', shotgun: 'none', rocket: 'none', flare: 'none' },
     inmate: '4471', plate: 'INM 4471', rep: 0, presets: [null, null, null],
   };
   let c;
   try { c = Object.assign(def, JSON.parse(localStorage.getItem(COSMETIC_KEY)) || {}); } catch (e) { c = def; }
   c.gunFinish = Object.assign({ smg: 'stock', shotgun: 'stock', rocket: 'stock', flare: 'stock' }, c.gunFinish);
+  c.gunKit = Object.assign({ smg: 'none', shotgun: 'none', rocket: 'none', flare: 'none' }, c.gunKit);
   if (!Array.isArray(c.presets)) c.presets = [null, null, null];
   return c;
 }
@@ -123,7 +149,7 @@ function carLook(c) {
       seats: c.seats, wheelWrap: c.wheelWrap, dash: (cosOption('dash', c.dash) || COSMETICS.dash[0]).color,
       bulb: (cosOption('bulb', c.bulb) || COSMETICS.bulb[0]).color, ornament: c.ornament, inmate: c.inmate,
     },
-    gunFinish: c.gunFinish,
+    gunFinish: c.gunFinish, gunKit: c.gunKit,
   };
 }
 

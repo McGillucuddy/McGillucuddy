@@ -150,7 +150,13 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
     leather, fuzzy, chain), dash colour, cabin bulb colour (lights the whole cockpit), dash ornament
     (hula girl, nodding dog, saint, skull; they sway with the car), and your inmate number stencilled on
     the glovebox.
-  - **Guns:** a finish per weapon (rusted, duct-taped, camo, chrome, gold).
+  - **Guns:** a finish per weapon and junk welded onto it.
+    - Finishes: rusted, duct-taped, chrome, gold; 15 camos (woodland, desert, jungle, urban, flecktarn, tiger
+      stripe, splinter, digital, navy digital, arctic, midnight, hex, crimson tiger, zebra, candy); scrap-yard
+      paint jobs (hazard stripes, chipped teal, scrap patchwork, graffiti, riot splatter); and animated ones
+      that glow and move (toxic ooze, molten, static, neon circuit, galaxy, prism).
+    - Welded-on junk: hanging chains, barbed wire, scrap plating, spikes and a rebar bayonet, a skull charm,
+      or Death Row (all of it). Kept clear of your hands; on the flare gun it tips open with the barrel.
   - **Presets:** save three complete looks and swap between them.
 
 All the data lives in `js/build.js` (gameplay) and `js/cosmetics.js` (looks).
