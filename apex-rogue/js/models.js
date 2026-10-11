@@ -2647,7 +2647,25 @@ const Models = {
     const key = 'glove:' + kind + ':' + JSON.stringify([r2(arm), r2(pose.grip), pose.tube, r2(pose.trigger)]);
     const palm = [], fingers = [], guard = [];
     const bone = (list, a, b, ra, rb) => list.push({ a, b, ra, rb });
-    const chain = (j, rs) => { const f = []; for (let i = 0; i < j.length - 1; i++) bone(f, j[i], j[i + 1], rs[i], rs[i + 1]); fingers.push(f); return f; };
+    // A finger is one smooth curve through its joints (Catmull-Rom), built from short pieces: inside a glove the
+    // joints don't show as corners or lumps, the bend just runs along the finger. ph = which phalanx a piece is on.
+    const SUB = 4;
+    const chain = (j, rs) => {
+      const f = [], P = j.map(V), n = P.length - 1;
+      const tan = (i) => (i === 0 ? P[1].clone().sub(P[0]) : i === n ? P[n].clone().sub(P[n - 1]) : P[i + 1].clone().sub(P[i - 1]).multiplyScalar(0.5));
+      const at = (i, u) => { // Hermite between joints i and i + 1
+        const u2 = u * u, u3 = u2 * u;
+        return P[i].clone().multiplyScalar(2 * u3 - 3 * u2 + 1).addScaledVector(tan(i), u3 - 2 * u2 + u)
+          .addScaledVector(P[i + 1], -2 * u3 + 3 * u2).addScaledVector(tan(i + 1), u3 - u2).toArray();
+      };
+      for (let i = 0; i < n; i++) for (let k = 0; k < SUB; k++) {
+        const u0 = k / SUB, u1 = (k + 1) / SUB;
+        bone(f, at(i, u0), at(i, u1), rs[i] + (rs[i + 1] - rs[i]) * u0, rs[i] + (rs[i + 1] - rs[i]) * u1);
+        f[f.length - 1].ph = i;
+      }
+      fingers.push(f);
+      return f;
+    };
     // Walk a finger round an ellipse (half axes ex, ez, in the plane of axes u/v) by bone lengths from angle a0.
     const wrap = (pt, ex, ez, a0, k0, lens, aMax) => {
       const out = [pt(a0, k0)];
@@ -2673,8 +2691,8 @@ const Models = {
       F.forEach(([y, r], i) => {
         const sc = i === 2 ? 0.82 : i === 1 ? 0.95 : 1; // the pinky is shorter
         const j = wrap((a, k) => [ex * k * Math.cos(a), y - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS.map((l) => l * sc * 1.22), 3.25); // long enough to lie across the left panel
-        chain(j, [r * 1.08, r * 0.98, r * 0.88, r * 0.72]); // tapering to a narrower tip
-        bone(palm, S(bases[i]), j[0], 0.17, r * 1.18);
+        chain(j, [r * 1.04, r * 0.97, r * 0.9, r * 0.76]); // an even taper to the tip
+        bone(palm, S(bases[i]), j[0], 0.17, r * 1.0); // no fatter than the finger it joins: no knuckle balls
         knuckles.push(j[0]);
       });
       // Trigger finger: from its knuckle forward along the frame, then curled in onto the trigger.
@@ -2691,7 +2709,7 @@ const Models = {
         ix = wrap((a, k) => [ex * k * Math.cos(a), 0.42 - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS, 2.9);
       }
       chain(ix, [0.162, 0.148, 0.132, 0.112]);
-      bone(palm, S([0.62, 0.12, 0.62]), ix[0], 0.17, 0.155);
+      bone(palm, S([0.62, 0.12, 0.62]), ix[0], 0.17, 0.15);
       knuckles.unshift(ix[0]);
       bone(palm, S([0.55, -0.5, 0.62]), S([0.22, -0.42, 0.66]), 0.2, 0.17); // heel of the palm round the back strap
       bone(palm, S([0.62, -0.3, 0.62]), S([0.6, -0.5, 1.0]), 0.3, 0.36); // wrist
@@ -2712,8 +2730,8 @@ const Models = {
       F.forEach(([z, r], i) => {
         const sc = i === 3 ? 0.82 : i === 0 ? 0.95 : 1;
         const j = wrap((a, k) => [er * k * Math.sin(a), -er * k * Math.cos(a), z + 0.04 - (a - 0.72) * 0.03], er, er, 0.72, 1.15, LENS.map((l) => l * sc), 2.75);
-        chain(j, [r * 1.08, r * 0.98, r * 0.88, r * 0.72]); // tapering to a narrower tip
-        bone(palm, S([-0.18, -0.68, bases[i]]), j[0], 0.17, r * 1.18);
+        chain(j, [r * 1.04, r * 0.97, r * 0.9, r * 0.76]); // an even taper to the tip
+        bone(palm, S([-0.18, -0.68, bases[i]]), j[0], 0.17, r * 1.0);
         knuckles.push(j[0]);
       });
       bone(palm, S([-0.18, -0.7, 0.46]), S([-0.12, -0.8, 0.85]), 0.19, 0.2); // heel
@@ -2744,8 +2762,8 @@ const Models = {
       b.flat = PFLAT; b.ax = ax.toArray(); b.o = V(top).projectOnPlane(ax).normalize().toArray();
     }
     // Knuckle guard: a moulded ridge with a boss over each knuckle, standing just proud of the leather.
-    const gp = knuckles.map((k) => { const r = V(radial(...k)).normalize(); return V(k).addScaledVector(r, 0.07).toArray(); });
-    for (let i = 0; i < gp.length - 1; i++) bone(guard, gp[i], gp[i + 1], 0.055, 0.055); // a low padded ridge, no knobs
+    const gp = knuckles.map((k) => { const r = V(radial(...k)).normalize(); return V(k).addScaledVector(r, 0.035).toArray(); });
+    for (let i = 0; i < gp.length - 1; i++) bone(guard, gp[i], gp[i + 1], 0.07, 0.07); // a low, even padded band across the knuckles
     const S = LP.smin, RC = LP.roundCone, d1 = (b, x, y, z) => RC(x, y, z, b.a, b.b, b.ra, b.rb);
     // Distance to a bone squashed by k along o (perpendicular to its axis): the point is stretched away from the axis.
     const dsq = (b, x, y, z, o0, o1, o2, k) => {
@@ -2775,14 +2793,14 @@ const Models = {
         const r = radial(x, y, z), rl = Math.hypot(r[0], r[1], r[2]) || 1, o0 = r[0] / rl, o1 = r[1] / rl, o2 = r[2] / rl;
         for (const b of f) {
           if (lb(b, x, y, z) >= d) continue;
-          d = S(d, dsq(b, x, y, z, o0, o1, o2, FLAT), 0.03); // flatter along the back-to-palm direction; smooth over each joint
+          d = Math.min(d, dsq(b, x, y, z, o0, o1, o2, FLAT)); // flatter along the back-to-palm direction (the pieces follow a smooth curve: no blend, which would rib it)
         }
-        best = Math.min(best, S(p, d, 0.1)); // web into the palm, crease against the next finger
+        best = Math.min(best, S(p, d, 0.15)); // web into the palm, the knuckles smoothed over by the leather, crease against the next finger
       }
       if (lb(guard, x, y, z) < best + 0.06) {
         let gd = 1e9;
         for (const b of guard) if (lb(b, x, y, z) < gd + 0.08) gd = S(gd, d1(b, x, y, z), 0.08);
-        best = S(best, gd, 0.05);
+        best = S(best, gd, 0.08);
       }
       return S(best, dp(strap, x, y, z), 0.02);
     };
@@ -2809,10 +2827,8 @@ const Models = {
       }
       const dor = V(radial(x, y, z)).normalize(), s = q.dot(dor);
       if (bf) {
-        const bi = bf.indexOf(bb), len = V(bb.b).distanceTo(V(bb.a));
-        if (s < -0.2 && bi > 0 && s0 < 0.035) return seam; // a crease across the palm side of each joint
-        if (bi === 0 && s > 0.45 && s0 > 0.1 && s0 < len - 0.08) return padC; // a padded panel on the back of the finger
-        if (bi === bf.length - 1 && Math.abs(s0 - len * 0.55) < 0.022) return seam; // the seam round the fingertip
+        const bi = bf.indexOf(bb);
+        if (bb.ph === 0 && bi >= 1 && bi < SUB - 1 && s > 0.45) return padC; // a padded panel on the back of the first bone
       }
       if (Math.abs(s) < 0.1) return seam;
       if (!bf && s > 0 && s < 0.2 && Math.sin(s0 * 70) > 0) return thread; // stitching on the hand, not along every finger
