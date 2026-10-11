@@ -496,7 +496,7 @@ const Env = {
     head.add(LP.cyl(2.2, 2.2, 4, 8, LP.mat('#222'), 0, 0, 0).rotateZ(Math.PI / 2));
     // The beam: a long cone that fades out along its length and is faint at its edges (a gradient texture), not a flat white wedge.
     const beamTex = Env.beamTexture();
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(26, 220, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#fff2c8', map: beamTex, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(26, 220, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#fff2c8', map: beamTex, transparent: true, opacity: 0.26, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
     cone.rotation.z = Math.PI / 2;
     cone.position.x = 110;
     const tilt = new THREE.Group();
