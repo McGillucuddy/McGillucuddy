@@ -27,7 +27,8 @@ class Combat {
     this.wi = 0;
     this.wstate = b.rack.map(() => ({ cd: 0, reloadT: 0 }));
     this.abil = b.abilities.map((id) => (id ? { id, cd: 0 } : null));
-    this.shield = { t: 0, age: 0 };
+    // The blast hatch (see HATCH in build.js): pos 0 is up, 1 is shut.
+    this.hatch = { want: false, closing: false, pos: 0, downT: 0, shutAge: 9, jammed: ensureHatch(b).hp <= 0 };
     this.swerveCd = 0;
     this.invulnT = 0;
     this.fitT = 0;
@@ -60,6 +61,43 @@ class Combat {
   get weapon() { return this.build.rack[this.wi]; }
   get weaponDef() { return weaponStats(this.weapon); }
   get busy() { return this.fitT > 0; }
+  get guarded() { return this.hatch.pos >= HATCH.guard; }
+  get hatchDown() { return this.hatch.pos > 0.05; } // anywhere off its stop: you can't shoot past it
+
+  // Called every frame with whether Space is held.
+  setHatch(want) { this.hatch.want = !!want; }
+
+  updateHatch(dt) {
+    const H = this.hatch, p = this.player, fast = has(this.build, 'teddy') ? 2 : 1;
+    const live = this.race.state === 'racing' && !p.finished && !H.jammed;
+    if (H.want && live && !H.closing && H.pos < 0.6) { // slam it
+      H.closing = true; H.downT = 0; H.shutAge = 0;
+      this.events.push({ type: 'hatch' });
+    }
+    if (H.closing) {
+      H.downT += dt;
+      if (!live || (!H.want && H.downT >= HATCH.minDown)) { H.closing = false; this.events.push({ type: 'hatchUp' }); }
+    }
+    const was = H.pos;
+    H.pos = clamp(H.pos + (H.closing ? dt / HATCH.slam : -dt / HATCH.lift) * fast, 0, 1);
+    if (H.closing && H.pos >= HATCH.guard) H.shutAge += dt;
+    if (was < 1 && H.pos >= 1) this.events.push({ type: 'hatchShut' });
+  }
+
+  // Dents in the plate. Dented through, it jams open until it's fixed in the garage.
+  wearHatch(amount) {
+    const hh = ensureHatch(this.build), H = this.hatch;
+    if (H.jammed) return;
+    hh.hp -= amount * (has(this.build, 'teddy') ? 0.75 : 1);
+    this.events.push({ type: 'dent', hp: hh.hp });
+    if (hh.hp <= 0) {
+      hh.hp = 0;
+      H.jammed = true;
+      H.closing = false;
+      this.race.message('HATCH JAMMED: fix it in the garage', '#ff7a1f', true);
+      this.events.push({ type: 'jam' });
+    }
+  }
 
   // ---------- Player actions ----------
 
@@ -92,11 +130,7 @@ class Combat {
     const a = this.abil[slot], p = this.player;
     if (!a || a.cd > 0 || p.finished || this.race.state !== 'racing') return false;
     a.cd = ABILITIES[a.id].cooldown;
-    if (a.id === 'shield') {
-      this.shield.t = 1.1 * (has(this.build, 'teddy') ? 1.5 : 1);
-      this.shield.age = 0;
-      this.events.push({ type: 'shield' });
-    } else if (a.id === 'nitro_burst') {
+    if (a.id === 'nitro_burst') {
       p.boostT = Math.max(p.boostT, 2.0);
       this.events.push({ type: 'boost' });
     } else if (a.id === 'smoke') {
@@ -132,6 +166,7 @@ class Combat {
 
   throwGrenade(aim, dist) {
     const b = this.build, p = this.player;
+    if (this.hatchDown) return false; // the window's shut
     if (b.grenades <= 0 || p.finished || this.busy) { this.events.push({ type: 'empty' }); return false; }
     b.grenades--;
     const d = clamp(dist, 80, 380);
@@ -226,7 +261,7 @@ class Combat {
       if (d < 650 && off < 0.12) c.wpn.lock = Math.max(0, c.wpn.lock - dt * 2.5);
     }
     if (this.driver) this.driver.shaky = b.chip === 'gun_nut' && this.lastFire < 0.4;
-    if (p.finished || this.race.state !== 'racing' || this.busy) return;
+    if (p.finished || this.race.state !== 'racing' || this.busy || this.hatchDown) return; // you can reload behind the hatch, not shoot
     // Remote detonator: pulling the trigger again blows your rocket mid-air.
     if (def.remote && ctl.pressed) {
       const live = this.projectiles.filter((o) => o.owner === p && o.type === 'rocket' && !o.dead && o.t > 0.15);
@@ -319,8 +354,7 @@ class Combat {
     this.updatePlayerWeapons(dt, ctl);
     // Barrels the race says have blown (hit by a car, a bullet or another blast).
     for (const bl of race.blasts.splice(0)) this.explode(bl.x, bl.y, bl.r, bl.dmg, bl.owner, 'barrel');
-    const s = this.shield;
-    if (s.t > 0) { s.t -= dt; s.age += dt; }
+    this.updateHatch(dt);
     for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1);
     this.swerveCd -= dt;
     this.invulnT -= dt;
@@ -501,7 +535,7 @@ class Combat {
             pr.dead = true;
             if (--m.hp <= 0) {
               m.dead = true;
-              this.explode(m.x, m.y, 60, 16, pr.owner);
+              this.explode(m.x, m.y, 60, 16, pr.owner, 'mine');
               if (pr.owner === p) this.stats.shotDown++;
             }
             break;
@@ -529,8 +563,8 @@ class Combat {
         if (c === pr.owner && pr.type !== 'rocket') continue;
         const r = CAR_RADIUS + (pr.type === 'rocket' ? 6 : 2);
         if ((c.x - pr.x) ** 2 + (c.y - pr.y) ** 2 > r * r) continue;
-        if (c === p && this.shield.t > 0) {
-          this.blockWithShield(pr);
+        if (c === p && this.guarded) {
+          this.blockWithHatch(pr);
           break;
         }
         pr.dead = true;
@@ -585,10 +619,10 @@ class Combat {
     this.projectiles = this.projectiles.filter((pr) => !pr.dead);
   }
 
-  blockWithShield(pr) {
+  blockWithHatch(pr) {
     const p = this.player;
-    if (pr.type === 'rocket' && this.shield.age < PARRY_WINDOW && pr.owner !== p) {
-      // Perfect block: send it back to whoever fired it.
+    if (pr.type === 'rocket' && this.hatch.shutAge < PARRY_WINDOW && pr.owner !== p) {
+      // Slammed just as it arrived: the plate bats it back at whoever fired it.
       const shooter = pr.owner;
       pr.owner = p;
       pr.target = shooter;
@@ -606,10 +640,15 @@ class Combat {
         w.reserve -= take;
         this.wstate[this.wi].reloadT = 0;
       }
+      this.wearHatch(4);
       this.events.push({ type: 'parry' });
+    } else if (pr.type === 'rocket') {
+      pr.dead = true;
+      this.explode(pr.x, pr.y, pr.radius, pr.dmg, pr.owner, pr); // it goes off on the plate (see explode)
     } else {
       pr.dead = true;
-      this.events.push({ type: 'block' });
+      this.wearHatch(pr.dmg * (pr.type === 'flame' ? 0.4 : pr.type === 'harpoon' ? 2 : 1));
+      this.events.push({ type: 'block', kind: pr.type });
     }
   }
 
@@ -621,7 +660,7 @@ class Combat {
         if (c === m.owner && m.t < 3) continue;
         if ((c.x - m.x) ** 2 + (c.y - m.y) ** 2 < 20 * 20) {
           m.dead = true;
-          this.explode(m.x, m.y, 60, 16, m.owner);
+          this.explode(m.x, m.y, 60, 16, m.owner, 'mine');
           break;
         }
       }
@@ -657,9 +696,13 @@ class Combat {
       const d = Math.hypot(c.x - x, c.y - y);
       if (d > radius + CAR_RADIUS) continue;
       if (c === p && owner === p) continue; // your own explosives don't hurt you
-      if (c === p && this.shield.t > 0) { this.events.push({ type: 'block' }); continue; }
-      const f = 1 - clamp(d / (radius + CAR_RADIUS), 0, 1) * 0.6;
+      let f = 1 - clamp(d / (radius + CAR_RADIUS), 0, 1) * 0.6;
       const ang = Math.atan2(y - c.y, x - c.x);
+      if (c === p && this.guarded && src !== 'mine') { // the hatch takes most of it; a mine goes off underneath
+        this.wearHatch(dmg * f * (1 - HATCH.blastPass));
+        this.events.push({ type: 'block', kind: 'blast' });
+        f *= HATCH.blastPass;
+      }
       this.hitCar(c, dmg * f, owner, ang, 0.75, 'blast');
       // Knockback + spin.
       c.vx -= Math.cos(ang) * 220 * f;
@@ -849,12 +892,11 @@ class Combat {
       ctx.fillStyle = `rgba(255,${Math.round(200 - 150 * k)},60,${0.75 * (1 - k)})`;
       ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.4 + 0.6 * k), 0, TAU); ctx.fill();
     }
-    if (this.shield.t > 0) {
-      const perfect = this.shield.age < PARRY_WINDOW;
-      ctx.strokeStyle = perfect ? 'rgba(255,255,255,0.95)' : 'rgba(90,216,255,0.85)';
-      ctx.fillStyle = 'rgba(90,216,255,0.18)';
-      ctx.lineWidth = perfect ? 4 : 2.5;
-      ctx.beginPath(); ctx.arc(p.x, p.y, 30, 0, TAU); ctx.fill(); ctx.stroke();
+    if (this.hatchDown) { // the plate across the front of your car
+      const c = Math.cos(p.heading), s = Math.sin(p.heading), k = this.hatch.pos;
+      ctx.strokeStyle = this.hatch.shutAge < PARRY_WINDOW ? '#fff' : '#9a9c9e';
+      ctx.lineWidth = 3 + 3 * k;
+      ctx.beginPath(); ctx.moveTo(p.x + c * 10 - s * 11, p.y + s * 10 + c * 11); ctx.lineTo(p.x + c * 10 + s * 11, p.y + s * 10 - c * 11); ctx.stroke();
     }
   }
 }

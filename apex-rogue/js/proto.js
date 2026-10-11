@@ -239,6 +239,7 @@ const Proto = {
       // Garage & shop
       case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
       case 'repair-hull': { const c = repairHullCost(b); if (c > 0 && buy(c)) b.hull = b.maxHull; this.showGarage(); break; }
+      case 'repair-hatch': { const c = repairHatchCost(b); if (c > 0 && buy(c)) b.hatch.hp = HATCH.max; this.showGarage(); break; }
       case 'repair-part': { const c = repairPartCost(b, arg); if (c > 0 && buy(c)) b.parts[arg].dur = partMaxDur(b, b.parts[arg].id); this.showGarage(); break; }
       case 'buy-spare': if (!b.spare && buy(spareCost(b, arg))) b.spare = { id: b.parts[arg].id }; this.showGarage(); break;
       case 'buy-ammo': { const w = b.rack[+arg], d = weaponStats(w); if (buy(d.packPrice)) w.reserve += d.pack; this.showGarage(); break; }
@@ -337,7 +338,8 @@ const Proto = {
         <h3>In the car</h3>
         <div class="ctl"><kbd>Mouse</kbd> Aim · <kbd>LMB</kbd> Fire · <kbd>R</kbd> Reload</div>
         <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
-        <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade · <kbd>Space</kbd>/<kbd>E</kbd> Abilities</div>
+        <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
+        <div class="ctl"><kbd>Space</kbd> (hold) Slam the blast hatch: it stops bullets and most of a blast, but you can't shoot. Slam it as a rocket hits to bat it back.</div>
         <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
         <div class="ctl"><kbd>M</kbd> Mute · <kbd>Esc</kbd> Pause</div>
         <button class="btn" data-action="title">Back</button>
@@ -441,6 +443,10 @@ const Proto = {
     try { d = JSON.parse(localStorage.getItem(RUN_KEY)); } catch (e) { d = null; }
     if (!d || d.v !== 1 || !d.build || !d.run) return false;
     this.build = d.build;
+    // Older saves: the shield became the blast hatch.
+    ensureHatch(this.build);
+    this.build.abilities = this.build.abilities.map((id) => (ABILITIES[id] ? id : null));
+    this.build.stash.abilities = this.build.stash.abilities.filter((id) => ABILITIES[id]);
     this.run = d.run;
     this.run.node = d.run.node != null ? mapNode(this.run.map, d.run.node) : null;
     this.runSeed = d.runSeed;
@@ -626,7 +632,8 @@ const Proto = {
       const b = this.build;
       b.hull = b.maxHull;
       for (const slot of PART_SLOTS) b.parts[slot].dur = partMaxDur(b, b.parts[slot].id);
-      this.showEvent({ title: 'The mechanic', text: 'An old lifer with oil to his elbows waves you into his bay. "On the house. Just win."', result: 'Hull and every part repaired to full.' });
+      ensureHatch(b).hp = HATCH.max;
+      this.showEvent({ title: 'The mechanic', text: 'An old lifer with oil to his elbows waves you into his bay, hammers the dents out of your hatch and says, "On the house. Just win."', result: 'Hull, hatch and every part repaired to full.' });
     } else {
       const seen = run.flags.seenEvents || (run.flags.seenEvents = []);
       const pool = EVENTS.filter((e) => !seen.includes(e.id));
@@ -903,7 +910,7 @@ const Proto = {
           <div class="ctl"><kbd>Mouse</kbd> Aim / look around · <kbd>LMB</kbd> Fire</div>
           <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch · <kbd>R</kbd> Reload</div>
           <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further)</div>
-          <div class="ctl"><kbd>Space</kbd> / <kbd>E</kbd> Abilities · <kbd>B</kbd> Fit your spare part when one breaks</div>
+          <div class="ctl"><kbd>Space</kbd> (hold) Blast hatch · <kbd>E</kbd> / <kbd>F</kbd> Abilities · <kbd>B</kbd> Fit your spare part</div>
           <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
           <div class="ctl"><kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
           <p class="muted small">Shoot rockets and mines out of the air with bullets. Red laser = a gunner is locking on to you.</p>
@@ -1086,7 +1093,7 @@ const Proto = {
   },
 
   garageCar(bar) {
-    const b = this.build, hullCost = repairHullCost(b);
+    const b = this.build, hullCost = repairHullCost(b), hatch = ensureHatch(b), hatchCost = repairHatchCost(b);
     const slots = PART_SLOTS.map((slot) => {
       const part = b.parts[slot], def = PARTS[part.id], max = partMaxDur(b, part.id), broken = part.dur <= 0;
       const cost = repairPartCost(b, slot), tu = TUNING[slot];
@@ -1116,6 +1123,9 @@ const Proto = {
         <div class="gp-row"><div class="gp-name"><small>Hull</small><b>${Math.ceil(b.hull)} / ${b.maxHull}</b></div>
           <div class="gp-bar">${bar(b.hull / b.maxHull)}</div>
           <button class="btn small" data-action="repair-hull" ${hullCost <= 0 || b.scrap < hullCost ? 'disabled' : ''}>${hullCost <= 0 ? 'OK' : 'Repair ' + hullCost}</button></div>
+        <div class="gp-row"><div class="gp-name"><small>Blast hatch</small><b>${Math.ceil(hatch.hp)} / ${HATCH.max}</b><small class="muted">Steel plate over the glass. Hold <kbd>Space</kbd> to slam it shut. Every hit dents it; dented through, it jams open.</small></div>
+          <div class="gp-bar">${bar(hatch.hp / HATCH.max, hatch.hp <= 0)}<small>${hatch.hp <= 0 ? '<span class="bad">JAMMED</span>' : ''}</small></div>
+          <button class="btn small" data-action="repair-hatch" ${hatchCost <= 0 || b.scrap < hatchCost ? 'disabled' : ''}>${hatchCost <= 0 ? 'OK' : 'Beat out ' + hatchCost}</button></div>
         ${slots}
         <p class="small">Spare part: <b>${b.spare ? PARTS[b.spare.id].name : 'none'}</b> <span class="muted">(press <kbd>B</kbd> mid-race to fit it when that part breaks)</span></p>
         <h3>Driver chip</h3>
@@ -1148,9 +1158,9 @@ const Proto = {
         : b.rack.map((r, ri) => `<button class="btn small" data-action="equip-weapon" data-arg="${si}:${ri}">Swap for ${WEAPONS[r.id].name}</button>`).join('');
       return `<div class="gp-row"><div class="gp-name"><b>${WEAPONS[w.id].name}</b><small class="muted">${w.mag}+${w.reserve} rounds${w.mods.some(Boolean) ? ' · ' + w.mods.filter(Boolean).map((m) => MODS[m].name).join(', ') : ''}</small></div>${btns}</div>`;
     }).join('');
-    const abil = b.abilities.map((id, i) => `<div class="gp-chip"><kbd>${i === 0 ? 'Space' : 'E'}</kbd> ${id ? `<b>${ABILITIES[id].name}</b> <small class="muted">${ABILITIES[id].desc}</small>` : '<span class="muted">Empty</span>'}</div>`).join('');
+    const abil = b.abilities.map((id, i) => `<div class="gp-chip"><kbd>${i === 0 ? 'E' : 'F'}</kbd> ${id ? `<b>${ABILITIES[id].name}</b> <small class="muted">${ABILITIES[id].desc}</small>` : '<span class="muted">Empty</span>'}</div>`).join('');
     const stashA = b.stash.abilities.map((id, si) => `<div class="gp-row"><div class="gp-name"><b>${ABILITIES[id].name}</b><small class="muted">${ABILITIES[id].desc}</small></div>
-      <button class="btn small" data-action="equip-ability" data-arg="${si}:0">On Space</button><button class="btn small" data-action="equip-ability" data-arg="${si}:1">On E</button></div>`).join('');
+      <button class="btn small" data-action="equip-ability" data-arg="${si}:0">On E</button><button class="btn small" data-action="equip-ability" data-arg="${si}:1">On F</button></div>`).join('');
     const stashM = b.stash.mods.map((id) => `<span class="mod-chip" title="${MODS[id].desc}">${MODS[id].name} <small class="muted">(${MODS[id].fits.map((f) => SHORT_WEAPON[f]).join('/')})</small></span>`).join('');
     return `<div class="garage-grid">
       <div class="panel"><h2>Rack <small class="muted">(${b.rack.length}/${slots})</small></h2>${rack}
@@ -1267,8 +1277,9 @@ const Proto = {
     if (Input.consume('Digit3')) combat.select(2);
     if (Input.consume('KeyQ')) combat.cycle(1);
     if (Input.consume('KeyR')) combat.reload();
-    if (Input.consume('Space')) combat.activateAbility(0);
-    if (Input.consume('KeyE')) combat.activateAbility(1);
+    if (Input.consume('KeyE')) combat.activateAbility(0);
+    if (Input.consume('KeyF')) combat.activateAbility(1);
+    combat.setHatch(Input.keys.has('Space'));
     if (Input.consume('KeyB')) combat.fitSpare();
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
     if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
@@ -1438,11 +1449,13 @@ function drawWeaponPanel(ctx, P, W, H) {
     line(i === c.wi, `${i + 1} ${d.name}`, reloading ? 'RELOADING' : `${w.mag} | ${w.reserve}`, reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag, reloading ? '#ff9f1c' : '#5ad8ff');
   });
   line(false, 'G Grenades', `${b.grenades}`, null);
+  const hh = ensureHatch(b), hf = hh.hp / HATCH.max;
+  line(c.hatchDown, '␣ Blast hatch', c.hatch.jammed ? 'JAMMED' : c.guarded ? 'SHUT' : `${Math.ceil(hh.hp)}%`, hf, c.hatch.jammed ? '#ff3b1f' : hf < 0.3 ? '#ff7a1f' : '#c9a43a');
   c.abil.forEach((a, i) => {
-    if (!a) { line(false, `${i === 0 ? '␣' : 'E'} —`, '', null); return; }
+    const key = i === 0 ? 'E' : 'F';
+    if (!a) { line(false, `${key} —`, '', null); return; }
     const def = ABILITIES[a.id];
-    const active = a.id === 'shield' && c.shield.t > 0;
-    line(active, `${i === 0 ? '␣' : 'E'} ${def.name}`, active ? 'ACTIVE' : a.cd > 0 ? `${a.cd.toFixed(1)}s` : 'READY', a.cd > 0 ? 1 - a.cd / def.cooldown : 1, '#7cfc00');
+    line(false, `${key} ${def.name}`, a.cd > 0 ? `${a.cd.toFixed(1)}s` : 'READY', a.cd > 0 ? 1 - a.cd / def.cooldown : 1, '#7cfc00');
   });
   line(false, 'A/D Swerve', c.swerveCd > 0 ? `${c.swerveCd.toFixed(1)}s` : 'ready', null);
   // Parts strip
@@ -1505,15 +1518,6 @@ function drawDamageVignette(ctx, P, W, H, viewAng) {
     const g = ctx.createRadialGradient(ex, ey, 0, ex, ey, Math.max(W, H) * 0.55);
     g.addColorStop(0, `rgba(255,0,0,${0.45 * a})`);
     g.addColorStop(1, 'rgba(255,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-  }
-  const s = c.shield;
-  if (s.t > 0) {
-    const perfect = s.age < PARRY_WINDOW;
-    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
-    g.addColorStop(0, 'rgba(90,216,255,0)');
-    g.addColorStop(1, perfect ? 'rgba(255,255,255,0.45)' : 'rgba(90,216,255,0.35)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   }

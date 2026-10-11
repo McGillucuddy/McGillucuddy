@@ -97,6 +97,30 @@ const Sound = {
     src.stop(t + dur);
   },
 
+  // Struck steel: inharmonic partials ringing down, over a thud.
+  clang(vol) {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime;
+    for (const [f, v, d] of [[142, 1, 0.7], [383, 0.6, 0.55], [611, 0.45, 0.4], [1027, 0.3, 0.3], [1840, 0.15, 0.2]]) {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = 'triangle'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.985, t + d);
+      g.gain.value = 0; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol * v * 0.25, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+      o.connect(g); g.connect(this.master); o.start(t); o.stop(t + d + 0.05);
+    }
+    this.noiseBurst(0.08, 1800, vol * 0.5, 600);
+    this.tone(70, 0.18, 'sine', vol * 0.6);
+  },
+
+  // A round glancing off the plate: a sharp tick and a falling whine.
+  spang() {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime, o = c.createOscillator(), g = c.createGain(), f0 = 2400 + Math.random() * 1600;
+    o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 0.55, t + 0.22);
+    g.gain.value = 0; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.3);
+    this.noiseBurst(0.03, 3200, 0.22, 1500);
+  },
+
   play(ev) {
     if (!this.ctx) return;
     switch (ev.type) {
@@ -121,9 +145,17 @@ const Sound = {
       case 'enemyRocket': this.noiseBurst(0.35, 900, 0.18, 200); break;
       case 'explode': this.noiseBurst(ev.big ? 0.7 : 0.4, 160, ev.big ? 0.6 : 0.35, 50); break;
       case 'lock': this.tone(1200, 0.08, 'square', 0.1); setTimeout(() => this.tone(1200, 0.08, 'square', 0.1), 140); break;
-      case 'shield': this.tone(300, 0.3, 'sine', 0.18); this.tone(600, 0.3, 'sine', 0.1); break;
-      case 'parry': this.tone(1568, 0.25, 'triangle', 0.2); this.tone(2093, 0.35, 'triangle', 0.15); break;
-      case 'block': this.tone(500, 0.12, 'sine', 0.15); break;
+      // The blast hatch: a swing, a heavy clang, ricochets off the plate, a ratchet back up, a grinding jam.
+      case 'hatch': this.noiseBurst(0.14, 500, 0.12, 1400); break;
+      case 'hatchShut': this.clang(0.5); break;
+      case 'hatchUp': for (let k = 0; k < 4; k++) setTimeout(() => this.noiseBurst(0.03, 2600, 0.06), k * 55); this.tone(180, 0.25, 'sawtooth', 0.03); break;
+      case 'jam': this.clang(0.35); this.noiseBurst(0.6, 300, 0.25, 120); this.tone(70, 0.5, 'sawtooth', 0.08); break;
+      case 'parry': this.clang(0.7); this.tone(1568, 0.25, 'triangle', 0.12); this.noiseBurst(0.35, 900, 0.2, 3000); break; // the plate rings as it bats the rocket away
+      case 'block':
+        if (ev.kind === 'blast') { this.clang(0.4); this.noiseBurst(0.3, 220, 0.4, 80); }
+        else if (ev.kind === 'flame') this.noiseBurst(0.2, 900, 0.08, 400);
+        else this.spang();
+        break;
       case 'hurt': this.noiseBurst(0.25, 250, 0.45, 80); break;
       case 'empty': this.tone(220, 0.05, 'square', 0.08); break;
       case 'overheat': this.noiseBurst(0.5, 4000, 0.1, 1500); break;

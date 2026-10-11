@@ -21,7 +21,7 @@ A new run starts in the garage, where you can drag to spin the car a full 360° 
 Played from the cockpit: you ride shotgun with a gun in your hands. A top-down view is kept only as a fallback
 for machines without WebGL, and the PS1-style retro look is always on.
 
-**Progression.** Every run starts with a **service pistol**, two grenades, a shield and a clapped-out car.
+**Progression.** Every run starts with a **service pistol**, two grenades, a blast hatch and a clapped-out car.
 Everything else unlocks for good with reputation, the same rep that unlocks paint:
 - **What unlocks:** 8 weapons, 20 car parts, 4 abilities, 30 attachments, 22 trinkets and 7 driver chips. Each item has its own rep threshold.
 - **Where it turns up:** gear only appears in shops and rewards once it's unlocked.
@@ -106,9 +106,10 @@ Everything but the drums ducks under the kick. Browsers hold sound back until yo
 4. Swap guns and fire a rocket.
 5. Swerve.
 6. Throw a grenade.
-7. Raise the shield.
-8. Learn the threats.
-9. Finish.
+7. Slam the blast hatch.
+8. Bat a rocket back.
+9. Learn the threats.
+10. Finish.
 
 `Enter` skips a step. Rivals are unarmed and slower, and your hull is reinforced. There are no strikes, scrap or rep. Any run in progress is set aside and handed back afterwards.
 The end screen explains the route sheet, garage, strikes and rep.
@@ -117,10 +118,10 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
 `Esc` backs out of a menu panel, or returns to your run. `prototype.html?run` skips the menu and starts a run straight away.
 
 - The car's AI drives. You aim with the mouse and fire whatever's on your rack, starting with the **pistol**,
-  throw **grenades** (look higher to throw further), raise a **shield**, and order the driver to **swerve**.
+  throw **grenades** (look higher to throw further), slam the **blast hatch**, and order the driver to **swerve**.
 - Some rivals are armed: **rocket gunners** paint you with a red laser before firing homing rockets,
   and a **mine layer** drops mines when you're behind it. Shoot rockets and mines out of the air, or
-  raise the shield just as a rocket hits to **parry** it back at the shooter.
+  slam the hatch just as a rocket hits to **parry** it back at the shooter.
 - The cockpit is your space: the dashboard radar and status screen, a working rear-view mirror, the
   empty driver's seat with the steering wheel turning by itself, a gun rack on the driver's door, a
   grenade crate you can count, fuzzy dice and a bobblehead (trinkets) reacting to the car's movement,
@@ -216,7 +217,13 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   built from a propane tank (short range, sets everything alight) and a Harpoon Gun (hooks a rival on a
   line and drags them back hard).
   Grenades are a separate consumable.
-- **Abilities** on `Space` and `E`: shield/parry, nitro burst, smoke screen, EMP pulse.
+- **The blast hatch** (hold `Space`): a welded steel plate hinged on the roof that slams down over the windscreen.
+  - **What it stops:** gunfire, and 70% of a blast. A mine under the car still gets through.
+  - **The cost:** you can't shoot or throw while it's down, and you see out through a barred slit. You can still reload behind it.
+  - **Parry:** slam it just as a rocket arrives and the plate bats it back at the shooter.
+  - **Wear:** every hit dents it (the dents show inside the cabin). Dented through, it jams and hangs crooked off its hinge until you **beat it out** in the garage (Workshop) or the mechanic fixes it.
+  - **The animation:** it drops with a clang and a bounce off its stop, shudders when hit, sprays sparks through the slit, and the gun lowers while it's down.
+- **Abilities** on `E` and `F`: nitro burst, smoke screen, EMP pulse. All three are unlocked with rep and found in rewards and shops.
 - **Your parts show on your car.** Armour bolts on as plates, reactive bricks, a spiked cage, ceramic tiles or
   window bars; tuning it heavier adds a hood plate, then a ram and arch guards, lighter thins it out. The
   nitro bottle is strapped on the boot or roof (bigger for capacity, smaller with a purge valve for power;

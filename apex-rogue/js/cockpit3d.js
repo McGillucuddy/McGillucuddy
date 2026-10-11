@@ -651,6 +651,7 @@ class CockpitView {
     this.cracks = canvasTex(512, 256);
     this.grimeWindshield();
     live(refs.windshield, this.cracks.tex, { opacity: 1 });
+    this.buildHatch(I);
 
     // Dust drifting in the bulb light.
     const N = 40, pos = new Float32Array(N * 3);
@@ -922,14 +923,136 @@ class CockpitView {
       scene.add(line);
       this.lockLines.set(car, line);
     }
-    this.shieldMesh = new THREE.Mesh(new THREE.SphereGeometry(24, 24, 16), new THREE.MeshBasicMaterial({ color: '#5ad8ff', transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false }));
-    this.shieldMesh.visible = false;
-    scene.add(this.shieldMesh);
   }
 
   // ---------- Per-frame ----------
 
+  // ---------- The blast hatch ----------
+  // A welded steel plate hinged on the roof header, outside the windscreen. Open, it lies back on the roof; slammed,
+  // it covers the glass with a barred vision slit at eye height. Hits dent it inwards and spray sparks through the
+  // slit; dented through, it jams and hangs crooked off its hinge.
+  buildHatch(I) {
+    const v = new THREE.Vector2(-5.9, 6).normalize(), o = new THREE.Vector2(-v.y, v.x).negate(); // up the glass; out through it
+    const top = new THREE.Vector2(5.45, 9.6).addScaledVector(v, 4.2), hinge = top.clone().addScaledVector(o, 0.75);
+    const pivot = new THREE.Group();
+    pivot.position.set(hinge.x, hinge.y, 0);
+    const L = 8.9, Wd = 17.8, T = 0.32, s0 = 3.45, s1 = 4.35; // length down the glass, width, thickness, the slit
+    const plate = new THREE.Group();
+    // Low metalness: there's no environment to reflect in the cabin, and full metal would read as black.
+    const steel = LP.mat('#a8acb0', { metalness: 0.25, roughness: 0.6 }), rust = LP.mat('#9a8670', { metalness: 0.15, roughness: 0.85 }); // solid: the decal rust is see-through; PSX.apply grimes it
+    const dark = LP.mat('#3a3a3a', { metalness: 0.3, roughness: 0.6 }), weld = LP.mat('#4a4038', { metalness: 0.2, roughness: 0.8 });
+    plate.add(LP.box(s0 - 0.15, T, Wd, rust, (0.15 + s0) / 2, 0, 0)); // the panel above the slit
+    plate.add(LP.box(L - s1, T, Wd, rust, (s1 + L) / 2, 0, 0)); // and below it
+    for (let k = 0; k < 9; k++) plate.add(LP.box(s1 - s0 + 0.3, 0.2, 0.2, dark, (s0 + s1) / 2, -0.05, -7.2 + k * 1.8)); // bars across the slit
+    // Inside face: angle-iron braces, a cross member, weld beads, rivets, a grab handle, a hazard strip.
+    const inner = -T / 2;
+    for (const z of [-5.2, 0, 5.2]) {
+      plate.add(LP.box(L - 0.8, 0.36, 0.42, steel, L / 2 + 0.2, inner - 0.18, z));
+      plate.add(LP.box(L - 0.8, 0.08, 0.12, weld, L / 2 + 0.2, inner - 0.03, z + 0.27));
+    }
+    plate.add(LP.box(0.5, 0.36, Wd - 1.2, steel, L - 0.7, inner - 0.18, 0));
+    plate.add(LP.box(0.5, 0.36, Wd - 1.2, steel, 0.8, inner - 0.18, 0));
+    for (const x of [0.45, s0 - 0.3, s1 + 0.3, L - 0.3]) for (let k = 0; k < 10; k++) plate.add(LP.mesh(new THREE.SphereGeometry(0.13, 6, 4), steel, x, inner - 0.02, -8.1 + k * 1.8));
+    const hy = inner - 0.95, hx = L - 1.7;
+    plate.add(LP.tube([hx, inner, -1.6], [hx, hy, -1.6], 0.14, dark), LP.tube([hx, inner, 1.6], [hx, hy, 1.6], 0.14, dark), LP.tube([hx, hy, -1.7], [hx, hy, 1.7], 0.16, dark));
+    const hz = canvasTex(64, 8);
+    for (let x = -8; x < 64; x += 8) { hz.ctx.fillStyle = '#d8a920'; hz.ctx.beginPath(); hz.ctx.moveTo(x, 8); hz.ctx.lineTo(x + 4, 8); hz.ctx.lineTo(x + 8, 0); hz.ctx.lineTo(x + 4, 0); hz.ctx.fill(); }
+    hz.ctx.globalCompositeOperation = 'destination-over'; hz.ctx.fillStyle = '#141414'; hz.ctx.fillRect(0, 0, 64, 8);
+    hz.tex.wrapS = THREE.RepeatWrapping; hz.tex.repeat.set(4, 1); hz.tex.needsUpdate = true;
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(0.55, Wd - 0.6), new THREE.MeshStandardMaterial({ map: hz.tex, roughness: 0.9 }));
+    strip.geometry.rotateZ(Math.PI / 2); strip.geometry.rotateX(Math.PI / 2); strip.rotation.z = 0;
+    strip.lookAt(0, -1, 0); strip.position.set(L - 0.32, inner - 0.01, 0);
+    plate.add(strip);
+    // The hinge: a barrel across the top and three knuckles welded to the roof.
+    const barrel = LP.cyl(0.34, 0.34, Wd, 12, steel); barrel.rotation.x = Math.PI / 2; plate.add(barrel);
+    for (const z of [-6.5, 0, 6.5]) { const k = LP.cyl(0.5, 0.5, 1.2, 12, dark, hinge.x, hinge.y, z); k.rotation.x = Math.PI / 2; I.add(k); }
+    pivot.add(plate);
+    I.add(pivot);
+    PSX.apply(pivot);
+    // Sparks through the slit and a flash of light when something hits.
+    const sparkMat = new THREE.MeshBasicMaterial({ color: '#ffd27a', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+    const sparks = [];
+    for (let k = 0; k < 28; k++) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.32), sparkMat); m.visible = false; I.add(m); sparks.push({ m, t: 9, life: 0, p: new THREE.Vector3(), v: new THREE.Vector3() }); }
+    const fill = new THREE.PointLight('#d8c8a8', 0, 16, 2); // the cabin bulb's spill on the plate, only while it's down
+    fill.position.set(2.5, 10.2, 1.5); I.add(fill);
+    const light = new THREE.PointLight('#ffc070', 0, 26, 2);
+    I.add(light);
+    this.hatchFx = { pivot, plate, L, Wd, T, s0, s1, open: Math.atan2(0.05, -1), shut: Math.atan2(-v.y, -v.x), dents: 0, dentMat: rust, sparks, light, fill, bounce: 0, shudder: 0, jamT: 0, o, hinge, v }; // open lies back on the roof; shut runs straight down the glass
+    this.syncDents(true);
+  }
+
+  // Dents grow with the wear on the plate (kept between races in your build).
+  syncDents(seeded) {
+    const F = this.hatchFx, hp = ensureHatch(this.combat.build).hp, want = Math.min(40, Math.floor((1 - hp / HATCH.max) * 40));
+    const rng = seeded ? mulberry32(97) : Math.random;
+    while (F.dents < want) {
+      const r = 0.22 + rng() * 0.3;
+      let x = 0.5 + rng() * (F.L - 1);
+      if (x > F.s0 - 0.25 && x < F.s1 + 0.25) x = F.s1 + 0.4;
+      const d = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 5), F.dentMat);
+      d.scale.y = 0.35;
+      d.position.set(x, -F.T / 2, (rng() - 0.5) * (F.Wd - 1.5)); // pushed in towards you
+      F.plate.add(d);
+      PSX.apply(d);
+      F.dents++;
+    }
+  }
+
+  hatchHit(ev) {
+    const F = this.hatchFx;
+    if (!F) return;
+    F.shudder = Math.min(1.5, F.shudder + (ev.kind === 'blast' ? 1.2 : 0.35));
+    if (ev.kind === 'blast') this.shake = Math.max(this.shake, 0.6);
+    if (ev.kind === 'flame') return;
+    // Sparks come through the slit at you.
+    const n = ev.kind === 'blast' ? 14 : 5, cos = Math.cos(F.pivot.rotation.z), sin = Math.sin(F.pivot.rotation.z);
+    for (let k = 0; k < n; k++) {
+      const s = F.sparks.find((q) => q.t >= q.life);
+      if (!s) break;
+      const along = (F.s0 + F.s1) / 2;
+      s.p.set(F.hinge.x + cos * along, F.hinge.y + sin * along, (Math.random() - 0.5) * 14);
+      const sp = 14 + Math.random() * 22;
+      s.v.set(-F.o.x * sp + (Math.random() - 0.5) * 6, -F.o.y * sp + Math.random() * 4, (Math.random() - 0.5) * 10);
+      s.t = 0; s.life = 0.18 + Math.random() * 0.25;
+      s.m.visible = true;
+    }
+    F.light.position.set(F.hinge.x + cos * 4, F.hinge.y + sin * 4 - 0.5, 0);
+    F.light.intensity = ev.kind === 'blast' ? 5 : 2;
+  }
+
+  animateHatch(dt, t) {
+    const F = this.hatchFx, H = this.combat.hatch;
+    if (!F) return;
+    // Gravity on the way down, a haul on the way up; a bounce off the stop, a shudder when it's hit.
+    const f = Math.pow(H.pos, 1.7);
+    let ang = F.open + (F.shut - F.open) * f;
+    F.bounce = Math.max(0, F.bounce - dt * 3.5);
+    ang += Math.sin(F.bounce * 22) * 0.06 * F.bounce;
+    F.shudder = Math.max(0, F.shudder - dt * 5);
+    ang += (Math.random() - 0.5) * 0.02 * F.shudder;
+    F.plate.rotation.x = 0;
+    if (H.jammed) { // hanging crooked off a sprung hinge, rattling
+      ang = F.open + (F.shut - F.open) * 0.86 + Math.sin(t * 13) * 0.012 * Math.min(1, this.race.player.speed / 300);
+      F.plate.rotation.x = 0.09;
+    }
+    F.pivot.rotation.z = ang;
+    for (const s of F.sparks) {
+      if (s.t >= s.life) { s.m.visible = false; continue; }
+      s.t += dt;
+      s.v.y -= 30 * dt;
+      s.p.addScaledVector(s.v, dt);
+      s.m.position.copy(s.p);
+      s.m.lookAt(s.p.x + s.v.x, s.p.y + s.v.y, s.p.z + s.v.z);
+    }
+    F.light.intensity = Math.max(0, F.light.intensity - dt * 25);
+    F.fill.intensity = 4 * Math.max(H.pos, H.jammed ? 0.5 : 0);
+  }
+
   onEvent(ev) {
+    if (ev.type === 'hatchShut') { if (this.hatchFx) this.hatchFx.bounce = 1; this.shake = Math.max(this.shake, 0.35); }
+    if (ev.type === 'block' || ev.type === 'parry') this.hatchHit(ev);
+    if (ev.type === 'dent') this.syncDents(false);
+    if (ev.type === 'jam') { this.shake = Math.max(this.shake, 0.5); if (this.hatchFx) this.hatchFx.shudder = 1.5; }
     if (ev.type === 'shoot' || ev.type === 'shotgun') this.ejectCasing(ev.type === 'shotgun');
     if (FIRE_EVENTS.includes(ev.type)) this.fireKick(FIRE_KICK[this.combat.weapon.id] || FIRE_KICK.smg);
     if (ev.type === 'explode') this.burst(ev.x, ev.y, ev.big);
@@ -1142,6 +1265,7 @@ class CockpitView {
     });
 
     this.animateViewmodel(dt, t);
+    this.animateHatch(dt, t);
     this.updateFx(dt, t);
     this.updateLooseParts(dt);
     this.drawRadar(t);
@@ -1326,7 +1450,7 @@ class CockpitView {
     sw.vr += ((-dyaw * 4 - sw.r) * k - sw.vr * d) * dt; sw.r += sw.vr * dt;
     const spd = Math.min(1, p.speed / 500);
     const bob = Math.sin(t * 9) * spd * 0.05 + Math.sin(t * 1.7) * 0.03; // road vibration + breathing
-    const busyDip = (combat.busy ? 4 : 0) + clamp((-this.look.pitch - 0.35) / 0.25, 0, 1) * 4.5; // looking down at your gear lowers the gun
+    const busyDip = (combat.busy ? 4 : 0) + combat.hatch.pos * 7.5 + clamp((-this.look.pitch - 0.35) / 0.25, 0, 1) * 4.5; // looking down at your gear lowers the gun
     this.dip = lerp(this.dip || 0, busyDip, Math.min(1, dt * 10));
     const sw01 = A.switchT / 0.38, raise = sw01 * sw01 * 5;
     vm.guns.forEach((g, i) => {
@@ -1650,12 +1774,6 @@ class CockpitView {
       pos.setXYZ(1, p.x, 8, p.y);
       pos.needsUpdate = true;
       line.material.opacity = Math.floor(t * (6 + k * 14)) % 2 ? 1 : 0.3;
-    }
-    const sh = c.shield;
-    this.shieldMesh.visible = sh.t > 0;
-    if (sh.t > 0) {
-      this.shieldMesh.position.set(p.x, 8, p.y);
-      this.shieldMesh.material.opacity = sh.age < PARRY_WINDOW ? 0.3 : 0.12;
     }
   }
 

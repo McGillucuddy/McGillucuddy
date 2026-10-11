@@ -55,8 +55,21 @@ const WEAPONS = {
 const GRENADE_PRICE = 30;
 const MAX_GRENADES = 5;
 
+// The blast hatch: a welded steel plate on a hinge over the windscreen. Hold Space to slam it down. While it's shut
+// it stops gunfire and most of a blast, but you can't shoot or throw. Slam it just as a rocket arrives and it
+// bats the rocket back. Every hit dents it; dented through, it jams open until it's fixed in the garage.
+const HATCH = {
+  max: 100,
+  slam: 0.13, // seconds to slam shut
+  lift: 0.32, // seconds to haul it back up
+  minDown: 0.35, // a tap still holds it shut this long
+  guard: 0.8, // how far down it has to be to stop anything
+  blastPass: 0.3, // share of a blast that still gets through
+};
+const ensureHatch = (b) => { if (!b.hatch) b.hatch = { hp: HATCH.max }; return b.hatch; };
+const repairHatchCost = (b) => Math.ceil((HATCH.max - Math.max(0, ensureHatch(b).hp)) * 0.7 * repairMul(b) + (b.hatch.hp <= 0 ? 25 : 0));
+
 const ABILITIES = {
-  shield: { name: 'Shield', desc: 'Blocks everything for 1.1s. Raise it just as a rocket hits to parry it back.', cooldown: 7, price: 0 },
   nitro_burst: { name: 'Nitro Burst', desc: 'Two seconds of free, double-strength boost.', cooldown: 10, price: 160 },
   smoke: { name: 'Smoke Screen', desc: 'Drops a smoke cloud. Rivals inside lose their lock and slow down.', cooldown: 12, price: 180 },
   emp: { name: 'EMP Pulse', desc: 'Destroys nearby rockets and mines and jams rival weapons for 4s.', cooldown: 15, price: 240 },
@@ -82,7 +95,7 @@ const TRINKETS = {
   shoes: { name: 'Bronzed Baby Shoes', desc: 'Once per race, when your hull drops below 30%, patch 25 of it back.' },
   compass: { name: 'Dash Compass', desc: 'Your rockets turn 40% harder towards their target.' },
   cassette: { name: 'Mixtape', desc: 'Reloads 20% faster.' },
-  teddy: { name: 'Prison Teddy', desc: 'Your shield lasts 50% longer.' },
+  teddy: { name: 'Prison Teddy', desc: 'Stuffed in the hatch hinge: it slams and lifts twice as fast and takes 25% less wear.' },
   clover: { name: 'Four-Leaf Clover', desc: 'Wrecking a rival refills the magazine of the gun in your hands.' },
   snowglobe: { name: 'Snow Globe', desc: 'Pick up a spare grenade after every race.' },
 };
@@ -157,7 +170,7 @@ const UNLOCK_REP = {
     slicks: 150, turbo_v6: 180, electric: 210, hot_mix: 240, spiked_cage: 280, recycler: 320, riot_plates: 370, twin_bottles: 430,
     ablative: 500, supercharger: 580, racing_v8: 680,
   },
-  ability: { shield: 0, nitro_burst: 80, smoke: 200, emp: 400 },
+  ability: { nitro_burst: 80, smoke: 200, emp: 400 },
   mod: {
     ext_mag: 0, quick_mag: 0, red_dot: 0, laser: 25, compensator: 45, hair_trigger: 65, flashlight: 85, choke: 100, sawn_off: 120,
     scope: 140, drum_mag: 160, bayonet: 180, incendiary: 210, ap_rounds: 240, suppressor: 270, tracer: 300, slugs: 330, hubcap: 360,
@@ -222,7 +235,8 @@ function newBuild() {
     rack: [], rackBase: 2,
     tuneRange: { engine: { lo: -1, hi: 1 }, tyres: { lo: -1, hi: 1 }, armour: { lo: -1, hi: 1 }, nitro: { lo: -1, hi: 1 } },
     grenades: 2,
-    abilities: ['shield', null],
+    abilities: [null, null], // E and F; Space is the blast hatch
+    hatch: { hp: HATCH.max },
     trinkets: [], // the only permanent things in a run
     chip: null,
     stash: { parts: [], weapons: [], abilities: [], mods: [], chips: [] },
