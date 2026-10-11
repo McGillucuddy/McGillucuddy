@@ -2644,7 +2644,7 @@ const Models = {
   gloveGeo(kind, leather, arm, pose) {
     const V = (a) => new THREE.Vector3(...a), lerp = (a, b, t) => V(a).lerp(V(b), t).toArray();
     const r2 = (a) => (a ? a.map((v) => Math.round(v * 100) / 100) : null);
-    const key = 'glove:' + kind + ':' + JSON.stringify([r2(arm), r2(pose.grip), pose.tube, r2(pose.trigger)]);
+    const key = 'glove:' + kind + ':' + JSON.stringify([r2(arm), r2(pose.grip), pose.tube && Math.round(pose.tube * 100), r2(pose.trigger), pose.sec && pose.sec.map((r) => Math.round(r.reduce((a, b) => a + b, 0) * 10))]);
     const palm = [], fingers = [], guard = [];
     const bone = (list, a, b, ra, rb) => list.push({ a, b, ra, rb });
     // A finger is one smooth curve through its joints (Catmull-Rom), built from short pieces: inside a glove the
@@ -2666,32 +2666,66 @@ const Models = {
       fingers.push(f);
       return f;
     };
-    // Walk a finger round an ellipse (half axes ex, ez, in the plane of axes u/v) by bone lengths from angle a0.
-    const wrap = (pt, ex, ez, a0, k0, lens, aMax) => {
-      const out = [pt(a0, k0)];
-      let a = a0, prev = pt(a0, 1);
-      for (const L of lens) {
+    // Walk a finger round the grip's real outline by bone lengths, from its knuckle at angle a0. shape(a, off) is the
+    // outline pushed out by off; each joint sits out by its own half-thickness (rs * FLAT), so the leather touches the
+    // gun all the way to the tip: no daylight under the fingers, nothing poking through. Stops at aMax.
+    const FLAT = 0.8; // fingers are this much thinner back-to-palm than across
+    const wrap = (shape, a0, knuckle, lens, rs, aMax) => {
+      const out = [knuckle], off = (i) => rs[i + 1] * FLAT + 0.006;
+      let a = a0, prev = shape(a0, off(0));
+      for (let i = 0; i < lens.length; i++) {
         let d = 0;
-        while (d < L && a < aMax) { a += 0.01; const q = pt(a, 1); d += Math.hypot(q[0] - prev[0], q[1] - prev[1], q[2] - prev[2]); prev = q; }
-        out.push(pt(a, 1));
+        while (d < lens[i] && a < aMax) { a += 0.005; const q = shape(a, off(i)); d += Math.hypot(q[0] - prev[0], q[1] - prev[1], q[2] - prev[2]); prev = q; }
+        out.push(shape(a, off(i)));
+        if (a >= aMax) break;
       }
       return out;
     };
     const LENS = [0.5, 0.38, 0.28];
-    let w, radial, knuckles = [], top;
+    // A grip outline from radii per degree (measured by Models.gripFit, or a stand-in rounded box): shape(a, off) is
+    // the outline at angle a pushed out by off along its normal; normal(a) is that outward normal.
+    const outline = (rho, dir) => {
+      const Rr = (a) => { const t = (((a * 180) / Math.PI) % 360 + 360) % 360, i = Math.floor(t), f = t - i; return rho[i % 360] * (1 - f) + rho[(i + 1) % 360] * f; };
+      const O = (a) => { const [p, q] = dir(a), r = Rr(a); return [p * r, q * r]; };
+      const normal = (a) => {
+        const o1 = O(a + 0.03), o0 = O(a - 0.03), [p, q] = dir(a);
+        let nx = o1[1] - o0[1], ny = -(o1[0] - o0[0]);
+        const l = Math.hypot(nx, ny) || 1;
+        nx /= l; ny /= l;
+        return nx * p + ny * q < 0 ? [-nx, -ny] : [nx, ny];
+      };
+      return { normal, shape: (a, off) => { const o = O(a), n = normal(a); return [o[0] + n[0] * off, o[1] + n[1] * off]; } };
+    };
+    const boxRho = (rx, rz, n) => Array.from({ length: 360 }, (_, d) => { const a = (d * Math.PI) / 180; return 1 / (Math.abs(Math.cos(a) / rx) ** n + Math.abs(Math.sin(a) / rz) ** n) ** (1 / n); });
+    let w, radial, clear, knuckles = [], top;
     if (kind === 'pistol') {
       // Grip axis is local Y; angle 0 = right side (back of the hand), PI/2 = front strap, PI = left side.
       const [rx, rz] = pose.grip || [0.4, 0.48];
       // The palm never shrinks below full size on a slim grip (that left a thin hand on a thick wrist); the fingers just wrap further.
-      const ex = rx + 0.17, ez = rz + 0.17, sx = Math.max(1, (rx + 0.2) / 0.6), sz = Math.max(1, (rz + 0.2) / 0.68);
-      const S = (p) => [p[0] * sx, p[1], p[2] * sz]; // the base skeleton, stretched to this grip
-      radial = (x, y, z) => [x / ex, 0, z / ez];
+      // The base skeleton (made for a 0.4 x 0.48 grip) is moved, not scaled, onto this grip: the palm and heel sit
+      // against its right side and back strap, the thumb against its left side, whatever the grip's size.
+      const S = (p) => [p[0] > 0 ? p[0] + (rx - 0.505) * Math.min(1, p[0] / 0.5) : p[0] - (rx - 0.4) * Math.min(1, -p[0] / 0.5), p[1],
+        p[2] > 0 ? p[2] + (rz - 0.48) * Math.min(1, p[2] / 0.6) : p[2] * (rz / 0.48)];
+      const LV = Models.GLOVE_LEVELS.pistol, dir = Models.gripDir.pistol;
+      const lines = LV.map((_, i) => outline(pose.sec ? pose.sec[i] : boxRho(rx, rz, 3), dir));
+      // Out from the grip: a smooth stand-in for its surface normal (the measured outline can be jumpy on a small or
+      // knobbly grip; this only steers which way the fingers flatten and how the leather is painted).
+      radial = (x, y, z) => [x / (rx * rx), 0, z / (rz * rz)];
+      const grip = (i, y) => (a, off) => { const [u, v] = lines[i].shape(a, off); return [u, y - (a - 0.18) * 0.03, v]; };
+      // Keep a point at least off clear of the grip (the outline at the nearest finger level).
+      clear = (p, off) => {
+        const i = LV.reduce((b, l, k) => (Math.abs(l - p[1]) < Math.abs(LV[b] - p[1]) ? k : b), 0);
+        const a = Math.atan2(-p[2], p[0]), [u, v] = lines[i].shape(a, off), need = Math.hypot(u, v), r = Math.hypot(p[0], p[2]) || 1;
+        return r >= need ? p : [p[0] * need / r, p[1], p[2] * need / r];
+      };
+      const knuckle = (i, y) => { const [u, v] = lines[i].shape(0.18, 0.23); return [u, y, v]; };
       const F = [[0.1, 0.16], [-0.25, 0.155], [-0.58, 0.135]]; // [height, radius]
       const bases = [[0.64, -0.1, 0.64], [0.62, -0.32, 0.64], [0.57, -0.5, 0.6]];
       F.forEach(([y, r], i) => {
         const sc = i === 2 ? 0.82 : i === 1 ? 0.95 : 1; // the pinky is shorter
-        const j = wrap((a, k) => [ex * k * Math.cos(a), y - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS.map((l) => l * sc * 1.22), 3.25); // long enough to lie across the left panel
-        chain(j, [r * 1.04, r * 0.97, r * 0.9, r * 0.76]); // an even taper to the tip
+        const rs = [r * 1.04, r * 0.97, r * 0.9, r * 0.76]; // an even taper to the tip
+        const j = wrap(grip(i + 1, y), 0.18, knuckle(i + 1, y), LENS.map((l) => l * sc * 1.15), rs, 3.3); // long enough to lie across the left panel
+        chain(j, rs);
         bone(palm, S(bases[i]), j[0], 0.17, r * 1.0); // no fatter than the finger it joins: no knuckle balls
         knuckles.push(j[0]);
       });
@@ -2706,7 +2740,7 @@ const Models = {
         const bez = (t) => [0, 1, 2].map((i) => (1 - t) * (1 - t) * M[i] + 2 * (1 - t) * t * C[i] + t * t * T.getComponent(i));
         ix = [M, bez(0.48), bez(0.8), bez(1)];
       } else {
-        ix = wrap((a, k) => [ex * k * Math.cos(a), 0.42 - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS, 2.9);
+        ix = wrap(grip(0, 0.42), 0.18, knuckle(0, 0.42), LENS, [0.162, 0.148, 0.132, 0.112], 3.0);
       }
       chain(ix, [0.162, 0.148, 0.132, 0.112]);
       bone(palm, S([0.62, 0.12, 0.62]), ix[0], 0.17, 0.15);
@@ -2716,40 +2750,55 @@ const Models = {
       // Thumb: its metacarpal and muscle run over the top of the grip, then two bones down the left side.
       const T = [[0.5, 0.0, 0.72], [-0.2, 0.44, 0.46], [-0.55, 0.36, -0.02], [-0.58, 0.27, -0.34]].map(S);
       bone(palm, T[0], T[1], 0.22, 0.18);
-    palm[palm.length - 1].round = true; // the muscle at the base of the thumb stays full
+      palm[palm.length - 1].round = true; // the muscle at the base of the thumb stays full
       chain(T.slice(1), [0.19, 0.17, 0.142]);
       w = S([0.6, -0.55, 1.08]);
       top = [1, 0, 0];
     } else {
       // Tube axis is local Z; angle 0 = straight below, PI/2 = right side.
-      const R = pose.tube || 0.43, er = R + 0.15, s2 = Math.max(1, (R + 0.25) / 0.68);
-      const S = (p) => [p[0] * s2, p[1] * s2, p[2]];
+      // Moved onto the tube (the skeleton was made for a 0.43 tube): Sp brings the palm up against it, as a hand
+      // cradling a forend does; the thumb (S) just follows the tube's size.
+      const R = pose.tube || 0.43;
+      const shiftR = (p, d) => { const l = Math.hypot(p[0], p[1]) || 1, k = (l + d) / l; return [p[0] * k, p[1] * k, p[2]]; };
+      const S = (p) => shiftR(p, R - 0.43), Sp = (p) => shiftR(p, R - 0.54);
+      const LV = Models.GLOVE_LEVELS.support, dir = Models.gripDir.support;
+      const lines = LV.map((_, i) => outline(pose.sec ? pose.sec[i] : boxRho(R, R, 2), dir));
       radial = (x, y) => [x, y, 0];
+      clear = (p, off) => {
+        const i = LV.reduce((b, l, k) => (Math.abs(l - p[2]) < Math.abs(LV[b] - p[2]) ? k : b), 0);
+        const a = Math.atan2(p[0], -p[1]), [u, v] = lines[i].shape(a, off), need = Math.hypot(u, v), r = Math.hypot(p[0], p[1]) || 1;
+        return r >= need ? p : [p[0] * need / r, p[1] * need / r, p[2]];
+      };
       const F = [[-0.55, 0.155], [-0.19, 0.16], [0.17, 0.155], [0.5, 0.135]]; // [z, radius]
       const bases = [-0.18, 0.04, 0.26, 0.46];
       F.forEach(([z, r], i) => {
         const sc = i === 3 ? 0.82 : i === 0 ? 0.95 : 1;
-        const j = wrap((a, k) => [er * k * Math.sin(a), -er * k * Math.cos(a), z + 0.04 - (a - 0.72) * 0.03], er, er, 0.72, 1.15, LENS.map((l) => l * sc), 2.75);
-        chain(j, [r * 1.04, r * 0.97, r * 0.9, r * 0.76]); // an even taper to the tip
-        bone(palm, S([-0.18, -0.68, bases[i]]), j[0], 0.17, r * 1.0);
+        const rs = [r * 1.04, r * 0.97, r * 0.9, r * 0.76];
+        const tube = (a, off) => { const [u, v] = lines[i].shape(a, off); return [u, v, z + 0.04 - (a - 0.72) * 0.03]; };
+        const k0 = lines[i].shape(0.72, 0.24);
+        const j = wrap(tube, 0.72, [k0[0], k0[1], z + 0.04], LENS.map((l) => l * sc), rs, 2.75);
+        chain(j, rs);
+        bone(palm, Sp([-0.18, -0.68, bases[i]]), j[0], 0.17, r * 1.0);
         knuckles.push(j[0]);
       });
-      bone(palm, S([-0.18, -0.7, 0.46]), S([-0.12, -0.8, 0.85]), 0.19, 0.2); // heel
-      bone(palm, S([-0.15, -0.72, 0.3]), S([-0.08, -0.9, 1.0]), 0.26, 0.34); // wrist
+      bone(palm, Sp([-0.18, -0.7, 0.46]), Sp([-0.12, -0.8, 0.85]), 0.19, 0.2); // heel
+      bone(palm, Sp([-0.15, -0.72, 0.3]), Sp([-0.08, -0.9, 1.0]), 0.26, 0.34); // wrist
       // Thumb along the left side of the tube, pointing forward.
-      const T = [[-0.12, -0.78, 0.62], [-0.53, -0.5, 0.2], [-0.6, -0.18, -0.2], [-0.57, -0.04, -0.52]].map(S);
+      const T = [[-0.12, -0.78, 0.62], [-0.53, -0.5, 0.2], [-0.6, -0.18, -0.2], [-0.57, -0.04, -0.52]].map((p, i) => (i ? S(p) : Sp(p)));
       bone(palm, T[0], T[1], 0.2, 0.17);
-    palm[palm.length - 1].round = true;
+      palm[palm.length - 1].round = true;
       chain(T.slice(1), [0.19, 0.17, 0.142]);
-      w = S([-0.08, -0.92, 1.08]);
+      w = Sp([-0.08, -0.92, 1.08]);
       top = [0, -1, 0];
     }
-    // Real fingers are wider than they are deep: each finger bone is flattened along the back-to-palm direction
+    // Real fingers are wider than they are deep: each finger bone is flattened (FLAT) along the back-to-palm direction
     // (out from the grip). No knuckle knobs or fingertip bulbs, which made the hand look like E.T.'s.
-    const FLAT = 0.8;
     // The squash direction is taken at the point itself (out from the grip), so neighbouring bones agree at a joint
     // and the finger stays one smooth piece instead of lumpy segments.
     for (const f of fingers) for (const b of f) b.ax = V(b.b).sub(V(b.a)).normalize().toArray();
+    // Nothing of the palm, heel, wrist or thumb sinks into the gun: each bone's ends are pushed clear of the grip by
+    // their own thickness (the palm is flattened along the back of the hand, so that much less there).
+    for (const b of palm) { b.a = clear(b.a, b.ra * 0.85); b.b = clear(b.b, b.rb * 0.85); }
     // Gauntlet up the wrist with a raised strap.
     const dir = V(arm).normalize(), along = (d) => V(w).addScaledVector(dir, d).toArray();
     bone(palm, along(-0.3), along(0.72), 0.37, 0.41); // a wrist a bit narrower than the palm, as wrists are
@@ -2934,25 +2983,155 @@ const Models = {
   },
 
   hands(gun, weaponId) {
-    const X = new THREE.Vector3(1, 0, 0);
-    for (const G of Models.GRIPS[weaponId] || []) {
-      const s = G.mirror ? -1 : 1;
+    const X = new THREE.Vector3(1, 0, 0), fits = Models.gripFit(weaponId);
+    if (!fits) return gun; // the gun isn't meshed yet (warm-up): its gloves are queued once it is (see Proto)
+    (Models.GRIPS[weaponId] || []).forEach((G, gi) => {
+      const s = G.mirror ? -1 : 1, F = fits[gi];
+      // Centre the hand on the grip it actually measured (the hand-placed position is only a first guess).
+      const pos = new THREE.Vector3(...G.pos);
+      if (F) pos.add(new THREE.Vector3(...F.shift).multiply(new THREE.Vector3(s, 1, 1)).applyAxisAngle(X, G.tilt));
       const local = (p, isDir) => { // gun space -> the hand's own (unmirrored) frame
         const v = new THREE.Vector3(...p);
-        if (!isDir) v.sub(new THREE.Vector3(...G.pos));
+        if (!isDir) v.sub(pos);
         v.applyAxisAngle(X, -G.tilt);
         v.x *= s;
         return v.toArray();
       };
-      const h = Models.hand(G.kind, local(G.arm, true), { grip: G.grip, tube: G.tube, trigger: G.trigger && local(G.trigger) });
+      const pose = { grip: F && G.kind === 'pistol' ? F.half : G.grip, tube: F && G.kind !== 'pistol' ? F.radius : G.tube, trigger: G.trigger && local(G.trigger), sec: F && F.rho };
+      const h = Models.hand(G.kind, local(G.arm, true), pose);
       if (G.mirror) h.scale.x = -1;
-      h.position.set(...G.pos);
+      h.position.copy(pos);
       h.rotation.x = G.tilt;
       h.userData.rest = { pos: h.position.clone(), rot: G.tilt };
       (gun.userData.hands = gun.userData.hands || []).push(h);
       gun.add(h);
-    }
+    });
     return gun;
+  },
+
+  // Where each finger lies on a grip: the levels (hand-local) the fingers cross a pistol grip (y: index, middle, ring,
+  // pinky) or a tube (z), and the angle convention for each: a pistol grip's outline is in (x, z) with angle 0 = right
+  // side, PI/2 = front strap; a tube's in (x, y) with 0 = straight below, PI/2 = right side.
+  GLOVE_LEVELS: { pistol: [0.42, 0.1, -0.25, -0.58], support: [-0.55, -0.19, 0.17, 0.5] },
+  gripDir: { pistol: (a) => [Math.cos(a), -Math.sin(a)], support: (a) => [Math.sin(a), -Math.cos(a)] },
+
+  // Measure every grip of a gun from its own model, so the glove fits it seamlessly: slice the bare gun at each
+  // finger's level, fill the cross-section, keep the connected piece the hand holds, and trace its outline as a
+  // radius per degree round the hand's axis. Also returns how far to move the hand to centre it on the grip, the
+  // grip's half width/depth (pistol) or radius (tube). Measured once per weapon.
+  gripFit(id) {
+    const cache = Models._gripFits || (Models._gripFits = {});
+    if (cache[id]) return cache[id];
+    const gun = Models.weapon(id), X = new THREE.Vector3(1, 0, 0);
+    gun.updateMatrixWorld(true);
+    const skip = gun.userData.mag; // the magazine sits inside the grip: it isn't what the hand touches
+    const meshes = [];
+    gun.traverse((o) => {
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+      for (let q = o; q; q = q.parent) if (q === skip) return;
+      meshes.push(o);
+    });
+    if (!meshes.length) return null; // still queued for meshing (the start-up warm-up): measured once it's built
+    const res = (Models.GRIPS[id] || []).map((G) => {
+      const s = G.mirror ? -1 : 1, pistol = G.kind === 'pistol';
+      const ax = pistol ? 1 : 2, U = 0, Vc = pistol ? 2 : 1, dir = Models.gripDir[pistol ? 'pistol' : 'support'];
+      const levels = Models.GLOVE_LEVELS[pistol ? 'pistol' : 'support'];
+      // Every mesh's triangles in the hand's own frame.
+      const origin = new THREE.Vector3(...G.pos), v = new THREE.Vector3();
+      const tris = meshes.map((m) => {
+        const P = m.geometry.attributes.position, I = m.geometry.index, n = I ? I.count : P.count, out = new Float32Array(n * 3);
+        for (let k = 0; k < n; k++) {
+          v.fromBufferAttribute(P, I ? I.getX(k) : k).applyMatrix4(m.matrixWorld).sub(origin).applyAxisAngle(X, -G.tilt);
+          out[k * 3] = v.x * s; out[k * 3 + 1] = v.y; out[k * 3 + 2] = v.z;
+        }
+        return out;
+      });
+      // Occupancy grid of one slice: each mesh (every material of a sculpted gun is its own closed surface) is
+      // scanline-filled even-odd, and the meshes are unioned.
+      const H = 0.02, E = 1.6, N = Math.round((2 * E) / H);
+      const slice = (lv) => {
+        const occ = new Uint8Array(N * N);
+        for (const T of tris) {
+          const segs = [];
+          for (let k = 0; k < T.length; k += 9) {
+            const pts = [];
+            for (let e = 0; e < 3; e++) {
+              const a = k + e * 3, b = k + ((e + 1) % 3) * 3, da = T[a + ax] - lv, db = T[b + ax] - lv;
+              if ((da < 0) !== (db < 0)) { const t = da / (da - db); pts.push([T[a + U] + (T[b + U] - T[a + U]) * t, T[a + Vc] + (T[b + Vc] - T[a + Vc]) * t]); }
+            }
+            if (pts.length === 2) segs.push(pts[0][0], pts[0][1], pts[1][0], pts[1][1]);
+          }
+          if (!segs.length) continue;
+          for (let j = 0; j < N; j++) {
+            const vy = -E + (j + 0.5) * H, xs = [];
+            for (let k = 0; k < segs.length; k += 4) {
+              const y0 = segs[k + 1], y1 = segs[k + 3];
+              if ((y0 <= vy) !== (y1 <= vy)) xs.push(segs[k] + ((vy - y0) / (y1 - y0)) * (segs[k + 2] - segs[k]));
+            }
+            if (xs.length < 2) continue;
+            xs.sort((a, b) => a - b);
+            for (let k = 0; k + 1 < xs.length; k += 2) {
+              const i0 = Math.max(0, Math.ceil((xs[k] + E) / H - 0.5)), i1 = Math.min(N - 1, Math.floor((xs[k + 1] + E) / H - 0.5));
+              for (let i = i0; i <= i1; i++) occ[j * N + i] = 1;
+            }
+          }
+        }
+        // The connected piece nearest the hand's axis.
+        const cell = (x, y) => [Math.floor((x + E) / H), Math.floor((y + E) / H)];
+        let start = -1;
+        for (let r = 0; r < 0.8 && start < 0; r += H) for (let a = 0; a < 6.283 && start < 0; a += 0.1) {
+          const [i, j] = cell(r * Math.cos(a), r * Math.sin(a));
+          if (i >= 0 && j >= 0 && i < N && j < N && occ[j * N + i]) start = j * N + i;
+          if (r === 0) break;
+        }
+        if (start < 0) return null;
+        const reg = new Uint8Array(N * N), stack = [start];
+        reg[start] = 1;
+        let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+        while (stack.length) {
+          const c = stack.pop(), i = c % N, j = (c - i) / N;
+          x0 = Math.min(x0, i); x1 = Math.max(x1, i); y0 = Math.min(y0, j); y1 = Math.max(y1, j);
+          for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const ii = i + di, jj = j + dj, cc = jj * N + ii;
+            if (ii >= 0 && jj >= 0 && ii < N && jj < N && occ[cc] && !reg[cc]) { reg[cc] = 1; stack.push(cc); }
+          }
+        }
+        const toW = (i) => -E + (i + 0.5) * H;
+        return { reg, c: [(toW(x0) + toW(x1)) / 2, (toW(y0) + toW(y1)) / 2], half: [(x1 - x0 + 1) * H / 2, (y1 - y0 + 1) * H / 2] };
+      };
+      const S = levels.map(slice), ok = S.filter(Boolean);
+      if (!ok.length) return null;
+      const c = [0, 1].map((k) => ok.reduce((m, q) => m + q.c[k], 0) / ok.length);
+      const half = [0, 1].map((k) => ok.reduce((m, q) => m + q.half[k], 0) / ok.length);
+      // Trace each slice's outline from the common centre: the first exit along each ray, smoothed over a few degrees.
+      const inReg = (q, x, y) => { const i = Math.floor((x + E) / H), j = Math.floor((y + E) / H); return i >= 0 && j >= 0 && i < N && j < N && q.reg[j * N + i] === 1; };
+      let rho = S.map((q) => {
+        if (!q) return null;
+        const raw = [];
+        for (let d = 0; d < 360; d++) {
+          const [du, dv] = dir((d * Math.PI) / 180);
+          let r = 0, was = false, hit = null;
+          for (; r < E; r += 0.005) {
+            const inside = inReg(q, c[0] + du * r, c[1] + dv * r);
+            if (inside) was = true; else if (was) { hit = r; break; }
+          }
+          raw.push(hit);
+        }
+        const good = raw.filter((x) => x != null);
+        if (good.length < 300) return null;
+        const avg = good.reduce((m, x) => m + x, 0) / good.length;
+        const f = raw.map((x) => (x == null ? avg : x));
+        return f.map((_, d) => { let m = 0; for (let k = -6; k <= 6; k++) m += f[(d + k + 360) % 360]; return m / 13; });
+      });
+      // A finger past the end of the grip (a pinky under a short grip) follows its neighbour.
+      rho = rho.map((r, i) => r || rho[i - 1] || rho[i + 1] || rho.find(Boolean));
+      if (rho.some((r) => !r)) return null;
+      const radius = rho.reduce((m, r) => m + r.reduce((a, b) => a + b, 0) / 360, 0) / rho.length;
+      const shift = pistol ? [c[0], 0, c[1]] : [c[0], c[1], 0];
+      return { shift, half, radius, rho: rho.map((r) => r.map((x) => Math.round(x * 1000) / 1000)) };
+    });
+    cache[id] = res;
+    return res;
   },
 
   weapon(id) {

@@ -92,7 +92,7 @@ const Proto = {
     Sculpt.collect = true;
     try {
       Intro.warm(this); // the cold open's car and people go first: they mesh while the gate and the sting are up
-      for (const id of Object.keys(WEAPONS)) Models.hands(Models.weapon(id), id); // guns and their fitted gloves
+      for (const id of Object.keys(WEAPONS)) Models.weapon(id); // the guns (their fitted gloves follow once these are meshed)
       for (const id of Object.keys(WEAPONS)) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id], this.cos.patchSeed[id]); // your welded-on junk
       for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
       Models.car(Object.assign({}, carLook(this.cos, this.build), { shell: true })); // your own car, seen from inside
@@ -109,7 +109,16 @@ const Proto = {
       // Last: every bolt-on kit piece on every body, so rivals' random kits never stall a race load.
       for (const style of Object.keys(CAR_STYLES)) for (const [bumper, roof] of [['pushbar', 'rails'], ['bullbar', 'rack'], ['plow', 'lightbar'], ['stock', 'cage']]) Models.car({ style, color: '#888888', bumper, roof });
     } finally { Sculpt.collect = false; }
-    const pump = () => { if (Sculpt.runJobs(10)) requestAnimationFrame(pump); };
+    // The gloves are fitted to each gun's measured grip, so they're queued once the guns themselves are meshed.
+    let gloves = false;
+    const pump = () => {
+      if (Sculpt.runJobs(10)) return requestAnimationFrame(pump);
+      if (gloves) return;
+      gloves = true;
+      Sculpt.collect = true;
+      try { for (const id of Object.keys(WEAPONS)) Models.hands(Models.weapon(id), id); } finally { Sculpt.collect = false; }
+      requestAnimationFrame(pump);
+    };
     requestAnimationFrame(pump);
     window.addEventListener('resize', () => this.resize());
     this.resize();
