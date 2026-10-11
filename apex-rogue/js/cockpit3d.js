@@ -873,6 +873,13 @@ class CockpitView {
     }
     this.kick = { z: 0, vz: 0, p: 0, vp: 0, y: 0, vy: 0, r: 0, vr: 0, cp: 0, vcp: 0 };
     this.vm = { root: vm, guns, flash };
+    // Your free left hand, for emotes: one sculpted gesture each (the beckon has two, curling between them).
+    this.emoteHands = {};
+    for (const id of EMOTE_ORDER) {
+      const frames = (id === 'beckon' ? [0, 1] : [0]).map((f) => { const h = Emotes.hand(id, f); h.visible = false; vm.add(h); return h; });
+      this.emoteHands[id] = frames;
+    }
+    this.emoteAnim = null;
     // Spent casings flicked out of the ejection port, in the hand-held layer.
     this.casings = [];
     this.casingPool = [];
@@ -1048,7 +1055,29 @@ class CockpitView {
     F.fill.intensity = 4 * Math.max(H.pos, H.jammed ? 0.5 : 0);
   }
 
+  // The hand comes up from the bottom left, makes its point (with a couple of pumps), and drops away.
+  animateEmote(dt, t) {
+    const A = this.emoteAnim;
+    for (const id in this.emoteHands) for (const h of this.emoteHands[id]) h.visible = false;
+    if (!A) return;
+    A.t += dt;
+    const L = 1.6;
+    if (A.t >= L) { this.emoteAnim = null; return; }
+    const up = A.t < 0.24 ? 1 - Math.pow(1 - A.t / 0.24, 3) * Math.cos(A.t / 0.24 * 1.2) : A.t > L - 0.26 ? Math.max(0, (L - A.t) / 0.26) : 1;
+    const hold = clamp((A.t - 0.24) / (L - 0.5), 0, 1);
+    const frames = this.emoteHands[A.id], frame = A.id === 'beckon' ? frames[Math.floor(A.t / 0.2) % 2] : frames[0];
+    frame.visible = true;
+    let x = -1.9, y = -7.6 + up * 6.9, z = -4.6, rx = 0.12, ry = 0.3, rz = -0.18;
+    if (A.id === 'flip' || A.id === 'thumbs') { const pump = Math.max(0, Math.sin(hold * Math.PI * 4)); z -= pump * 0.55; y += (A.id === 'thumbs' ? -pump * 0.3 : pump * 0.15); rx -= pump * 0.15; }
+    if (A.id === 'horns') rz += Math.sin(A.t * 14) * 0.12 * (hold > 0 ? 1 : 0);
+    frame.position.set(x, y, z);
+    frame.rotation.set(rx, ry, rz);
+    frame.scale.setScalar(1.45);
+  }
+
   onEvent(ev) {
+    if (ev.type === 'emote') this.emoteAnim = { id: ev.id, t: 0 };
+    if (ev.type === 'deflect') this.sparkAt(ev.x, ev.y, 5);
     if (ev.type === 'hatchShut') { if (this.hatchFx) this.hatchFx.bounce = 1; this.shake = Math.max(this.shake, 0.35); }
     if (ev.type === 'block' || ev.type === 'parry') this.hatchHit(ev);
     if (ev.type === 'dent') this.syncDents(false);
@@ -1266,6 +1295,7 @@ class CockpitView {
 
     this.animateViewmodel(dt, t);
     this.animateHatch(dt, t);
+    this.animateEmote(dt, t);
     this.updateFx(dt, t);
     this.updateLooseParts(dt);
     this.drawRadar(t);
@@ -1287,6 +1317,13 @@ class CockpitView {
     this.camera.lookAt(eye.clone().add(dir));
     if (this.kick) this.camera.rotateX(this.kick.cp); // the punch of a big gun going off
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(yw) * sway);
+    if (this.cameraOverride) this.cameraOverride(this.camera); // a boss's intro card takes the camera
+    // Sal's smog: the world closes in while you're in it.
+    const smog = combat.smogOn ? combat.smogOn() : 0, F = this.scene.fog;
+    if (!this.fogBase) this.fogBase = { near: F.near, far: F.far };
+    this.smogK = lerp(this.smogK || 0, smog, Math.min(1, dt * 3));
+    F.near = this.fogBase.near * (1 - 0.9 * this.smogK);
+    F.far = this.fogBase.far * (1 - 0.82 * this.smogK);
   }
 
   // Body roll in corners, nose dive under braking, squat on launch, suspension jiggle, a jolt when hit,

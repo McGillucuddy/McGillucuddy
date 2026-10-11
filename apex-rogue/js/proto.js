@@ -117,7 +117,10 @@ const Proto = {
     window.addEventListener('mousemove', (e) => {
       this.mouse.x = e.clientX;
       this.mouse.y = e.clientY;
-      if (this.locked && this.cockpit) {
+      if (this.locked && this.emoteHold && this.emoteHold.open) { // steering the emote wheel
+        const E = this.emoteHold;
+        E.x = clamp(E.x + e.movementX, -120, 120); E.y = clamp(E.y + e.movementY, -120, 120);
+      } else if (this.locked && this.cockpit) {
         const l = this.cockpit.look;
         const sens = LOOK_SENS * Settings.data.sens;
         l.yaw = wrapAngle(l.yaw + e.movementX * sens);
@@ -341,6 +344,7 @@ const Proto = {
         <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
         <div class="ctl"><kbd>Space</kbd> (hold) Slam the blast hatch: it stops bullets and most of a blast, but you can't shoot. Slam it as a rocket hits to bat it back.</div>
         <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
+        <div class="ctl"><kbd>T</kbd> Emote at a rival (hold for the wheel): they get tilted. Pass or wreck them while they're seething for a bonus.</div>
         <div class="ctl"><kbd>M</kbd> Mute · <kbd>Esc</kbd> Pause</div>
         <button class="btn" data-action="title">Back</button>
       </div>`;
@@ -842,10 +846,16 @@ const Proto = {
     this.state = 'race';
     this.setUI('');
     if (this.view === 'cockpit') this.lock();
+    // A qualifier opens on the boss's intro card (once per race); the countdown waits for it.
+    if (this.race.boss && !this.race.cardShown && this.view === 'cockpit' && this.cockpit) {
+      this.race.cardShown = true;
+      try { this.bossCard = new BossCard(this); } catch (e) { console.error(e); this.bossCard = null; }
+    }
   },
 
   pause() {
     if (this.state !== 'race') return;
+    if (this.bossCard) this.bossCard.end();
     this.state = 'paused';
     this.mouse.down = false;
     Sound.engine(0, 0, false, false);
@@ -856,6 +866,29 @@ const Proto = {
     this.state = 'race';
     this.setUI('');
     if (this.view === 'cockpit') this.lock();
+  },
+
+  // Emotes: tap T for your last one, hold it for the wheel (the mouse picks instead of aiming while it's open).
+  updateEmoteKey(dt) {
+    const E = this.emoteHold;
+    if (!E && Input.consume('KeyT')) { this.emoteHold = { t: 0, x: 0, y: 0, open: false }; return; }
+    if (!E) return;
+    E.t += dt;
+    if (E.t > 0.18) E.open = true;
+    if (Input.keys.has('KeyT')) return;
+    this.emoteHold = null;
+    let id = this.lastEmote || 'flip';
+    if (E.open) {
+      if (Math.hypot(E.x, E.y) < 30) return; // opened the wheel and let go in the middle: never mind
+      id = this.emoteAt(E);
+    }
+    this.lastEmote = id;
+    this.combat.emote(id, this.aimAngle());
+  },
+
+  emoteAt(E) { // up, right, down, left
+    const a = Math.atan2(E.y, E.x);
+    return EMOTE_ORDER[Math.round(((a + Math.PI / 2 + TAU) % TAU) / (Math.PI / 2)) % 4];
   },
 
   throwGrenade() {
@@ -897,7 +930,7 @@ const Proto = {
       <p class="act-line">Act ${ROMAN[this.run.act]} · ${this.act.title}${race.boss && race.boss.mustWin ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
       <p class="wx-line"><span>${wxOf(race.weather).icon}</span> <b>${wxOf(race.weather).name}.</b> ${wxOf(race.weather).desc}</p>
       ${race.node.tutorial ? '<p class="boss-line">No strikes, no scrap, no armed rivals. A coach card will walk you through every gun and trick, one step at a time.</p>' : ''}
-      ${race.node.tutorial ? '' : race.boss ? `<p class="boss-line"><b>${race.boss.title}.</b> ${race.boss.desc}</p>` : race.node.type === 'elite' ? '<p class="boss-line">Sharper drivers and more guns on the grid. A trinket waits for you if you make the cut.</p>' : ''}
+      ${race.node.tutorial ? '' : race.boss ? `<p class="boss-line"><b>${race.boss.title}.</b> ${race.boss.desc}${bossKit(race.boss) ? ` <span class="boss-help">${bossKit(race.boss).help}</span>` : ''}</p>` : race.node.type === 'elite' ? '<p class="boss-line">Sharper drivers and more guns on the grid. A trinket waits for you if you make the cut.</p>' : ''}
       <p class="muted">${this.build.scrap} scrap · hull ${Math.ceil(this.build.hull)}/${this.build.maxHull} · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
       <div class="brief-grid">
         <div class="panel"><canvas id="preview" width="320" height="320"></canvas>
@@ -910,6 +943,7 @@ const Proto = {
           <div class="ctl"><kbd>Mouse</kbd> Aim / look around · <kbd>LMB</kbd> Fire</div>
           <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch · <kbd>R</kbd> Reload</div>
           <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further)</div>
+          <div class="ctl"><kbd>T</kbd> Flip off whoever's in your sights (hold for the emote wheel). Tilted rivals drive worse and come for you.</div>
           <div class="ctl"><kbd>Space</kbd> (hold) Blast hatch · <kbd>E</kbd> / <kbd>F</kbd> Abilities · <kbd>B</kbd> Fit your spare part</div>
           <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
           <div class="ctl"><kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
@@ -1254,7 +1288,8 @@ const Proto = {
       else if (this.titleFrom) this.continueRun();
     }
     if (this.state === 'race') {
-      if (Input.consume('KeyP') || Input.consume('Escape')) this.pause();
+      if (this.bossCard) this.bossCard.update(dt);
+      else if (Input.consume('KeyP') || Input.consume('Escape')) this.pause();
       else if (this.view === 'cockpit' && !this.locked && !this.noLock) Sound.engine(0, 0, false, false); // wait for a click
       else this.updateRace(dt);
     }
@@ -1280,6 +1315,7 @@ const Proto = {
     if (Input.consume('KeyE')) combat.activateAbility(0);
     if (Input.consume('KeyF')) combat.activateAbility(1);
     combat.setHatch(Input.keys.has('Space'));
+    this.updateEmoteKey(dt);
     if (Input.consume('KeyB')) combat.fitSpare();
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
     if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
@@ -1350,8 +1386,9 @@ const Proto = {
     if (!race || offTrack) { ctx.fillStyle = '#100f0c'; ctx.fillRect(0, 0, W, H); return; }
     const live = this.state !== 'briefing';
     if (this.view === 'cockpit') {
-      this.cockpit.render(this.state === 'race' ? dt : 0, this.time);
+      this.cockpit.render(this.state === 'race' && !(this.bossCard && this.bossCard.frozen) ? dt : 0, this.time);
       ctx.clearRect(0, 0, W, H);
+      if (this.bossCard) return; // the card has the screen
       if (live) WeatherGlass.draw(ctx, this.cockpit.wx, W, H, this.state === 'race' ? dt : 0, race.player.speed / 500);
       if (live) drawCockpitHUD(ctx, this, W, H, this.time);
       if (live && this.hitMark && this.hitMark.t > 0) { // a hit marker: you got someone through the glass
@@ -1523,10 +1560,36 @@ function drawDamageVignette(ctx, P, W, H, viewAng) {
   }
 }
 
+// The emote wheel while T is held: four gestures round the crosshair, the one you're flicking towards lit up.
+function drawEmoteWheel(ctx, P, W, H) {
+  const E = P.emoteHold;
+  if (!E || !E.open) return;
+  const cx = W / 2, cy = H / 2, R = 92, sel = Math.hypot(E.x, E.y) >= 30 ? P.emoteAt(E) : null;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.arc(cx, cy, R + 46, 0, TAU); ctx.fill();
+  EMOTE_ORDER.forEach((id, i) => {
+    const a = -Math.PI / 2 + i * (Math.PI / 2), x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R, on = id === sel;
+    ctx.fillStyle = on ? 'rgba(255,210,63,0.9)' : 'rgba(255,255,255,0.12)';
+    ctx.beginPath(); ctx.arc(x, y, 34, 0, TAU); ctx.fill();
+    ctx.textAlign = 'center';
+    ctx.font = '30px system-ui';
+    ctx.fillText(EMOTES[id].icon, x, y + 10);
+    ctx.font = `bold 12px ${hudFont()}`;
+    ctx.fillStyle = on ? '#ffd23f' : '#ddd';
+    ctx.fillText(EMOTES[id].name.toUpperCase(), x, y + 50);
+  });
+  ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + E.x * 0.6, cy + E.y * 0.6); ctx.stroke();
+  ctx.restore();
+}
+
 function drawCockpitHUD(ctx, P, W, H, t) {
   const race = P.race, c = P.combat, p = race.player;
   const viewAng = P.cockpit.aimAngle();
   drawDamageVignette(ctx, P, W, H, viewAng);
+  drawBossBar(ctx, P, W, H, t);
+  drawEmoteWheel(ctx, P, W, H);
 
   // Threat ring: arcs pointing at locks and incoming rockets.
   const R = Math.min(W, H) * 0.3;

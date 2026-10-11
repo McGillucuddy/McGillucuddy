@@ -111,6 +111,19 @@ const Sound = {
     this.tone(70, 0.18, 'sine', vol * 0.6);
   },
 
+  // The crowd: a swelling roar of filtered noise with a whistle on top.
+  cheer() {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime, src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = this.noise; src.loop = true; f.type = 'bandpass'; f.frequency.value = 1100; f.Q.value = 0.6;
+    g.gain.value = 0; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+    src.connect(f); f.connect(g); g.connect(this.master); src.start(t, Math.random() * 0.3); src.stop(t + 1.9);
+    const o = c.createOscillator(), og = c.createGain();
+    o.frequency.setValueAtTime(1800, t + 0.2); o.frequency.exponentialRampToValueAtTime(2600, t + 0.5); o.frequency.exponentialRampToValueAtTime(1500, t + 0.8);
+    og.gain.value = 0; og.gain.setValueAtTime(0.0001, t + 0.2); og.gain.exponentialRampToValueAtTime(0.025, t + 0.3); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.85);
+    o.connect(og); og.connect(this.master); o.start(t + 0.2); o.stop(t + 0.9);
+  },
+
   // A round glancing off the plate: a sharp tick and a falling whine.
   spang() {
     if (!this.ctx) return;
@@ -147,6 +160,13 @@ const Sound = {
       case 'lock': this.tone(1200, 0.08, 'square', 0.1); setTimeout(() => this.tone(1200, 0.08, 'square', 0.1), 140); break;
       // The blast hatch: a swing, a heavy clang, ricochets off the plate, a ratchet back up, a grinding jam.
       case 'hatch': this.noiseBurst(0.14, 500, 0.12, 1400); break;
+      // Emotes and the crowd; bosses' tells.
+      case 'emote': this.noiseBurst(0.18, 700, 0.08, 1800); break;
+      case 'crowd': this.cheer(); break;
+      case 'deflect': this.spang(); break;
+      case 'bossTell': [0, 0.22].forEach((d) => setTimeout(() => { this.tone(392, 0.18, 'sawtooth', 0.07); this.tone(370, 0.18, 'square', 0.04); }, d * 1000)); break; // a two-blast klaxon
+      case 'bossRage': this.tone(55, 1.2, 'sawtooth', 0.12); this.noiseBurst(1.0, 200, 0.3, 80); break;
+      case 'smog': this.noiseBurst(0.9, 160, 0.3, 60); this.noiseBurst(0.4, 900, 0.08, 200); break;
       case 'hatchShut': this.clang(0.5); break;
       case 'hatchUp': for (let k = 0; k < 4; k++) setTimeout(() => this.noiseBurst(0.03, 2600, 0.06), k * 55); this.tone(180, 0.25, 'sawtooth', 0.03); break;
       case 'jam': this.clang(0.35); this.noiseBurst(0.6, 300, 0.25, 120); this.tone(70, 0.5, 'sawtooth', 0.08); break;

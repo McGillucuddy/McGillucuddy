@@ -172,6 +172,17 @@ The bosses are The Turnkey (an armoured prison van with a gunner), Smokestack Sa
 rocket supercar) and Vex "The Apex" Marlowe at the Crown. Against Marlowe, only an outright win sets you free.
 Three strikes and the run is over.
 
+**Boss fights** (`js/bosses.js`):
+- **Intro card.** Every qualifier opens on one, Borderlands-style. The camera swoops off your car onto a low three-quarter shot of the boss's nose and the frame freezes. The boss's name slams in over a splash of ink in their colour with a title and a one-line put-down. A record scratch and a distorted power chord play over it, and any key skips it.
+- **Health bar.** It sits at the top of the screen with the boss's name, and shows a line at half health.
+- **Signature moves.** Each boss has one, announced a beat before it lands (a klaxon and a red banner):
+  - **The Turnkey:** an armoured nose, so rounds from in front do a third of their damage (hit him from the side or behind). **Riot Ram:** he floors it and steers into you when you're close.
+  - **Smokestack Sal:** **Smokestack.** He belches clouds of smog that break locks and close the world in round you (the fog thickens in the cockpit), and keeps laying mines.
+  - **Augustin Vale:** **Sponsor Barrage.** A fan of three rockets after a laser warning. Slam the hatch on the first to bat it back.
+  - **Vex Marlowe:** rockets, then **Apex Barrage** salvos.
+- **Rage at half health.** Every boss loses their temper: the Turnkey rams more often, Sal fills the air and lays mines in pairs, Vale fires five-rocket fans, and Marlowe adds nitro bursts.
+- **Briefing.** The race briefing explains each boss's move.
+
 - **Act I, The Undercity:** racing under the plate the upper city is built on. Its underside hangs
   overhead, and the only daylight leaks in round its edge. You race on oily, cracked tarmac between
   shacks, fire barrels, wrecks and support pillars, with guard towers sweeping searchlights over the track.
@@ -217,6 +228,12 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   built from a propane tank (short range, sets everything alight) and a Harpoon Gun (hooks a rival on a
   line and drags them back hard).
   Grenades are a separate consumable.
+- **Emotes** (`T`, `js/emotes.js`). Your free left hand comes up into view and tells a rival what you think of them:
+  - **The gestures:** the finger, a thumbs down, a "come at me" beckon, or devil horns.
+  - **Controls:** tap `T` for your last emote; hold it for a wheel, flick the mouse to pick and let go.
+  - **Tilt:** whoever is under your crosshair gets **tilted** for 8 seconds. They drive sloppier and come straight for you, rams and guns first.
+  - **The payout:** pass someone who was ahead of you while they're tilted (+15 scrap), or see them wrecked while they're seething (+30) — the crowd roars.
+  - **Bosses:** taunt one and they answer back.
 - **The blast hatch** (hold `Space`): a welded steel plate hinged on the roof that slams down over the windscreen.
   - **What it stops:** gunfire, and 70% of a blast. A mine under the car still gets through.
   - **The cost:** you can't shoot or throw while it's down, and you see out through a barred slit. You can still reload behind it.
@@ -364,6 +381,8 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
 | `js/input.js`, `js/audio.js`, `js/music.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound, the menu theme |
 | `js/tutorial.js` | Tutorial steps and the in-race coach card |
+| `js/bosses.js` | Boss intro cards, health bar and signature moves |
+| `js/emotes.js` | Emote gestures (the hand models), the wheel, tilted rivals and the humiliation bonus |
 | `js/intro.js` | The studio sting and the cold open: gate, radar logo, in-engine cinematic, captions, sound cues |
 | `js/people.js` | People: the sculpted body used for drivers, crews, your own body and the trader; live two-bone arms |
 | `js/weather.js` | Weather: per-stop forecasts, effects, cockpit particles and lightning, windshield drops, ambience |

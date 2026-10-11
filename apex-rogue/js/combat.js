@@ -355,6 +355,8 @@ class Combat {
     // Barrels the race says have blown (hit by a car, a bullet or another blast).
     for (const bl of race.blasts.splice(0)) this.explode(bl.x, bl.y, bl.r, bl.dmg, bl.owner, 'barrel');
     this.updateHatch(dt);
+    this.updateBoss(dt); // js/bosses.js
+    this.updateTilt(dt); // js/emotes.js
     for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1);
     this.swerveCd -= dt;
     this.invulnT -= dt;
@@ -759,6 +761,7 @@ class Combat {
   hitCar(c, dmg, owner, ang, slow, kind) {
     const p = this.player;
     if (c !== p && c.markT > 0) dmg *= 1.2; // tracer-marked
+    if (c !== p) dmg = this.bossArmour(c, dmg, ang, kind);
     const before = c.hp;
     this.race.damage(c, dmg, { kind: kind || 'bullet', ang });
     c.vx *= slow;

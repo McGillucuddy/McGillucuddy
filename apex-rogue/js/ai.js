@@ -97,7 +97,12 @@ class AIDriver {
     if (this.jumper === undefined) this.jumper = this.rng() < 0.35;
     if (this.jumper) for (const r of tr2.ramps || []) { const k = (r.idx - i + N) % N; if (k > 4 && k < look) lane = clamp(r.lat / tr2.hw, -laneMax, laneMax); }
     // Hothead: line up on whoever is close alongside or just ahead.
-    if (this.rammer) {
+    // A grudge (you taunted them): they line up on you alone, from further back.
+    if (this.grudge && !this.grudge.finished) {
+      const o = this.grudge, dx = o.x - car.x, dy = o.y - car.y;
+      const fwd = dx * Math.cos(car.heading) + dy * Math.sin(car.heading);
+      if (fwd > -30 && fwd < 260) lane = clamp(o.lat / tr.hw, -0.85, 0.85);
+    } else if (this.rammer) {
       for (const o of race.cars) {
         if (o === car || o.finished) continue;
         const dx = o.x - car.x, dy = o.y - car.y;
