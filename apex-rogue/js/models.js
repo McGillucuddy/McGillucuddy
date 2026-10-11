@@ -2673,7 +2673,7 @@ const Models = {
       F.forEach(([y, r], i) => {
         const sc = i === 2 ? 0.82 : i === 1 ? 0.95 : 1; // the pinky is shorter
         const j = wrap((a, k) => [ex * k * Math.cos(a), y - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS.map((l) => l * sc), 2.9);
-        chain(j, [r * 1.16, r * 1.06, r * 0.95, r * 0.84]); // tapering to the tip
+        chain(j, [r * 1.08, r * 0.98, r * 0.88, r * 0.72]); // tapering to a narrower tip
         bone(palm, S(bases[i]), j[0], 0.17, r * 1.18);
         knuckles.push(j[0]);
       });
@@ -2690,7 +2690,7 @@ const Models = {
       } else {
         ix = wrap((a, k) => [ex * k * Math.cos(a), 0.42 - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS, 2.9);
       }
-      chain(ix, [0.172, 0.158, 0.142, 0.128]);
+      chain(ix, [0.162, 0.148, 0.132, 0.112]);
       bone(palm, S([0.62, 0.12, 0.62]), ix[0], 0.17, 0.155);
       knuckles.unshift(ix[0]);
       bone(palm, S([0.55, -0.5, 0.62]), S([0.22, -0.42, 0.66]), 0.2, 0.17); // heel of the palm round the back strap
@@ -2698,7 +2698,7 @@ const Models = {
       // Thumb: its metacarpal and muscle run over the top of the grip, then two bones down the left side.
       const T = [[0.5, 0.0, 0.72], [-0.2, 0.44, 0.46], [-0.55, 0.36, -0.02], [-0.58, 0.27, -0.34]].map(S);
       bone(palm, T[0], T[1], 0.22, 0.18);
-      chain(T.slice(1), [0.195, 0.178, 0.155]);
+      chain(T.slice(1), [0.19, 0.17, 0.142]);
       w = S([0.6, -0.55, 1.08]);
       top = [1, 0, 0];
     } else {
@@ -2711,7 +2711,7 @@ const Models = {
       F.forEach(([z, r], i) => {
         const sc = i === 3 ? 0.82 : i === 0 ? 0.95 : 1;
         const j = wrap((a, k) => [er * k * Math.sin(a), -er * k * Math.cos(a), z + 0.04 - (a - 0.72) * 0.03], er, er, 0.72, 1.15, LENS.map((l) => l * sc), 2.75);
-        chain(j, [r * 1.16, r * 1.06, r * 0.95, r * 0.84]); // tapering to the tip
+        chain(j, [r * 1.08, r * 0.98, r * 0.88, r * 0.72]); // tapering to a narrower tip
         bone(palm, S([-0.18, -0.68, bases[i]]), j[0], 0.17, r * 1.18);
         knuckles.push(j[0]);
       });
@@ -2720,20 +2720,16 @@ const Models = {
       // Thumb along the left side of the tube, pointing forward.
       const T = [[-0.12, -0.78, 0.62], [-0.53, -0.5, 0.2], [-0.6, -0.18, -0.2], [-0.57, -0.04, -0.52]].map(S);
       bone(palm, T[0], T[1], 0.2, 0.17);
-      chain(T.slice(1), [0.195, 0.178, 0.155]);
+      chain(T.slice(1), [0.19, 0.17, 0.142]);
       w = S([-0.08, -0.92, 1.08]);
       top = [0, -1, 0];
     }
-    // Anatomy on each finger: a knuckle on the back of the middle and end joints, and a padded fingertip on the palm
-    // side. The back of a finger faces out from the grip (radial), the pad in towards it.
-    for (const f of fingers) {
-      f.bumps = [];
-      f.forEach((b, i) => {
-        const out = V(radial(...b.a)).normalize();
-        if (i > 0) f.bumps.push({ c: V(b.a).addScaledVector(out, b.ra * 0.4).toArray(), r: b.ra * 0.8 });
-        if (i === f.length - 1) f.bumps.push({ c: V(b.b).addScaledVector(V(b.b).sub(V(b.a)).normalize(), -b.rb * 0.15).addScaledVector(out, -b.rb * 0.22).toArray(), r: b.rb * 0.98 });
-      });
-    }
+    // Real fingers are wider than they are deep: each finger bone is flattened along the back-to-palm direction
+    // (out from the grip). No knuckle knobs or fingertip bulbs, which made the hand look like E.T.'s.
+    const FLAT = 0.8;
+    // The squash direction is taken at the point itself (out from the grip), so neighbouring bones agree at a joint
+    // and the finger stays one smooth piece instead of lumpy segments.
+    for (const f of fingers) for (const b of f) b.ax = V(b.b).sub(V(b.a)).normalize().toArray();
     // Gauntlet up the wrist with a raised strap.
     const dir = V(arm).normalize(), along = (d) => V(w).addScaledVector(dir, d).toArray();
     bone(palm, along(-0.3), along(0.72), 0.37, 0.41); // a wrist a bit narrower than the palm, as wrists are
@@ -2760,8 +2756,14 @@ const Models = {
       for (const f of fingers) {
         if (lb(f, x, y, z) > Math.min(best + 0.03, p + 0.1)) continue;
         let d = 1e9;
-        for (const b of f) if (lb(b, x, y, z) < d) d = Math.min(d, d1(b, x, y, z));
-        for (const k of f.bumps) { const dx = x - k.c[0], dy = y - k.c[1], dz = z - k.c[2]; d = S(d, Math.sqrt(dx * dx + dy * dy + dz * dz) - k.r, 0.06); } // knuckles, fingertip pads
+        const r = radial(x, y, z), rl = Math.hypot(r[0], r[1], r[2]) || 1, o0 = r[0] / rl, o1 = r[1] / rl, o2 = r[2] / rl;
+        for (const b of f) {
+          if (lb(b, x, y, z) >= d) continue;
+          // Stretch the point away from the bone's axis along the back-to-palm direction: a flatter finger.
+          const qx = x - b.a[0], qy = y - b.a[1], qz = z - b.a[2], A = b.ax, t = qx * A[0] + qy * A[1] + qz * A[2];
+          const h = ((qx - A[0] * t) * o0 + (qy - A[1] * t) * o1 + (qz - A[2] * t) * o2) * (1 / FLAT - 1);
+          d = S(d, d1(b, x + o0 * h, y + o1 * h, z + o2 * h) * FLAT, 0.03); // the leather runs smoothly over each joint
+        }
         best = Math.min(best, S(p, d, 0.1)); // web into the palm, crease against the next finger
       }
       if (lb(guard, x, y, z) < best + 0.06) {
@@ -2800,7 +2802,7 @@ const Models = {
         if (bi === bf.length - 1 && Math.abs(s0 - len * 0.55) < 0.022) return seam; // the seam round the fingertip
       }
       if (Math.abs(s) < 0.1) return seam;
-      if (s > 0 && s < 0.2 && Math.sin(s0 * 70) > 0) return thread;
+      if (!bf && s > 0 && s < 0.2 && Math.sin(s0 * 70) > 0) return thread; // stitching on the hand, not along every finger
       if (s < 0) return palmC;
       return back;
     };
