@@ -58,8 +58,8 @@ const Emotes = {
     }
     // Thumb: across the folded fingers, straight out to the side, or resting along the palm.
     const T0 = [0.42, 0.35, 0.12];
-    const tp = pose.thumb === 'across' ? [[0.42, 0.62, 0.38], [0.12, 0.78, 0.5]] : pose.thumb === 'out' ? [[0.78, 0.55, 0.1], [1.12, 0.66, 0.08]] : [[0.62, 0.62, 0.22], [0.74, 0.88, 0.25]];
-    sc.add(glove, SDF.cone(T0, tp[0], 0.15, 0.13), 0.08);
+    const tp = pose.thumb === 'across' ? [[0.42, 0.62, 0.38], [0.12, 0.78, 0.5]] : pose.thumb === 'out' ? [[0.8, 0.7, 0.22], [1.18, 0.8, 0.24]] : [[0.62, 0.62, 0.22], [0.74, 0.88, 0.25]];
+    sc.add(glove, SDF.cone(pose.thumb === 'out' ? [0.42, 0.62, 0.2] : T0, tp[0], 0.15, 0.13), 0.08); // out: from the side of the fist
     sc.add(glove, SDF.cone(tp[0], tp[1], 0.13, 0.11), 0.05);
     // It's sculpted as a right hand (thumb on +X); mirrored, it's your left: palm towards you, thumb on the left.
     const hand = new THREE.Group();
@@ -67,7 +67,9 @@ const Emotes = {
     hand.scale.x = -1;
     g.add(hand);
     // Thumbs down: just the fist turns over (about the wrist) so the thumb points at the floor.
-    if (id === 'thumbs') { hand.rotation.set(0, -0.35, Math.PI / 2); hand.position.set(0.2, 0.25, 0); }
+    // Thumbs down: a straight wrist, the fist rolled over so the thumb hangs down (in the mirrored frame the thumb
+    // runs along -X; this turns it to -Z, which is down once the whole arm is pointed at them: see animateEmote).
+    if (id === 'thumbs') hand.rotation.y = -Math.PI / 2;
     // Forearm in the sleeve, angled down and back towards your shoulder.
     const suit = LP.mat('#d6631d', { roughness: 0.95 }), cuff = LP.mat('#b4521a', { roughness: 0.95 });
     g.add(LP.limb([[0, -0.15, 0.02], [0, -0.45, 0.1], [0, -0.75, 0.2]], [0.45, 0.5, 0.48], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1)));

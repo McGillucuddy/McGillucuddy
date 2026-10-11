@@ -1070,6 +1070,7 @@ class CockpitView {
     let x = -1.9, y = -7.6 + up * 6.9, z = -4.6, rx = 0.12, ry = 0.3, rz = -0.18;
     if (A.id === 'flip' || A.id === 'thumbs') { const pump = Math.max(0, Math.sin(hold * Math.PI * 4)); z -= pump * 0.55; y += (A.id === 'thumbs' ? -pump * 0.3 : pump * 0.15); rx -= pump * 0.15; }
     if (A.id === 'horns') rz += Math.sin(A.t * 14) * 0.12 * (hold > 0 ? 1 : 0);
+    if (A.id === 'thumbs') { rx -= 1.0; ry -= 1.1; y += 0.3; z -= 2.4; x -= 1.4; rz -= 0.1; } // the forearm pointed out at them, fist leading
     frame.position.set(x, y, z);
     frame.rotation.set(rx, ry, rz);
     frame.scale.setScalar(1.45);
