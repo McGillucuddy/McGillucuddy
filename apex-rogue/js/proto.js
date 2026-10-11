@@ -846,16 +846,10 @@ const Proto = {
     this.state = 'race';
     this.setUI('');
     if (this.view === 'cockpit') this.lock();
-    // A qualifier opens on the boss's intro card (once per race); the countdown waits for it.
-    if (this.race.boss && !this.race.cardShown && this.view === 'cockpit' && this.cockpit) {
-      this.race.cardShown = true;
-      try { this.bossCard = new BossCard(this); } catch (e) { console.error(e); this.bossCard = null; }
-    }
   },
 
   pause() {
     if (this.state !== 'race') return;
-    if (this.bossCard) this.bossCard.end();
     this.state = 'paused';
     this.mouse.down = false;
     Sound.engine(0, 0, false, false);
@@ -1121,7 +1115,7 @@ const Proto = {
     const done = run.map.nodes.filter((n) => n.done && n.type !== 'boss').length;
     this.preview.sync({
       build: b, shop: this.shopOpen ? this.shop : [], cos: this.cos,
-      act: { luxury: ACT_LUXURY(run.act), label: `Act ${ROMAN[run.act]}: ${act.title}`, progress: `Stop ${done + 1} of ${MAP_ROWS + 1} this act`, maxStrikes: STRIKES_TO_LOSE },
+      act: { luxury: ACT_LUXURY(run.act), boss: BOSSES[run.act], label: `Act ${ROMAN[run.act]}: ${act.title}`, progress: `Stop ${done + 1} of ${MAP_ROWS + 1} this act`, maxStrikes: STRIKES_TO_LOSE },
     });
     this.preview.setStation(this.tab);
   },
@@ -1288,8 +1282,7 @@ const Proto = {
       else if (this.titleFrom) this.continueRun();
     }
     if (this.state === 'race') {
-      if (this.bossCard) this.bossCard.update(dt);
-      else if (Input.consume('KeyP') || Input.consume('Escape')) this.pause();
+      if (Input.consume('KeyP') || Input.consume('Escape')) this.pause();
       else if (this.view === 'cockpit' && !this.locked && !this.noLock) Sound.engine(0, 0, false, false); // wait for a click
       else this.updateRace(dt);
     }
@@ -1386,9 +1379,8 @@ const Proto = {
     if (!race || offTrack) { ctx.fillStyle = '#100f0c'; ctx.fillRect(0, 0, W, H); return; }
     const live = this.state !== 'briefing';
     if (this.view === 'cockpit') {
-      this.cockpit.render(this.state === 'race' && !(this.bossCard && this.bossCard.frozen) ? dt : 0, this.time);
+      this.cockpit.render(this.state === 'race' ? dt : 0, this.time);
       ctx.clearRect(0, 0, W, H);
-      if (this.bossCard) return; // the card has the screen
       if (live) WeatherGlass.draw(ctx, this.cockpit.wx, W, H, this.state === 'race' ? dt : 0, race.player.speed / 500);
       if (live) drawCockpitHUD(ctx, this, W, H, this.time);
       if (live && this.hitMark && this.hitMark.t > 0) { // a hit marker: you got someone through the glass

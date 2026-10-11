@@ -172,8 +172,8 @@ The bosses are The Turnkey (an armoured prison van with a gunner), Smokestack Sa
 rocket supercar) and Vex "The Apex" Marlowe at the Crown. Against Marlowe, only an outright win sets you free.
 Three strikes and the run is over.
 
-**Boss fights** (`js/bosses.js`):
-- **Intro card.** Every qualifier opens on one, Borderlands-style. The camera swoops off your car onto a low three-quarter shot of the boss's nose and the frame freezes. The boss's name slams in over a splash of ink in their colour with a title and a one-line put-down. A record scratch and a distorted power chord play over it, and any key skips it.
+**Boss fights** (`js/bosses.js`; the graffiti is painted in `js/garage3d.js`):
+- **The garage is tagged with the act's boss.** Inmates have sprayed the boss's name across the walls in the boss's colour: the Turnkey's key ring, Sal's smokestacks, Vale's dollar star, Marlowe's crown with a slash through it. The name gets fat outlined letters with drips and overspray, and the boss's put-down is scrawled underneath in marker. Older tags are crossed out and there are tally marks for days inside. There's a stacked piece beside the track door (seen from the menu and the overview) and a wide one on the far wall (the car's turntable swings past it). It changes each act, so you always know who's waiting.
 - **Health bar.** It sits at the top of the screen with the boss's name, and shows a line at half health.
 - **Signature moves.** Each boss has one, announced a beat before it lands (a klaxon and a red banner):
   - **The Turnkey:** an armoured nose, so rounds from in front do a third of their damage (hit him from the side or behind). **Riot Ram:** he floors it and steers into you when you're close.
@@ -381,7 +381,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/main.js` | Game state machine, UI screens, HUD, camera |
 | `js/input.js`, `js/audio.js`, `js/music.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound, the menu theme |
 | `js/tutorial.js` | Tutorial steps and the in-race coach card |
-| `js/bosses.js` | Boss intro cards, health bar and signature moves |
+| `js/bosses.js` | Boss health bar, signature moves, and each boss's colours and put-down for the garage graffiti |
 | `js/emotes.js` | Emote gestures (the hand models), the wheel, tilted rivals and the humiliation bonus |
 | `js/intro.js` | The studio sting and the cold open: gate, radar logo, in-engine cinematic, captions, sound cues |
 | `js/people.js` | People: the sculpted body used for drivers, crews, your own body and the trader; live two-bone arms |

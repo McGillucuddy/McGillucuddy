@@ -38,6 +38,7 @@ class Garage3D {
     this.luxury = null;
     this.hover = null;
     this.setTheme(false);
+    this.setBoss(BOSSES[0]);
   }
 
   // ---------- Room ----------
@@ -184,7 +185,7 @@ class Garage3D {
         g.fillStyle = fg; g.font = 'bold 10px Impact, sans-serif'; g.fillText(b, W / 2, 84, W - 6);
         g.fillStyle = 'rgba(0,0,0,0.15)'; g.fillRect(0, 0, W, 3);
       });
-      R.add(this.plane(16, 24, t, 129.4, 40, 40 - i * 26, -Math.PI / 2));
+      R.add(this.plane(16, 24, t, -129.4, 40, 50 + i * 22, Math.PI / 2)); // by the door (the far wall is the boss's)
     });
     // CCTV camera in the corner.
     R.add(LP.box(6, 3, 3, LP.mat('#d8d4cc'), 124, 62, 94));
@@ -464,11 +465,38 @@ class Garage3D {
     }
   }
 
+  // ---------- The act's boss, sprayed on the walls ----------
+  // The inmates tag the garage with the name of whoever stands between them and the next act: a big piece on the
+  // wall beside the track door (seen from the menu and the overview) and a wide one on the far wall (the car's
+  // turntable swings past it), with the boss's mark, a put-down scrawled underneath and older tags crossed out.
+  setBoss(boss) {
+    if (!boss || (this.boss && this.boss.name === boss.name)) return;
+    this.boss = boss;
+    if (this.graffiti) { this.scene.remove(this.graffiti); this.graffiti.traverse((o) => { if (o.material) { o.material.map.dispose(); o.material.dispose(); } }); }
+    const K = bossKit(boss) || { card: ['', boss.name], ink: '#d8342a', quip: '' };
+    const G = (this.graffiti = new THREE.Group());
+    const wall = (w, h, px, draw, x, y, z, ry) => {
+      const c = document.createElement('canvas');
+      c.width = px; c.height = Math.round((px * h) / w);
+      draw(c.getContext('2d'), c.width, c.height, mulberry32(boss.name.length * 977 + px));
+      const t = new THREE.CanvasTexture(c);
+      t.colorSpace = THREE.SRGBColorSpace;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: t, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: 0.1, transparent: true, depthWrite: false, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 })); // fresh paint catches the light
+      m.position.set(x, y, z);
+      m.rotation.y = ry;
+      G.add(m);
+    };
+    wall(58, 64, 512, (g, W, H, r) => Graffiti.piece(g, W, H, r, boss, K, 'stack'), -129.3, 36, -68, Math.PI / 2);
+    wall(132, 62, 1024, (g, W, H, r) => Graffiti.piece(g, W, H, r, boss, K, 'wide'), 129.3, 36, 36, -Math.PI / 2);
+    this.scene.add(G);
+  }
+
   // ---------- Things that reflect your run ----------
 
   sync(info) {
     const { build: b, shop, cos, act } = info;
     this.setTheme(!!act.luxury);
+    if (act.boss) this.setBoss(act.boss);
     this.dyn.clear();
     this.hotRoot.children.filter((o) => o.userData.dynamic).forEach((o) => this.hotRoot.remove(o));
     const D = this.dyn;
@@ -690,3 +718,135 @@ class Garage3D {
     else this.renderer.render(this.scene, this.camera);
   }
 }
+
+// Spray paint on canvas: fat outlined letters with a highlight, a drop shadow and drips, overspray round the edges,
+// the boss's mark behind, a marker scrawl underneath, older tags crossed out, and the wall showing through.
+const Graffiti = {
+  piece(g, W, H, r, boss, K, layout) {
+    const ink = K.ink, [small, big] = K.card || ['', boss.name];
+    const u = W / 512; // unit: everything is drawn for a 512-wide canvas and scaled
+    // Old tags underneath, half scrubbed off, some crossed out.
+    g.save();
+    for (let k = 0; k < 7; k++) {
+      g.globalAlpha = 0.18 + r() * 0.2;
+      g.fillStyle = ['#d8d0c0', '#5a8ac8', '#c84a3a', '#8ac850'][k % 4];
+      g.font = `${Math.round((14 + r() * 16) * u)}px Impact, 'Arial Black', sans-serif`;
+      const x = r() * W * 0.85, y = H * (0.1 + r() * 0.85), txt = ['4471 WUZ HERE', 'BLOCK C', 'FREE DEZ', '12 YRS', 'NO GODS', 'RIP TOMMY', '★ C9 ★'][k];
+      g.save(); g.translate(x, y); g.rotate((r() - 0.5) * 0.4); g.fillText(txt, 0, 0);
+      if (k % 3 === 0) { g.strokeStyle = g.fillStyle; g.lineWidth = 3 * u; g.beginPath(); g.moveTo(-4 * u, -8 * u); g.lineTo(g.measureText(txt).width + 4 * u, 0); g.stroke(); }
+      g.restore();
+    }
+    // Tally marks: days inside.
+    g.globalAlpha = 0.35; g.strokeStyle = '#e8e0c8'; g.lineWidth = 2 * u;
+    const tx = layout === 'wide' ? W * 0.86 : W * 0.08, ty = H * 0.86;
+    for (let s = 0; s < 4; s++) for (let k = 0; k < 5; k++) {
+      g.beginPath();
+      if (k < 4) { g.moveTo(tx + s * 26 * u + k * 5 * u, ty); g.lineTo(tx + s * 26 * u + k * 5 * u + u, ty + 18 * u); }
+      else { g.moveTo(tx + s * 26 * u - 3 * u, ty + 14 * u); g.lineTo(tx + s * 26 * u + 22 * u, ty + 3 * u); }
+      g.stroke();
+    }
+    g.restore();
+    // The boss's mark, big and loose behind the letters.
+    const mark = layout === 'wide' ? [W * 0.8, H * 0.38, H * 0.3] : [W * 0.5, H * 0.3, W * 0.3];
+    Graffiti.mark(g, boss.name, ink, ...mark, u, r);
+    // The name.
+    const lines = layout === 'wide' ? [[small, 0.14, 28], [big, 0.5, 128]] : [[small, 0.5, 46], [big, 0.68, 120]];
+    for (const [txt, yy, size] of lines) {
+      if (!txt) continue;
+      const fs = size * u * (layout === 'wide' ? 1 : Math.min(1, 5 / Math.max(4, txt.length)));
+      Graffiti.spray(g, txt.toUpperCase(), layout === 'wide' ? W * 0.06 : W * 0.06, H * yy, fs, ink, r, layout === 'wide' ? W * 0.68 : W * 0.88);
+    }
+    // The put-down, in marker.
+    if (K.quip) {
+      g.save();
+      g.translate(layout === 'wide' ? W * 0.08 : W * 0.06, H * (layout === 'wide' ? 0.8 : 0.84));
+      g.rotate(-0.03);
+      g.fillStyle = '#f0e8d4'; g.globalAlpha = 0.85;
+      g.font = `bold ${Math.round((layout === 'wide' ? 15 : 13) * u)}px 'Comic Sans MS', 'Courier New', cursive`;
+      const words = K.quip.split(' '), maxW = W * (layout === 'wide' ? 0.6 : 0.86);
+      let line = '', y = 0;
+      for (const w of words) { if (g.measureText(line + w).width > maxW) { g.fillText(line, 0, y); line = ''; y += 16 * u * (layout === 'wide' ? 1.2 : 1); } line += w + ' '; }
+      g.fillText(line, 0, y);
+      g.restore();
+    }
+    // The wall shows through the paint.
+    g.save();
+    g.globalCompositeOperation = 'destination-out';
+    for (let k = 0; k < (W * H) / 60; k++) { g.fillStyle = `rgba(0,0,0,${r() * 0.45})`; g.fillRect(r() * W, r() * H, 1 + r() * 2 * u, 1 + r() * 2 * u); }
+    g.restore();
+  },
+
+  // One line of spray-painted letters, each a little rotated and bounced, fitted to maxW.
+  spray(g, txt, x, y, size, ink, r, maxW) {
+    g.save();
+    g.font = `${Math.round(size)}px Impact, 'Arial Black', sans-serif`;
+    let total = g.measureText(txt).width;
+    if (total > maxW) { size *= maxW / total; g.font = `${Math.round(size)}px Impact, 'Arial Black', sans-serif`; total = maxW; }
+    const letters = [...txt].map((ch) => ({ ch, w: g.measureText(ch).width, rot: (r() - 0.5) * 0.16, dy: (r() - 0.5) * size * 0.08 }));
+    const each = (fn) => { let cx = x; for (const L of letters) { g.save(); g.translate(cx + L.w / 2, y + L.dy); g.rotate(L.rot); fn(L); g.restore(); cx += L.w * 0.96; } };
+    // Overspray haze, then the black drop shadow and outline, then the fill with a highlight, then drips.
+    g.shadowColor = ink; g.shadowBlur = size * 0.25; g.globalAlpha = 0.35; g.fillStyle = ink;
+    each((L) => g.fillText(L.ch, -L.w / 2, 0));
+    g.shadowBlur = 0; g.globalAlpha = 1;
+    g.lineJoin = 'round';
+    g.fillStyle = '#0c0b0a';
+    each((L) => g.fillText(L.ch, -L.w / 2 + size * 0.06, size * 0.06));
+    g.strokeStyle = '#0c0b0a'; g.lineWidth = size * 0.12;
+    each((L) => g.strokeText(L.ch, -L.w / 2, 0));
+    const grad = g.createLinearGradient(0, -size * 0.8, 0, 0); // in each letter's own frame (each() translates to the baseline)
+    grad.addColorStop(0, '#fff8e0'); grad.addColorStop(0.08, ink); grad.addColorStop(1, ink);
+    g.fillStyle = grad;
+    each((L) => g.fillText(L.ch, -L.w / 2, 0));
+    g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = size * 0.01; // a thin white keyline
+    each((L) => g.strokeText(L.ch, -L.w / 2, 0));
+    g.fillStyle = ink;
+    let cx = x;
+    for (const L of letters) {
+      if (r() < 0.55) {
+        const dx = cx + L.w * (0.2 + r() * 0.6), len = size * (0.15 + r() * 0.5), w = size * 0.035;
+        g.fillRect(dx, y - size * 0.05, w, len);
+        g.beginPath(); g.arc(dx + w / 2, y - size * 0.05 + len, w * 0.9, 0, TAU); g.fill();
+      }
+      cx += L.w * 0.96;
+    }
+    g.restore();
+  },
+
+  // Each boss's mark, sprayed loose: the Turnkey's ring of keys, Sal's smokestacks, Vale's dollar star, the Crown.
+  mark(g, name, ink, cx, cy, R, u, r) {
+    g.save();
+    g.translate(cx, cy);
+    g.globalAlpha = 0.55;
+    g.strokeStyle = ink; g.fillStyle = ink; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.shadowColor = ink; g.shadowBlur = 6 * u;
+    g.lineWidth = R * 0.09;
+    if (name === 'The Turnkey') {
+      g.beginPath(); g.arc(0, -R * 0.35, R * 0.32, 0, TAU); g.stroke();
+      for (const a of [-0.9, -0.3, 0.3, 0.9]) {
+        g.save(); g.translate(Math.sin(a) * R * 0.32, -R * 0.35 + Math.cos(a) * R * 0.32); g.rotate(-a * 0.6);
+        g.fillRect(-R * 0.04, 0, R * 0.08, R * 0.75);
+        g.fillRect(0, R * 0.55, R * 0.18, R * 0.07); g.fillRect(0, R * 0.68, R * 0.14, R * 0.07);
+        g.beginPath(); g.arc(0, 0, R * 0.09, 0, TAU); g.fill();
+        g.restore();
+      }
+    } else if (name === 'Smokestack Sal') {
+      for (const [x, h] of [[-0.45, 1.1], [0, 1.4], [0.45, 0.95]]) {
+        g.fillRect(x * R - R * 0.12, R * 0.9 - h * R, R * 0.24, h * R);
+        for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x * R + k * R * 0.14, R * 0.9 - h * R - R * 0.18 - k * R * 0.22, R * (0.14 + k * 0.05), 0, TAU); g.stroke(); }
+      }
+    } else if (name === 'Augustin Vale') {
+      g.beginPath();
+      for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? R * 0.42 : R; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      g.closePath(); g.stroke();
+      g.font = `${Math.round(R * 0.9)}px Impact, sans-serif`; g.textAlign = 'center'; g.fillText('$', 0, R * 0.32);
+    } else {
+      g.beginPath();
+      g.moveTo(-R, R * 0.5); g.lineTo(-R, -R * 0.4); g.lineTo(-R * 0.5, R * 0.05); g.lineTo(0, -R * 0.7); g.lineTo(R * 0.5, R * 0.05); g.lineTo(R, -R * 0.4); g.lineTo(R, R * 0.5); g.closePath();
+      g.stroke();
+      for (const x of [-1, 0, 1]) { g.beginPath(); g.arc(x * R * (x ? 1 : 0), x ? -R * 0.5 : -R * 0.82, R * 0.1, 0, TAU); g.fill(); }
+      g.lineWidth = R * 0.06; g.beginPath(); g.moveTo(-R * 1.1, -R * 0.9); g.lineTo(R * 1.1, R * 0.8); g.stroke(); // and a slash through it
+    }
+    g.restore();
+    void r;
+  },
+};

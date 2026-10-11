@@ -1317,7 +1317,6 @@ class CockpitView {
     this.camera.lookAt(eye.clone().add(dir));
     if (this.kick) this.camera.rotateX(this.kick.cp); // the punch of a big gun going off
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(yw) * sway);
-    if (this.cameraOverride) this.cameraOverride(this.camera); // a boss's intro card takes the camera
     // Sal's smog: the world closes in while you're in it.
     const smog = combat.smogOn ? combat.smogOn() : 0, F = this.scene.fog;
     if (!this.fogBase) this.fogBase = { near: F.near, far: F.far };

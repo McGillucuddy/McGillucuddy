@@ -25,7 +25,7 @@ const BOSS_COMEBACKS = {
 
 const Emotes = {
   // The gloved left hand making a gesture, with the orange sleeve. Hand frame: wrist at the origin, fingers up (+Y),
-  // palm towards you (+Z), thumb to the right (+X). frame: 0 or 1 (the beckon curls between them).
+  // palm towards you (+Z); built with the thumb on +X and mirrored (see below). frame: 0 or 1 (the beckon curls).
   hand(id, frame) {
     const key = 'emote:' + id + ':' + (frame || 0);
     const g = new THREE.Group();
@@ -61,11 +61,13 @@ const Emotes = {
     const tp = pose.thumb === 'across' ? [[0.42, 0.62, 0.38], [0.12, 0.78, 0.5]] : pose.thumb === 'out' ? [[0.78, 0.55, 0.1], [1.12, 0.66, 0.08]] : [[0.62, 0.62, 0.22], [0.74, 0.88, 0.25]];
     sc.add(glove, SDF.cone(T0, tp[0], 0.15, 0.13), 0.08);
     sc.add(glove, SDF.cone(tp[0], tp[1], 0.13, 0.11), 0.05);
+    // It's sculpted as a right hand (thumb on +X); mirrored, it's your left: palm towards you, thumb on the left.
     const hand = new THREE.Group();
     sc.build(hand);
+    hand.scale.x = -1;
     g.add(hand);
     // Thumbs down: just the fist turns over (about the wrist) so the thumb points at the floor.
-    if (id === 'thumbs') { hand.rotation.set(0, 0.35, -Math.PI / 2); hand.position.set(-0.2, 0.25, 0); }
+    if (id === 'thumbs') { hand.rotation.set(0, -0.35, Math.PI / 2); hand.position.set(0.2, 0.25, 0); }
     // Forearm in the sleeve, angled down and back towards your shoulder.
     const suit = LP.mat('#d6631d', { roughness: 0.95 }), cuff = LP.mat('#b4521a', { roughness: 0.95 });
     g.add(LP.limb([[0, -0.15, 0.02], [0, -0.45, 0.1], [0, -0.75, 0.2]], [0.45, 0.5, 0.48], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1)));

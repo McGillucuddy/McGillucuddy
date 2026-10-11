@@ -558,31 +558,4 @@ body.proto #ui { z-index: 2; }
 .i-skip { position: absolute; right: 18px; bottom: 14px; z-index: 6; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(232, 224, 200, .35); }
 #intro.gating .i-skip, #intro.slammed .i-skip { display: none; }
 
-/* Boss intro card (js/bosses.js): freeze-frame, ink splash, the name slammed in. */
-#gl.freeze { filter: saturate(1.7) contrast(1.25) brightness(1.05); }
-#bosscard { position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden; }
-#bosscard .bc-ink { position: absolute; left: 4vw; top: 50%; width: min(78vw, 900px); transform: translateY(-50%) scale(.2) rotate(-8deg); opacity: 0; mix-blend-mode: multiply; }
-#bosscard.in .bc-ink { animation: bc-ink .25s cubic-bezier(.2, 1.4, .4, 1) forwards; }
-@keyframes bc-ink { to { transform: translateY(-50%) scale(1) rotate(-4deg); opacity: .92; } }
-#bosscard .bc-text { position: absolute; left: 8vw; top: 50%; transform: translateY(-50%) rotate(-4deg); font-family: Impact, 'Arial Black', sans-serif; color: #f4ecd8; text-transform: uppercase; }
-#bosscard .bc-act, #bosscard .bc-pre, #bosscard .bc-name, #bosscard .bc-title, #bosscard .bc-quip { opacity: 0; }
-#bosscard .bc-act { font-family: 'Courier New', monospace; font-weight: 700; font-size: clamp(12px, 1.4vw, 16px); letter-spacing: 5px; color: #1a1410; background: #f4ecd8; display: inline-block; padding: 2px 8px; margin-bottom: 8px; }
-#bosscard .bc-pre { font-size: clamp(22px, 3.2vw, 40px); letter-spacing: 3px; -webkit-text-stroke: 2px #111; text-shadow: 4px 4px 0 #111; }
-#bosscard .bc-name { font-size: clamp(54px, 10vw, 140px); line-height: .9; letter-spacing: 2px; -webkit-text-stroke: 3px #111; text-shadow: 6px 6px 0 #111, 10px 10px 0 rgba(0,0,0,.35); white-space: nowrap; }
-#bosscard .bc-title { margin-top: 10px; font-size: clamp(16px, 2.2vw, 28px); letter-spacing: 3px; color: #111; background: var(--ink); display: inline-block; padding: 2px 12px; transform: rotate(2deg); }
-#bosscard .bc-quip { margin-top: 14px; font-family: 'Courier New', monospace; font-weight: 700; font-size: clamp(13px, 1.6vw, 19px); text-transform: none; letter-spacing: 0; color: #f4ecd8; text-shadow: 2px 2px 0 #000; max-width: 46vw; }
-#bosscard.in .bc-act { animation: bc-drop .25s .05s ease-out forwards; }
-#bosscard.in .bc-pre { animation: bc-slam .3s .02s cubic-bezier(.2, 1.6, .4, 1) forwards; }
-#bosscard.in .bc-name { animation: bc-slam .35s 0s cubic-bezier(.2, 1.6, .4, 1) forwards, bc-shake .4s .3s linear; }
-#bosscard.in .bc-title { animation: bc-drop .3s .35s ease-out forwards; }
-#bosscard.in .bc-quip { animation: bc-type .5s .7s steps(20) forwards; }
-@keyframes bc-slam { from { opacity: 0; transform: scale(2.4); } 60% { opacity: 1; } to { opacity: 1; transform: scale(1); } }
-@keyframes bc-drop { from { opacity: 0; transform: translateY(-14px) rotate(2deg); } to { opacity: 1; transform: translateY(0) rotate(2deg); } }
-@keyframes bc-type { from { opacity: 1; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
-@keyframes bc-shake { 0%, 100% { translate: 0 0; } 25% { translate: -5px 3px; } 50% { translate: 4px -3px; } 75% { translate: -2px 2px; } }
-#bosscard .bc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
-#bosscard.in .bc-flash { animation: bc-flash .35s ease-out; }
-@keyframes bc-flash { from { opacity: .85; } to { opacity: 0; } }
-#bosscard.out { opacity: 0; transition: opacity .35s; }
-#bosscard .bc-skip { position: absolute; right: 18px; bottom: 14px; font-family: 'Courier New', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: rgba(244, 236, 216, .4); }
 .boss-help { display: block; margin-top: 4px; color: #ffd23f; }
