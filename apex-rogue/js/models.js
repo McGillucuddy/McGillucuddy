@@ -2672,7 +2672,7 @@ const Models = {
       const bases = [[0.64, -0.1, 0.64], [0.62, -0.32, 0.64], [0.57, -0.5, 0.6]];
       F.forEach(([y, r], i) => {
         const sc = i === 2 ? 0.82 : i === 1 ? 0.95 : 1; // the pinky is shorter
-        const j = wrap((a, k) => [ex * k * Math.cos(a), y - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS.map((l) => l * sc), 2.9);
+        const j = wrap((a, k) => [ex * k * Math.cos(a), y - (a - 0.18) * 0.03, -ez * k * Math.sin(a)], ex, ez, 0.18, 1.12, LENS.map((l) => l * sc * 1.22), 3.25); // long enough to lie across the left panel
         chain(j, [r * 1.08, r * 0.98, r * 0.88, r * 0.72]); // tapering to a narrower tip
         bone(palm, S(bases[i]), j[0], 0.17, r * 1.18);
         knuckles.push(j[0]);
@@ -2698,6 +2698,7 @@ const Models = {
       // Thumb: its metacarpal and muscle run over the top of the grip, then two bones down the left side.
       const T = [[0.5, 0.0, 0.72], [-0.2, 0.44, 0.46], [-0.55, 0.36, -0.02], [-0.58, 0.27, -0.34]].map(S);
       bone(palm, T[0], T[1], 0.22, 0.18);
+    palm[palm.length - 1].round = true; // the muscle at the base of the thumb stays full
       chain(T.slice(1), [0.19, 0.17, 0.142]);
       w = S([0.6, -0.55, 1.08]);
       top = [1, 0, 0];
@@ -2720,6 +2721,7 @@ const Models = {
       // Thumb along the left side of the tube, pointing forward.
       const T = [[-0.12, -0.78, 0.62], [-0.53, -0.5, 0.2], [-0.6, -0.18, -0.2], [-0.57, -0.04, -0.52]].map(S);
       bone(palm, T[0], T[1], 0.2, 0.17);
+    palm[palm.length - 1].round = true;
       chain(T.slice(1), [0.19, 0.17, 0.142]);
       w = S([-0.08, -0.92, 1.08]);
       top = [0, -1, 0];
@@ -2734,10 +2736,24 @@ const Models = {
     const dir = V(arm).normalize(), along = (d) => V(w).addScaledVector(dir, d).toArray();
     bone(palm, along(-0.3), along(0.72), 0.37, 0.41); // a wrist a bit narrower than the palm, as wrists are
     const strap = { a: along(0.02), b: along(0.2), ra: 0.405, rb: 0.405 };
+    // The back of the hand and the wrist are flat plates, not tubes: squashed along the back-of-hand normal.
+    const PFLAT = 0.72;
+    for (const b of palm.concat([strap])) {
+      if (b.round) continue;
+      const ax = V(b.b).sub(V(b.a)).normalize();
+      b.flat = PFLAT; b.ax = ax.toArray(); b.o = V(top).projectOnPlane(ax).normalize().toArray();
+    }
     // Knuckle guard: a moulded ridge with a boss over each knuckle, standing just proud of the leather.
     const gp = knuckles.map((k) => { const r = V(radial(...k)).normalize(); return V(k).addScaledVector(r, 0.07).toArray(); });
     for (let i = 0; i < gp.length - 1; i++) bone(guard, gp[i], gp[i + 1], 0.055, 0.055); // a low padded ridge, no knobs
     const S = LP.smin, RC = LP.roundCone, d1 = (b, x, y, z) => RC(x, y, z, b.a, b.b, b.ra, b.rb);
+    // Distance to a bone squashed by k along o (perpendicular to its axis): the point is stretched away from the axis.
+    const dsq = (b, x, y, z, o0, o1, o2, k) => {
+      const qx = x - b.a[0], qy = y - b.a[1], qz = z - b.a[2], A = b.ax, t = qx * A[0] + qy * A[1] + qz * A[2];
+      const h = ((qx - A[0] * t) * o0 + (qy - A[1] * t) * o1 + (qz - A[2] * t) * o2) * (1 / k - 1);
+      return RC(x + o0 * h, y + o1 * h, z + o2 * h, b.a, b.b, b.ra, b.rb) * k;
+    };
+    const dp = (b, x, y, z) => (b.flat ? dsq(b, x, y, z, b.o[0], b.o[1], b.o[2], b.flat) : d1(b, x, y, z));
     // Bounding spheres let far-away bones be skipped: a bone can't matter if even its nearest point is too far.
     const bound = (list) => {
       for (const b of list) {
@@ -2751,7 +2767,7 @@ const Models = {
     const lb = (o, x, y, z) => { const dx = x - o.c[0], dy = y - o.c[1], dz = z - o.c[2]; return Math.sqrt(dx * dx + dy * dy + dz * dz) - o.R; };
     const sdf = (x, y, z) => {
       let p = 1e9;
-      for (const b of palm) if (lb(b, x, y, z) < p + 0.14) p = S(p, d1(b, x, y, z), 0.14);
+      for (const b of palm) if (lb(b, x, y, z) < p + 0.14) p = S(p, dp(b, x, y, z), 0.14);
       let best = p;
       for (const f of fingers) {
         if (lb(f, x, y, z) > Math.min(best + 0.03, p + 0.1)) continue;
@@ -2759,10 +2775,7 @@ const Models = {
         const r = radial(x, y, z), rl = Math.hypot(r[0], r[1], r[2]) || 1, o0 = r[0] / rl, o1 = r[1] / rl, o2 = r[2] / rl;
         for (const b of f) {
           if (lb(b, x, y, z) >= d) continue;
-          // Stretch the point away from the bone's axis along the back-to-palm direction: a flatter finger.
-          const qx = x - b.a[0], qy = y - b.a[1], qz = z - b.a[2], A = b.ax, t = qx * A[0] + qy * A[1] + qz * A[2];
-          const h = ((qx - A[0] * t) * o0 + (qy - A[1] * t) * o1 + (qz - A[2] * t) * o2) * (1 / FLAT - 1);
-          d = S(d, d1(b, x + o0 * h, y + o1 * h, z + o2 * h) * FLAT, 0.03); // the leather runs smoothly over each joint
+          d = S(d, dsq(b, x, y, z, o0, o1, o2, FLAT), 0.03); // flatter along the back-to-palm direction; smooth over each joint
         }
         best = Math.min(best, S(p, d, 0.1)); // web into the palm, crease against the next finger
       }
@@ -2771,7 +2784,7 @@ const Models = {
         for (const b of guard) if (lb(b, x, y, z) < gd + 0.08) gd = S(gd, d1(b, x, y, z), 0.08);
         best = S(best, gd, 0.05);
       }
-      return S(best, d1(strap, x, y, z), 0.02);
+      return S(best, dp(strap, x, y, z), 0.02);
     };
     // Colours: back leather, lighter suede palm, dark side seams with a stitched thread line, black guard, strap.
     const C = (h) => new THREE.Color(h);
