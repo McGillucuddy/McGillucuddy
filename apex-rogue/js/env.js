@@ -130,39 +130,6 @@ const Env = {
     });
   },
 
-  facadeTexture(th, seed) {
-    const tex = Env.canvas(128, 128, (g, W, H) => {
-      const rng = mulberry32(seed);
-      g.fillStyle = th.facade;
-      g.fillRect(0, 0, W, H);
-      if (th.glass) {
-        const grad = g.createLinearGradient(0, 0, W, H);
-        grad.addColorStop(0, 'rgba(120,170,220,0.9)'); grad.addColorStop(0.5, 'rgba(200,230,250,0.9)'); grad.addColorStop(1, 'rgba(90,140,200,0.9)');
-        g.fillStyle = grad;
-        for (let y = 2; y < H; y += 16) g.fillRect(0, y, W, 11);
-        g.fillStyle = 'rgba(255,255,255,0.8)';
-        for (let x = 0; x < W; x += 16) g.fillRect(x, 0, 2, H);
-      } else {
-        for (let y = 4; y < H; y += 16) {
-          for (let x = 3; x < W; x += 16) {
-            g.fillStyle = rng() < th.lit ? th.windows[Math.floor(rng() * th.windows.length)] : 'rgba(0,0,0,0.45)';
-            g.fillRect(x, y, 9, 8);
-          }
-        }
-        g.fillStyle = 'rgba(0,0,0,0.25)';
-        for (let k = 0; k < 20; k++) g.fillRect(rng() * W, 0, 2, H); // grime streaks
-      }
-      if (th.glass) {
-        for (let k = 0; k < 18; k++) {
-          g.fillStyle = th.windows[Math.floor(rng() * th.windows.length)];
-          g.fillRect(Math.floor(rng() * 8) * 16 + 3, Math.floor(rng() * 8) * 16 + 4, 10, 8);
-        }
-      }
-    });
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    return tex;
-  },
-
   // Concrete with graffiti and hazard stripes, or clean white panels with sponsor boards.
   wallTexture(th, seed) {
     const tex = Env.canvas(512, 64, (g, W, H) => {
@@ -202,164 +169,6 @@ const Env = {
     });
     tex.wrapS = THREE.RepeatWrapping;
     return tex;
-  },
-
-  // ---------- Distant megastructures ----------
-
-  // One mesh for the whole skyline: per-vertex colour, an optional facade texture, and height/distance haze
-  // mixed in a tiny shader so the towers sink into the smog (or the clean blue) without the fog swallowing them.
-  skylineMaterial(th, map) {
-    return new THREE.ShaderMaterial({
-      uniforms: { map: { value: map }, haze: { value: new THREE.Color(th.fog) }, hz: { value: new THREE.Vector3(...th.haze) } },
-      vertexShader: `
-        attribute vec3 aCol; attribute vec2 aUv; attribute float aWin; attribute float aFar;
-        varying vec3 vCol; varying vec2 vUv; varying float vWin; varying float vHaze;
-        uniform vec3 hz;
-        void main() {
-          vCol = aCol; vUv = aUv; vWin = aWin;
-          float low = 1.0 - clamp(position.y / 900.0, 0.0, 1.0);
-          vHaze = clamp(hz.x + aFar * hz.y + low * low * hz.z, 0.0, 0.95);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }`,
-      fragmentShader: `
-        uniform sampler2D map; uniform vec3 haze;
-        varying vec3 vCol; varying vec2 vUv; varying float vWin; varying float vHaze;
-        void main() {
-          vec3 c = vCol;
-          if (vWin > 0.5) c *= texture2D(map, vUv).rgb;
-          gl_FragColor = vec4(mix(c, haze, vHaze), 1.0);
-          #include <colorspace_fragment>
-        }`,
-      fog: false,
-    });
-  },
-
-  skyline(th, seed) {
-    const rng = mulberry32(seed);
-    const parts = [];
-    const col = (c) => new THREE.Color(c);
-    const add = (geo, x, y, z, ry, color, win, far) => {
-      const m = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new THREE.Vector3(1, 1, 1));
-      parts.push({ geo, m, color: col(color), win: win ? 1 : 0, far });
-    };
-    // Box with UVs scaled so the facade texture tiles at a constant size.
-    const boxGeo = (w, h, d) => {
-      const g = new THREE.BoxGeometry(w, h, d);
-      const uv = g.attributes.uv;
-      const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
-      for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) {
-        const i = f * 4 + v;
-        uv.setXY(i, uv.getX(i) * dims[f][0] / ENV_TILE, uv.getY(i) * dims[f][1] / ENV_TILE);
-      }
-      return g;
-    };
-    const cylGeo = (rt, rb, h, seg) => {
-      const g = new THREE.CylinderGeometry(rt, rb, h, seg, 1, false);
-      const uv = g.attributes.uv;
-      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * (TAU * rb) / ENV_TILE, uv.getY(i) * h / ENV_TILE);
-      return g;
-    };
-    const beacon = th.luxury ? '#ffd86a' : '#ff3a2a';
-    const body = th.luxury ? '#ffffff' : '#ffffff';
-    const solid = th.luxury ? '#e8e2d6' : '#2a2620';
-
-    if (!th.luxury) {
-      // Megablocks: brutalist slabs kilometres high, linked by skybridges.
-      const n = th.plate ? 30 : 38;
-      let prev = null;
-      for (let k = 0; k < n; k++) {
-        const a = (k / n) * TAU + rng() * 0.12, R = 2500 + rng() * 2000, far = (R - 2500) / 2000;
-        const w = 160 + rng() * 360, d = 140 + rng() * 300, h = (th.plate ? 900 : 700) + rng() * 2100;
-        const x = Math.cos(a) * R, z = Math.sin(a) * R, ry = rng() * TAU;
-        add(boxGeo(w, h, d), x, h / 2, z, ry, body, true, far);
-        if (rng() < 0.6) { const h2 = h * (0.2 + rng() * 0.3); add(boxGeo(w * 0.6, h2, d * 0.6), x, h + h2 / 2, z, ry, body, true, far); }
-        if (rng() < 0.5) {
-          add(new THREE.BoxGeometry(6, 300, 6), x, h + 150, z, 0, solid, false, far);
-          add(new THREE.BoxGeometry(14, 14, 14), x, h + 300, z, 0, beacon, false, 0);
-        }
-        if (prev && rng() < 0.45) {
-          // Skybridge to the previous block.
-          const mx = (x + prev.x) / 2, mz = (z + prev.z) / 2, len = Math.hypot(x - prev.x, z - prev.z);
-          const by = Math.min(h, prev.h) * (0.4 + rng() * 0.4);
-          add(boxGeo(len, 30, 40), mx, by, mz, -Math.atan2(z - prev.z, x - prev.x), body, true, far);
-        }
-        prev = { x, z, h };
-      }
-      if (th.plate) {
-        // Support pillars holding the upper city up, vanishing into the plate overhead.
-        for (let k = 0; k < 9; k++) {
-          const a = rng() * TAU, R = 1800 + rng() * 2400, r = 90 + rng() * 80;
-          const x = Math.cos(a) * R, z = Math.sin(a) * R;
-          add(cylGeo(r, r * 1.15, 4400, 8), x, 2200, z, 0, solid, false, (R - 1800) / 2400);
-          for (let y = 300; y < 2600; y += 520) add(new THREE.CylinderGeometry(r * 1.02, r * 1.02, 12, 8), x, y, z, 0, '#ff9a3a', false, 0);
-        }
-      } else {
-        // Smokestacks and cooling towers on the horizon.
-        for (let k = 0; k < 12; k++) {
-          const a = rng() * TAU, R = 2300 + rng() * 1600, x = Math.cos(a) * R, z = Math.sin(a) * R, h = 500 + rng() * 700;
-          add(cylGeo(28, 44, h, 8), x, h / 2, z, 0, '#5a3a2a', false, (R - 2300) / 1600);
-          add(new THREE.CylinderGeometry(30, 30, 10, 8), x, h - 30, z, 0, beacon, false, 0);
-        }
-      }
-      // The Spire: the upper city's tower, out of reach for now. Its crown is the only clean light in the sky.
-      const a = 0.6, R = 4300, x = Math.cos(a) * R, z = Math.sin(a) * R;
-      add(boxGeo(700, 2600, 700), x, 1300, z, 0.4, body, true, 1);
-      add(boxGeo(460, 1400, 460), x, 3300, z, 0.4, body, true, 1);
-      add(cylGeo(60, 200, 900, 6), x, 4450, z, 0, solid, false, 1);
-      for (const y of [2620, 4020]) add(new THREE.CylinderGeometry(560, 560, 24, 12), x, y, z, 0, '#ffe2a0', false, 0.2);
-    } else {
-      // Glass towers with gold crowns and roof gardens.
-      const n = 34;
-      for (let k = 0; k < n; k++) {
-        const a = (k / n) * TAU + rng() * 0.15, R = 2400 + rng() * 2100, far = (R - 2400) / 2100;
-        const x = Math.cos(a) * R, z = Math.sin(a) * R, ry = rng() * TAU;
-        const h = 500 + rng() * 1600, round = rng() < 0.35;
-        if (round) {
-          const r = 70 + rng() * 90;
-          add(cylGeo(r * 0.8, r, h, 10), x, h / 2, z, ry, body, true, far);
-          add(new THREE.SphereGeometry(r * 0.8, 10, 5, 0, TAU, 0, Math.PI / 2), x, h, z, 0, '#d9b24a', false, far);
-        } else {
-          const w = 120 + rng() * 200, d = 120 + rng() * 200;
-          add(boxGeo(w, h, d), x, h / 2, z, ry, body, true, far);
-          add(new THREE.BoxGeometry(w * 1.04, 16, d * 1.04), x, h + 8, z, ry, '#d9b24a', false, far);
-          if (rng() < 0.5) add(new THREE.BoxGeometry(w * 0.8, 30, d * 0.8), x, h + 31, z, ry, '#5a9a4a', false, far);
-          else { const h2 = h * 0.25; add(boxGeo(w * 0.55, h2, d * 0.55), x, h + h2 / 2, z, ry, body, true, far); }
-        }
-        if (rng() < 0.3) add(new THREE.BoxGeometry(5, 200, 5), x, h + 100, z, 0, '#f0e8d8', false, far);
-      }
-      // The Spire up close: white stone and gold rings.
-      const a = 0.6, R = th.fireworks ? 2400 : 3200, x = Math.cos(a) * R, z = Math.sin(a) * R;
-      add(cylGeo(260, 420, 2400, 8), x, 1200, z, 0, '#f6f0e4', false, 0.3);
-      add(cylGeo(120, 260, 1400, 8), x, 3100, z, 0, '#f6f0e4', false, 0.3);
-      add(new THREE.ConeGeometry(120, 600, 8), x, 4100, z, 0, '#e8c25a', false, 0.3);
-      for (const y of [800, 1600, 2400, 3000, 3600]) add(new THREE.CylinderGeometry(y < 2400 ? 440 : 280, y < 2400 ? 440 : 280, 30, 16), x, y, z, 0, '#e8c25a', false, 0.25);
-    }
-
-    // Merge everything into one geometry: position, colour, uv, facade flag and distance.
-    const P = [], C = [], U = [], Wn = [], F = [];
-    for (const p of parts) {
-      const g = p.geo.index ? p.geo.toNonIndexed() : p.geo;
-      g.applyMatrix4(p.m);
-      const pos = g.attributes.position, uv = g.attributes.uv;
-      for (let i = 0; i < pos.count; i++) {
-        P.push(pos.getX(i), pos.getY(i), pos.getZ(i));
-        C.push(p.color.r, p.color.g, p.color.b);
-        U.push(uv ? uv.getX(i) : 0, uv ? uv.getY(i) : 0);
-        Wn.push(p.win);
-        F.push(p.far);
-      }
-    }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-    geo.setAttribute('aCol', new THREE.Float32BufferAttribute(C, 3));
-    geo.setAttribute('aUv', new THREE.Float32BufferAttribute(U, 2));
-    geo.setAttribute('aWin', new THREE.Float32BufferAttribute(Wn, 1));
-    geo.setAttribute('aFar', new THREE.Float32BufferAttribute(F, 1));
-    geo.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geo, Env.skylineMaterial(th, Env.facadeTexture(th, seed + 7)));
-    mesh.frustumCulled = false;
-    mesh.name = 'skyline';
-    return mesh;
   },
 
   // ---------- Near-field scenery (lit, fogged, PSX-textured) ----------
@@ -638,10 +447,26 @@ const Env = {
   },
 
   // A sculpted scenery model (see js/sculpt.js), meshed once and shared by every copy.
+  // Trackside scenery is copied dozens of times and seen from the car, so it's meshed coarser than hand-held models
+  // (a 1.7x cell is about a third of the triangles); the low-res look hides the difference.
   sculpt(g, key, cell, fill) {
-    const sc = new Sculpt('env:' + key, cell);
+    const sc = new Sculpt('env:' + key, cell * 1.7);
     fill(sc);
     return sc.build(g);
+  },
+
+  beamTexture() {
+    if (Env._beam) return Env._beam;
+    const t = Env.canvas(64, 128, (g, W, H) => {
+      const along = g.createLinearGradient(0, 0, 0, H); // canvas top is the cone's tip (the lamp), the bottom its wide end
+      along.addColorStop(0, 'rgba(255,255,255,0.55)'); along.addColorStop(0.35, 'rgba(255,255,255,0.14)'); along.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = along; g.fillRect(0, 0, W, H);
+      g.globalCompositeOperation = 'destination-in'; // soft round the circumference (the seam side stays faint)
+      const across = g.createLinearGradient(0, 0, W, 0);
+      across.addColorStop(0, 'rgba(0,0,0,0.2)'); across.addColorStop(0.5, 'rgba(0,0,0,1)'); across.addColorStop(1, 'rgba(0,0,0,0.2)');
+      g.fillStyle = across; g.fillRect(0, 0, W, H);
+    });
+    return (Env._beam = t);
   },
 
   // Guard towers with sweeping searchlights (dystopian acts' answer to grandstands).
@@ -669,9 +494,11 @@ const Env = {
     const head = new THREE.Group();
     head.position.set(0, 82, 0);
     head.add(LP.cyl(2.2, 2.2, 4, 8, LP.mat('#222'), 0, 0, 0).rotateZ(Math.PI / 2));
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(22, 160, 12, 1, true), new THREE.MeshBasicMaterial({ color: '#fff2c8', transparent: true, opacity: 0.08, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
+    // The beam: a long cone that fades out along its length and is faint at its edges (a gradient texture), not a flat white wedge.
+    const beamTex = Env.beamTexture();
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(26, 220, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#fff2c8', map: beamTex, transparent: true, opacity: 0.4, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
     cone.rotation.z = Math.PI / 2;
-    cone.position.x = 80;
+    cone.position.x = 110;
     const tilt = new THREE.Group();
     tilt.rotation.z = -0.45;
     tilt.add(cone);
@@ -701,8 +528,13 @@ const Env = {
     const dome = new THREE.Mesh(new THREE.SphereGeometry(5200, 32, 16), new THREE.MeshBasicMaterial({ map: Env.skyTexture(th, track.seed), side: THREE.BackSide, fog: false, depthWrite: false }));
     dome.renderOrder = -10;
     dome.name = 'sky';
-    env.follow.add(dome, Env.skyline(th, track.seed ^ 0x51ab));
+    // The city (js/skyline.js): the horizon ring rides with the camera, the district stays in the world.
+    const ads = City.ads(th);
+    env.follow.add(dome, City.ring(th, track.seed ^ 0x51ab, ads));
+    env.blimps = City.blimps(th, ads);
+    for (const b of env.blimps) env.follow.add(b);
     scene.add(env.follow);
+    City.district(scene, track, th, themeKey, ads);
 
     Env.walls(scene, track, th);
     Env.trackside(scene, track, th, env);
@@ -862,6 +694,11 @@ const Env = {
   // Per-frame: keep the horizon centred on the player, sweep searchlights, launch fireworks.
   update(env, dt, t, x, z, scene) {
     env.follow.position.set(x, 0, z);
+    for (const b of env.blimps || []) { // circling slowly, nose first
+      const u = b.userData; u.a += dt * u.speed;
+      b.position.set(Math.cos(u.a) * u.R, u.y + Math.sin(t * 0.3 + u.a) * 8, Math.sin(u.a) * u.R);
+      b.rotation.y = -u.a - Math.PI / 2;
+    }
     for (const tw of env.towers) tw.userData.head.rotation.y = Math.sin(t * 0.5 + tw.userData.phase) * 1.0;
     if (!env.th.fireworks) return;
     env.fwT -= dt;

@@ -20,6 +20,13 @@ so treat it as fixed, and add to it here first when something new is introduced.
   "WARDEN HALLORAN: COWARD").
 - **Aureum** is the corporation behind the Derby's top tier: the **Aureum Grand Prix** at the Crown, and the money that
   runs the Gilded Terraces. "AUREUM OWNS YOU."
+- **C9TV** broadcasts the Derby live ("DERBY XLI · LIVE ON C9TV", and in the Undercity, "C9TV: WATCH THEM DIE").
+- **The sponsors**, on billboards, blimps and the trackside walls: **Aureum** ("OWN TOMORROW"), **Helix**, a pharma
+  giant ("LIVE FOREVER" up top, "BREATHE EASY" in the smog below), **Crown Bank** ("TRUST IS GOLD") and **Warden Corp**
+  (the prison's own brand). In the Undercity the screens also carry the warden's messages: "WORK. OBEY. RACE.",
+  "THE WARDEN KEEPS YOU SAFE". Up top: "VALE DRIVES AUREUM", "MARLOWE: UNDEFEATED", "SMILE: YOU ARE SAFE".
+- **The Plate**: the Undercity lives beneath the upper city's foundation plate, held up by vast lit pillars. The
+  **Spire** rises through it to the Crown; from below, its lit top is the only clean light in the sky.
 - **Inmate 4471** is the player (the default inmate number). Someone has written "4471 IS NEXT" on the wall.
 
 ## The bosses

@@ -195,8 +195,20 @@ Three strikes and the run is over.
   fountains, grandstands full of spectators and sponsor boards on the walls.
 - **Act IV, The Crown:** golden hour at the top of the Spire, with marble colonnades and fireworks.
 
-The distant megastructures follow the camera, so they always sit on the horizon. They are one merged mesh
-with a haze shader. All of it lives in `js/env.js`.
+**The city** (`js/skyline.js`) has two layers.
+- **The horizon ring** follows the camera, so it always sits on the horizon.
+- **The district** is real buildings in the world between the track and the horizon, so there's depth and parallax instead of empty ground.
+
+Both are built from a kit of shaded parts merged into one mesh each. Faces catch the act's sun, lit windows glow at night, and distance haze sinks everything into the smog or the clean blue.
+- **Undercity and Stacks:** brutalist megablocks with cantilevered tiers, floor ledges, service cores, pipes, rooftop tanks, antenna masts with red beacons, and billboards bolted to their sides.
+  - **The Undercity** adds overpasses and the lit pillars holding up the Plate.
+  - **The Stacks** add refineries (chimney clusters, gas holders, flare stacks burning, cooling towers) and factories with sawtooth roofs.
+- **Terraces and Crown:** glass towers in four shapes (setbacks with gardens on each step, twisted, octagonal with sky-garden bands, white stone with a gold-glass top) under gold rings, domes, lanterns and needle spires; hanging garden terraces.
+  - **The Crown** adds domed palaces ringed with columns, and obelisks.
+- **Facades:** come from an atlas of four styles per act (concrete, balconies with laundry, corrugated, neon; blue glass, gold glass, white stone, sky gardens).
+- **Billboards and blimps:** carry the sponsors and the broadcast (see [LORE.md](LORE.md)). Blimps circle overhead.
+
+The guard towers' searchlights are soft beams that fade along their length. Trackside scenery is sculpted coarser than hand-held models: it's copied dozens of times, and this takes about 40% off the scene's triangles. The rest lives in `js/env.js`.
 
 ### The garage (prototype)
 
