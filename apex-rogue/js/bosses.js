@@ -1,29 +1,29 @@
 'use strict';
 // Bosses: each act's garage is tagged with its boss's name (see Garage3D.setBoss), a health bar while you race
 // them, and a signature move each, telegraphed before it lands. At half health every boss loses their temper.
-// card: [small line, big line] and ink: the graffiti in the garage; quip: scrawled under it.
+// card: [small line, big line] and ink: the boss's piece in the garage graffiti (js/graffiti.js).
 
 const BOSS_KIT = {
   'The Turnkey': {
-    card: ['The', 'Turnkey'], quip: 'Has never once read anyone their rights.', ink: '#c9a43a',
+    card: ['The', 'Turnkey'], ink: '#c9a43a',
     move: 'ram', tell: 'RIOT RAM!', every: 14, rage: 9,
     rageLine: 'THE TURNKEY IS PISSED',
     help: 'Armoured nose: bullets from in front do a third. Hit him from the side or behind. Rams you when you get close.',
   },
   'Smokestack Sal': {
-    card: ['Smokestack', 'Sal'], quip: 'Lungs: zero. Mines: plenty.', ink: '#8a5a32',
+    card: ['Smokestack', 'Sal'], ink: '#8a5a32',
     move: 'smog', tell: 'SMOKESTACK!', every: 8, rage: 5,
     rageLine: 'SAL IS BURNING EVERYTHING',
     help: 'Belches smog clouds you can\'t see through, and lays mines. Angry, he lays them two at a time.',
   },
   'Augustin Vale': {
-    card: ['Augustin', 'Vale'], quip: 'Brought to you by the people who own you.', ink: '#e8c050',
+    card: ['Augustin', 'Vale'], ink: '#e8c050',
     move: 'barrage', tell: 'SPONSOR BARRAGE!', every: 12, rage: 8, salvo: 3, rageSalvo: 5,
     rageLine: 'VALE HAS LOST HIS TEMPER',
     help: 'Fires a fan of rockets at once after a warning. Slam the hatch on the first one to bat it back.',
   },
   'Vex "The Apex" Marlowe': {
-    card: ['Vex "The Apex"', 'Marlowe'], quip: 'Nobody walks free. Nobody.', ink: '#d8342a',
+    card: ['Vex The Apex', 'Marlowe'], ink: '#d8342a',
     move: 'apex', tell: 'APEX BARRAGE!', every: 13, rage: 8, salvo: 3, rageSalvo: 4,
     rageLine: 'THE APEX IS ANGRY',
     help: 'Rockets, then once angry: nitro bursts and rocket salvos. Only a win sets you free.',

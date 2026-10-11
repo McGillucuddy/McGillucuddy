@@ -173,7 +173,11 @@ rocket supercar) and Vex "The Apex" Marlowe at the Crown. Against Marlowe, only 
 Three strikes and the run is over.
 
 **Boss fights** (`js/bosses.js`; the graffiti is painted in `js/garage3d.js`):
-- **The garage is tagged with the act's boss.** The boss's name is the biggest piece on the walls: fat outlined letters in the boss's colour with drips and overspray, the boss's mark behind (the Turnkey's key ring, Sal's smokestacks, Vale's dollar star, Marlowe's crown with a slash through it), and somebody's tag already going over a corner. Every other wall has years of other inmates' work: rollered-over buff patches, bubble-letter throw-ups, slanted handstyle tags with crowns and halos, stencils (a skull, a rat, a fist, a crossed-out CCTV camera), X-eyed smileys, hearts with initials, crew names, drippy slogans and tally marks. It changes each act, so you always know who's waiting.
+- **The garage is tagged with the act's boss** (`js/graffiti.js`). The boss's name is the biggest piece on the walls: blocky letters with a 3D drop, a two-tone fill and a keyline, the boss's mark behind (the Turnkey's key ring, Sal's smokestacks, Vale's dollar star, Marlowe's crown with a slash through it), and somebody's tag already going over a corner. Every other wall carries years of other inmates' paint: buffed patches, bubble throw-ups, handstyle tags, stencils, smileys, crew names, a memorial wall, and the inmates talking about their world, sometimes arguing in two hands ("NOBODY WALKS FREE" ← "DEZ DID"). The lore is in [LORE.md](LORE.md).
+  - **No fonts:** every letter is a hand-drawn skeleton sprayed with a wobbly hand.
+  - **The spray:** each mark gets a soft edge, speckled overspray, thin patches where the can ran dry, and drips that run down from where the paint pooled.
+  - **The ageing:** the paint skips the mortar between the cinderblocks, rain streaks it, grime settles low, it fades, flakes and gets scratched.
+  - **Per act:** the walls change each act, with lore about that act's boss.
 - **Health bar.** It sits at the top of the screen with the boss's name, and shows a line at half health.
 - **Signature moves.** Each boss has one, announced a beat before it lands (a klaxon and a red banner):
   - **The Turnkey:** an armoured nose, so rounds from in front do a third of their damage (hit him from the side or behind). **Riot Ram:** he floors it and steers into you when you're close.

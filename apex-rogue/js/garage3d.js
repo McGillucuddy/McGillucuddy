@@ -468,34 +468,41 @@ class Garage3D {
   // ---------- The act's boss, sprayed on the walls ----------
   // The inmates tag the garage with the name of whoever stands between them and the next act: a big piece on the
   // wall beside the track door (seen from the menu and the overview) and a wide one on the far wall (the car's
-  // turntable swings past it), with the boss's mark, a put-down scrawled underneath and older tags crossed out.
+  // turntable swings past it). Every other wall carries years of everyone else's paint. See js/graffiti.js.
   setBoss(boss) {
-    if (!boss || (this.boss && this.boss.name === boss.name)) return;
+    const key = boss && boss.name + (this.luxury ? ':lux' : '');
+    if (!boss || key === this.bossKey) return;
+    this.bossKey = key;
     this.boss = boss;
     if (this.graffiti) { this.scene.remove(this.graffiti); this.graffiti.traverse((o) => { if (o.material) { o.material.map.dispose(); o.material.dispose(); } }); }
-    const K = bossKit(boss) || { card: ['', boss.name], ink: '#d8342a', quip: '' };
+    const act = Math.max(0, BOSSES.indexOf(boss)), blocks = !this.luxury;
     const G = (this.graffiti = new THREE.Group());
-    const wall = (w, h, px, draw, x, y, z, ry) => {
-      const c = document.createElement('canvas');
-      c.width = px; c.height = Math.round((px * h) / w);
-      draw(c.getContext('2d'), c.width, c.height, mulberry32(boss.name.length * 977 + px));
+    // A painted panel just off a wall. The painter is told where it sits on the wall, so the paint can follow the
+    // cinderblock courses under it: wall-local x (along the wall, as its texture runs), the world y of its top edge.
+    const wall = (w, h, draw, x, y, z, ry, seed) => {
+      const P = 9, c = document.createElement('canvas'); // ~9 px a world unit
+      c.width = Math.round(w * P); c.height = Math.round(h * P);
+      const local = ry === 0 ? x : ry > 0 ? -z : z, wallW = ry === 0 ? 260 : 200;
+      const info = { P, x0: local - w / 2, top: y + h / 2, wallW, blocks, act };
+      draw(c.getContext('2d'), c.width, c.height, mulberry32(act * 7919 + seed), info);
       const t = new THREE.CanvasTexture(c);
       t.colorSpace = THREE.SRGBColorSpace;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: t, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: 0.1, transparent: true, depthWrite: false, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2 })); // fresh paint catches the light
+      t.anisotropy = 4;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: t, transparent: true, depthWrite: false, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2 }));
       m.position.set(x, y, z);
       m.rotation.y = ry;
       G.add(m);
     };
-    wall(58, 64, 512, (g, W, H, r) => Graffiti.piece(g, W, H, r, boss, K, 'stack'), -129.3, 36, -68, Math.PI / 2);
-    wall(132, 62, 1024, (g, W, H, r) => Graffiti.piece(g, W, H, r, boss, K, 'wide'), 129.3, 36, 36, -Math.PI / 2);
-    // Everything else the inmates have sprayed: round the door, both sides of the pegboard, behind the posters.
-    const filler = (w, h, x, y, z, ry, n) => wall(w, h, Math.round(w * 8), (g, W, H, r) => Graffiti.wall(g, W, H, r, n), x, y, z, ry);
-    filler(74, 66, -129.6, 36, 61, Math.PI / 2, 9); // left wall past the door (behind the posters)
-    filler(62, 15, -129.3, 63, -8, Math.PI / 2, 3); // over the door
-    filler(22, 66, -118, 36, -99.3, 0, 3); // back wall, left of the pegboard
-    filler(32, 40, -2, 22, -99.3, 0, 4); // between the pegboard and the chalkboard
-    filler(34, 46, 84, 26, -99.3, 0, 4); // right of the chalkboard
-    filler(56, 30, 129.3, 22, -60, -Math.PI / 2, 4); // far wall, past the name
+    wall(58, 64, (g, W, H, r, info) => Graffiti.piece(g, W, H, r, boss, 'stack', info), -129.3, 36, -68, Math.PI / 2, 1);
+    wall(132, 62, (g, W, H, r, info) => Graffiti.piece(g, W, H, r, boss, 'wide', info), 129.3, 36, 36, -Math.PI / 2, 2);
+    // Everything else: round the door, both sides of the pegboard, behind the posters, past the name.
+    const filler = (w, h, x, y, z, ry, n, seed, memorial) => wall(w, h, (g, W, H, r, info) => Graffiti.wall(g, W, H, r, n, info, memorial), x, y, z, ry, seed);
+    filler(74, 66, -129.6, 36, 61, Math.PI / 2, 8, 3, true); // left wall past the door (behind the posters), with the memorial
+    filler(62, 15, -129.3, 63, -8, Math.PI / 2, 2, 4); // over the door
+    filler(22, 66, -118, 36, -99.3, 0, 3, 5); // back wall, left of the pegboard
+    filler(32, 40, -2, 22, -99.3, 0, 3, 6); // between the pegboard and the chalkboard
+    filler(34, 46, 84, 26, -99.3, 0, 4, 7); // right of the chalkboard
+    filler(56, 30, 129.3, 22, -60, -Math.PI / 2, 4, 8); // far wall, past the name
     this.scene.add(G);
   }
 
@@ -504,7 +511,7 @@ class Garage3D {
   sync(info) {
     const { build: b, shop, cos, act } = info;
     this.setTheme(!!act.luxury);
-    if (act.boss) this.setBoss(act.boss);
+    if (act.boss) this.setBoss(act.boss); // after the theme: plaster or cinderblock changes how the paint sits
     this.dyn.clear();
     this.hotRoot.children.filter((o) => o.userData.dynamic).forEach((o) => this.hotRoot.remove(o));
     const D = this.dyn;
@@ -726,295 +733,3 @@ class Garage3D {
     else this.renderer.render(this.scene, this.camera);
   }
 }
-
-// Spray paint on canvas: fat outlined letters with a highlight, a drop shadow and drips, overspray round the edges,
-// the boss's mark behind, a marker scrawl underneath, older tags crossed out, and the wall showing through.
-const Graffiti = {
-  piece(g, W, H, r, boss, K, layout) {
-    const ink = K.ink, [small, big] = K.card || ['', boss.name];
-    const u = W / 512; // unit: everything is drawn for a 512-wide canvas and scaled
-    // The rest of the wall: other writers' pieces, older and around the name (and buffed over in places).
-    const nameBox = layout === 'wide' ? [0, H * 0.05, W * 0.97, H * 0.62] : [0, H * 0.04, W, H * 0.76];
-    Graffiti.fill(g, W, H, r, u, nameBox, layout === 'wide' ? 14 : 7);
-    // Tally marks: days inside.
-    g.globalAlpha = 0.35; g.strokeStyle = '#e8e0c8'; g.lineWidth = 2 * u;
-    const tx = layout === 'wide' ? W * 0.86 : W * 0.08, ty = H * 0.86;
-    for (let s = 0; s < 4; s++) for (let k = 0; k < 5; k++) {
-      g.beginPath();
-      if (k < 4) { g.moveTo(tx + s * 26 * u + k * 5 * u, ty); g.lineTo(tx + s * 26 * u + k * 5 * u + u, ty + 18 * u); }
-      else { g.moveTo(tx + s * 26 * u - 3 * u, ty + 14 * u); g.lineTo(tx + s * 26 * u + 22 * u, ty + 3 * u); }
-      g.stroke();
-    }
-    g.restore();
-    // The boss's mark, big and loose behind the letters.
-    const mark = layout === 'wide' ? [W * 0.8, H * 0.38, H * 0.3] : [W * 0.5, H * 0.3, W * 0.3];
-    Graffiti.mark(g, boss.name, ink, ...mark, u, r);
-    // The name.
-    const lines = layout === 'wide' ? [[small, 0.14, 28], [big, 0.5, 128]] : [[small, 0.5, 46], [big, 0.68, 120]];
-    for (const [txt, yy, size] of lines) {
-      if (!txt) continue;
-      const fs = size * u * (layout === 'wide' ? 1 : Math.min(1, 5 / Math.max(4, txt.length)));
-      Graffiti.spray(g, txt.toUpperCase(), layout === 'wide' ? W * 0.06 : W * 0.06, H * yy, fs, ink, r, layout === 'wide' ? W * 0.68 : W * 0.88);
-    }
-    // And somebody's gone over the corner of it already.
-    Graffiti.tag(g, W * (layout === 'wide' ? 0.62 : 0.55), H * (layout === 'wide' ? 0.62 : 0.8), 26 * u, r, Graffiti.pick(r, Graffiti.WRITERS), Graffiti.pick(r, ['#e8e4dc', '#1a1a1a', '#e05a9a']));
-    // The wall shows through the paint.
-    g.save();
-    g.globalCompositeOperation = 'destination-out';
-    for (let k = 0; k < (W * H) / 60; k++) { g.fillStyle = `rgba(0,0,0,${r() * 0.45})`; g.fillRect(r() * W, r() * H, 1 + r() * 2 * u, 1 + r() * 2 * u); }
-    g.restore();
-  },
-
-  // One line of spray-painted letters, each a little rotated and bounced, fitted to maxW.
-  spray(g, txt, x, y, size, ink, r, maxW) {
-    g.save();
-    g.font = `${Math.round(size)}px Impact, 'Arial Black', sans-serif`;
-    let total = g.measureText(txt).width;
-    if (total > maxW) { size *= maxW / total; g.font = `${Math.round(size)}px Impact, 'Arial Black', sans-serif`; total = maxW; }
-    const letters = [...txt].map((ch) => ({ ch, w: g.measureText(ch).width, rot: (r() - 0.5) * 0.16, dy: (r() - 0.5) * size * 0.08 }));
-    const each = (fn) => { let cx = x; for (const L of letters) { g.save(); g.translate(cx + L.w / 2, y + L.dy); g.rotate(L.rot); fn(L); g.restore(); cx += L.w * 0.96; } };
-    // Overspray haze, then the black drop shadow and outline, then the fill with a highlight, then drips.
-    g.shadowColor = ink; g.shadowBlur = size * 0.25; g.globalAlpha = 0.35; g.fillStyle = ink;
-    each((L) => g.fillText(L.ch, -L.w / 2, 0));
-    g.shadowBlur = 0; g.globalAlpha = 1;
-    g.lineJoin = 'round';
-    g.fillStyle = '#0c0b0a';
-    each((L) => g.fillText(L.ch, -L.w / 2 + size * 0.06, size * 0.06));
-    g.strokeStyle = '#0c0b0a'; g.lineWidth = size * 0.12;
-    each((L) => g.strokeText(L.ch, -L.w / 2, 0));
-    const grad = g.createLinearGradient(0, -size * 0.8, 0, 0); // in each letter's own frame (each() translates to the baseline)
-    grad.addColorStop(0, '#fff8e0'); grad.addColorStop(0.08, ink); grad.addColorStop(1, ink);
-    g.fillStyle = grad;
-    each((L) => g.fillText(L.ch, -L.w / 2, 0));
-    g.strokeStyle = 'rgba(255,255,255,0.35)'; g.lineWidth = size * 0.01; // a thin white keyline
-    each((L) => g.strokeText(L.ch, -L.w / 2, 0));
-    g.fillStyle = ink;
-    let cx = x;
-    for (const L of letters) {
-      if (r() < 0.55) {
-        const dx = cx + L.w * (0.2 + r() * 0.6), len = size * (0.15 + r() * 0.5), w = size * 0.035;
-        g.fillRect(dx, y - size * 0.05, w, len);
-        g.beginPath(); g.arc(dx + w / 2, y - size * 0.05 + len, w * 0.9, 0, TAU); g.fill();
-      }
-      cx += L.w * 0.96;
-    }
-    g.restore();
-  },
-
-  // Each boss's mark, sprayed loose: the Turnkey's ring of keys, Sal's smokestacks, Vale's dollar star, the Crown.
-  mark(g, name, ink, cx, cy, R, u, r) {
-    g.save();
-    g.translate(cx, cy);
-    g.globalAlpha = 0.55;
-    g.strokeStyle = ink; g.fillStyle = ink; g.lineCap = 'round'; g.lineJoin = 'round';
-    g.shadowColor = ink; g.shadowBlur = 6 * u;
-    g.lineWidth = R * 0.09;
-    if (name === 'The Turnkey') {
-      g.beginPath(); g.arc(0, -R * 0.35, R * 0.32, 0, TAU); g.stroke();
-      for (const a of [-0.9, -0.3, 0.3, 0.9]) {
-        g.save(); g.translate(Math.sin(a) * R * 0.32, -R * 0.35 + Math.cos(a) * R * 0.32); g.rotate(-a * 0.6);
-        g.fillRect(-R * 0.04, 0, R * 0.08, R * 0.75);
-        g.fillRect(0, R * 0.55, R * 0.18, R * 0.07); g.fillRect(0, R * 0.68, R * 0.14, R * 0.07);
-        g.beginPath(); g.arc(0, 0, R * 0.09, 0, TAU); g.fill();
-        g.restore();
-      }
-    } else if (name === 'Smokestack Sal') {
-      for (const [x, h] of [[-0.45, 1.1], [0, 1.4], [0.45, 0.95]]) {
-        g.fillRect(x * R - R * 0.12, R * 0.9 - h * R, R * 0.24, h * R);
-        for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x * R + k * R * 0.14, R * 0.9 - h * R - R * 0.18 - k * R * 0.22, R * (0.14 + k * 0.05), 0, TAU); g.stroke(); }
-      }
-    } else if (name === 'Augustin Vale') {
-      g.beginPath();
-      for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + (k * Math.PI) / 5, rr = k % 2 ? R * 0.42 : R; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
-      g.closePath(); g.stroke();
-      g.font = `${Math.round(R * 0.9)}px Impact, sans-serif`; g.textAlign = 'center'; g.fillText('$', 0, R * 0.32);
-    } else {
-      g.beginPath();
-      g.moveTo(-R, R * 0.5); g.lineTo(-R, -R * 0.4); g.lineTo(-R * 0.5, R * 0.05); g.lineTo(0, -R * 0.7); g.lineTo(R * 0.5, R * 0.05); g.lineTo(R, -R * 0.4); g.lineTo(R, R * 0.5); g.closePath();
-      g.stroke();
-      for (const x of [-1, 0, 1]) { g.beginPath(); g.arc(x * R * (x ? 1 : 0), x ? -R * 0.5 : -R * 0.82, R * 0.1, 0, TAU); g.fill(); }
-      g.lineWidth = R * 0.06; g.beginPath(); g.moveTo(-R * 1.1, -R * 0.9); g.lineTo(R * 1.1, R * 0.8); g.stroke(); // and a slash through it
-    }
-    g.restore();
-    void r;
-  },
-};
-
-// The other writers. A wall like this builds up over years: buffed patches, throw-ups, handstyle tags, stencils,
-// characters, hearts with initials, crew names and slogans, each going over the last.
-Object.assign(Graffiti, {
-  WRITERS: ['KASE', 'RUSK', 'DOZE', 'NOMAD', 'SLAB', 'OMEN', 'GRIM', 'SOLO', 'MAKO', 'ZERO', 'HAVOC', 'VEXT', 'BONES', 'REKS', 'TOXE'],
-  CREWS: ['C9K', 'D-BLOCK', 'LIFERS', 'YARD BOYZ', '4471', 'NO PAROLE', 'WKND CREW'],
-  SLOGANS: ['FREE EM ALL', 'NO GODS NO WARDENS', 'WHO WATCHES THE WARDEN', 'RUN IT', 'ONE MORE LAP', 'STAY SOLID', 'DEAD MEN DRIVE'],
-  PAINT: ['#e8e4dc', '#c8ccd0', '#c83a2a', '#3a6ac8', '#4ab04a', '#e05a9a', '#e8c84a', '#e07a2a', '#1a1a1a', '#8a4ac8'],
-  pick(r, a) { return a[Math.floor(r() * a.length)]; },
-
-  // A wall of nothing but other people's work.
-  wall(g, W, H, r, n) {
-    Graffiti.fill(g, W, H, r, Math.min(1.3, H / 110), null, n); // 8 px a world unit: a throw-up ~10 units tall (less on thin strips)
-    g.save();
-    g.globalCompositeOperation = 'destination-out';
-    for (let k = 0; k < (W * H) / 60; k++) { g.fillStyle = `rgba(0,0,0,${r() * 0.45})`; g.fillRect(r() * W, r() * H, 2, 2); }
-    g.restore();
-  },
-
-  // n pieces spread over the canvas, mostly clear of `avoid` ([x0, y0, x1, y1]) where the boss's name goes.
-  fill(g, W, H, r, u, avoid, n) {
-    // Buffed patches first: rollered over in a not-quite-matching grey, older tags ghosting through.
-    for (let k = 0; k < 2; k++) {
-      const w = W * (0.2 + r() * 0.3), h = H * (0.2 + r() * 0.35), x = r() * (W - w), y = r() * (H - h);
-      g.fillStyle = Graffiti.pick(r, ['rgba(120,116,108,0.55)', 'rgba(90,92,96,0.5)', 'rgba(140,130,110,0.45)']);
-      g.fillRect(x, y, w, h);
-    }
-    const kinds = ['throwup', 'tag', 'tag', 'tag', 'stencil', 'smiley', 'heart', 'slogan', 'crew', 'arrow', 'throwup'];
-    const placed = [];
-    for (let k = 0, tries = 0; k < n && tries < n * 30; tries++) {
-      const kind = Graffiti.pick(r, kinds), size = { throwup: 60, tag: 30, stencil: 46, smiley: 40, heart: 34, slogan: 18, crew: 34, arrow: 40 }[kind] * u * (0.75 + r() * 0.5);
-      const bw = size * (kind === 'slogan' ? 9 : kind === 'throwup' ? 3.4 : kind === 'tag' || kind === 'crew' ? 3.2 : 1.6), bh = size * (kind === 'tag' ? 1.2 : 1.3);
-      const x = r() * Math.max(1, W - bw), y = bh + r() * Math.max(1, H - bh * 1.4);
-      const box = [x, y - bh, x + bw, y + bh * 0.3];
-      const hit = (a) => !(box[2] < a[0] || box[0] > a[2] || box[3] < a[1] || box[1] > a[3]);
-      if (avoid && hit(avoid) && r() < 0.92) continue;
-      if (placed.some((a) => hit(a)) && r() < 0.8) continue; // a little overlap, like the real thing
-      placed.push(box); k++;
-      const col = Graffiti.pick(r, Graffiti.PAINT);
-      g.save();
-      g.globalAlpha = 0.6 + r() * 0.4;
-      if (kind === 'throwup') Graffiti.throwup(g, x, y, size, r, Graffiti.pick(r, Graffiti.WRITERS).slice(0, 3 + Math.floor(r() * 2)));
-      else if (kind === 'tag') Graffiti.tag(g, x, y, size, r, Graffiti.pick(r, Graffiti.WRITERS), col);
-      else if (kind === 'crew') Graffiti.tag(g, x, y, size, r, Graffiti.pick(r, Graffiti.CREWS), col, true);
-      else if (kind === 'stencil') Graffiti.stencil(g, x + size * 0.8, y - size * 0.5, size, r, col === '#1a1a1a' ? col : Graffiti.pick(r, ['#1a1a1a', '#e8e4dc', '#c83a2a']));
-      else if (kind === 'smiley') Graffiti.smiley(g, x + size * 0.6, y - size * 0.5, size * 0.55, col === '#1a1a1a' ? '#e8c84a' : col);
-      else if (kind === 'heart') Graffiti.heart(g, x + size * 0.7, y - size * 0.6, size * 0.6, r, col);
-      else if (kind === 'arrow') Graffiti.arrow(g, x, y - size * 0.5, size * 1.6, r, col);
-      else Graffiti.drippy(g, x, y, size, r, Graffiti.pick(r, Graffiti.SLOGANS), col);
-      g.restore();
-    }
-  },
-
-  // Bubble letters: fat round outline, a two-tone fill, a hard shadow, a shine.
-  throwup(g, x, y, size, r, txt) {
-    const [fill, line] = Graffiti.pick(r, [['#c8ccd0', '#1a1a1a'], ['#e8e4dc', '#c83a2a'], ['#e05a9a', '#1a1a1a'], ['#e8c84a', '#3a6ac8'], ['#4ab04a', '#e8e4dc']]);
-    g.font = `${Math.round(size)}px 'Arial Black', Impact, sans-serif`;
-    g.lineJoin = 'round';
-    g.save(); g.translate(x, y); g.rotate((r() - 0.5) * 0.15);
-    g.lineWidth = size * 0.34; g.strokeStyle = '#0c0b0a'; g.strokeText(txt, size * 0.06, size * 0.06); // shadow
-    g.lineWidth = size * 0.26; g.strokeStyle = line; g.strokeText(txt, 0, 0);
-    g.fillStyle = fill; g.fillText(txt, 0, 0);
-    g.save(); g.beginPath(); g.rect(-size, -size * 0.32, size * 9, size); g.clip(); // the lower half a shade darker
-    g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillText(txt, 0, 0); g.restore();
-    g.fillStyle = 'rgba(255,255,255,0.7)'; // shines
-    let cx = 0;
-    for (const ch of txt) { const w = g.measureText(ch).width; g.beginPath(); g.ellipse(cx + w * 0.3, -size * 0.55, size * 0.06, size * 0.12, -0.5, 0, TAU); g.fill(); cx += w; }
-    g.restore();
-  },
-
-  // A handstyle tag: fast, slanted, joined up, with a swoosh under it and maybe a crown or a halo.
-  tag(g, x, y, size, r, txt, col, block) {
-    g.save();
-    g.translate(x, y);
-    g.transform(1, 0, -0.35, 1, 0, 0); // slant
-    g.rotate((r() - 0.5) * 0.25);
-    g.font = block ? `${Math.round(size)}px Impact, sans-serif` : `italic bold ${Math.round(size)}px 'Brush Script MT', 'Segoe Script', cursive`;
-    g.strokeStyle = col; g.fillStyle = col; g.lineCap = 'round'; g.lineJoin = 'round';
-    g.lineWidth = Math.max(1.5, size * 0.07);
-    g.fillText(txt, 0, 0);
-    if (!block) g.strokeText(txt, 0, 0);
-    const w = g.measureText(txt).width;
-    g.beginPath(); g.moveTo(-size * 0.2, size * 0.25); g.bezierCurveTo(w * 0.3, size * 0.55, w * 0.7, size * 0.05, w + size * 0.4, size * 0.2); g.stroke(); // swoosh
-    const extra = r();
-    if (extra < 0.3) { // crown
-      g.beginPath(); g.moveTo(w * 0.1, -size * 0.95); g.lineTo(w * 0.15, -size * 1.35); g.lineTo(w * 0.25, -size * 1.1); g.lineTo(w * 0.35, -size * 1.4); g.lineTo(w * 0.45, -size * 1.1); g.lineTo(w * 0.55, -size * 1.35); g.lineTo(w * 0.6, -size * 0.95); g.closePath(); g.stroke();
-    } else if (extra < 0.5) { g.beginPath(); g.ellipse(w * 0.4, -size * 1.05, size * 0.5, size * 0.12, 0, 0, TAU); g.stroke(); } // halo
-    else if (extra < 0.65) { g.font = `${Math.round(size * 0.5)}px Impact`; g.fillText('★', w + size * 0.2, -size * 0.4); }
-    if (r() < 0.5) for (let k = 0; k < 3; k++) { const dx = r() * w; g.fillRect(dx, size * 0.05, size * 0.04, size * (0.2 + r() * 0.5)); } // drips
-    g.restore();
-  },
-
-  // A stencil: a skull, a rat, a raised fist, a camera, with the spray halo round it.
-  stencil(g, cx, cy, s, r, col) {
-    g.save();
-    g.translate(cx, cy);
-    g.fillStyle = col; g.shadowColor = col; g.shadowBlur = s * 0.12;
-    const kind = Math.floor(r() * 4);
-    if (kind === 0) { // skull
-      g.beginPath(); g.arc(0, -s * 0.1, s * 0.42, 0, TAU); g.fill();
-      g.fillRect(-s * 0.24, s * 0.2, s * 0.48, s * 0.28);
-      g.globalCompositeOperation = 'destination-out'; g.shadowBlur = 0;
-      for (const sx of [-1, 1]) { g.beginPath(); g.arc(sx * s * 0.17, -s * 0.12, s * 0.12, 0, TAU); g.fill(); }
-      g.beginPath(); g.moveTo(0, s * 0.02); g.lineTo(-s * 0.06, s * 0.14); g.lineTo(s * 0.06, s * 0.14); g.fill();
-      for (let k = -1; k <= 1; k++) g.fillRect(k * s * 0.12 - s * 0.025, s * 0.3, s * 0.05, s * 0.18);
-    } else if (kind === 1) { // rat
-      g.beginPath(); g.ellipse(0, 0, s * 0.45, s * 0.22, 0, 0, TAU); g.fill();
-      g.beginPath(); g.moveTo(s * 0.4, -s * 0.05); g.lineTo(s * 0.75, s * 0.06); g.lineTo(s * 0.4, s * 0.15); g.fill();
-      g.beginPath(); g.arc(s * 0.3, -s * 0.2, s * 0.1, 0, TAU); g.fill();
-      g.lineWidth = s * 0.05; g.strokeStyle = col; g.beginPath(); g.moveTo(-s * 0.42, 0); g.quadraticCurveTo(-s * 0.8, -s * 0.3, -s * 0.95, s * 0.15); g.stroke();
-      for (const lx of [-0.2, 0.2]) g.fillRect(lx * s, s * 0.15, s * 0.05, s * 0.18);
-    } else if (kind === 2) { // fist
-      g.fillRect(-s * 0.3, -s * 0.2, s * 0.6, s * 0.45);
-      for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(-s * 0.22 + k * s * 0.15, -s * 0.22, s * 0.08, 0, TAU); g.fill(); }
-      g.fillRect(-s * 0.2, s * 0.22, s * 0.4, s * 0.45);
-      g.globalCompositeOperation = 'destination-out'; g.shadowBlur = 0;
-      for (let k = 0; k < 3; k++) g.fillRect(-s * 0.15 + k * s * 0.15, -s * 0.2, s * 0.02, s * 0.2);
-    } else { // a CCTV camera with a cross through it
-      g.fillRect(-s * 0.4, -s * 0.15, s * 0.6, s * 0.3);
-      g.beginPath(); g.moveTo(s * 0.2, -s * 0.1); g.lineTo(s * 0.42, -s * 0.2); g.lineTo(s * 0.42, s * 0.2); g.lineTo(s * 0.2, s * 0.1); g.fill();
-      g.fillRect(-s * 0.15, s * 0.15, s * 0.06, s * 0.3);
-      g.strokeStyle = '#c83a2a'; g.lineWidth = s * 0.08; g.shadowColor = '#c83a2a';
-      g.beginPath(); g.moveTo(-s * 0.5, -s * 0.45); g.lineTo(s * 0.5, s * 0.45); g.moveTo(s * 0.5, -s * 0.45); g.lineTo(-s * 0.5, s * 0.45); g.stroke();
-    }
-    g.restore();
-  },
-
-  smiley(g, cx, cy, R, col) {
-    g.save();
-    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = R * 0.14; g.lineCap = 'round';
-    g.beginPath(); g.arc(cx, cy, R, 0, TAU); g.stroke();
-    for (const sx of [-1, 1]) { // X eyes
-      const ex = cx + sx * R * 0.35, ey = cy - R * 0.25, e = R * 0.14;
-      g.beginPath(); g.moveTo(ex - e, ey - e); g.lineTo(ex + e, ey + e); g.moveTo(ex + e, ey - e); g.lineTo(ex - e, ey + e); g.stroke();
-    }
-    g.beginPath(); g.arc(cx, cy + R * 0.05, R * 0.5, 0.2, Math.PI - 0.2); g.stroke();
-    g.fillRect(cx + R * 0.2, cy + R * 0.45, R * 0.08, R * 0.6); // a drip off the grin
-    g.restore();
-  },
-
-  heart(g, cx, cy, s, r, col) {
-    g.save();
-    g.strokeStyle = col; g.lineWidth = s * 0.1; g.lineJoin = 'round';
-    g.beginPath();
-    g.moveTo(cx, cy + s * 0.55);
-    g.bezierCurveTo(cx - s * 1.1, cy - s * 0.2, cx - s * 0.5, cy - s * 0.9, cx, cy - s * 0.35);
-    g.bezierCurveTo(cx + s * 0.5, cy - s * 0.9, cx + s * 1.1, cy - s * 0.2, cx, cy + s * 0.55);
-    g.stroke();
-    const a = String.fromCharCode(65 + Math.floor(r() * 26)), b = String.fromCharCode(65 + Math.floor(r() * 26));
-    g.fillStyle = col; g.font = `bold ${Math.round(s * 0.42)}px 'Courier New', monospace`; g.textAlign = 'center';
-    g.fillText(`${a}+${b}`, cx, cy + s * 0.08);
-    if (r() < 0.4) { g.beginPath(); g.moveTo(cx - s * 0.9, cy + s * 0.3); g.lineTo(cx + s * 0.9, cy - s * 0.5); g.stroke(); } // over
-    g.restore();
-  },
-
-  arrow(g, x, y, len, r, col) {
-    g.save();
-    g.strokeStyle = col; g.fillStyle = col; g.lineWidth = len * 0.07; g.lineCap = 'round';
-    const bend = (r() - 0.5) * len * 0.6, ex = x + len, ey = y + (r() - 0.5) * len * 0.3;
-    g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + len * 0.5, y + bend, ex, ey); g.stroke();
-    const a = Math.atan2(ey - (y + bend), ex - (x + len * 0.5));
-    g.beginPath(); g.moveTo(ex + Math.cos(a) * len * 0.12, ey + Math.sin(a) * len * 0.12);
-    g.lineTo(ex + Math.cos(a + 2.4) * len * 0.18, ey + Math.sin(a + 2.4) * len * 0.18);
-    g.lineTo(ex + Math.cos(a - 2.4) * len * 0.18, ey + Math.sin(a - 2.4) * len * 0.18); g.fill();
-    g.restore();
-  },
-
-  // A slogan in quick drippy capitals.
-  drippy(g, x, y, size, r, txt, col) {
-    g.save();
-    g.translate(x, y); g.rotate((r() - 0.5) * 0.12);
-    g.font = `bold ${Math.round(size)}px Impact, sans-serif`;
-    g.fillStyle = col;
-    g.fillText(txt, 0, 0);
-    const w = g.measureText(txt).width;
-    for (let k = 0; k < txt.length * 0.6; k++) { const dx = r() * w; g.fillRect(dx, -size * 0.05, Math.max(1, size * 0.06), size * (0.2 + r() * 0.8)); }
-    g.restore();
-  },
-});
