@@ -682,8 +682,8 @@ class Garage3D {
 
   render(W, H, dt, t, panelW) {
     W = Math.max(1, Math.round(W)); H = Math.max(1, Math.round(H));
-    if (W !== this.size[0] || H !== this.size[1] || panelW !== this.size[2]) {
-      this.size = [W, H, panelW];
+    if (W !== this.size[0] || H !== this.size[1] || panelW !== this.size[2] || PSX.height !== this.size[3]) { // or the graphics setting changed
+      this.size = [W, H, panelW, PSX.height];
       this.renderer.setSize(W, H, false);
       this.post.setSize(W, H);
     }

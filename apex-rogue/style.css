@@ -434,6 +434,11 @@ body.proto #ui { z-index: 2; }
 
 /* Settings sheet */
 #settings { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; }
+/* Playtest feedback sheet (js/playtest.js) */
+#feedback { position: fixed; inset: 0; z-index: 61; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; }
+#feedback .fb-card { width: min(620px, 94vw); max-height: 92vh; overflow-y: auto; }
+#feedback textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 8px; margin-top: 8px; border: 2px solid #2a2622; border-radius: 4px; background: #fffdf6; color: #1a1714; resize: vertical; }
+#feedback .fb-pre { white-space: pre-wrap; font-size: 11px; max-height: 220px; overflow-y: auto; background: #f1ecdd; padding: 8px; border-radius: 4px; color: #2a2622; }
 .settings-card.clipboard { position: relative; top: auto; right: auto; bottom: auto; width: min(460px, calc(100% - 32px)); max-height: calc(100% - 40px); animation: riseIn .25s ease both; }
 .settings-card h3 { margin: 14px 0 4px; }
 .settings-card h3 small { font-weight: 400; color: #6a5e4a; margin-left: 6px; }

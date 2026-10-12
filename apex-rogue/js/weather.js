@@ -133,7 +133,7 @@ const Weather3D = {
     if (cv.env && w.fireworks) cv.env.fwMul = w.fireworks;
     const P = w.particles;
     if (P) {
-      const n = P.n, line = P.kind === 'rain' || P.kind === 'drip';
+      const n = Math.max(20, Math.round(P.n * Settings.q.particles)), line = P.kind === 'rain' || P.kind === 'drip'; // fewer on Low graphics
       const pos = new Float32Array(n * (line ? 6 : 3));
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));

@@ -426,3 +426,10 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 the build (date and commit) shown on the title screen. It writes `dist/death-row-derby-<date>-<commit>.zip`. Upload
 that to itch.io (Kind of project: HTML, "This file will be played in the browser", visibility Restricted) or unzip it
 onto Netlify Drop.
+
+**Feedback from testers** (`js/playtest.js`): the game keeps a local record of runs (how far each got, every race's
+place and time, what did the most damage, the frame rate, which guns were fired, hatch slams, parries and emotes) plus
+the computer's GPU, screen and browser. **Send feedback** (title screen, garage, pause menu, end screens) adds the
+tester's comments and copies the report or saves it as a text file. Nothing is uploaded. **Settings → Graphics** has
+Low / Medium / High (render resolution, buildings round the track, weather particles) and an FPS readout; a race that
+averages under 30 fps suggests Low on the results screen.

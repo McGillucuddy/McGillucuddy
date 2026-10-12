@@ -40,6 +40,7 @@ const Proto = {
     this.cos = loadCosmetics();
     Meta.rep = this.cos.rep;
     Settings.load();
+    Playtest.load();
     this.tab = 'car';
     this.previewCanvas = document.getElementById('preview3d');
     try { this.preview = new Garage3D(this.previewCanvas); } catch (e) { console.error(e); this.preview = null; }
@@ -216,6 +217,7 @@ const Proto = {
     switch (a) {
       case 'start': this.startRace(); break;
       case 'settings': this.showSettings(); break;
+      case 'feedback': Playtest.show(); break;
       case 'resume': this.resume(); break;
       case 'to-briefing': this.showMap(); break;
       case 'to-map': this.showMap(); break;
@@ -376,7 +378,7 @@ const Proto = {
         <button class="btn" data-action="settings">Settings</button>
         <button class="btn" data-action="how-to">How to play</button>
         <button class="btn ghost" data-action="exit">Exit</button>
-        <p class="t-links small"><a href="#" data-action="intro">Watch intro</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'} · Rep <b>${this.cos.rep}</b>${window.BUILD ? ` · <span class="muted">${window.BUILD}</span>` : ''}</p>
+        <p class="t-links small"><a href="#" data-action="feedback">Send feedback</a> · <a href="#" data-action="intro">Watch intro</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'} · Rep <b>${this.cos.rep}</b>${window.BUILD ? ` · <span class="muted">${window.BUILD}</span>` : ''}</p>
       </div>
       ${side}
     </div>`);
@@ -404,6 +406,7 @@ const Proto = {
     this.titleFrom = null;
     this.titlePanel = null;
     if (from === 'saved') { // a run from an earlier session
+      Playtest.resumeRun();
       const d = this.saved;
       this.saved = null;
       if (d.where === 'pending' && d.pending != null) { this.state = 'map'; this.pickNode(d.pending); }
@@ -553,6 +556,7 @@ const Proto = {
     this.tab = 'car';
     if (this.preview) this.preview.setMode('car');
     this.toGarage(); // a new run starts in the garage: look the car over, then pick your race
+    Playtest.startRun();
   },
 
   get act() { return ACTS[this.run.act]; },
@@ -732,6 +736,7 @@ const Proto = {
   gameOver() {
     if (this.locked) document.exitPointerLock();
     this.clearRun();
+    Playtest.endRun(this.build.strikes >= STRIKES_TO_LOSE ? 'three strikes: back to the cell' : 'abandoned');
     const b = this.build;
     this.state = 'over';
     this.setUI(`<div class="screen end lost">
@@ -741,12 +746,14 @@ const Proto = {
       <p>Everything you unlocked stays unlocked. The next inmate gets a better shot.</p>
       ${this.nextUnlockLine()}
       <button class="btn primary big" data-action="new-run">New run ▶</button>
+      <button class="btn" data-action="feedback">Send feedback</button>
       <button class="btn" data-action="menu">Main menu</button>
     </div>`);
   },
 
   victory() {
     const b = this.build;
+    Playtest.endRun('won the Crown: walked free');
     this.state = 'over';
     this.clearRun();
     // Walking free is the biggest rep there is.
@@ -762,6 +769,7 @@ const Proto = {
       <p class="unlock">+150 reputation for walking free${gear.length ? `. 🔓 Unlocked: ${gear.map((g) => `<b>${g.name}</b>`).join(', ')}` : ''}</p>
       ${this.nextUnlockLine()}
       <button class="btn primary big" data-action="new-run">New run ▶</button>
+      <button class="btn" data-action="feedback">Send feedback</button>
       <button class="btn" data-action="menu">Main menu</button>
     </div>`);
   },
@@ -860,6 +868,7 @@ const Proto = {
 
   startRace() {
     this.state = 'race';
+    if (!this.tutorial && this.race) Playtest.raceStart({ act: this.run.act, type: this.race.node && this.race.node.type, boss: this.race.boss && this.race.boss.name, weather: this.race.weather });
     this.setUI('');
     if (this.view === 'cockpit') this.lock();
   },
@@ -971,6 +980,7 @@ const Proto = {
       <h1>Paused</h1>
       <button class="btn primary big" data-action="resume">${this.view === 'cockpit' ? 'Click to resume aiming' : 'Resume'}</button>
       <button class="btn" data-action="settings">Settings</button>
+      <button class="btn" data-action="feedback">Send feedback</button>
       ${this.tutorial ? '<button class="btn ghost" data-action="menu">Leave tutorial</button>' : `<button class="btn" data-action="menu">Main menu</button>
       <button class="btn ghost" data-action="abandon">Abandon run</button>`}
     </div>`);
@@ -989,6 +999,8 @@ const Proto = {
         if (!a) return;
         const [k, v] = a.dataset.set.split(':');
         if (k === 'sway') Settings.data.cabinSway = v;
+        if (k === 'quality') { Settings.data.quality = v; Settings.save(); this.resize(); } // the render size changes now; tower counts from the next race
+        if (k === 'fps') Settings.data.showFps = !Settings.data.showFps;
         if (k === 'mute') Sound.toggleMute();
         Settings.save();
         Sound.play({ type: 'click' });
@@ -1011,6 +1023,10 @@ const Proto = {
       <h3>Cabin sway</h3>
       <p class="muted small">How much the cabin rolls and pitches with the car. Turn it down if it makes you queasy.</p>
       <div class="opts">${opt('sway', 'off', 'Off')}${opt('sway', 'subtle', 'Subtle')}${opt('sway', 'full', 'Full')}</div>
+      <h3>Graphics</h3>
+      <p class="muted small">If the game feels choppy, go down a step. Low draws fewer pixels and fewer buildings.</p>
+      <div class="opts">${['low', 'medium', 'high'].map((q) => `<button class="opt ${d.quality === q ? 'on' : ''}" data-set="quality:${q}">${q[0].toUpperCase() + q.slice(1)}</button>`).join('')}
+        <button class="opt ${d.showFps ? 'on' : ''}" data-set="fps:1">${d.showFps ? 'FPS shown' : 'Show FPS'}</button></div>
       <h3>Mouse sensitivity <small data-val="setSens">${d.sens.toFixed(2)}x</small></h3>
       <input type="range" id="setSens" min="0.3" max="2.5" step="0.05" value="${d.sens}">
       <h3>Volume <small data-val="setVol">${Math.round(d.volume * 100)}%</small></h3>
@@ -1029,6 +1045,10 @@ const Proto = {
     race.rankCars();
     const boss = race.boss, run = this.run;
     const ok = boss ? (boss.mustWin ? p.place === 1 : p.place < race.bossCar.place) : p.place <= race.qualify;
+    const pt = this.tutorial ? null : Playtest.raceEnd({ place: p.place, of: race.cars.length, ok, wrecked: p.hp <= 0 });
+    // Running slowly: say so, and where to fix it.
+    const slow = pt && pt.fps && pt.fps.avg < 30 && Settings.data.quality !== 'low'
+      ? `<div class="unlock small">That race ran at about ${pt.fps.avg} frames a second. If it felt choppy, try <b>Graphics: Low</b> in Settings.</div>` : '';
     this.lastOk = ok;
     // Bank the race: hull carries over, scrap paid out, strikes for missing the cut.
     const show = b.chip === 'showboat' ? 1.5 : 1;
@@ -1078,6 +1098,7 @@ const Proto = {
           ${gear.length ? `<div class="unlock gear">🔓 New gear in the shops and rewards: ${gear.map((g) => `<b>${g.name}</b>`).join(', ')}</div>` : ''}
           ${unlocked.length ? `<div class="unlock small">Paint shop unlocked: ${unlocked.join(', ')}</div>` : ''}
           ${this.nextUnlockLine()}
+          ${slow}
           <p class="small">${parts}</p>
         </div>
       </div>
@@ -1118,7 +1139,7 @@ const Proto = {
         ${this.tab === 'car' ? '<p class="small muted g-hint">Drag the car to spin it round · scroll to zoom</p>' : ''}
         <div class="perks trinket-row">${trinkets}</div>
         ${body}
-        ${window.RELEASE ? '' : '<p class="small muted g-links"><a href="models.html">Model viewer</a></p>'}
+        <p class="small muted g-links"><a href="#" data-action="feedback">Send feedback</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'}</p>
       </div>
       <button class="btn primary big g-go" data-action="to-map">🗺 Pick your race ▶</button>
     </div>`);
@@ -1316,6 +1337,7 @@ const Proto = {
 
   updateRace(dt) {
     const race = this.race, combat = this.combat, p = race.player;
+    Playtest.frame(race.state === 'racing');
     if (Input.consume('Digit1')) combat.select(0);
     if (Input.consume('Digit2')) combat.select(1);
     if (Input.consume('Digit3')) combat.select(2);
@@ -1342,6 +1364,7 @@ const Proto = {
       for (const ev of race.events) Sound.play(ev);
       for (const ev of combat.events) {
         Sound.play(ev);
+        Playtest.event(ev, combat.weapon.id);
         if (this.cockpit) this.cockpit.onEvent(ev);
         if (this.tutorial) this.tutorial.onEvent(ev);
         if (ev.type === 'crewHit' || ev.type === 'crewKill') this.hitMark = { t: ev.type === 'crewKill' ? 0.7 : 0.3, kill: ev.type === 'crewKill' };
@@ -1597,6 +1620,13 @@ function drawCockpitHUD(ctx, P, W, H, t) {
   const viewAng = P.cockpit.aimAngle();
   drawDamageVignette(ctx, P, W, H, viewAng);
   drawBossBar(ctx, P, W, H, t);
+  if (Settings.data.showFps) { // the frame-rate readout (Settings)
+    const f = Math.round(Playtest.fps.now || 0);
+    ctx.save(); ctx.font = `bold 13px ${hudFont()}`; ctx.textAlign = 'right';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(W - 78, 8, 68, 20);
+    ctx.fillStyle = f >= 50 ? '#7CFC00' : f >= 30 ? '#ffd23f' : '#ff5a3a'; ctx.fillText(`${f} FPS`, W - 16, 23);
+    ctx.restore();
+  }
   drawEmoteWheel(ctx, P, W, H);
 
   // Threat ring: arcs pointing at locks and incoming rockets.

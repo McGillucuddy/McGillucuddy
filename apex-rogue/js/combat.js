@@ -9,6 +9,9 @@ const PARRY_WINDOW = 0.3;
 const GRENADE_G = 700;
 const FIT_TIME = 2.5;
 
+// What hurt you, in words (for the playtest report).
+const HURT_KIND = { bullet: 'gunfire', rocket: 'rockets', blast: 'explosions', flame: 'fire', mine: 'mines', harpoon: 'harpoons', boss: 'the boss' };
+
 class Combat {
   constructor(race, opts) {
     this.race = race;
@@ -776,7 +779,7 @@ class Combat {
       const taken = before - c.hp;
       if (taken > 0) {
         this.hits.push({ ang, t: 0, dmg: taken });
-        this.events.push({ type: 'hurt', ang, dmg: taken });
+        this.events.push({ type: 'hurt', ang, dmg: taken, kind: HURT_KIND[kind] || HURT_KIND[owner && owner.isBoss ? 'boss' : ''] || kind });
       }
     } else if (owner === p) {
       this.stats.dealt += Math.min(dmg, before);

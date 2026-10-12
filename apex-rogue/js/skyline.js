@@ -338,7 +338,7 @@ const City = {
     const K = new CityKit(mulberry32(seed));
     const r = K.rng, beacon = th.luxury ? '#ffd86a' : '#ff3a2a';
     if (!th.luxury) {
-      const n = th.plate ? 34 : 30;
+      const n = Math.round((th.plate ? 34 : 30) * Math.max(0.6, Settings.q.towers)); // a thinner skyline on Low graphics
       for (let k = 0; k < n; k++) {
         const a = (k / n) * TAU + r() * 0.1, R = 2500 + r() * 2000, far = (R - 2500) / 2000;
         const w = 180 + r() * 320, d = 150 + r() * 260, h = (th.plate ? 1100 : 800) + r() * 1900;
@@ -404,7 +404,7 @@ const City = {
       return null;
     };
     const beacon = th.luxury ? '#ffd86a' : '#ff3a2a';
-    const count = 46;
+    const count = Math.round(46 * Settings.q.towers); // fewer towers round the track on Low graphics
     for (let k = 0; k < count; k++) {
       const near = k < count * 0.45, sz = near ? 50 + r() * 50 : 80 + r() * 90;
       const p = spot(near ? 150 : 500, near ? 600 : 1500, sz);
