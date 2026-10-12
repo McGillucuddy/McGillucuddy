@@ -2127,6 +2127,11 @@ const Models = {
       pistol: { mag: [0, -2.45, 1.35], side: [0.3, -0.15, -0.9], muzzle: [0, 0.42, -2.55], under: [0, -0.55, -1.45] },
       flamer: { mag: [0.6, -0.8, -1.0], side: [0.38, 0.25, -1.6], muzzle: [0, 0.25, -5.4], under: [0, -0.1, -4.4] },
       harpoon: { mag: [0.45, -0.42, -2.6], side: [0.32, 0.12, -2.0], muzzle: [0, 0.36, -6.12], under: [0, -0.15, -4.0] },
+      carbine: { mag: [0.78, -0.35, 3.9], side: [0.42, 0.25, -1.0], muzzle: [0, 0.25, -7.65], under: [0, -0.28, -5.2] },
+      liberty: { mag: [0.78, -0.65, 3.6], side: [0.41, 0.0, 0.2], muzzle: [0, 0.15, -8.88], under: [0, -0.5, -5.6] },
+      typewriter: { mag: [0.75, -0.55, 3.7], side: [0.42, 0.15, 0.0], muzzle: [0, 0.1, -5.62], under: [0, -0.32, -2.3] },
+      lmg: { mag: [0.85, -0.45, 3.9], side: [0.53, 0.0, -1.0], muzzle: [0, 0.15, -9.55], under: [0, -0.45, -4.6] },
+      pangun: { mag: [0.76, -0.5, 3.5], side: [0.44, 0.0, 0.6], muzzle: [0, 0.05, -8.65], under: [0, -0.6, -3.8] },
     }[weaponId];
     const steel = LP.mat('#2b2d30', { metalness: 0.6, roughness: 0.45 });
     const add = (m) => { m.userData.modVis = true; gun.add(m); return m; };
@@ -2241,9 +2246,9 @@ const Models = {
           sc.add(LP.mat('#2a2a2a'), SDF.box([0.15, 1.2, 0.3], 0.05, v(A.side, [0.0, -0.7, 0.8])), 0.06); // their bandolier strap
         });
       } else if (id === 'drum_mag') { // a fat drum magazine (on the SMG it rides on the magazine, so it drops out on reloads)
-        const D = { smg: [0, -0.35, -0.15], shotgun: [0, -1.05, -0.6], nailgun: [0, -1.0, -1.7], flamer: [-0.82, -0.8, -1.0] }[weaponId];
+        const D = { smg: [0, -0.35, -0.15], shotgun: [0, -1.05, -0.6], nailgun: [0, -1.0, -1.7], flamer: [-0.82, -0.8, -1.0], carbine: [0, -1.15, -0.25] }[weaponId];
         const R = weaponId === 'flamer' ? 0.62 : weaponId === 'nailgun' ? 0.5 : 0.72;
-        const host = weaponId === 'smg' && gun.userData.mag ? gun.userData.mag : null;
+        const host = (weaponId === 'smg' || weaponId === 'carbine') && gun.userData.mag ? gun.userData.mag : null;
         const g = part(id, (sc) => {
           const drum = LP.mat(weaponId === 'flamer' ? '#a8221a' : '#2b2d30', { metalness: 0.55, roughness: 0.45 });
           sc.add(drum, SDF.cyl(R, 0.5, 'x', 0.12, [0, 0, 0]), 0.03);
@@ -2255,7 +2260,8 @@ const Models = {
         g.position.set(...D);
         if (host) { gun.remove(g); host.add(g); for (const c of host.children) if (c !== g && c.isMesh) c.visible = false; }
       } else if (id === 'scope') { // a length of pipe with a bottle-bottom lens, taped onto two posts
-        const T = { smg: [0, 0.92, 0.35], shotgun: [0, 0.64, 0.2], flare: [0, 0.9, -0.55], nailgun: [0, 0.94, -0.2], harpoon: [-0.45, 0.32, -0.9] }[weaponId];
+        const T = { smg: [0, 0.92, 0.35], shotgun: [0, 0.64, 0.2], flare: [0, 0.9, -0.55], nailgun: [0, 0.94, -0.2], harpoon: [-0.45, 0.32, -0.9],
+          carbine: [0, 0.68, 0.7], liberty: [0, 0.5, -1.6], lmg: [0, 0.96, 0.3] }[weaponId];
         part(id, (sc) => {
           const pipe = LP.mat('#4a4c4e', { metalness: 0.7, roughness: 0.5 }), tape = DECALS.mat('tape', { roughness: 1 }), rubber = LP.mat('#141414', { roughness: 0.8 });
           const side = weaponId === 'harpoon', c = side ? [T[0] - 0.1, T[1] + 0.25, T[2]] : [T[0], T[1] + 0.42, T[2]];
@@ -2268,7 +2274,7 @@ const Models = {
         const c = weaponId === 'harpoon' ? [T[0] - 0.1, T[1] + 0.25, T[2]] : [T[0], T[1] + 0.42, T[2]];
         add(LP.mesh(new THREE.CircleGeometry(0.2, 18), LP.mat('#7ac8a8', { transparent: true, opacity: 0.7, roughness: 0.05, metalness: 0.3 }), c[0], c[1], c[2] - 0.87).rotateY(Math.PI));
       } else if (id === 'compensator') { // a slotted muzzle brake welded on
-        const r0 = { smg: 0.32, shotgun: 0.36, nailgun: 0.22, pistol: 0.22 }[weaponId] || 0.3;
+        const r0 = { smg: 0.32, shotgun: 0.36, nailgun: 0.22, pistol: 0.22, carbine: 0.22, typewriter: 0.3, lmg: 0.27 }[weaponId] || 0.3;
         part(id, (sc) => {
           const m = v(A.muzzle, [0, 0, -0.35]);
           sc.add(steel, SDF.cyl(r0, 0.75, 'z', 0.06, m), 0.02);
@@ -2277,7 +2283,7 @@ const Models = {
           sc.add(LP.mat('#2e2a26', { metalness: 0.4, roughness: 0.8 }), SDF.torus(r0 * 0.9, 0.05, v(m, [0, 0, 0.36])), 0.02); // weld bead
         });
       } else if (id === 'bayonet') { // sharpened rebar welded and wired under the muzzle
-        const [b0, b1] = { shotgun: [[0, -0.32, -7.4], [0, -0.32, -9.3]], harpoon: [[0, -0.1, -4.3], [0, -0.1, -6.0]] }[weaponId];
+        const [b0, b1] = { shotgun: [[0, -0.32, -7.4], [0, -0.32, -9.3]], harpoon: [[0, -0.1, -4.3], [0, -0.1, -6.0]], liberty: [[0, -0.38, -8.5], [0, -0.38, -10.6]] }[weaponId];
         part(id, (sc) => {
           const rebar = LP.mat('#6b4a32', { metalness: 0.6, roughness: 0.75 }), body = [b1[0], b1[1], b1[2] + 0.45];
           sc.add(rebar, SDF.cone(b0, body, 0.075, 0.075), 0.02);
@@ -2308,7 +2314,8 @@ const Models = {
           sc.add(tape, SDF.box([0.54, 0.36, 0.14], 0.02, [0, 1.06, 0.25]), 0.005);
         });
       } else if (id === 'red_dot') { // a compact reflex sight: tinted window, a red dot
-        const T = { smg: [0, 0.92, 0.6], shotgun: [0, 0.64, 0.6], flare: [0, 0.9, -0.5], nailgun: [0, 0.94, 0.0], harpoon: [0, 0.3, -0.2], pistol: [0, 0.72, 0.6] }[weaponId];
+        const T = { smg: [0, 0.92, 0.6], shotgun: [0, 0.64, 0.6], flare: [0, 0.9, -0.5], nailgun: [0, 0.94, 0.0], harpoon: [0, 0.3, -0.2], pistol: [0, 0.72, 0.6],
+          carbine: [0, 0.68, 0.9], lmg: [0, 0.96, 0.5], typewriter: [0, 0.56, -1.2] }[weaponId];
         part(id, (sc) => {
           const body = LP.mat('#1c1c1e', { metalness: 0.5, roughness: 0.5 }), c = [T[0], T[1] + 0.24, T[2]];
           sc.add(body, SDF.box([0.34, 0.4, 0.5], 0.08, c), 0.03);
@@ -2318,7 +2325,8 @@ const Models = {
         add(LP.mesh(new THREE.PlaneGeometry(0.24, 0.26), LP.mat('#8ab8c8', { transparent: true, opacity: 0.35, roughness: 0.05, metalness: 0.3, side: THREE.DoubleSide }), T[0], T[1] + 0.27, T[2] - 0.1));
         add(LP.mesh(new THREE.CircleGeometry(0.025, 10), LP.glow('#ff2020', 2), T[0], T[1] + 0.27, T[2] - 0.09));
       } else if (id === 'flashlight') { // a torch clamped on the left, a faint cone in front of it
-        const L = { smg: [-0.62, 0.1, -2.6], shotgun: [-0.45, 0.15, -4.8], flare: [-0.58, 0.3, -2.4], nailgun: [-0.55, -0.05, -1.75], harpoon: [-0.32, 0.12, -3.6], pistol: [0, -0.62, -1.55] }[weaponId];
+        const L = { smg: [-0.62, 0.1, -2.6], shotgun: [-0.45, 0.15, -4.8], flare: [-0.58, 0.3, -2.4], nailgun: [-0.55, -0.05, -1.75], harpoon: [-0.32, 0.12, -3.6], pistol: [0, -0.62, -1.55],
+          carbine: [-0.5, 0.25, -5.2], liberty: [-0.52, -0.05, -6.2], lmg: [-0.58, 0.15, -6.0] }[weaponId];
         part(id, (sc) => {
           const al = LP.mat('#2a2c2e', { metalness: 0.6, roughness: 0.4 });
           sc.add(al, SDF.lathe([[0.13, 0.45], [0.13, -0.2], [0.19, -0.35], [0.19, -0.5]], L), 0.03);
@@ -2328,8 +2336,8 @@ const Models = {
         add(LP.mesh(new THREE.CircleGeometry(0.16, 16), LP.glow('#fff6d8', 1.6), L[0], L[1], L[2] - 0.51).rotateY(Math.PI));
         if (beam) add(LP.mesh(new THREE.ConeGeometry(1.6, 12, 16, 1, true), new THREE.MeshBasicMaterial({ color: '#fff3c8', transparent: true, opacity: 0.035, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), L[0], L[1], L[2] - 6.5).rotateX(Math.PI / 2)); // narrow at the lens
       } else if (id === 'shock_coil') { // a car battery strapped on the left, jumper cables to a copper coil round the barrel
-        const B = { smg: [-0.74, 0.3, 1.35], nailgun: [-0.58, 0.45, 0.35], harpoon: [-0.45, -0.1, -0.6] }[weaponId];
-        const C = { smg: [0, 0.1, -3.4, 0.36], nailgun: [0, -0.25, -2.25, 0.22], harpoon: [0, 0.12, -3.9, 0.3] }[weaponId];
+        const B = { smg: [-0.74, 0.3, 1.35], nailgun: [-0.58, 0.45, 0.35], harpoon: [-0.45, -0.1, -0.6], carbine: [-0.6, 0.0, 3.9] }[weaponId];
+        const C = { smg: [0, 0.1, -3.4, 0.36], nailgun: [0, -0.25, -2.25, 0.22], harpoon: [0, 0.12, -3.9, 0.3], carbine: [0, 0.25, -6.6, 0.2] }[weaponId];
         part(id, (sc) => {
           const bat = LP.mat('#1a1a1c', { roughness: 0.6 }), copper = LP.mat('#c8783a', { metalness: 0.8, roughness: 0.35 }), redC = LP.mat('#b0281e'), blackC = LP.mat('#141414');
           sc.add(bat, SDF.box([0.42, 0.5, 0.75], 0.05, B), 0.02);
@@ -2344,7 +2352,7 @@ const Models = {
         });
         add(LP.mesh(new THREE.TorusGeometry(C[3] + 0.04, 0.02, 6, 24), LP.glow('#7fd8ff', 1.2), C[0], C[1], C[2] + 0.3)); // a crackle of charge
       } else if (id === 'hubcap') { // a chrome hubcap welded on as a shield, the barrel through its centre
-        const H = { smg: [0, 0.1, -2.75, 1.0], shotgun: [0, 0.2, -4.9, 1.1], nailgun: [0, -0.25, -2.35, 0.85], flamer: [0, 0.25, -4.85, 1.0] }[weaponId];
+        const H = { smg: [0, 0.1, -2.75, 1.0], shotgun: [0, 0.2, -4.9, 1.1], nailgun: [0, -0.25, -2.35, 0.85], flamer: [0, 0.25, -4.85, 1.0], lmg: [0, 0.15, -8.2, 1.15], pangun: [0, 0.05, -7.25, 1.2] }[weaponId];
         part(id, (sc) => {
           const chrome = LP.mat('#c8ccd0', { metalness: 0.7, roughness: 0.25 }), c = [H[0], H[1], H[2]], R = H[3];
           sc.add(chrome, SDF.lathe([[R * 0.2, 0.02], [R * 0.55, 0.08], [R * 0.95, 0.0], [R, -0.05], [R * 0.96, -0.1], [R * 0.6, -0.04], [R * 0.2, -0.06]], c), 0.02); // dished cap
@@ -2419,6 +2427,16 @@ const Models = {
       spikes: [0.42, -2.6, -1.2], skull: [-0.2, 0.25, -0.7] },
     harpoon: { wraps: [[0, 0, 1.0, 2.1, 0.28, 0.38]], chain: [[-0.3, 0.1, -3.8], [-0.3, 0.1, -1.5], 0.45], plate: [-0.22, 1.0, 2.0, -0.26, 0.26],
       spikes: [0.31, 1.1, 2.0], bayonet: [[0, -0.1, -4.3], [0, -0.1, -6.0]], skull: [-0.22, 0.0, 2.0] },
+    carbine: { wraps: [[0, 0.25, -7.0, -5.95, 0.2, 0.2]], chain: [[-0.42, 0.3, -2.4], [-0.42, 0.3, 2.4], 0.7], plate: [-0.32, 3.7, 5.6, -0.6, 0.35],
+      spikes: [0.72, -5.6, -3.2], skull: [-0.4, 0.2, 2.6] },
+    liberty: { wraps: [[0, 0.15, -8.0, -7.5, 0.2, 0.2], [0, 0.0, -3.9, -1.7, 0.42, 0.45]], chain: [[-0.38, -0.15, -6.9], [-0.38, -0.15, -1.9], 0.8], plate: [-0.42, 2.6, 5.4, -1.0, 0.1],
+      spikes: [0.45, -7.1, -4.6], bayonet: [[0, -0.38, -8.5], [0, -0.38, -10.4]], skull: [0, -1.75, 4.6], skullDrop: true },
+    typewriter: { wraps: [[0, 0.1, -4.8, -2.4, 0.33, 0.33]], chain: [[-0.42, 0.2, -2.0], [-0.42, 0.2, 2.2], 0.75], plate: [-0.38, 3.2, 5.6, -0.9, 0.2],
+      spikes: [0.62, -1.8, 1.8], skull: [-0.4, 0.15, 2.4] },
+    lmg: { wraps: [[0, 0.15, -8.6, -5.6, 0.26, 0.26]], chain: [[-0.53, 0.1, -2.6], [-0.53, 0.1, 2.6], 0.6], plate: [-0.4, 3.8, 6.2, -1.0, 0.35],
+      spikes: [0.9, -2.2, 0.8], skull: [-0.53, 0.25, 2.9] },
+    pangun: { wraps: [], chain: [[-0.45, -0.2, -1.4], [-0.45, -0.2, 2.2], 0.6], tube: [0, 0.05, 0.56, -6.6, -2.2], plate: [-0.38, 3.0, 5.4, -0.9, 0.15],
+      spikes: [0.62, -6.4, -4.4], skull: [-0.44, 0.2, 2.3] },
   },
   gunKit(gun, id, kit, seed) {
     const A = Models.KIT_ANCHOR[id];
@@ -2932,6 +2950,38 @@ const Models = {
       sc.cut(SDF.box([0.4, 0.05, 0.45], 0.02, [0, 0.12, 0], [0, 0, 0.2]), 0.01, [can]); // pressed X
       sc.add(can, SDF.path([[0, 0.4, -0.15], [0, 0.48, 0.0], [0, 0.4, 0.15]], 0.04), 0.02); // handle
       sc.add(brass, SDF.cyl(0.07, 0.14, 'y', 0.02, [0, 0.45, 0.2]), 0.02); // spout cap
+    } else if (id === 'carbine') { // a curved rifle magazine, the top round showing
+      const steel = LP.mat('#2b2d30', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.4 });
+      sc.add(steel, SDF.side([[-0.2, 0.5], [0.2, 0.5], [0.28, -0.1], [0.42, -0.55], [0.05, -0.62], [-0.12, -0.05]], 0.24, 0.04), 0.02);
+      sc.add(brass, SDF.lathe([[0.045, -0.05], [0.045, 0.1], [0.028, 0.16]], [0, 0.5, 0.0], [Math.PI / 2, 0, 0]), 0.02);
+    } else if (id === 'liberty') { // an en-bloc clip of eight, standing on end
+      const steel = LP.mat('#5a5c58', { metalness: 0.7, roughness: 0.4 }), copper = LP.mat('#b06a3a', { metalness: 0.8, roughness: 0.35 });
+      for (let k = 0; k < 8; k++) {
+        const x = (Math.floor(k / 2) - 1.5) * 0.12, z = k % 2 ? 0.05 : -0.05, y = k % 2 ? 0.04 : 0;
+        sc.add(brass, SDF.cyl(0.055, 0.6, 'y', 0.02, [x, y - 0.1, z]), 0.005);
+        sc.add(copper, SDF.cone([x, y + 0.2, z], [x, y + 0.4, z], 0.048, 0.01), 0.01);
+      }
+      sc.add(steel, SDF.box([0.56, 0.14, 0.2], 0.03, [0, -0.3, 0]), 0.01);
+    } else if (id === 'typewriter') { // a spare fifty-round drum
+      const steel = LP.mat('#1f2124', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.4 }), worn = LP.mat('#4b4e52', { metalness: 0.8, roughness: 0.3 });
+      sc.add(steel, SDF.cyl(0.62, 0.32, 'z', 0.06, [0, 0, 0]), 0.02);
+      sc.add(worn, SDF.torus(0.58, 0.035, [0, 0, 0.17]), 0.01);
+      sc.add(worn, SDF.cyl(0.15, 0.42, 'z', 0.04, [0, 0, 0]), 0.02);
+      sc.add(worn, SDF.box([0.06, 0.32, 0.08], 0.02, [0, 0, 0.22]), 0.01);
+    } else if (id === 'lmg') { // an olive ammo box with the end of the belt sticking out of the top
+      const olive = LP.mat('#4a4f2c', { roughness: 0.95 }), copper = LP.mat('#b06a3a', { metalness: 0.8, roughness: 0.35 });
+      sc.add(olive, SDF.box([1.0, 0.85, 0.5], 0.08, [0, 0, 0]), 0.02);
+      sc.add(olive, SDF.box([1.06, 0.22, 0.56], 0.07, [0, 0.36, 0]), 0.03);
+      for (let k = 0; k < 3; k++) {
+        const x = -0.2 + k * 0.16;
+        sc.add(brass, SDF.cyl(0.055, 0.42, 'y', 0.02, [x, 0.62 + k * 0.03, 0]), 0.005);
+        sc.add(copper, SDF.cone([x, 0.84 + k * 0.03, 0], [x, 0.98 + k * 0.03, 0], 0.048, 0.01), 0.01);
+      }
+    } else if (id === 'pangun') { // a spare pan magazine, ribbed round its hub
+      const steel = LP.mat('#2a2b28', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.4 }), worn = LP.mat('#585a55', { metalness: 0.8, roughness: 0.3 });
+      sc.add(steel, SDF.cyl(0.68, 0.18, 'z', 0.05, [0, 0, 0]), 0.02);
+      for (let k = 0; k < 10; k++) { const a = (k / 10) * TAU; sc.add(worn, SDF.box([0.5, 0.05, 0.06], 0.015, [Math.cos(a) * 0.38, Math.sin(a) * 0.38, 0.1], [0, 0, a]), 0.01); }
+      sc.add(worn, SDF.cyl(0.16, 0.26, 'z', 0.04, [0, 0, 0]), 0.02);
     } else if (id === 'harpoon') { // a spare harpoon bolt
       const st = LP.mat('#9aa0a6', { metalness: 0.75, roughness: 0.35 });
       sc.add(st, SDF.cyl(0.035, 1.3, 'y', 0.01, [0, -0.1, 0]), 0.01);
@@ -2980,6 +3030,26 @@ const Models = {
       { kind: 'pistol', pos: [0, -0.72, 0.68], tilt: -0.18, grip: [0.25, 0.38], trigger: [0, -0.38, 0.3], arm: [-0.6, -2.8, 5.6] },
       { kind: 'support', pos: [0, 0.04, -1.45], tilt: 0, tube: 0.3, arm: [-7.2, -3.4, 5.4] }, // round the rail, clear of the reel
     ],
+    carbine: [
+      { kind: 'pistol', pos: [0, -1.35, 1.0], tilt: -0.3, grip: [0.3, 0.4], trigger: [0, -0.72, 0.0], arm: [-0.6, -3.0, 5.6] },
+      { kind: 'support', pos: [0, 0.22, -4.5], tilt: 0, tube: 0.4, arm: [-7.2, -3.6, 5.6] }, // round the handguard
+    ],
+    liberty: [
+      { kind: 'pistol', pos: [0, -1.2, 1.25], tilt: -0.45, grip: [0.34, 0.4], trigger: [0, -0.58, 0.15], arm: [-0.6, -3.4, 4.6] },
+      { kind: 'support', pos: [0, -0.05, -4.9], tilt: 0, tube: 0.42, arm: [-7.2, -3.6, 5.6] }, // cradling the forend
+    ],
+    typewriter: [
+      { kind: 'pistol', pos: [0, -1.2, 1.55], tilt: -0.25, grip: [0.32, 0.4], trigger: [0, -0.78, 0.45], arm: [-0.6, -3.0, 5.4] },
+      { kind: 'pistol', pos: [0, -1.0, -3.35], tilt: 0.02, grip: [0.31, 0.38], arm: [-7.4, -3.0, 5.6], mirror: true }, // the vertical foregrip
+    ],
+    lmg: [
+      { kind: 'pistol', pos: [0, -1.6, 1.2], tilt: -0.3, grip: [0.32, 0.4], trigger: [0, -0.96, -0.2], arm: [-0.6, -3.0, 5.6] },
+      { kind: 'support', pos: [0, -0.05, -4.0], tilt: 0, tube: 0.45, arm: [-7.2, -3.6, 5.6] }, // under the handguard
+    ],
+    pangun: [
+      { kind: 'pistol', pos: [0, -1.25, 1.35], tilt: -0.25, grip: [0.32, 0.4], trigger: [0, -0.82, 0.2], arm: [-0.6, -3.0, 5.4] },
+      { kind: 'support', pos: [0, 0.05, -2.9], tilt: 0, tube: 0.56, arm: [-7.2, -3.6, 5.6] }, // under the cooling jacket
+    ],
   },
 
   hands(gun, weaponId) {
@@ -3012,6 +3082,8 @@ const Models = {
   // Where each finger lies on a grip: the levels (hand-local) the fingers cross a pistol grip (y: index, middle, ring,
   // pinky) or a tube (z), and the angle convention for each: a pistol grip's outline is in (x, z) with angle 0 = right
   // side, PI/2 = front strap; a tube's in (x, y) with 0 = straight below, PI/2 = right side.
+  // The sculpt each gun is meshed under (to tell when the start-up warm-up has built it).
+  SCULPT_KEY: (id) => (id === 'rocket' ? 'launcher' : id),
   GLOVE_LEVELS: { pistol: [0.42, 0.1, -0.25, -0.58], support: [-0.55, -0.19, 0.17, 0.5] },
   gripDir: { pistol: (a) => [Math.cos(a), -Math.sin(a)], support: (a) => [Math.sin(a), -Math.cos(a)] },
 
@@ -3136,7 +3208,9 @@ const Models = {
 
   weapon(id) {
     return id === 'pistol' ? Models.pistol() : id === 'shotgun' ? Models.shotgun() : id === 'rocket' ? Models.launcher() : id === 'flare' ? Models.flareGun()
-      : id === 'nailgun' ? Models.nailGun() : id === 'flamer' ? Models.flamer() : id === 'harpoon' ? Models.harpoonGun() : Models.smg();
+      : id === 'nailgun' ? Models.nailGun() : id === 'flamer' ? Models.flamer() : id === 'harpoon' ? Models.harpoonGun()
+      : id === 'carbine' ? Models.carbine() : id === 'liberty' ? Models.libertyRifle() : id === 'typewriter' ? Models.typewriter()
+      : id === 'lmg' ? Models.grinder() : id === 'pangun' ? Models.panGun() : Models.smg();
   },
 
   // Goods on the commissary counter: an engine block, a tyre, an armour plate, a nitro bottle; an attachment in a

@@ -136,7 +136,8 @@ const Graffiti = {
 
   // ---------- Spraying a layer onto the wall ----------
 
-  layer(W, H) { const c = document.createElement('canvas'); c.width = W; c.height = H; return { c, g: c.getContext('2d') }; },
+  // Paint layers stay in CPU memory: drips() reads them back, which is very slow from a GPU canvas.
+  layer(W, H) { const c = document.createElement('canvas'); c.width = W; c.height = H; return { c, g: c.getContext('2d', { willReadFrequently: true }) }; },
 
   // Composite a finished mark onto the wall: thin patches, overspray haze, the soft-edged paint, then drips.
   // o: { soft (px of edge blur), haze (px), hazeA, drips (chance per pooled spot), P (px a world unit) }
@@ -375,8 +376,8 @@ const Graffiti = {
       else if (kind === 'crew') Graffiti.tag(dst, x, y, h, r, Graffiti.pick(r, Graffiti.CREWS), col, P);
       else if (kind === 'throwup') Graffiti.throwup(dst, x, y, h, r, Graffiti.pick(r, Graffiti.WRITERS).slice(0, 3 + Math.floor(r() * 2)), P);
       else if (kind === 'lore') Graffiti.conversation(dst, x, y - bh * 0.6, h, r, Graffiti.pick(r, r() < 0.5 ? Graffiti.LORE[0] : Graffiti.LORE[act + 1]), P, Math.min(bw, W - x - h));
-      else if (kind === 'stencil') { const L = Graffiti.layer(W, H); Graffiti.stencil(L.g, x + h * 0.6, y - h * 0.55, h, r, col === '#151515' ? col : Graffiti.pick(r, ['#151515', '#d8d4cc', '#b8322a'])); Graffiti.spray(dst, L, r, { soft: 1.0, haze: h * 0.1, hazeA: 0.6, drips: 0.06, P }); }
-      else { const L = Graffiti.layer(W, H); Graffiti.smiley(L.g, x + h * 0.5, y - h * 0.5, h * 0.42, col === '#151515' ? '#d8b83a' : col); Graffiti.spray(dst, L, r, { soft: 0.6, haze: h * 0.06, hazeA: 0.4, drips: 0.25, P }); }
+      else if (kind === 'stencil') { const L = Graffiti.layer(W, H); Graffiti.stencil(L.g, x + h * 0.6, y - h * 0.55, h, r, col === '#151515' ? col : Graffiti.pick(r, ['#151515', '#d8d4cc', '#b8322a'])); Graffiti.spray(dst, L, r, { soft: 1.0, haze: h * 0.1, hazeA: 0.6, drips: 0.06, P, box: [x - h * 0.2, y - h * 1.6, h * 2.6, h * 2.4] }); }
+      else { const L = Graffiti.layer(W, H); Graffiti.smiley(L.g, x + h * 0.5, y - h * 0.5, h * 0.42, col === '#151515' ? '#d8b83a' : col); Graffiti.spray(dst, L, r, { soft: 0.6, haze: h * 0.06, hazeA: 0.4, drips: 0.25, P, box: [x - h * 0.2, y - h * 1.2, h * 1.6, h * 1.6] }); }
     }
   },
 

@@ -50,6 +50,12 @@ const WEAPONS = {
   flare: { name: 'Flare Gun', desc: 'Blinds the driver you hit: they swerve and brake for 3 seconds.', kind: 'flare', auto: false, mag: 1, reload: 1.4, rate: 0.5, speed: 1100, dmg: 4, life: 1.2, blind: 3, pack: 4, packPrice: 50, start: 4, price: 180 },
   nailgun: { name: 'Nail Gun', desc: 'Pneumatic and fully automatic. Nails puncture tyres: every hit drags the rival back a little.', kind: 'bullet', auto: true, mag: 40, reload: 1.9, rate: 0.075, pellets: 1, spread: 0.05, speed: 1250, dmg: 2.4, life: 0.55, puncture: 0.6, pack: 80, packPrice: 40, start: 120, price: 200 },
   flamer: { name: 'Flamethrower', desc: 'Short range. Sets everything it touches on fire. Fuel goes fast.', kind: 'flame', auto: true, mag: 60, reload: 2.4, rate: 0.06, pellets: 2, spread: 0.14, speed: 560, dmg: 0.9, life: 0.38, burn: 4, burnTime: 3, pack: 120, packPrice: 45, start: 180, price: 260 },
+  // Rifles and machine guns. Warden Corp issue, liberated, and pre-war surplus from the sealed arsenals under the Plate.
+  carbine: { name: 'WC-9 Carbine', desc: 'Warden Corp guard issue, liberated. Accurate full-auto that carries a long way: the all-rounder.', kind: 'bullet', auto: true, mag: 30, reload: 1.8, rate: 0.1, pellets: 1, spread: 0.026, speed: 1750, dmg: 4.4, life: 0.72, pack: 60, packPrice: 45, start: 90, price: 280 },
+  liberty: { name: 'Liberty Rifle', desc: 'Pre-war army surplus, older than the Plate. Eight heavy, dead-accurate rounds a clip, then the empty clip pings out.', kind: 'bullet', auto: false, mag: 8, reload: 1.5, rate: 0.24, pellets: 1, spread: 0.008, speed: 2100, dmg: 11, life: 0.85, knock: 25, ping: true, pack: 24, packPrice: 45, start: 32, price: 260 },
+  typewriter: { name: 'Typewriter', desc: 'A pre-war drum gun in walnut and blued steel. Fifty rounds as fast as you can hold on, but the longer you hold, the more it climbs.', kind: 'bullet', auto: true, mag: 50, reload: 2.6, rate: 0.065, pellets: 1, spread: 0.04, speed: 1350, dmg: 3.1, life: 0.55, bloom: 0.09, pack: 100, packPrice: 50, start: 150, price: 240 },
+  lmg: { name: 'Grinder LMG', desc: 'Belt-fed, a hundred rounds to the box. It wanders as the barrel heats and takes an age to reload: make the belt count.', kind: 'bullet', auto: true, mag: 100, reload: 3.8, rate: 0.08, pellets: 1, spread: 0.034, speed: 1650, dmg: 4.0, life: 0.7, bloom: 0.025, pack: 100, packPrice: 60, start: 200, price: 380 },
+  pangun: { name: 'Widow MG', desc: 'Pre-war, with a cooling jacket and a pan magazine that turns as it fires. Heavy rounds; changing the pan is slow.', kind: 'bullet', auto: true, mag: 47, reload: 3.0, rate: 0.1, pellets: 1, spread: 0.03, speed: 1700, dmg: 5.4, life: 0.75, bloom: 0.03, pack: 94, packPrice: 60, start: 141, price: 340 },
   harpoon: { name: 'Harpoon Gun', desc: 'A heavy barbed bolt on a line. Hooks a rival and drags them back hard.', kind: 'harpoon', auto: false, mag: 1, reload: 1.6, rate: 0.5, speed: 1150, dmg: 16, life: 1.1, hook: 1.6, pack: 4, packPrice: 60, start: 5, price: 280 },
 };
 const GRENADE_PRICE = 30;
@@ -114,31 +120,31 @@ const CHIPS = {
 // Weapon mods: two slots per weapon, swappable in the garage.
 const MODS = {
   // Common
-  ext_mag: { name: 'Extended Mag', rarity: 'common', desc: '+50% magazine size, but reloads 25% slower.', fits: ['pistol', 'smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon'], price: 120 },
-  quick_mag: { name: 'Speed Loader', rarity: 'common', desc: 'Reloads 40% faster, but -25% magazine size.', fits: ['pistol', 'smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon'], price: 120 },
+  ext_mag: { name: 'Extended Mag', rarity: 'common', desc: '+50% magazine size, but reloads 25% slower.', fits: ['pistol', 'smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'], price: 120 },
+  quick_mag: { name: 'Speed Loader', rarity: 'common', desc: 'Reloads 40% faster, but -25% magazine size.', fits: ['pistol', 'smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'], price: 120 },
   // Bolt-on attachments you can see on the gun.
-  drum_mag: { name: 'Drum Mag', rarity: 'common', desc: 'Double magazine, but reloads 50% slower.', fits: ['smg', 'shotgun', 'nailgun', 'flamer'], price: 130 },
-  scope: { name: 'Scrap Scope', rarity: 'common', desc: 'A pipe and a bottle lens: -45% spread, +25% range.', fits: ['smg', 'shotgun', 'nailgun', 'harpoon', 'flare'], price: 120 },
-  compensator: { name: 'Muzzle Brake', rarity: 'common', desc: '-35% spread and 8% faster firing.', fits: ['pistol', 'smg', 'shotgun', 'nailgun'], price: 120 },
-  red_dot: { name: 'Red Dot Sight', rarity: 'common', desc: '-30% spread.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'harpoon', 'flare'], price: 100 },
-  flashlight: { name: 'Flashlight', rarity: 'common', desc: 'Rivals you keep in its beam lose their lock on you.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'harpoon', 'flare'], price: 110 },
-  bayonet: { name: 'Rebar Bayonet', rarity: 'common', desc: 'Your rams deal +35% damage while this gun is in your hands.', fits: ['shotgun', 'harpoon'], price: 100 },
+  drum_mag: { name: 'Drum Mag', rarity: 'common', desc: 'Double magazine, but reloads 50% slower.', fits: ['smg', 'shotgun', 'nailgun', 'flamer', 'carbine'], price: 130 },
+  scope: { name: 'Scrap Scope', rarity: 'common', desc: 'A pipe and a bottle lens: -45% spread, +25% range.', fits: ['smg', 'shotgun', 'nailgun', 'harpoon', 'flare', 'carbine', 'liberty', 'lmg'], price: 120 },
+  compensator: { name: 'Muzzle Brake', rarity: 'common', desc: '-35% spread and 8% faster firing.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'carbine', 'typewriter', 'lmg'], price: 120 },
+  red_dot: { name: 'Red Dot Sight', rarity: 'common', desc: '-30% spread.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'harpoon', 'flare', 'carbine', 'lmg', 'typewriter'], price: 100 },
+  flashlight: { name: 'Flashlight', rarity: 'common', desc: 'Rivals you keep in its beam lose their lock on you.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'harpoon', 'flare', 'carbine', 'liberty', 'lmg'], price: 110 },
+  bayonet: { name: 'Rebar Bayonet', rarity: 'common', desc: 'Your rams deal +35% damage while this gun is in your hands.', fits: ['shotgun', 'harpoon', 'liberty'], price: 100 },
   // Built from whatever was lying around the yard.
-  shock_coil: { name: 'Shock Coil', rarity: 'rare', desc: 'A car battery wired to a coil round the barrel: hits have a 15% chance to short out a rival (EMP, 1.5s).', fits: ['smg', 'nailgun', 'harpoon'], price: 170 },
-  hubcap: { name: 'Hubcap Shield', rarity: 'rare', desc: 'A hubcap welded on as a gun shield: -20% gunfire damage while it\'s in your hands.', fits: ['smg', 'shotgun', 'nailgun', 'flamer'], price: 160 },
+  shock_coil: { name: 'Shock Coil', rarity: 'rare', desc: 'A car battery wired to a coil round the barrel: hits have a 15% chance to short out a rival (EMP, 1.5s).', fits: ['smg', 'nailgun', 'harpoon', 'carbine'], price: 170 },
+  hubcap: { name: 'Hubcap Shield', rarity: 'rare', desc: 'A hubcap welded on as a gun shield: -20% gunfire damage while it\'s in your hands.', fits: ['smg', 'shotgun', 'nailgun', 'flamer', 'lmg', 'pangun'], price: 160 },
   pressure_tank: { name: 'Pressure Tank', rarity: 'rare', desc: '+35% projectile speed and range.', fits: ['nailgun', 'flamer', 'harpoon'], price: 150 },
   napalm: { name: 'Napalm Mix', rarity: 'rare', desc: 'Fires burn 60% hotter and last 5 seconds.', fits: ['flamer'], price: 170 },
   framing_nails: { name: 'Framing Nails', rarity: 'rare', desc: '+30% damage and each nail drags 60% harder.', fits: ['nailgun'], price: 150 },
   barbed_head: { name: 'Barbed Head', rarity: 'epic', desc: 'Hooked rivals bleed (3 dmg/s for 4s) and stay hooked 40% longer.', fits: ['harpoon'], price: 200 },
-  laser: { name: 'Laser Sight', rarity: 'common', desc: '-60% spread. Paints a red line to your target.', fits: ['pistol', 'smg', 'shotgun'], price: 100 },
+  laser: { name: 'Laser Sight', rarity: 'common', desc: '-60% spread. Paints a red line to your target.', fits: ['pistol', 'smg', 'shotgun', 'carbine'], price: 100 },
   choke: { name: 'Full Choke', rarity: 'common', desc: 'Shotgun spread halved and range +50%.', fits: ['shotgun'], price: 110 },
-  hair_trigger: { name: 'Hair Trigger', rarity: 'common', desc: '+30% fire rate, but +40% spread.', fits: ['smg', 'shotgun', 'flare', 'nailgun'], price: 110 },
+  hair_trigger: { name: 'Hair Trigger', rarity: 'common', desc: '+30% fire rate, but +40% spread.', fits: ['smg', 'shotgun', 'flare', 'nailgun', 'carbine', 'liberty', 'typewriter'], price: 110 },
   sawn_off: { name: 'Sawn-Off Barrel', rarity: 'common', desc: '+3 pellets and 30% faster reload, but much wider spread and shorter range.', fits: ['shotgun'], price: 100 },
   // Rare
-  incendiary: { name: 'Incendiary Rounds', rarity: 'rare', desc: 'Hits set rivals on fire (3 dmg/s for 3s). Ammo costs 50% more.', fits: ['pistol', 'smg', 'shotgun', 'nailgun'], price: 160 },
-  ap_rounds: { name: 'Armour-Piercing Rounds', rarity: 'rare', desc: '+35% damage, but -15% fire rate.', fits: ['pistol', 'smg', 'shotgun', 'nailgun'], price: 150 },
-  suppressor: { name: 'Suppressor', rarity: 'rare', desc: '-15% damage, but rival gunners take 40% longer to lock on to you.', fits: ['pistol', 'smg', 'shotgun', 'nailgun'], price: 150 },
-  tracer: { name: 'Tracer Rounds', rarity: 'rare', desc: 'Hits mark a rival for 3s: they take +20% damage from everything.', fits: ['smg'], price: 160 },
+  incendiary: { name: 'Incendiary Rounds', rarity: 'rare', desc: 'Hits set rivals on fire (3 dmg/s for 3s). Ammo costs 50% more.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'], price: 160 },
+  ap_rounds: { name: 'Armour-Piercing Rounds', rarity: 'rare', desc: '+35% damage, but -15% fire rate.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'], price: 150 },
+  suppressor: { name: 'Suppressor', rarity: 'rare', desc: '-15% damage, but rival gunners take 40% longer to lock on to you.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'carbine', 'liberty', 'typewriter'], price: 150 },
+  tracer: { name: 'Tracer Rounds', rarity: 'rare', desc: 'Hits mark a rival for 3s: they take +20% damage from everything.', fits: ['smg', 'carbine', 'lmg', 'pangun'], price: 160 },
   slugs: { name: 'Slug Rounds', rarity: 'rare', desc: 'One heavy, accurate slug instead of buckshot. Long range, big knockback.', fits: ['shotgun'], price: 150 },
   bunker_buster: { name: 'Bunker Buster', rarity: 'rare', desc: '+60% blast radius and +20% damage, but slower rockets.', fits: ['rocket'], price: 190 },
   long_burn: { name: 'Long-Burn Flares', rarity: 'rare', desc: 'Blinded drivers stay blind 70% longer.', fits: ['flare'], price: 140 },
@@ -164,7 +170,7 @@ const TUNE_EXTREME = {
 // everything else has to turn up in a shop or a reward, and only unlocked gear ever does.
 // Each number is the rep needed (0 = available from the first run).
 const UNLOCK_REP = {
-  weapon: { pistol: 0, smg: 20, shotgun: 60, flare: 110, nailgun: 170, rocket: 240, flamer: 330, harpoon: 440 },
+  weapon: { pistol: 0, smg: 20, shotgun: 60, flare: 110, typewriter: 140, nailgun: 170, liberty: 200, rocket: 240, carbine: 280, flamer: 330, pangun: 380, harpoon: 440, lmg: 500 },
   part: {
     diesel: 0, all_terrain: 0, big_bottle: 0, window_cage: 0, studded: 30, chains: 50, methanol: 70, run_flats: 90, reactive: 120,
     slicks: 150, turbo_v6: 180, electric: 210, hot_mix: 240, spiked_cage: 280, recycler: 320, riot_plates: 370, twin_bottles: 430,

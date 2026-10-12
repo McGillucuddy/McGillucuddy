@@ -44,6 +44,20 @@ const FIRE_KICK = {
   flare: { back: 0.8, climb: 0.4, yaw: 0.04, roll: 0.1, cam: 0.02, flash: 1.3, smoke: 0.8, light: 1.2, color: '#ff6a3a' },
   harpoon: { back: 0.9, climb: 0.14, yaw: 0.02, roll: 0.04, cam: 0.015, flash: 0, smoke: 0, light: 0 },
   flamer: { back: 0.04, climb: 0.01, yaw: 0.015, roll: 0.01, cam: 0, flash: 0, smoke: 0, light: 0.5, color: '#ff7a2a' },
+  carbine: { back: 0.42, climb: 0.1, yaw: 0.035, roll: 0.03, cam: 0.008, flash: 1, smoke: 0.3, light: 0.9 },
+  liberty: { back: 0.95, climb: 0.3, yaw: 0.04, roll: 0.08, cam: 0.025, flash: 1.4, smoke: 0.7, light: 1.3 },
+  typewriter: { back: 0.36, climb: 0.14, yaw: 0.05, roll: 0.04, cam: 0.007, flash: 1.1, smoke: 0.35, light: 0.9 },
+  lmg: { back: 0.5, climb: 0.09, yaw: 0.05, roll: 0.04, cam: 0.012, flash: 1.3, smoke: 0.45, light: 1.1 },
+  pangun: { back: 0.55, climb: 0.1, yaw: 0.045, roll: 0.04, cam: 0.013, flash: 1.3, smoke: 0.5, light: 1.1 },
+};
+// Magazine-fed guns: where the support hand holds a fresh magazine (offset from where it sits in the gun) and which
+// way the empty one falls. The pan comes off the top and is tossed aside.
+const MAG_RELOAD = {
+  smg: { off: [0, 1.6, -0.1], drop: [-1.5, -7, 0] },
+  carbine: { off: [0, 1.7, 0], drop: [-1.5, -7, 0] },
+  typewriter: { off: [0, 1.25, 0], drop: [-0.6, -7, 0] },
+  lmg: { off: [0, 0.6, 0], drop: [-1.2, -6, 0] },
+  pangun: { off: [1.3, 0, 0], drop: [-3, 3, 0] },
 };
 const FIRE_EVENTS = ['shoot', 'shotgun', 'nail', 'flame', 'harpoon', 'rocket', 'flare'];
 
@@ -679,6 +693,8 @@ class CockpitView {
       const m = Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (this.look3d.gunFinish || {})[w.id]), w.id, (this.look3d.gunKit || {})[w.id], (this.look3d.patchSeed || {})[w.id]);
       if (w.id === 'rocket') m.scale.setScalar(0.8);
       else if (w.id === 'flamer' || w.id === 'harpoon') m.scale.setScalar(0.85);
+      else if (['carbine', 'liberty', 'lmg', 'pangun'].includes(w.id)) m.scale.setScalar(0.7);
+      else if (w.id === 'typewriter') m.scale.setScalar(0.82);
       m.position.set(-1.2, hooks[i] || 4.9, -6.9); // resting on the J hooks, clear of the door bars
       m.rotation.y = -Math.PI / 2;
       I.add(m);
@@ -768,7 +784,8 @@ class CockpitView {
     const webbing = LP.mat('#3a3a2a', { roughness: 1 }), board = LP.mat('#6a6448', { roughness: 0.95 }), steel = LP.mat('#8a8f94', { metalness: 0.8 }); // olive canvas so dark mags stand out
     const H = rows * rowH + 0.3;
     // Per weapon: how many items, items per line, spacing, scale. Shells and flares sit in two lines.
-    const PER = { pistol: [6, 6, 0.3, 0.75], smg: [5, 5, 0.38, 0.68], shotgun: [10, 5, 0.38, 0.85], rocket: [4, 4, 0.46, 0.4], flare: [8, 4, 0.46, 0.8], nailgun: [6, 6, 0.32, 0.7], flamer: [3, 3, 0.6, 0.6], harpoon: [4, 4, 0.46, 0.55] };
+    const PER = { pistol: [6, 6, 0.3, 0.75], smg: [5, 5, 0.38, 0.68], shotgun: [10, 5, 0.38, 0.85], rocket: [4, 4, 0.46, 0.4], flare: [8, 4, 0.46, 0.8], nailgun: [6, 6, 0.32, 0.7], flamer: [3, 3, 0.6, 0.6], harpoon: [4, 4, 0.46, 0.55],
+      carbine: [5, 5, 0.38, 0.62], liberty: [6, 6, 0.3, 0.75], typewriter: [3, 3, 0.62, 0.36], lmg: [2, 2, 0.9, 0.42], pangun: [2, 2, 0.95, 0.36] };
     // The board, its screws, brackets and the elastic loops, as one rounded sculpt per layout.
     const lineCounts = b.rack.map((w) => Math.ceil(PER[w.id][0] / PER[w.id][1]));
     const bs = new Sculpt('ammoboard:' + lineCounts.join(''), 0.03);
@@ -792,7 +809,7 @@ class CockpitView {
         R.add(it);
         items.push(it);
       }
-      return { items, wi: r, per: ['pistol', 'smg', 'nailgun', 'flamer'].includes(w.id) ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
+      return { items, wi: r, per: ['pistol', 'smg', 'nailgun', 'flamer', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'].includes(w.id) ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
     });
     const tilt = 0.45, yaw = 0.2, h2 = H / 2;
     const cy = 5.85 - h2 * Math.cos(tilt), cz = 7.85 - h2 * Math.sin(tilt) * Math.cos(yaw) - 0.28;
@@ -825,6 +842,8 @@ class CockpitView {
       pistol: [2.3, -1.3, -5.0, 1.1, 0.24, 0.05, 0.03], smg: [2.6, -1.6, -5.6, 1, 0.28, 0.05, 0.03], shotgun: [2.4, -1.5, -4.9, 0.85, 0.24, 0.06, 0.03],
       rocket: [3.0, -1.9, -5.6, 0.7, 0.18, 0.04, 0.02], flare: [2.4, -1.3, -5.1, 1, 0.26, 0.06, 0.02],
       nailgun: [2.4, -1.25, -5.0, 1, 0.26, 0.05, 0.03], flamer: [2.3, -1.45, -4.2, 0.95, 0.15, 0.04, 0.02], harpoon: [2.3, -1.4, -4.0, 0.95, 0.15, 0.04, 0.02],
+      carbine: [2.4, -1.5, -5.0, 0.85, 0.24, 0.06, 0.03], liberty: [2.4, -1.45, -4.9, 0.8, 0.22, 0.06, 0.03], typewriter: [2.5, -1.5, -5.2, 0.9, 0.26, 0.05, 0.03],
+      lmg: [2.6, -1.7, -5.2, 0.75, 0.22, 0.05, 0.03], pangun: [2.5, -1.75, -5.0, 0.78, 0.22, 0.05, 0.03],
     };
     const guns = this.combat.build.rack.map((w) => {
       const m = Models.hands(Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]), w.id, (this.look3d.gunKit || {})[w.id], (this.look3d.patchSeed || {})[w.id]), w.id);
@@ -1089,6 +1108,7 @@ class CockpitView {
     if (ev.type === 'switch') this.anim.switchT = 0.38;
     else if (ev.type === 'empty') this.anim.dry = 0.14;
     if (ev.type === 'shotgun') this.anim.pumpT = 0.55;
+    if (ev.type === 'ping') this.anim.pingT = 0.6;
     if (ev.type === 'shoot') { this.recoil = Math.min(1, this.recoil + 0.35); this.flash = 0.05; }
     else if (ev.type === 'nail') { this.recoil = Math.min(0.8, this.recoil + 0.25); }
     else if (ev.type === 'flame') { this.recoil = Math.max(this.recoil, 0.12); }
@@ -1471,6 +1491,7 @@ class CockpitView {
     A.switchT = Math.max(0, A.switchT - dt);
     A.pumpT = Math.max(0, A.pumpT - dt);
     A.dry = Math.max(0, A.dry - dt);
+    A.pingT = Math.max(0, (A.pingT || 0) - dt);
     // Reload progress 0..1 for the held weapon.
     let rp = -1;
     if (st.reloadT > 0) {
@@ -1503,6 +1524,17 @@ class CockpitView {
       if (u.shell) u.shell.visible = false;
       if (u.tip) { u.tip.position.z = -6.3; u.tip.visible = b.rack[i].mag > 0; }
       if (u.bolt) u.bolt.visible = b.rack[i].mag > 0; // the harpoon's gone until you load another
+      if (u.pan) u.pan.rotation.y = (b.rack[i].mag * TAU) / 47; // the pan turns a notch with every round
+      if (u.clip) { // the Liberty's clip: in the gun while there are rounds, flying out with a ping on the last
+        u.clip.position.set(0, 0.42, -0.1); u.clip.rotation.set(0, 0, 0);
+        u.clip.visible = b.rack[i].mag > 0;
+        if (A.pingT > 0) {
+          const f = 1 - A.pingT / 0.6;
+          u.clip.visible = true;
+          u.clip.position.set(0.4 * f, 0.42 + 7 * f - 10 * f * f, -0.1 + 1.6 * f);
+          u.clip.rotation.set(f * 9, 0, f * 4);
+        }
+      }
       if (u.jet) { u.jet.visible = combat.lastFire < 0.09 && st.reloadT <= 0; u.jet.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.5, 0.8 + Math.random() * 0.4); } // the flamethrower's jet
       let ox = 0, oy = 0, oz = 0, rx = 0, ry = 0, rz = 0;
       if (rp >= 0) {
@@ -1518,11 +1550,12 @@ class CockpitView {
           if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.38 && rp < 0.72 ? 1 : 0;
           if (u.slide) u.slide.position.z = 0.45 * (1 - ss(0.82, 0.86, rp)); // locked back until the new mag is in
           oz += bump(0.72, 0.78, rp) * 0.3; // seat it
-        } else if (id === 'smg') {
-          // Side-on: the empty mag drops out, the support hand reaches to the rack, brings a fresh mag back
-          // under the well, slaps it in and racks the bolt.
+        } else if (MAG_RELOAD[id] && u.mag) {
+          // Side-on: the empty mag (drum, box, pan) drops out, the support hand reaches to the rack, brings a fresh
+          // one back to the gun, slaps it in and racks the bolt.
           ry = 0.95 * tilt; rz = 0.25 * tilt; rx = 0.1 * tilt; ox = -1.4 * tilt; oy = 2.6 * tilt; oz = 0.2 * tilt;
-          const hand = hands[1], R = this.rackPoint(g, i), well = new THREE.Vector3(0, -4.3, 0.3);
+          const MR = MAG_RELOAD[id], off = new THREE.Vector3(...MR.off), rest0 = new THREE.Vector3(...(u.magRest || [0, -2.7, 0.2]));
+          const hand = hands[1], R = this.rackPoint(g, i), well = rest0.clone().sub(off);
           const drop = ss(0.15, 0.32, rp);
           if (hand && R) {
             const rest = hand.userData.rest.pos;
@@ -1534,9 +1567,9 @@ class CockpitView {
             hand.rotation.x = hand.userData.rest.rot + 0.6 * bump(0.12, 0.8, rp);
             this.ammoRack[i] && (this.ammoRack[i].hide = rp > 0.38 && rp < 0.8 ? 1 : 0);
           }
-          if (rp < 0.32) { u.mag.position.y -= drop * 7; u.mag.position.x -= drop * 1.5; u.mag.visible = drop < 0.98; }
+          if (rp < 0.32) { u.mag.position.addScaledVector(new THREE.Vector3(...MR.drop), drop); u.mag.visible = drop < 0.98; }
           else if (rp < 0.4) u.mag.visible = false;
-          else if (rp < 0.78 && hand) { u.mag.visible = true; u.mag.position.copy(hand.position).add(new THREE.Vector3(0, 1.6, -0.1)); }
+          else if (rp < 0.78 && hand) { u.mag.visible = true; u.mag.position.copy(hand.position).add(off); }
           oz += bump(0.76, 0.82, rp) * 0.4; // slap
           rx -= bump(0.86, 0.94, rp) * 0.12; // bolt rack kick
         } else if (id === 'shotgun') {
@@ -1609,6 +1642,7 @@ class CockpitView {
           }
           if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.38 && rp < 0.72 ? 1 : 0;
           if (u.bolt) u.bolt.visible = rp > 0.62;
+          if (u.clip) u.clip.visible = rp > 0.62; // a fresh clip pressed in from the top
           oz += bump(0.74, 0.82, rp) * 0.35; // seated
         }
       }

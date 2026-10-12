@@ -522,9 +522,9 @@ class Garage3D {
       holder.add(gun);
       gun.rotation.y = Math.PI / 2;
       // Centre the gun on its hook (models are built around the grip).
-      const bb = new THREE.Box3().setFromObject(holder), c = bb.getCenter(new THREE.Vector3());
+      const bb = new THREE.Box3().setFromObject(holder), c = bb.getCenter(new THREE.Vector3()), len = bb.getSize(new THREE.Vector3()).x;
       gun.position.sub(c);
-      holder.scale.setScalar(w.id === 'rocket' ? 1.6 : 2.2);
+      holder.scale.setScalar(Math.min(w.id === 'rocket' ? 1.6 : 2.2, 20 / len)); // long rifles shrink to fit their hook spacing
       holder.position.set(x, y, -97);
       D.add(holder);
     };

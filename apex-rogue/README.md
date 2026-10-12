@@ -23,7 +23,7 @@ for machines without WebGL, and the PS1-style retro look is always on.
 
 **Progression.** Every run starts with a **service pistol**, two grenades, a blast hatch and a clapped-out car.
 Everything else unlocks for good with reputation, the same rep that unlocks paint:
-- **What unlocks:** 8 weapons, 20 car parts, 4 abilities, 30 attachments, 22 trinkets and 7 driver chips. Each item has its own rep threshold.
+- **What unlocks:** 13 weapons, 20 car parts, 4 abilities, 30 attachments, 22 trinkets and 7 driver chips. Each item has its own rep threshold.
 - **Where it turns up:** gear only appears in shops and rewards once it's unlocked.
 - **Earning rep:** finish races, win, wreck rivals, beat bosses (+40) and walk free (+150).
 - **Seeing progress:** the results and end screens name new unlocks and the next one to aim for. **Unlocks** on the menu lists everything, locked and unlocked.
@@ -243,6 +243,12 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   Scrap-built guns too: a pneumatic Nail Gun (nails puncture tyres and drag rivals back), a Flamethrower
   built from a propane tank (short range, sets everything alight) and a Harpoon Gun (hooks a rival on a
   line and drags them back hard).
+  Rifles and machine guns (`js/rifles.js`): the **WC-9 Carbine** (Warden Corp guard issue: accurate full-auto at range)
+  and the belt-fed **Grinder LMG** (a hundred rounds, a brass belt climbing out of its ammo box, a slow reload), plus
+  three **pre-war** guns from the arsenals sealed when the Plate went up: the **Liberty Rifle** (semi-auto, eight heavy
+  rounds, and the empty clip pings out), the **Typewriter** drum gun (fifty rounds, walnut foregrip) and the **Widow
+  MG** (cooling jacket, a pan magazine on top that turns as it fires). The drum gun and machine guns *bloom*: hold the
+  trigger and the spread opens up (the crosshair brackets show it); let go and it settles.
   Grenades are a separate consumable.
 - **Emotes** (`T`, `js/emotes.js`). Your free left hand comes up into view and tells a rival what you think of them:
   - **The gestures:** the finger, a thumbs down, a "come at me" beckon, or devil horns.
@@ -407,7 +413,8 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
 | `js/psx.js` | Retro PS1-style rendering: low-res dithered post pass, vertex snapping, grimy pixel textures |
-| `js/models.js`, `js/modelviewer.js` | Model library and the model viewer / `.glb` exporter |
+| `js/models.js`, `js/modelviewer.js` | Model library and the model viewer / `.glb` exporter; `Models.gripFit` measures each gun's grips for the gloves |
+| `js/rifles.js` | The rifles and machine guns: WC-9 Carbine, Grinder LMG, and the pre-war Liberty Rifle, Typewriter and Widow MG |
 | `js/trinkets.js` | Sculpted trinket models and where each one mounts in the cabin |
 | `js/sculpt.js` | Sculpted models: signed distance parts blended per material and meshed into seamless surfaces |
 | `js/hud.js` | Race HUD shared by both pages |

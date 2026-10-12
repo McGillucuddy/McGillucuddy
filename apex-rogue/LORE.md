@@ -27,6 +27,13 @@ so treat it as fixed, and add to it here first when something new is introduced.
   "THE WARDEN KEEPS YOU SAFE". Up top: "VALE DRIVES AUREUM", "MARLOWE: UNDEFEATED", "SMILE: YOU ARE SAFE".
 - **The Plate**: the Undercity lives beneath the upper city's foundation plate, held up by vast lit pillars. The
   **Spire** rises through it to the Crown; from below, its lit top is the only clean light in the sky.
+- **The War and the pre-war arsenals**: before the Plate went up there was a war (*open: who fought whom, and whether
+  the city was built on what it left*). Its arsenals were sealed under the Plate and are now being emptied into the
+  Derby: the **Liberty Rifle** (the old army's service rifle, walnut and parkerised steel), the **Typewriter** drum gun
+  and the **Widow** pan-fed machine gun turn up as "pre-war surplus". *Open: who is selling them, and where the rest
+  of the arsenal is.*
+- **Warden Corp** arms its guards with the **WC-9 Carbine** (yellow Warden Corp band on the stock) and the belt-fed
+  **Grinder**; the ones in the Derby were liberated (*open: from whom*).
 - **Inmate 4471** is the player (the default inmate number). Someone has written "4471 IS NEXT" on the wall.
 
 ## The bosses
@@ -61,4 +68,5 @@ so treat it as fixed, and add to it here first when something new is introduced.
 - Marlowe's deal: what the Crown offers the winner instead of freedom, and whether the player is offered it too
   (a possible ending choice).
 - D Block and Sal's smoke: an event in the Stacks act.
+- The pre-war arsenal: a trader who deals in surplus, a sealed armoury as a map event, or what the War was.
 - Halloran: never seen yet. A voice on the PA, then a face at the Crown?

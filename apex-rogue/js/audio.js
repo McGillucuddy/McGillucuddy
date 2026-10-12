@@ -143,6 +143,10 @@ const Sound = {
       case 'finish': [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.25, 'triangle', 0.18), i * 110)); break;
       case 'shoot':
         if (ev.w === 'pistol') { this.noiseBurst(0.1, 1600, 0.2, 420); this.tone(150, 0.05, 'square', 0.06); } // a sharper, heavier crack
+        else if (ev.w === 'carbine') { this.noiseBurst(0.08, 2000, 0.16, 600); this.tone(120, 0.04, 'square', 0.04); }
+        else if (ev.w === 'liberty') { this.noiseBurst(0.22, 1200, 0.32, 260); this.tone(90, 0.12, 'triangle', 0.1); } // a big rolling boom
+        else if (ev.w === 'typewriter') { this.noiseBurst(0.07, 1500, 0.14, 500); this.tone(180, 0.03, 'square', 0.035); } // the clatter
+        else if (ev.w === 'lmg' || ev.w === 'pangun') { this.noiseBurst(0.11, 1100, 0.2, 320); this.tone(ev.w === 'lmg' ? 95 : 80, 0.06, 'square', 0.05); }
         else this.noiseBurst(0.06, 2200, 0.12, 900);
         break;
       case 'crewHit': this.noiseBurst(0.07, 900, 0.22, 260); this.tone(220, 0.06, 'square', 0.04); break;
@@ -151,6 +155,7 @@ const Sound = {
       case 'land': this.noiseBurst(0.3, 160, Math.min(0.6, 0.15 + ev.power / 900), 60); this.tone(60, 0.2, 'sine', Math.min(0.3, ev.power / 1500)); break;
       case 'scatter': this.noiseBurst(0.25, 220, 0.3, 90); break;
       case 'nail': this.noiseBurst(0.05, 3200, 0.1, 1800); break;
+      case 'ping': setTimeout(() => { this.tone(2650, 0.35, 'sine', 0.09); this.tone(3980, 0.18, 'sine', 0.04); }, 60); break; // the empty clip
       case 'flame': this.noiseBurst(0.09, 500, 0.05, 160); break;
       case 'harpoon': this.noiseBurst(0.25, 900, 0.2, 300); this.tone(180, 0.2, 'sawtooth', 0.05); break;
       case 'rocket': this.noiseBurst(0.4, 1200, 0.3, 200); break;

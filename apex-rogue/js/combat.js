@@ -244,6 +244,9 @@ class Combat {
     const speed = (b.chip === 'gun_nut' ? 1.4 : 1) * (has(b, 'cassette') ? 1.2 : 1);
     for (const st of this.wstate) st.cd -= dt;
     const w = this.weapon, def = this.weaponDef, st = this.wstate[this.wi];
+    // Bloom: guns that climb (the drum gun, the machine guns) spread wider the longer the trigger's held, and settle
+    // once you let go.
+    if (this.lastFire > 0.18) st.bloom = Math.max(0, (st.bloom || 0) - dt * 3);
     if (st.reloadT > 0) {
       st.reloadT -= dt * speed;
       if (st.reloadT <= 0) {
@@ -282,11 +285,14 @@ class Combat {
     w.mag--;
     this.lastFire = 0;
     if (def.kind === 'bullet') {
+      const spread = def.spread * (1 + (st.bloom || 0));
+      if (def.bloom) st.bloom = Math.min(1.5, (st.bloom || 0) + def.bloom);
       for (let k = 0; k < def.pellets; k++) {
-        const a = ctl.aim + randRange(this.rng, -def.spread, def.spread);
+        const a = ctl.aim + randRange(this.rng, -spread, spread);
         this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0, tracer: !!def.tracer, puncture: def.puncture || 0, shock: def.shock || 0 });
       }
       this.events.push({ type: def.pellets > 1 ? 'shotgun' : def.puncture ? 'nail' : 'shoot', w: this.weapon.id });
+      if (def.ping && w.mag === 0) this.events.push({ type: 'ping' }); // the empty clip flies out with a ping
     } else if (def.kind === 'flame') {
       // A gout of burning fuel: short-lived blobs that spread and slow, lighting whatever they touch.
       for (let k = 0; k < def.pellets; k++) {

@@ -109,15 +109,22 @@ const Proto = {
       // Last: every bolt-on kit piece on every body, so rivals' random kits never stall a race load.
       for (const style of Object.keys(CAR_STYLES)) for (const [bumper, roof] of [['pushbar', 'rails'], ['bullbar', 'rack'], ['plow', 'lightbar'], ['stock', 'cage']]) Models.car({ style, color: '#888888', bumper, roof });
     } finally { Sculpt.collect = false; }
-    // The gloves are fitted to each gun's measured grip, so they're queued once the guns themselves are meshed.
-    let gloves = false;
-    const pump = () => {
-      if (Sculpt.runJobs(10)) return requestAnimationFrame(pump);
-      if (gloves) return;
-      gloves = true;
-      Sculpt.collect = true;
-      try { for (const id of Object.keys(WEAPONS)) Models.hands(Models.weapon(id), id); } finally { Sculpt.collect = false; }
-      requestAnimationFrame(pump);
+    // The gloves are fitted to each gun's measured grip, so they're queued as soon as the guns themselves are meshed
+    // (the guns go first), and jump the queue: a race can't start without them.
+    let gloves = false, check = 0;
+    const pump = (t) => {
+      if (!gloves && t - check > 250) {
+        check = t;
+        const ready = Sculpt.jobs.every((j) => !Object.keys(WEAPONS).some((id) => Models.SCULPT_KEY(id) === j.key));
+        if (ready) {
+          gloves = true;
+          const n = Sculpt.jobs.length;
+          Sculpt.collect = true;
+          try { for (const id of Object.keys(WEAPONS)) Models.hands(Models.weapon(id), id); } finally { Sculpt.collect = false; }
+          Sculpt.jobs.unshift(...Sculpt.jobs.splice(n));
+        }
+      }
+      if (Sculpt.runJobs(10) || !gloves) requestAnimationFrame(pump);
     };
     requestAnimationFrame(pump);
     window.addEventListener('resize', () => this.resize());
@@ -1419,7 +1426,7 @@ const Proto = {
   },
 };
 
-const SHORT_WEAPON = { pistol: 'Pistol', smg: 'SMG', shotgun: 'Shotgun', rocket: 'Launcher', flare: 'Flare', nailgun: 'Nail Gun', flamer: 'Flamer', harpoon: 'Harpoon' };
+const SHORT_WEAPON = { pistol: 'Pistol', smg: 'SMG', shotgun: 'Shotgun', rocket: 'Launcher', flare: 'Flare', nailgun: 'Nail Gun', flamer: 'Flamer', harpoon: 'Harpoon', carbine: 'Carbine', liberty: 'Liberty', typewriter: 'Typewriter', lmg: 'Grinder', pangun: 'Widow' };
 
 // ---------- HUD pieces ----------
 
@@ -1639,6 +1646,14 @@ function drawCockpitHUD(ctx, P, W, H, t) {
   } else if (c.weapon.id === 'flamer') { // the cone it reaches
     ctx.beginPath(); ctx.arc(cx, cy + 30, 34, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5); ctx.stroke();
     ctx.fillStyle = '#ff9a2a'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+  } else if (c.weapon.id === 'carbine' || c.weapon.id === 'liberty') { // a post in a ring (the Liberty's aperture sight), a fine cross on the carbine
+    if (c.weapon.id === 'liberty') { ctx.beginPath(); ctx.arc(cx, cy, 12, 0, TAU); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx, cy + 12); ctx.lineTo(cx, cy); ctx.stroke(); }
+    else for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.beginPath(); ctx.moveTo(cx + dx * 4, cy + dy * 4); ctx.lineTo(cx + dx * 10, cy + dy * 10); ctx.stroke(); }
+    ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1, cy - 1, 2, 2);
+  } else if (['typewriter', 'lmg', 'pangun'].includes(c.weapon.id)) { // corner brackets that open up as the gun climbs
+    const g = 10 + 14 * ((wst.bloom || 0) / 1.5);
+    for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { ctx.beginPath(); ctx.moveTo(cx + sx * g, cy + sy * (g - 6)); ctx.lineTo(cx + sx * g, cy + sy * g); ctx.lineTo(cx + sx * (g - 6), cy + sy * g); ctx.stroke(); }
+    ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1, cy - 1, 2, 2);
   } else if (c.weapon.id === 'harpoon') { // barbed arrowhead
     ctx.beginPath(); ctx.moveTo(cx - 9, cy + 6); ctx.lineTo(cx, cy - 6); ctx.lineTo(cx + 9, cy + 6); ctx.moveTo(cx, cy - 6); ctx.lineTo(cx, cy + 14); ctx.stroke();
   } else {
