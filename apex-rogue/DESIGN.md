@@ -97,8 +97,16 @@ added, never a replacement.
 - Graffiti in later garages: "4471 TOOK THE DEAL", "4471 WAS ONE OF US", "TRAITOR", in the hands the walls already use
   (js/graffiti.js), next to or replacing the Marlowe pieces.
 - C9TV billboards: "4471: UNDEFEATED", with the champion's car.
-- Beat a champion and they're dethroned: "DETHRONED" over their piece. They don't disappear, though: like Marlowe,
-  they keep racing. A dethroned champion can turn up again as a rival in later acts, still in their car.
+- Beat a champion and they're dethroned: "DETHRONED" over their piece.
+
+**Decided: champions die for good, so they never pile up.**
+- **One reigning champion** holds the title race until someone beats them.
+- **Dethroned** champions join the ordinary rival pool: they can turn up in any normal race, in their own car with
+  their own guns, marked on the start grid and the radar so you know who it is.
+- **Blown up is final.** If a dethroned champion's car is destroyed in a race (by you, another rival or a crash), they
+  are dead: they never appear again, and their name goes on the memorial wall with the season. A champion destroyed
+  in the title race itself is dead too; one beaten across the line but not destroyed is only dethroned.
+- **At most three dethroned champions alive at once.** A fourth retires the oldest ("found dead in his cell").
 
 **Later: other players' champions.** The same snapshot, uploaded, lets you sometimes face another player's champion
 (their name, car and playstyle): asynchronous, no netcode. A backend project for after release; the snapshot format is
