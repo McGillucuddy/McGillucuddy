@@ -376,7 +376,7 @@ const Proto = {
         <button class="btn" data-action="settings">Settings</button>
         <button class="btn" data-action="how-to">How to play</button>
         <button class="btn ghost" data-action="exit">Exit</button>
-        <p class="t-links small"><a href="#" data-action="intro">Watch intro</a> · <a href="models.html">Model viewer</a> · Rep <b>${this.cos.rep}</b></p>
+        <p class="t-links small"><a href="#" data-action="intro">Watch intro</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'} · Rep <b>${this.cos.rep}</b>${window.BUILD ? ` · <span class="muted">${window.BUILD}</span>` : ''}</p>
       </div>
       ${side}
     </div>`);
@@ -1118,7 +1118,7 @@ const Proto = {
         ${this.tab === 'car' ? '<p class="small muted g-hint">Drag the car to spin it round · scroll to zoom</p>' : ''}
         <div class="perks trinket-row">${trinkets}</div>
         ${body}
-        <p class="small muted g-links"><a href="models.html">Model viewer</a></p>
+        ${window.RELEASE ? '' : '<p class="small muted g-links"><a href="models.html">Model viewer</a></p>'}
       </div>
       <button class="btn primary big g-go" data-action="to-map">🗺 Pick your race ▶</button>
     </div>`);

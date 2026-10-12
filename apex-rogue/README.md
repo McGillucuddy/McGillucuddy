@@ -419,3 +419,10 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/sculpt.js` | Sculpted models: signed distance parts blended per material and meshed into seamless surfaces |
 | `js/hud.js` | Race HUD shared by both pages |
 | `tools/sim.js` | Headless balance simulator: `node tools/sim.js [races] [botSkill]` |
+
+## Playtest builds
+
+`tools/release.sh` packages the game for testers: the first-person game as `index.html`, only the files it loads, and
+the build (date and commit) shown on the title screen. It writes `dist/death-row-derby-<date>-<commit>.zip`. Upload
+that to itch.io (Kind of project: HTML, "This file will be played in the browser", visibility Restricted) or unzip it
+onto Netlify Drop.
