@@ -53,17 +53,28 @@ Both should land, in different keys: freedom is earned and quiet; the deal is tr
 - **Three strikes:** back to the cell. That inmate can turn up later as a rival in the Undercity, a lifer with a grudge.
 - **Wrecked for good / killed** (if that becomes a fail state): their name goes on the memorial wall with the season.
 
-**Open**
-- What walking free gives you to keep. Proposal: a permanent unlock or the freed inmate's car turning up later
-  ("this belonged to someone who got out"), and their name added to the Dez arguments on the walls.
-- Rep: does the deal pay more rep than freedom (the bigger spectacle) to make the choice hard? Proposal: the deal pays
-  more rep, freedom unlocks something the deal can't.
-- What happens to Marlowe the first time a player takes the deal: retired, killed, or working for Halloran.
+**Decided: what each ending leaves behind.**
+- **Walking free unlocks a cosmetic for good**: a "Free" paint (civilian colours with the prison number painted over,
+  or the gate pass stamped on the door), and the inmate's name goes on a "they got out" wall in the garage, so you can
+  see how many you've freed. Freed names also join the Dez arguments on the walls ("4471 WALKED FREE" / "NO HE DIDN'T").
+- **Taking the deal leaves a champion** (section 3).
+- **Rep is the same for both.** Rep is the player's progress across runs, not the inmate's, so beating the Crown boss
+  pays it either way. The choice is about the story and what you leave behind, never about which pays better.
+
+**Decided: the deal is that you never stop racing.** Halloran doesn't let champions retire. That's why Marlowe is
+still out there every season, and the cost of the deal you only see later: your champion fights every inmate after
+you, for good. (Marlowe's walls already say he "took the deal"; this is what it was.)
 
 ## 3. Champions: your old inmates as bosses
 
-**Decided:** if you take the deal, that inmate becomes the Crown boss in your later runs. One reigning champion at a
-time: the last one to take the deal. Marlowe holds the Crown until the player first takes it.
+**Decided:** if you take the deal, that inmate becomes the reigning champion in your later runs. One reigning
+champion at a time: the last one to take the deal.
+
+**Decided: the core bosses always come back.** The Turnkey, Sal, Vale and Marlowe are in every run; a champion is
+added, never a replacement.
+- No player champion yet: Marlowe is the champion and the final boss (as now).
+- Once there is one: beating Marlowe in Act IV earns a **title race** against the reigning champion, your old
+  inmate. Win it, and then Halloran makes his offer.
 
 **The snapshot** (saved once, the moment you take the deal; stored with the meta save):
 - Identity: inmate number, name or nickname, crime, face (see section 4), the Derby season.
@@ -86,7 +97,8 @@ time: the last one to take the deal. Marlowe holds the Crown until the player fi
 - Graffiti in later garages: "4471 TOOK THE DEAL", "4471 WAS ONE OF US", "TRAITOR", in the hands the walls already use
   (js/graffiti.js), next to or replacing the Marlowe pieces.
 - C9TV billboards: "4471: UNDEFEATED", with the champion's car.
-- Beat a champion and they're dethroned: "DETHRONED" over their piece, their name on the memorial wall or in the lore.
+- Beat a champion and they're dethroned: "DETHRONED" over their piece. They don't disappear, though: like Marlowe,
+  they keep racing. A dethroned champion can turn up again as a rival in later acts, still in their car.
 
 **Later: other players' champions.** The same snapshot, uploaded, lets you sometimes face another player's champion
 (their name, car and playstyle): asynchronous, no netcode. A backend project for after release; the snapshot format is
@@ -118,8 +130,8 @@ A tiny amount of identity makes the stakes personal and makes champions memorabl
 Playtesting comes first: if the core loop (driving and shooting at once, the hatch, readability, performance) needs
 work, that work comes before any of this.
 
-1. **The snapshot and the champion boss.** Save the snapshot on taking the deal; build the Crown boss from it. The
-   core of the feature, and testable alone.
+1. **The snapshot and the champion boss.** Save the snapshot on taking the deal; build the title race and the
+   champion from it. The core of the feature, and testable alone.
 2. **The deal moment and both endings.** Halloran's offer, the two ending sequences, the run ending.
 3. **The callbacks.** Graffiti, billboards and the memorial for champions, freed inmates and lifers.
 4. **Ratings.** The meter, the payout at the garage, the broadcast HUD; feeds the champion's fame.

@@ -48,7 +48,8 @@ so treat it as fixed, and add to it here first when something new is introduced.
 - **Vex "The Apex" Marlowe** (Act IV, the Crown): the undefeated champion. Marlowe **was a C9 inmate**, number 0001,
   the first ("MARLOWE WAS ONE OF US", "C9 0001 = MARLOWE"). The walls say Marlowe won and **took the deal**, staying
   on as champion instead of walking free, and some call that betrayal ("MARLOWE TOOK THE DEAL" / "TRAITOR").
-  *Open: what the deal was.*
+  **The deal is that you never stop racing**: Halloran doesn't let champions retire, which is why Marlowe is out there
+  every season. (Planned: the player gets the same offer. See DESIGN.md.)
 
 ## Inmates and legends
 
