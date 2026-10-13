@@ -166,7 +166,7 @@ You pick your path through it (`js/runmap.js`):
 | 🔧 Mechanic | A free full repair. |
 | 💰 Bounty race | A regular race with a price on one rival's head: wreck them for 150+ scrap. |
 | 📦 Stash | Pick one of two items, no race. |
-| 👑 Qualifier | A named boss in a signature car. Finish ahead of them to move up an act (+250 scrap and a **driver trait**: Getaway Veteran, Ghost or Showboat, each with a downside). Lose, and you take a strike and must face them again. |
+| 👑 Qualifier | A named boss in a signature car. Finish ahead of them to move up an act (+150 scrap and a **driver trait**: Getaway Veteran, Ghost or Showboat, each with a downside). Lose, and you take a strike and must face them again. |
 
 The bosses are The Turnkey (an armoured prison van with a gunner), Smokestack Sal (a mine layer), Augustin Vale (a gold
 rocket supercar) and Vex "The Apex" Marlowe at the Crown. Against Marlowe, only an outright win sets you free.

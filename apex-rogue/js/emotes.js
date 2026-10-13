@@ -13,7 +13,7 @@ const EMOTES = {
 const EMOTE_ORDER = ['flip', 'thumbs', 'beckon', 'horns']; // wheel: up, right, down, left
 const EMOTE_CD = 2.5;
 const TILT_TIME = 8;
-const HUMILIATE_PASS = 15, HUMILIATE_WRECK = 30;
+const HUMILIATE_PASS = 10, HUMILIATE_WRECK = 20;
 
 // What the bosses say back when you taunt them.
 const BOSS_COMEBACKS = {

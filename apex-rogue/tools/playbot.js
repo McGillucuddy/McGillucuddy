@@ -105,7 +105,8 @@ window.Bot = {
     }
   },
   garage() {
-    const b = Proto.build, keep = 60;
+    const b = Proto.build, keep = 60, before = b.scrap;
+    this.run.visits = this.run.visits || [];
     this.manageLoadout();
     if (b.hull < b.maxHull * 0.8) Proto.action('repair-hull');
     if (b.hatch && b.hatch.hp < 70) Proto.action('repair-hatch');
@@ -114,16 +115,17 @@ window.Bot = {
     if (Proto.shopOpen) (Proto.shop || []).forEach((c, i) => {
       if (c.sold || b.scrap - c.price < keep) return;
       const want = (c.type === 'weapon' && !b.rack.some((w) => w.id === c.id) && b.rack.length < rackSlots(b)) || c.type === 'trinket' || (c.type === 'part' && (PARTS[c.id].price || 0) > (PARTS[b.parts[PARTS[c.id].slot].id].price || 0));
-      if (want) { this.run.shop.push(`${c.type}:${c.id}`); Proto.action('buy-item', String(i)); }
+      if (want) { this.run.shop.push(`${c.type}:${c.id}@${c.price}`); Proto.action('buy-item', String(i)); }
     });
     this.manageLoadout();
     this.run.scrapPeak = Math.max(this.run.scrapPeak, b.scrap);
+    this.run.visits.push(`${before}->${b.scrap}${Proto.shopOpen ? ' (shop)' : ''}`);
     Proto.shopOpen = false;
     Proto.action('to-map');
   },
   pickMap() {
     const run = Proto.run, b = Proto.build, ids = reachableNodes(run.map, run.cur), nodes = ids.map((id) => mapNode(run.map, id));
-    const score = (n) => ({ repair: b.hull < b.maxHull * 0.55 ? 10 : 1, shop: b.scrap > 260 ? 7 : 2, stash: 6, event: 4, race: 5, bounty: 5, elite: b.hull > b.maxHull * 0.7 ? 5.5 : 3, boss: 5 }[n.type] || 3) + Math.random();
+    const score = (n) => ({ repair: b.hull < b.maxHull * 0.55 ? 10 : 1, shop: b.scrap > 180 ? 7 : 2, stash: 6, event: 4, race: 5, bounty: 5, elite: b.hull > b.maxHull * 0.7 ? 5.5 : 3, boss: 5 }[n.type] || 3) + Math.random();
     let best = nodes[0];
     for (const n of nodes) if (score(n) > score(best)) best = n;
     Proto.pickNode(best.id);

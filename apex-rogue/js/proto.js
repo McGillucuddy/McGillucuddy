@@ -274,7 +274,7 @@ const Proto = {
         break;
       }
       case 'pick-reward': applyItem(b, this.rewards[+arg]); Sound.play({ type: 'buy' }); this.afterReward(); break;
-      case 'skip-reward': b.scrap += 50; this.afterReward(); break;
+      case 'skip-reward': b.scrap += SKIP_SCRAP; this.afterReward(); break;
       // Loadout (swappable here; only trinkets are permanent)
       case 'equip-part': equipPart(b, +arg); this.showGarage(); break;
       case 'equip-weapon': { const [si, ri] = arg.split(':').map(Number); equipWeapon(b, si, ri >= 0 ? ri : null); this.showGarage(); break; }
@@ -648,7 +648,7 @@ const Proto = {
     node.done = true;
     run.cur = node.id;
     if (node.type === 'shop') {
-      this.shop = rollShop(this.build, this.runRng);
+      this.shop = rollShop(this.build, this.runRng, this.run.act);
       this.shopOpen = true;
       this.tab = 'market';
       this.toGarage();
@@ -1053,14 +1053,14 @@ const Proto = {
     // Bank the race: hull carries over, scrap paid out, strikes for missing the cut.
     const show = b.chip === 'showboat' ? 1.5 : 1;
     const wx = wxOf(race.weather), placePay = Math.round((PLACE_SCRAP[p.place - 1] || 0) * show * (race.node.type === 'elite' ? 1.4 : 1) * (has(b, 'tooth') ? 1.3 : 1) * (wx.scrap || 1)), wreckPay = Math.round((s.wrecked * WRECK_SCRAP + s.scrapBonus) * show);
-    const bossPay = boss && ok ? 250 : 0;
+    const bossPay = boss && ok ? BOSS_PURSE : 0;
     const bc = race.bountyCar, bountyPay = bc && bc.hp <= 0 ? bc.bounty : 0;
     let sponsorCut = 0;
     if (run.flags.sponsor) { if (!ok) sponsorCut = Math.min(b.scrap + placePay + wreckPay, run.flags.sponsor); run.flags.sponsor = 0; }
     let betPay = 0;
     if (run.flags.bet) { if (p.place <= 2) betPay = run.flags.bet; run.flags.bet = 0; }
     b.scrap += placePay + wreckPay + bossPay + betPay + bountyPay - sponsorCut;
-    b.hull = Math.max(1, Math.round(p.hp));
+    b.hull = Math.max(Math.round(b.maxHull * CREW_PATCH), Math.round(p.hp)); // the crew patches a wreck back to running; the rest is yours to pay for
     if (has(b, 'snowglobe')) b.grenades = Math.min(MAX_GRENADES, b.grenades + 1);
     b.race++;
     if (p.place === 1) b.wins++;
@@ -1086,7 +1086,7 @@ const Proto = {
           <div><span>Rockets &amp; mines shot down</span><b>${s.shotDown}</b></div>
           <div><span>Parries</span><b>${s.parries}</b></div>
           <div><span>Damage taken</span><b>${Math.round(s.taken)}</b></div>
-          <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}</b></div>
+          <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}${b.hull > Math.ceil(p.hp) ? ` <small class="muted">(crew patched to ${b.hull})</small>` : ''}</b></div>
           <div><span>Placing pay</span><b>${placePay} scrap</b></div>
           <div><span>Wreck bounties</span><b>${wreckPay} scrap</b></div>
           ${bossPay ? `<div><span>Qualifier purse</span><b>${bossPay} scrap</b></div>` : ''}
@@ -1302,7 +1302,7 @@ const Proto = {
       <h1>${this.rewardKind === 'boss' ? 'Driver trait' : this.rewardKind === 'elite' ? 'Elite spoils' : this.rewardKind === 'stash' ? 'Contraband stash' : 'Pick your cut'}</h1>
       <p class="muted">${this.rewardKind === 'boss' ? `${BOSSES[this.run.act].name} is beaten. Your driver picked up a habit or two: choose one (it fills your chip slot, swappable in the garage).` : this.build.scrap + ' scrap · choose one'}</p>
       <div class="cards">${cards}</div>
-      <button class="btn ghost" data-action="skip-reward">Skip (+50 scrap)</button>
+      <button class="btn ghost" data-action="skip-reward">Skip (+${SKIP_SCRAP} scrap)</button>
     </div>`);
   },
 

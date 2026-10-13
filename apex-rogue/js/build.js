@@ -230,13 +230,16 @@ function weldNotch(b, slot, dir) {
   return true;
 }
 
-const PLACE_SCRAP = [220, 160, 120, 80, 50, 30, 20];
-const WRECK_SCRAP = 30;
+// Scrap is scarce on purpose: a good race pays for the repairs and a little over, not for everything in the shop.
+const PLACE_SCRAP = [130, 95, 70, 45, 30, 20, 10];
+const WRECK_SCRAP = 15;
+const BOSS_PURSE = 150;
+const SKIP_SCRAP = 30;
 const STRIKES_TO_LOSE = 3;
 
 function newBuild() {
   const b = {
-    scrap: 150, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0,
+    scrap: 120, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0,
     parts: {}, spare: null,
     rack: [], rackBase: 2,
     tuneRange: { engine: { lo: -1, hi: 1 }, tyres: { lo: -1, hi: 1 }, armour: { lo: -1, hi: 1 }, nitro: { lo: -1, hi: 1 } },
@@ -475,25 +478,40 @@ function rollBossRewards(b, rng) {
   return out;
 }
 
-function rollShop(b, rng) {
-  const pickN = (ids, n) => shuffle(rng, ids).slice(0, n);
-  const parts = pickN(Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id) && isUnlocked('part', id)), 2);
-  const weapons = pickN(Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id) && isUnlocked('weapon', id)), 1);
-  const abil = pickN(Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id) && isUnlocked('ability', id)), 1);
-  const mods = pickN(Object.keys(MODS).filter((id) => isUnlocked('mod', id)), 3);
-  const out = [
-    ...parts.map((id) => itemCard('part', id)), ...weapons.map((id) => itemCard('weapon', id)),
-    ...abil.map((id) => itemCard('ability', id)), ...mods.map((id) => itemCard('mod', id)),
-  ];
-  // Now and then a trinket under the counter, at a price.
-  const left = Object.keys(TRINKETS).filter((id) => !has(b, id) && isUnlocked('trinket', id));
-  if (left.length && rng() < 0.35) out.push(Object.assign(itemCard('trinket', left[Math.floor(rng() * left.length)]), { price: 260 }));
-  if (has(b, 'smokes')) for (const c of out) c.price = Math.round(c.price * 0.85);
+// The commissary: six items drawn at random from everything you've unlocked (weapons, car parts, attachments,
+// trinkets, abilities, driver chips), never more than two of a kind, so every visit is a different set of choices.
+// Scrap is scarce: you won't afford all of it, and what you buy here is scrap you don't spend on repairs and ammo.
+const SHOP_SIZE = 6;
+const SHOP_MIX = { weapon: [1, 2], part: [1, 2], mod: [0.9, 2], trinket: [0.7, 1], ability: [0.5, 1], chip: [0.4, 1] }; // [weight, at most]
+const SHOP_PRICE = { trinket: 240, chip: 200 }; // the ones with no list price
+function rollShop(b, rng, act) {
+  const pool = [];
+  for (const id in WEAPONS) if (WEAPONS[id].price > 0 && !ownsWeapon(b, id)) pool.push(['weapon', id]);
+  for (const id in PARTS) if (PARTS[id].price > 0 && !ownsPart(b, id)) pool.push(['part', id]);
+  for (const id in MODS) pool.push(['mod', id]);
+  for (const id in TRINKETS) if (!has(b, id)) pool.push(['trinket', id]);
+  for (const id in ABILITIES) if (ABILITIES[id].price > 0 && !ownsAbility(b, id)) pool.push(['ability', id]);
+  for (const id in CHIPS) if (!ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)) pool.push(['chip', id]);
+  for (let i = pool.length - 1; i >= 0; i--) if (!isUnlocked(pool[i][0], pool[i][1])) pool.splice(i, 1); // only gear you've unlocked
+  const out = [], n = {};
+  while (out.length < SHOP_SIZE && pool.length) {
+    const p = weightedPick(rng, pool, (q) => SHOP_MIX[q[0]][0]);
+    pool.splice(pool.indexOf(p), 1);
+    if ((n[p[0]] || 0) >= SHOP_MIX[p[0]][1]) continue;
+    n[p[0]] = (n[p[0]] || 0) + 1;
+    out.push(itemCard(p[0], p[1]));
+  }
+  // Prices: list price (or the trinket and chip rate), creeping up as the run climbs the city.
+  const mul = (1 + 0.12 * (act || 0)) * (has(b, 'smokes') ? 0.85 : 1);
+  for (const c of out) c.price = Math.round(((c.price || SHOP_PRICE[c.type] || 150) * mul) / 5) * 5;
   return out;
 }
 
 const repairMul = (b) => (has(b, 'photo') ? 0.7 : 1);
-const repairHullCost = (b) => Math.ceil((b.maxHull - b.hull) * 1.2 * repairMul(b));
+const repairHullCost = (b) => Math.ceil((b.maxHull - b.hull) * 1.0 * repairMul(b));
+// After every race the crew patches the hull back up to this share for free, so one disaster can't bankrupt a run;
+// anything above it costs scrap.
+const CREW_PATCH = 0.4;
 const repairPartCost = (b, slot) => Math.ceil(((partMaxDur(b, b.parts[slot].id) - Math.max(0, b.parts[slot].dur)) * 0.8 + (partBroken(b, slot) ? 30 : 0)) * repairMul(b));
 const spareCost = (b, slot) => Math.max(60, Math.round(PARTS[b.parts[slot].id].price * 0.6));
 
