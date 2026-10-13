@@ -265,8 +265,10 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   contraband itself (the pill bottle, the bag, the injector, the bottle, the box of rounds).
 - **The black market** (`js/blackmarket.js`). On about 40% of garage visits after a race there's a tap on the back
   wall and a brick slides out: a dealer you only see as two eyes and a cigarette, selling three things the
-  commissary won't. Nobody searches you for any of it. Prices are high and wander, and now and then he sells you a
-  dud you only find out about when you use it.
+  commissary won't. Nobody searches you for any of it. Prices are high and wander. Everything he sells works, but
+  you build a **tolerance**: each time you take the same drug or drink in a run it hits 25% weaker (never below
+  40%), while its comedown stays just as bad. The cards and the briefing show the strength it will hit you at. Hot
+  ammo always works.
   - **Drugs**, named for what they are, kept in your pocket (five slots) and taken at the race briefing, one of each
     kind a race. Every card spells out the effect and the comedown with numbers:
     *Methamphetamine* (reloads 30% faster, fires 8% faster, 25% tighter aim; next race 30% shakier aim, slower

@@ -277,7 +277,7 @@ const Proto = {
         const c = this.dealer && this.dealer.stock[+arg];
         if (!c || c.sold || (c.type !== 'trinket' && b.pocket.length >= POCKET_MAX) || !buy(c.price)) break;
         if (c.type === 'trinket') applyItem(b, itemCard('trinket', c.id));
-        else b.pocket.push({ id: c.id, dud: !!c.dud });
+        else b.pocket.push({ id: c.id });
         c.sold = true;
         this.saveRun();
         this.showGarage();
@@ -918,17 +918,19 @@ const Proto = {
   useContraband() {
     const b = this.build, run = this.run, race = this.race;
     if (this.tutorial || !race || !this.combat || !b.pocket) return;
-    const used = b.pocket.filter((x) => x.use), real = used.filter((x) => !x.dud).map((x) => x.id);
+    const used = b.pocket.filter((x) => x.use).map((x) => ({ id: x.id, p: BlackMarket.potency(run, x.id) }));
     b.pocket = b.pocket.filter((x) => !x.use);
     const down = run.flags.comedown || [];
-    const B = BlackMarket.buffs(real, down);
-    run.flags.comedown = real.filter((id) => CONTRABAND[id].comedown);
+    const B = BlackMarket.buffs(used, down);
+    run.flags.comedown = used.map((u) => u.id).filter((id) => CONTRABAND[id].comedown);
+    const tol = run.flags.tolerance || (run.flags.tolerance = {});
+    for (const u of used) if (CONTRABAND[u.id].kind !== 'ammo') tol[u.id] = (tol[u.id] || 0) + 1;
     this.combat.buffs = Object.keys(B).length ? B : null;
     if (B.hull) race.player.hp = Math.max(1, race.player.hp - B.hull);
     const verb = { drug: 'You take the', booze: 'You drink the', ammo: 'You load the' };
-    for (const x of used) {
-      const c = CONTRABAND[x.id];
-      race.message(x.dud ? `The ${c.name} was a dud. He saw you coming.` : `${verb[c.kind]} ${c.name}`, x.dud ? '#ff8a6a' : '#c9a0ff');
+    for (const u of used) {
+      const c = CONTRABAND[u.id];
+      race.message(`${verb[c.kind]} ${c.name}${u.p < 1 ? ` (it barely touches you now: ${Math.round(u.p * 100)}%)` : ''}`, '#c9a0ff');
     }
     if (down.length) race.message('Coming down hard', '#ff8a6a');
   },
@@ -1045,7 +1047,7 @@ const Proto = {
     const verb = { drug: 'Take', booze: 'Drink', ammo: 'Load' };
     const items = b.pocket.map((x, i) => {
       const c = CONTRABAND[x.id];
-      return `<button class="opt ${x.use ? 'on' : ''}" data-action="pocket-use" data-arg="${i}" title="This race: ${contraFx(c.buff)}${c.comedown ? '. Next race: ' + contraFx(c.comedown) : ''}">${x.use ? '✔ ' : ''}${verb[c.kind]} the ${c.name}</button>`;
+      return `<button class="opt ${x.use ? 'on' : ''}" data-action="pocket-use" data-arg="${i}" title="This race: ${contraFx(BlackMarket.scale(c.buff, BlackMarket.potency(run, x.id)))}${c.comedown ? '. Next race: ' + contraFx(c.comedown) : ''}">${x.use ? '✔ ' : ''}${verb[c.kind]} the ${c.name}${BlackMarket.potency(run, x.id) < 1 ? ` (${Math.round(BlackMarket.potency(run, x.id) * 100)}%)` : ''}</button>`;
     }).join('');
     return `<h2>Your pocket</h2>${items ? `<div class="opts">${items}</div><p class="muted small">One of each kind a race. Used when the lights go green.</p>` : ''}
       ${down.length ? `<p class="small bad">Coming down off the ${down.map((c) => c.name).join(' and the ')}: ${down.map((c) => contraFx(c.comedown)).join('; ')}.</p>` : ''}`;
@@ -1363,14 +1365,14 @@ const Proto = {
       const t = c.type === 'trinket' ? TRINKETS[c.id] : CONTRABAND[c.id], kind = c.type === 'trinket' ? 'SHADY TRINKET' : CONTRA_KIND[t.kind];
       const no = c.sold || b.scrap < c.price || (c.type !== 'trinket' && full);
       return `<div class="shop-card ${c.sold ? 'sold' : ''}">
-        <small class="muted">${kind}</small>${Thumbs.img(c, b)}<b>${t.name}</b>${t.street ? `<small class="muted">"${t.street}"</small>` : ''}<small>${c.type === 'trinket' ? t.desc : contraDesc(t)}</small>
+        <small class="muted">${kind}</small>${Thumbs.img(c, b)}<b>${t.name}</b>${t.street ? `<small class="muted">"${t.street}"</small>` : ''}<small>${c.type === 'trinket' ? t.desc : contraDesc(t, BlackMarket.potency(this.run, c.id))}</small>
         <button class="btn small" data-action="buy-contra" data-arg="${i}" ${no ? 'disabled' : ''}>${c.sold ? 'Sold' : full && c.type !== 'trinket' ? 'Pocket full' : 'Buy ' + c.price}</button>
       </div>`;
     };
     const pocket = b.pocket.length ? b.pocket.map((x) => `<span class="perk">${CONTRABAND[x.id].name}</span>`).join('') : '<span class="muted small">Empty.</span>';
     return `<div class="panel wall-panel"><h2>The hole in the wall</h2>
       <p class="small"><i>${D.hello}</i></p>
-      <p class="muted small">Two eyes and a cigarette in the dark. Nothing here is legal, nothing is refunded, and now and then it isn't what he says it is.</p>
+      <p class="muted small">Two eyes and a cigarette in the dark. Nothing here is legal and nothing is refunded. The more of something you take, the less it does for you.</p>
       <div class="shop-grid three">${D.stock.map(card).join('')}</div>
       <h3 class="shop-sec">Your pocket (${b.pocket.length}/${POCKET_MAX})</h3><div class="perks">${pocket}</div>
       <p class="muted small">Take drugs and booze, and load hot ammo, from the race briefing.</p></div>`;

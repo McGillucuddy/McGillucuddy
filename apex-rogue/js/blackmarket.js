@@ -7,7 +7,8 @@
 //     the race after.
 //   Hot ammo: loaded at the briefing, for every bullet gun in that race.
 //   Shady trinkets: permanent, like any trinket, with a real downside. Only he sells them.
-// He's not always honest: now and then a drug or a box of rounds is a dud, and you only find out when you use it.
+// Tolerance: every time you take the same drug or drink in a run it hits a quarter weaker (never below 40%), while
+// the comedown stays just as bad. Hot ammo is ammo: it always works.
 
 const CONTRABAND = {
   meth: {
@@ -83,13 +84,14 @@ function contraFx(fx) {
   }
   return out.join(', ');
 }
-const contraDesc = (c) => `${c.flavor} <b>This race:</b> ${contraFx(c.buff)}.${c.comedown ? ` <b>Next race:</b> ${contraFx(c.comedown)}.` : ''}`;
+const TOLERANCE = { step: 0.25, floor: 0.4 };
+// A card's text: the flavour, then the effect at the strength it would hit you now, and the comedown.
+const contraDesc = (c, p = 1) => `${c.flavor} <b>This race:</b> ${contraFx(BlackMarket.scale(c.buff, p))}${p < 1 ? ` <i>(${Math.round(p * 100)}% strength: your tolerance)</i>` : ''}.${c.comedown ? ` <b>Next race:</b> ${contraFx(c.comedown)}.` : ''}`;
 const CONTRA_KIND = { drug: 'DRUG', booze: 'BOOZE', ammo: 'HOT AMMO' };
 const POCKET_MAX = 5;
 
 const DEALER = {
   chance: 0.4, // per garage visit after a race
-  dud: 0.1, // a drug or a box of rounds that turns out to be nothing
   trinketPrice: [260, 340],
   hello: [
     '"Psst. Down here. Don\'t look at me, look at the wall."',
@@ -108,7 +110,7 @@ const BlackMarket = {
     if (rng() > DEALER.chance) return null;
     const mul = 1 + 0.12 * act, price = (r) => Math.round((r[0] + (r[1] - r[0]) * rng()) * mul / 5) * 5;
     const ids = shuffle(rng, Object.keys(CONTRABAND)), stock = [];
-    const contra = (id) => ({ type: 'contra', id, price: price(CONTRABAND[id].price), dud: rng() < DEALER.dud });
+    const contra = (id) => ({ type: 'contra', id, price: price(CONTRABAND[id].price) });
     stock.push(contra(ids[0]), contra(ids[1]));
     const shady = Object.keys(TRINKETS).filter((id) => TRINKETS[id].shady && !has(b, id));
     if (shady.length && rng() < 0.5) stock.push({ type: 'trinket', id: shady[Math.floor(rng() * shady.length)], price: price(DEALER.trinketPrice) });
@@ -118,6 +120,21 @@ const BlackMarket = {
 
   // Everything in effect for this race: what you took, and last race's comedowns. Multipliers multiply; burn and
   // drunkenness take the strongest.
+  // How strong a drug or drink still hits you this run, after the times you've already taken it.
+  potency(run, id) {
+    if (CONTRABAND[id].kind === 'ammo') return 1;
+    const n = ((run && run.flags.tolerance) || {})[id] || 0;
+    return Math.max(TOLERANCE.floor, 1 - TOLERANCE.step * n);
+  },
+  // An effect at a given strength: the boosts shrink towards nothing; being drunk and the like stay as they are.
+  scale(fx, p) {
+    if (p >= 1) return fx;
+    const out = {};
+    for (const k in fx) out[k] = ['drunk', 'burn', 'tyreMin', 'hull'].includes(k) ? fx[k] : +(1 + (fx[k] - 1) * p).toFixed(3);
+    return out;
+  },
+
+  // used: contraband ids, or { id, p } with the strength each one hit at.
   buffs(used, comedowns) {
     const B = {};
     const add = (fx) => {
@@ -127,7 +144,7 @@ const BlackMarket = {
         else B[k] = (B[k] || 1) * fx[k];
       }
     };
-    for (const id of used) add(CONTRABAND[id].buff);
+    for (const u of used) { const id = u.id || u; add(BlackMarket.scale(CONTRABAND[id].buff, u.p == null ? 1 : u.p)); }
     for (const id of comedowns) if (CONTRABAND[id] && CONTRABAND[id].comedown) add(CONTRABAND[id].comedown);
     return B;
   },
