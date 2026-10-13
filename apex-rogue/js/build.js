@@ -54,8 +54,8 @@ const WEAPONS = {
   carbine: { name: 'WC-9 Carbine', desc: 'Warden Corp guard issue, liberated. Accurate full-auto that carries a long way: the all-rounder.', kind: 'bullet', auto: true, mag: 30, reload: 1.8, rate: 0.1, pellets: 1, spread: 0.026, speed: 1750, dmg: 4.4, life: 0.72, pack: 60, packPrice: 45, start: 90, tyre: 0.8, price: 280 },
   liberty: { name: 'Liberty Rifle', desc: 'Pre-war army surplus, older than the Plate. Eight heavy, dead-accurate rounds a clip, then the empty clip pings out.', kind: 'bullet', auto: false, mag: 8, reload: 1.5, rate: 0.24, pellets: 1, spread: 0.008, speed: 2100, dmg: 11, life: 0.85, knock: 25, ping: true, pack: 24, packPrice: 45, start: 32, tyre: 1, price: 260 },
   typewriter: { name: 'Typewriter', desc: 'A pre-war drum gun in walnut and blued steel. Fifty rounds as fast as you can hold on, but the longer you hold, the more it climbs.', kind: 'bullet', auto: true, mag: 50, reload: 2.6, rate: 0.065, pellets: 1, spread: 0.04, speed: 1350, dmg: 3.1, life: 0.55, bloom: 0.09, pack: 100, packPrice: 50, start: 150, tyre: 0.5, price: 240 },
-  lmg: { name: 'Grinder LMG', desc: 'Belt-fed, a hundred rounds to the box. It wanders as the barrel heats and takes an age to reload: make the belt count.', kind: 'bullet', auto: true, mag: 100, reload: 3.8, rate: 0.08, pellets: 1, spread: 0.034, speed: 1650, dmg: 4.0, life: 0.7, bloom: 0.025, pack: 100, packPrice: 60, start: 200, tyre: 0.7, price: 380 },
-  pangun: { name: 'Widow MG', desc: 'Pre-war, with a cooling jacket and a pan magazine that turns as it fires. Heavy rounds; changing the pan is slow.', kind: 'bullet', auto: true, mag: 47, reload: 3.0, rate: 0.1, pellets: 1, spread: 0.03, speed: 1700, dmg: 5.4, life: 0.75, bloom: 0.03, pack: 94, packPrice: 60, start: 141, tyre: 0.8, price: 340 },
+  lmg: { name: 'Grinder LMG', roof: true, desc: 'Roof-mounted. Belt-fed, a hundred rounds to the box. It wanders as the barrel heats and takes an age to reload: make the belt count.', kind: 'bullet', auto: true, mag: 100, reload: 3.8, rate: 0.08, pellets: 1, spread: 0.034, speed: 1650, dmg: 4.0, life: 0.7, bloom: 0.025, pack: 100, packPrice: 60, start: 200, tyre: 0.7, price: 380 },
+  pangun: { name: 'Widow MG', roof: true, desc: 'Roof-mounted. Pre-war, with a cooling jacket and a pan magazine that turns as it fires. Heavy rounds; changing the pan is slow.', kind: 'bullet', auto: true, mag: 47, reload: 3.0, rate: 0.1, pellets: 1, spread: 0.03, speed: 1700, dmg: 5.4, life: 0.75, bloom: 0.03, pack: 94, packPrice: 60, start: 141, tyre: 0.8, price: 340 },
   harpoon: { name: 'Harpoon Gun', desc: 'A heavy barbed bolt on a line. Hooks a rival and drags them back hard.', kind: 'harpoon', auto: false, mag: 1, reload: 1.6, rate: 0.5, speed: 1150, dmg: 16, life: 1.1, hook: 1.6, pack: 4, packPrice: 60, start: 5, tyre: 0.3, price: 280 },
 };
 const GRENADE_PRICE = 30;
@@ -249,7 +249,7 @@ const STRIKES_TO_LOSE = 3;
 
 function newBuild() {
   const b = {
-    scrap: 120, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0, pocket: [], // pocket: contraband to use at a briefing
+    scrap: 120, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0, pocket: [], roof: { gun: null, shield: 'none', shieldHp: 0 }, // pocket: contraband to use at a briefing; roof: the machine-gun mount
     parts: {}, spare: null,
     rack: [], rackBase: 2,
     tuneRange: { engine: { lo: -1, hi: 1 }, tyres: { lo: -1, hi: 1 }, armour: { lo: -1, hi: 1 }, nitro: { lo: -1, hi: 1 } },
@@ -275,6 +275,29 @@ function installPart(b, id) {
 }
 
 const newWeapon = (id) => ({ id, mag: WEAPONS[id].mag, reserve: Math.max(0, WEAPONS[id].start - WEAPONS[id].mag), mods: [null, null] });
+
+// The roof mount. The machine guns (WEAPONS with roof: true) don't go in your hands: they sit on a pintle over a
+// hatch in the roof, and you climb up into it (see Combat.toggleRoof). Up there you're exposed, and what you can buy
+// to cover you is shielding round the gun, each tier a trade:
+//   cover: the half-angle (from where the gun points) that it stops gunfire from; block: the share it stops there
+//   arc:   how far either side of dead ahead the gun can swing inside it; weight: a little off your top speed
+const ROOF_SHIELDS = {
+  none: { name: 'Bare mount', price: 0, cover: 0, block: 0, arc: Math.PI, hp: 0, weight: 0, desc: 'Nothing between you and every gunner on the track. You can swing all the way round.' },
+  plate: { name: 'Gun Shield', price: 140, cover: 0.75, block: 1, arc: Math.PI, hp: 60, weight: 0.01, desc: 'A welded plate in front of the gun with a sighting slot. Stops what comes at you from where you\'re aiming; your sides and back are open.' },
+  wrap: { name: 'Wraparound', price: 260, cover: 2.0, block: 1, arc: 2.2, hp: 90, weight: 0.03, desc: 'Plates on three sides. Stops most gunfire, but it\'s heavy (3% off your top speed) and you can\'t swing round to the back.' },
+  cage: { name: 'Cage Turret', price: 420, cover: Math.PI, block: 0.85, arc: 1.3, hp: 130, weight: 0.05, desc: 'A full armoured cupola with a slit. Stops nearly everything from any side, but it\'s the heaviest, and you only see and shoot through the slit ahead.' },
+};
+const SHIELD_ORDER = ['none', 'plate', 'wrap', 'cage'];
+const ensureRoof = (b) => { if (!b.roof) b.roof = { gun: null, shield: 'none', shieldHp: 0 }; return b.roof; };
+const shieldRepairCost = (b) => { const R = ensureRoof(b), S = ROOF_SHIELDS[R.shield]; return S.hp ? Math.ceil((S.hp - Math.max(0, R.shieldHp)) * 0.8 * repairMul(b)) : 0; };
+// Swap a roof gun from the stash onto the mount (the one that was there goes to the stash).
+function mountRoofGun(b, stashIndex) {
+  const R = ensureRoof(b), w = b.stash.weapons[stashIndex];
+  if (!w || !WEAPONS[w.id].roof) return;
+  b.stash.weapons.splice(stashIndex, 1);
+  if (R.gun) b.stash.weapons.push(R.gun);
+  R.gun = w;
+}
 
 function addWeapon(b, id, replaceIndex) {
   if (replaceIndex != null) b.rack[replaceIndex] = newWeapon(id);
@@ -371,6 +394,8 @@ function buildStats(b) {
   if (partBroken(b, 'nitro')) { s.nitroCap = 0.001; s.nitroRegen = 0; }
   if (b.chip === 'daredevil') s.offroadMul *= 0.5;
   if (has(b, 'sparkplug')) s.nitroRegen *= 1.35;
+  const R = b.roof, S = R && R.gun && ROOF_SHIELDS[R.shield]; // shielding round the roof gun is heavy
+  if (S && S.weight) { s.top *= 1 - S.weight; s.accel *= 1 - S.weight; }
   return s;
 }
 
@@ -386,6 +411,7 @@ function equipPart(b, stashIndex) {
 function equipWeapon(b, stashIndex, rackIndex) {
   if (!(stashIndex >= 0 && stashIndex < b.stash.weapons.length)) return;
   const w = b.stash.weapons[stashIndex];
+  if (WEAPONS[w.id].roof) return mountRoofGun(b, stashIndex); // never in your hands
   if (rackIndex == null || rackIndex >= b.rack.length) {
     if (b.rack.length >= rackSlots(b)) return;
     b.stash.weapons.splice(stashIndex, 1);
@@ -445,7 +471,7 @@ function itemCard(type, id) {
 }
 
 const ownsPart = (b, id) => b.parts[PARTS[id].slot].id === id || b.stash.parts.some((p) => p.id === id);
-const ownsWeapon = (b, id) => b.rack.some((w) => w.id === id) || b.stash.weapons.some((w) => w.id === id);
+const ownsWeapon = (b, id) => b.rack.some((w) => w.id === id) || b.stash.weapons.some((w) => w.id === id) || !!(b.roof && b.roof.gun && b.roof.gun.id === id);
 const ownsAbility = (b, id) => b.abilities.includes(id) || b.stash.abilities.includes(id);
 const ownsChip = (b, id) => b.chip === id || b.stash.chips.includes(id);
 
@@ -540,8 +566,9 @@ function applyItem(b, card) {
     b.stash.parts.push(b.parts[PARTS[card.id].slot]); // fit the new part; the old one goes to the stash
     installPart(b, card.id);
   } else if (card.type === 'weapon') {
-    const owned = b.rack.concat(b.stash.weapons).find((w) => w.id === card.id);
+    const R = ensureRoof(b), owned = b.rack.concat(b.stash.weapons, R.gun ? [R.gun] : []).find((w) => w.id === card.id);
     if (owned) owned.reserve += WEAPONS[card.id].pack * 2; // a duplicate becomes ammo
+    else if (WEAPONS[card.id].roof) { if (!R.gun) R.gun = newWeapon(card.id); else b.stash.weapons.push(newWeapon(card.id)); } // machine guns go on the roof
     else if (b.rack.length < rackSlots(b)) addWeapon(b, card.id);
     else b.stash.weapons.push(newWeapon(card.id));
   } else if (card.type === 'ability') {

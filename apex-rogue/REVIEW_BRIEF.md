@@ -54,6 +54,10 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   (floor 40%) while the comedown stays full.
 - **You see what you buy:** every shop and reward card shows a rendered picture of the actual item (guns from the
   side, attachments on a gun, parts on a car, the contraband itself).
+- **The roof gun:** both machine guns are roof-mounted, not held. `V` climbs up through a hatch over your seat:
+  steadier, swings all the way round, but exposed (rounds past your shielding hit you; three quick hits knock you
+  down; no blast hatch). Shielding tiers bought in the Armory: Gun Shield (front), Wraparound (three sides, heavy,
+  limited swing), Cage Turret (enclosed, heaviest, slit view).
 - **Also:** per-act weather (rain, smog, blackout, acid drip...), boss signature moves and intro cards, run saving,
   a tutorial, rep-based unlocks between runs, graffiti and lore on the garage walls, a playtest report generator
   (Send feedback in the pause menu).
@@ -63,7 +67,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 Scrap ranges; wreck-out rule; shootable and armoured tyres; tyre-hunter AI; vendettas; the black market with
 tolerance; item pictures on all cards; the Typewriter's drum turned square to the barrel; magazine wells on every
 mag-fed gun with straight-in reloads; the Grinder LMG's belt reload (feed cover up, belt laid in the tray, cover
-slammed); a shorter race briefing.
+slammed); the roof-mounted machine guns with shielding tiers; a shorter race briefing.
 
 ## What we know is weak (from bot playthroughs)
 
@@ -82,17 +86,15 @@ slammed); a shorter race briefing.
 2. **The wreck-out rule:** a wreck ends your race and costs a strike. Too harsh alongside scarce scrap?
 3. **The black market:** are the drugs and comedowns interesting choices or noise? Is tolerance (25% per use, 40%
    floor) the right curve? Is 40% of visits too often?
-4. **Tyres:** worth the complexity? Are tyre hunters fair ("difficult but not impossible")?
-5. **Vendettas:** do they create memorable moments, or just a tougher rival?
-6. **The pitch and tone:** "a nobody inmate fighting up a city that's watching you die on TV." Does the game sell it?
+4. **The roof gun:** is climbing up worth the exposure? Are the shield tiers real choices or is one obviously best?
+5. **Tyres:** worth the complexity? Are tyre hunters fair ("difficult but not impossible")?
+6. **Vendettas:** do they create memorable moments, or just a tougher rival?
+7. **The pitch and tone:** "a nobody inmate fighting up a city that's watching you die on TV." Does the game sell it?
    What would make the broadcast feel more present?
-7. **Anything that confused you** in the first ten minutes.
+8. **Anything that confused you** in the first ten minutes.
 
 ## Planned next (see DESIGN.md)
 
-- **Roof-mounted machine gun:** open a roof hatch and stand up into a mounted LMG: steadier, wider arc, but you're
-  exposed (the gunner can be hit, no blast hatch). Bought with **shielding tiers**: bare mount, gun shield,
-  wraparound, cage turret, each a trade-off (weight, arc, view), dented and repaired like the hatch.
 - **The deal and champions:** beating Marlowe ends in a choice (walk free, or take the deal and become the champion
   your later runs must beat); dethroned champions become rivals and die for good.
 - **Ratings:** a live broadcast meter that pays out as sponsor favour; **identity:** a crime with a perk, a mugshot.

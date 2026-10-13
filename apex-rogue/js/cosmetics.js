@@ -152,6 +152,7 @@ const gearLook = (b) => (b && b.parts ? Object.fromEntries(Object.entries(b.part
 function carLook(c, b) {
   return {
     gear: gearLook(b),
+    roofGun: b && b.roof && b.roof.gun ? { id: b.roof.gun.id, shield: b.roof.shield } : null,
     style: c.style, color: paintColor(c), accent: '#1d1d1d', finish: c.finish, livery: c.livery, number: c.number, plate: c.plate,
     paint2: (cosOption('paint', c.paint2) || COSMETICS.paint[4]).color, twoTone: c.twoTone, grime: c.grime,
     rims: c.rims, bumper: c.bumper, roof: c.roof, spoiler: c.spoiler, exhaust: c.exhaust,

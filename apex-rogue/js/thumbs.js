@@ -211,6 +211,8 @@ const Thumbs = {
       const view = { tyres: [0.35, 0.12], nitro: [-1.2, 1.0], engine: [1.2, 1.05], armour: [0.7, 0.35] }[slot];
       return { obj: car, focus, view, pad: { tyres: 1.3, nitro: 2.2, engine: 1.9, armour: 0.85 }[slot] };
     }
+    if (type === 'shield') return { obj: Models.roofMount('lmg', id), view: [-0.75, 0.3], pad: 1.0 };
+    if (type === 'mount') { const [gun, sh] = id.split('-'); return { obj: Models.roofMount(gun, sh), view: [-0.75, 0.3], pad: 1.0 }; }
     if (type === 'ability') return { obj: (KIT_BUILD[id] || (() => Models.shopProp({ type, id }, '#c9a443')))(), view: [0.6, 0.3] };
     if (type === 'chip') return { obj: KIT_BUILD.chip(id), view: [0.4, 0.75] };
     return { obj: Models.shopProp({ type, id }, '#c9a443'), view: [0.6, 0.35] };
@@ -220,7 +222,9 @@ const Thumbs = {
     if (!this.setup()) return null;
     const [type, id, extra] = key.split(':');
     let S;
-    try { S = this.subject(type, id, extra); } catch (e) { return null; }
+    const collect = Sculpt.collect;
+    Sculpt.collect = false; // build the meshes now, even while the game is still warming its models up in the background
+    try { S = this.subject(type, id, extra); } catch (e) { return null; } finally { Sculpt.collect = collect; }
     const root = new THREE.Group();
     root.add(S.obj);
     this.scene.add(root);

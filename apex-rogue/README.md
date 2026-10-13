@@ -301,6 +301,21 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   MG** (cooling jacket, a pan magazine on top that turns as it fires). The drum gun and machine guns *bloom*: hold the
   trigger and the spread opens up (the crosshair brackets show it); let go and it settles.
   Grenades are a separate consumable.
+- **The roof gun.** The two machine guns, the Grinder LMG and the Widow MG, aren't held: they go on a pintle mount
+  over a hatch in the roof above your seat (winning or buying one puts it straight up there; a second waits in the
+  stash and can be swapped on in the Armory). Press `V` (or `4`) mid-race to throw the hatch lid back and climb up to
+  it; press it again, or pick a hand gun, to drop back into your seat.
+  - **Up top:** braced on the mount the gun is 40% steadier and climbs half as much, and with nothing round it you
+    can swing it all the way round, behind you too. You fire it with both hands; its reloads (the Grinder's belt
+    included) happen up there, from ammo cans on the roof.
+  - **Exposed:** the blast hatch can't cover you. Rounds that get past your shielding hit *you* about half the time:
+    more damage, your aim knocked about, and three such hits in a couple of seconds knock you back down into your
+    seat. A blast with your head out hits harder.
+  - **Shielding** (Armory, round the mount, each a trade, and it shows on your car): a **Gun Shield** plate in front
+    (stops what comes from where you're aiming; 140 scrap), a **Wraparound** of plates round three sides (stops most
+    gunfire, but it's heavy, 3% off top speed, and you can't swing round to the back; 260), or a **Cage Turret**
+    closed over the top (stops nearly everything from any side, the heaviest at 5%, and you see out and shoot only
+    through a slit ahead; 420). Shields soak hits until they're shot to pieces, then cover nothing until repaired.
 - **Emotes** (`T`, `js/emotes.js`). Your free left hand comes up into view and tells a rival what you think of them:
   - **The gestures:** the finger, a thumbs down, a "come at me" beckon, or devil horns.
   - **Controls:** tap `T` for your last emote; hold it for a wheel, flick the mouse to pick and let go.
@@ -462,6 +477,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
+| `js/build.js` (`ROOF_SHIELDS`), `js/combat.js` (`toggleRoof`, `exposedHit`) | The roof gun: the mount, shielding, climbing up, exposure |
 | `js/thumbs.js` | Item pictures for every shop and reward card; models of the black market's goods, abilities and chips |
 | `js/vendetta.js` | Vendettas: rivals you put out who come back later in the run, adapted to how you beat them |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |

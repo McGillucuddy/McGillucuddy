@@ -1217,6 +1217,14 @@ const Models = {
     }
     Models.livery(g, st, opts, W, bev);
     if (opts.gear) Models.gear(g, st, opts, W, bev);
+    if (opts.roofGun && !opts.shell) { // the roof gun on its mount over the passenger seat
+      const T = st.cabin, topAt = (x) => { for (let i = 0; i < T.length - 1; i++) { const [x0, y0] = T[i], [x1, y1] = T[i + 1]; if ((x <= x0 && x >= x1) || (x >= x0 && x <= x1)) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0 || 1); } return T[0][1]; };
+      const m = Models.roofMount(opts.roofGun.id, opts.roofGun.shield), k = 0.55;
+      m.scale.setScalar(k);
+      m.rotation.y = -Math.PI / 2; // the gun's forward (-z) along the car's (+x)
+      m.position.set(EYE.x, topAt(EYE.x) + bev + 5.45 * k, EYE.z);
+      g.add(m);
+    }
 
     if (opts.weapon === 'rocket') {
       const pod = Models.rocketPod();
@@ -3236,6 +3244,51 @@ const Models = {
 
   // Goods on the commissary counter: an engine block, a tyre, an armour plate, a nitro bottle; an attachment in a
   // taped cardboard box (tape in its rarity's colour); an ability canister; a driver chip on its board.
+  // ---------- The roof gun mount ----------
+  // In the gun's own coordinates (forward is -z): the pintle post and yoke it swings on, and the shielding round it
+  // (see ROOF_SHIELDS in js/build.js). The plate has a slot for the barrel and sights; the wraparound adds sides; the
+  // cage closes over the top, so you see out through a slit. Seen from behind the gun, from the roof hatch.
+  roofKit(shieldId, opts) {
+    const g = new THREE.Group(), plateM = DECALS.mat('rust', { metalness: 0.55, roughness: 0.75 }), steel = LP.mat('#3c3f42', { metalness: 0.7, roughness: 0.45 });
+    const bolt = LP.mat('#8a8e92', { metalness: 0.8, roughness: 0.35 }), B = LP.box;
+    if (!(opts && opts.noPost)) {
+      g.add(LP.cyl(0.38, 0.38, 4.6, 10, steel, 0, -2.9, -0.4)); // the pintle
+      for (const x of [-0.62, 0.62]) g.add(B(0.16, 1.2, 0.9, steel, x, -0.35, -0.4)); // the yoke cheeks
+      g.add(B(1.4, 0.2, 0.9, steel, 0, -0.95, -0.4));
+    }
+    const S = shieldId || 'none';
+    if (S === 'none') return g;
+    // The gunner stands about 7 units behind the gun's origin (z +7): the wraparound's sides and the cage's walls and
+    // lid run back past them, so it's round you, not just in front.
+    const Z = -3.2, back = 9, top = S === 'cage' ? 4.4 : 1.6, bot = -2.2, W = 3.8, th = 0.22, slit = [1.2, 3.4]; // you see over the plate; in the cage, through the slit
+    // The front plate, built round its openings: the barrel slot, and in the cage the vision slit.
+    const panel = (x0, x1, y0, y1, z) => g.add(B(x1 - x0, y1 - y0, th, plateM, (x0 + x1) / 2, (y0 + y1) / 2, z));
+    const low = S === 'cage' ? slit[0] : top;
+    panel(-W, -0.6, bot, low, Z); panel(0.6, W, bot, low, Z); // either side of the barrel slot
+    panel(-0.6, 0.6, bot, -0.45, Z); panel(-0.6, 0.6, 0.95, low, Z); // under and over it
+    if (S === 'cage') { panel(-W, -2.6, slit[0], slit[1], Z); panel(2.6, W, slit[0], slit[1], Z); panel(-W, W, slit[1], top, Z); } // the slit
+    for (const x of [-W + 0.35, W - 0.35]) for (const y of [bot + 0.35, top - 0.35]) g.add(LP.cyl(0.13, 0.13, 0.12, 6, bolt, x, y, Z + 0.16).rotateX(Math.PI / 2));
+    g.add(B(0.25, 0.25, 2.8, steel, -1.4, -0.9, Z / 2 - 0.2), B(0.25, 0.25, 2.8, steel, 1.4, -0.9, Z / 2 - 0.2)); // arms back to the yoke
+    if (S === 'wrap' || S === 'cage') for (const sd of [-1, 1]) { // side plates, back past where you stand
+      const side = B(th, top - bot, back - Z, plateM, sd * (W + 0.1), (top + bot) / 2, (Z + back) / 2);
+      g.add(side);
+      for (const z of [Z + 1, back - 1]) for (const y of [bot + 0.35, top - 0.35]) g.add(LP.cyl(0.13, 0.13, 0.12, 6, bolt, sd * (W - 0.05), y, z).rotateZ(Math.PI / 2));
+    }
+    if (S === 'cage') {
+      g.add(B(2 * W + 0.45, th, back - Z + 0.2, plateM, 0, top, (Z + back) / 2)); // the lid of the cupola
+      g.add(B(2 * W + 0.45, top - bot, th, plateM, 0, (top + bot) / 2, back)); // its back
+      g.add(LP.cyl(W + 0.5, W + 0.5, 0.35, 16, steel, 0, bot, (Z + back) / 2)); // the turret ring
+    }
+    return g;
+  },
+  // A whole roof mount (gun, pintle, shield, base ring) for the garage and the shop pictures.
+  roofMount(gunId, shieldId) {
+    const g = new THREE.Group(), gun = Models.weapon(gunId);
+    g.add(gun, Models.roofKit(shieldId));
+    g.add(LP.cyl(1.4, 1.6, 0.5, 14, LP.mat('#2e3032', { metalness: 0.6, roughness: 0.5 }), 0, -5.2, -0.4)); // the base on the roof
+    return g;
+  },
+
   shopProp(card, rarityCol) {
     const g = new THREE.Group(), kind = card.type === 'part' ? PARTS[card.id].slot : card.type;
     const sc = new Sculpt('shopprop:' + kind, 0.08);
@@ -3424,6 +3477,11 @@ const Models = {
     if (!noRoof) {
       sc.add(body, SDF.box([14.6, 0.8, 17.4], 0.35, [-4.75, 12.95, 0]), 0.6); // roof
       sc.add(head, SDF.box([14.6, 0.3, 16], 0.12, [-4.75, 12.5, 0]), 0.1); // headliner
+      // The roof hatch over your seat (for the roof gun): a square hole through roof and headliner in a steel frame.
+      const ringM = m3('#3a3c3e', { metalness: 0.6, roughness: 0.5 });
+      sc.cut(SDF.box([4.4, 3, 4.4], 0.3, [EYE.x, 12.8, EYE.z]), 0.15, [body, head]);
+      sc.add(ringM, SDF.box([5.4, 1.3, 5.4], 0.25, [EYE.x, 12.9, EYE.z]), 0.1);
+      sc.cut(SDF.box([4.4, 3, 4.4], 0.2, [EYE.x, 12.8, EYE.z]), 0.1, [ringM]);
     }
     sc.add(body, SDF.box([2, 2, 17.2], 0.7, [-17.2, 6.5, 0]), 0.6); // rear deck
     sc.add(body, SDF.box([4.5, 0.6, 17], 0.25, [8.8, 6.6, 0]), 0.6); // cowl under the windshield
@@ -3745,6 +3803,15 @@ const Models = {
     ws.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(u, v, n));
     ws.position.set(5.45, 9.6, 0);
     I.add(ws);
+    // The hatch lid, hinged along its back edge: it swings up and over when you climb out to the roof gun.
+    if (!noRoof) {
+      const hinge = new THREE.Group();
+      hinge.position.set(EYE.x - 2.3, 13.45, EYE.z);
+      const lidM = m3(color, { metalness: 0.3, roughness: 0.5 }), steelL = m3('#3a3c3e', { metalness: 0.6, roughness: 0.5 });
+      hinge.add(box(4.6, 0.3, 4.6, lidM, 2.3, 0, 0), box(4.2, 0.12, 4.2, steelL, 2.3, -0.2, 0), box(0.4, 0.3, 1.6, steelL, 3.6, -0.42, 0)); // lid, inner skin, handle
+      I.add(hinge);
+      refs.roofHatch = hinge;
+    }
     return { group: I, refs };
   },
 

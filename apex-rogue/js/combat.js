@@ -12,13 +12,17 @@ const FIT_TIME = 2.5;
 // Tyres: hit points per tyre, and how hard rivals' stray shots hit yours (they never aim for them).
 const TYRE_HP = 40;
 const TYRE_R = 4.2; // how close a shot's path must pass a wheel to hit the tyre
+// Standing up at the roof gun: steadier aim (braced on the mount) but exposed. A round that gets past the shield
+// hits you rather than the car a share of the time (exposure): more damage, a flinch, and enough of them in a few
+// seconds knock you back down. Climbing up or down takes a moment.
+const ROOF = { steady: 0.6, climb: 0.6, drop: 0.45, exposure: 0.45, youDmg: 1.6, blastMul: 1.3, knockHits: 3, knockWindow: 2.5 };
 const RIVAL_TYRE = 0.15; // a stray rival round that happens to land by a wheel
 // A tyre hunter's aimed burst: a longer wind-up (you see it coming), eight rounds at one wheel. 'start' is how long
 // into the race before anyone tries it; 'gap' is the least time between any two attempts on you.
 const TYRE_HUNT = { rate: 2.0, burst: 8, spread: 0.025, range: 320, start: 25, gap: 12, chance: 0.6 };
 
 // What hurt you, in words (for the playtest report).
-const HURT_KIND = { bullet: 'gunfire', rocket: 'rockets', blast: 'explosions', flame: 'fire', mine: 'mines', harpoon: 'harpoons', boss: 'the boss' };
+const HURT_KIND = { exposed: 'hits on you at the roof gun', bullet: 'gunfire', rocket: 'rockets', blast: 'explosions', flame: 'fire', mine: 'mines', harpoon: 'harpoons', boss: 'the boss' };
 
 class Combat {
   constructor(race, opts) {
@@ -37,6 +41,15 @@ class Combat {
     const b = this.build;
     this.wi = 0;
     this.wstate = b.rack.map(() => ({ cd: 0, reloadT: 0 }));
+    // The roof gun, if one's mounted: it takes the slot after the rack (wi === roofIdx while you're up top).
+    const R = ensureRoof(b);
+    this.roofIdx = R.gun ? b.rack.length : -1;
+    if (R.gun) this.wstate.push({ cd: 0, reloadT: 0 });
+    this.up = 0; // 0 in your seat, 1 stood up in the roof hatch
+    this.climbT = 0; // climbing up or dropping down: hands busy
+    this.seatWi = 0; // what you had in your hands before you went up
+    this.exposedHits = []; // times you were hit up top (enough in a row knocks you back down)
+    this.aimAng = 0;
     this.abil = b.abilities.map((id) => (id ? { id, cd: 0 } : null));
     // The blast hatch (see HATCH in build.js): pos 0 is up, 1 is shut.
     this.hatch = { want: false, closing: false, pos: 0, downT: 0, shutAge: 9, jammed: ensureHatch(b).hp <= 0 };
@@ -173,14 +186,70 @@ class Combat {
     return this.damageTyre(c, i, pr.dmg * rate, pr.owner);
   }
 
-  get weapon() { return this.build.rack[this.wi]; }
-  get weaponDef() { return BlackMarket.apply(weaponStats(this.weapon), this.buffs); }
-  get busy() { return this.fitT > 0; }
+  get weapon() { return this.wi === this.roofIdx ? this.build.roof.gun : this.build.rack[this.wi]; }
+  get exposed() { return this.roofIdx >= 0 && this.wi === this.roofIdx; } // stood up in the roof hatch
+  get shield() { const R = this.build.roof; return R && R.gun ? ROOF_SHIELDS[R.shield] || ROOF_SHIELDS.none : ROOF_SHIELDS.none; }
+  get weaponDef() {
+    const d = BlackMarket.apply(weaponStats(this.weapon), this.buffs);
+    if (this.exposed) { d.spread *= ROOF.steady; d.bloom = (d.bloom || 0) * ROOF.steady; } // braced on the mount
+    if (this.flinchT > 0) d.spread *= 2.2; // just hit: your aim's all over the place
+    return d;
+  }
+  get busy() { return this.fitT > 0 || this.climbT > 0; }
   get guarded() { return this.hatch.pos >= HATCH.guard; }
   get hatchDown() { return this.hatch.pos > 0.05; } // anywhere off its stop: you can't shoot past it
 
   // Called every frame with whether Space is held.
-  setHatch(want) { this.hatch.want = !!want; }
+  setHatch(want) { this.hatch.want = !!want && !this.exposed; } // no slamming the blast hatch with your head out of the roof
+
+  // Climb up into the roof hatch to the mounted gun, or drop back into your seat.
+  toggleRoof() {
+    if (this.roofIdx < 0) { this.race.message('No gun on the roof: mount one in the Armory', '#ccc'); return; }
+    if (this.climbT > 0 || this.fitT > 0 || this.player.finished) return;
+    if (this.exposed) this.dropDown();
+    else {
+      this.seatWi = this.wi;
+      this.wi = this.roofIdx;
+      this.climbT = ROOF.climb;
+      this.hatch.want = false;
+      this.events.push({ type: 'roofUp' });
+    }
+  }
+  dropDown(knocked) {
+    if (!this.exposed) return;
+    this.wi = Math.min(this.seatWi, this.build.rack.length - 1);
+    this.climbT = ROOF.drop * (knocked ? 1.6 : 1);
+    this.events.push({ type: 'roofDown', knocked: !!knocked });
+    if (knocked) this.race.message('You\'re knocked back down into your seat!', '#ff6a4a', true);
+  }
+  updateRoof(dt) {
+    this.climbT = Math.max(0, this.climbT - dt);
+    this.flinchT = Math.max(0, (this.flinchT || 0) - dt);
+    const want = this.exposed ? 1 : 0;
+    this.up += clamp(want - this.up, -dt / ROOF.drop, dt / ROOF.climb);
+    const R = this.build.roof;
+    if (R && R.gun && this.shield.hp && R.shieldHp <= 0 && !this.shieldGone) { this.shieldGone = true; } // a wrecked shield covers nothing
+  }
+
+  // A round arriving while you're up top: the shield may stop it; if not, it may hit you rather than the car.
+  // dir: the world angle it came from. Returns 'blocked', 'you' or null (it hits the car as usual).
+  exposedHit(dmg, dir) {
+    const R = this.build.roof, S = this.shield, rel = Math.abs(wrapAngle(dir - this.aimAng));
+    if (S.hp && R.shieldHp > 0 && rel <= S.cover && this.rng() < S.block) {
+      R.shieldHp -= dmg;
+      this.events.push({ type: 'deflect', x: this.player.x, y: this.player.y });
+      if (R.shieldHp <= 0) { this.race.message(`Your ${S.name.toLowerCase()} is shot to pieces!`, '#ff9f1c', true); this.events.push({ type: 'partBreak' }); }
+      return 'blocked';
+    }
+    if (this.rng() > ROOF.exposure) return null;
+    this.flinchT = 0.45;
+    const t = this.race.time;
+    this.exposedHits = this.exposedHits.filter((h) => t - h < ROOF.knockWindow);
+    this.exposedHits.push(t);
+    this.events.push({ type: 'gunnerHit' });
+    if (this.exposedHits.length >= ROOF.knockHits) { this.exposedHits = []; this.dropDown(true); }
+    return 'you';
+  }
 
   updateHatch(dt) {
     const H = this.hatch, p = this.player, fast = (has(this.build, 'teddy') ? 2 : 1) * ((this.buffs && this.buffs.hatch) || 1);
@@ -218,11 +287,13 @@ class Combat {
 
   select(i) {
     if (i < 0 || i >= this.build.rack.length || i === this.wi || this.busy) return;
+    if (this.exposed) { this.seatWi = i; this.dropDown(); return; } // a hand gun: back down into the seat for it
     this.wi = i;
     this.events.push({ type: 'switch' });
   }
 
   cycle(dir) {
+    if (this.exposed) return;
     const n = this.build.rack.length;
     this.select((this.wi + dir + n) % n);
   }
@@ -374,6 +445,7 @@ class Combat {
     }
     this.lastFire += dt;
     p.ramMul = this.ramBase * (def.bayonet ? 1.35 : 1); // a bayonet in your hands bites on rams
+    if (ctl.aim != null) this.aimAng = ctl.aim;
     if (def.dazzle && ctl.aim != null) for (const c of this.race.cars) { // the flashlight: whoever's in the beam can't hold a lock
       if (c === p || !c.wpn || !(c.wpn.lock > 0)) continue;
       const d = Math.hypot(c.x - p.x, c.y - p.y), off = Math.abs(wrapAngle(Math.atan2(c.y - p.y, c.x - p.x) - ctl.aim));
@@ -477,6 +549,7 @@ class Combat {
     // Barrels the race says have blown (hit by a car, a bullet or another blast).
     for (const bl of race.blasts.splice(0)) this.explode(bl.x, bl.y, bl.r, bl.dmg, bl.owner, 'barrel');
     this.updateHatch(dt);
+    this.updateRoof(dt);
     if (has(this.build, 'spikes') && race.state === 'racing') this.spikeHubs(dt);
     this.updateBoss(dt); // js/bosses.js
     this.updateTilt(dt); // js/emotes.js
@@ -703,13 +776,18 @@ class Combat {
           this.blockWithHatch(pr);
           break;
         }
+        let you = null;
+        if (c === p && this.exposed && pr.type !== 'rocket') { // stood up in the roof: the shield, or you
+          you = this.exposedHit(pr.dmg, Math.atan2(-pr.vy, -pr.vx));
+          if (you === 'blocked') { pr.dead = true; break; }
+        }
         pr.dead = true;
         if (pr.type === 'rocket') this.explode(pr.x, pr.y, pr.radius, pr.dmg, pr.owner, pr);
         else {
           const role = this.crewHit(c, pr); // through the glass and into the driver or gunner?
           if (role) this.woundCrew(c, role, pr.dmg * (pr.type === 'harpoon' ? 2.5 : 1), pr.owner);
           const tyre = !role && pr.type === 'bullet' && this.bulletTyre(c, pr); // or into a tyre
-          this.hitCar(c, pr.dmg * (tyre ? 0.5 : 1), pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, pr.type === 'flame' ? 'fire' : 'bullet');
+          this.hitCar(c, pr.dmg * (tyre ? 0.5 : 1) * (you === 'you' ? ROOF.youDmg : 1), pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, you === 'you' ? 'exposed' : pr.type === 'flame' ? 'fire' : 'bullet');
           if (pr.puncture && c !== pr.owner) { // nails in the tyres: each one drags a little more
             c.slowDrag = Math.min(2.2, (c.slowT > 0 ? c.slowDrag : 0) + pr.puncture * 0.25);
             c.slowT = 1.5;
@@ -840,6 +918,7 @@ class Combat {
         this.events.push({ type: 'block', kind: 'blast' });
         f *= HATCH.blastPass;
       }
+      if (c === p && this.exposed && !(this.shield.cover >= Math.PI && this.build.roof.shieldHp > 0)) { f *= ROOF.blastMul; this.flinchT = 0.6; } // a blast with your head out
       this.hitCar(c, dmg * f, owner, ang, 0.75, 'blast');
       for (let i = 0; i < 4; i++) if (this.rng() < f) this.damageTyre(c, i, dmg * f * 0.5, owner); // the blast shreds rubber
       // Knockback + spin.

@@ -60,6 +60,8 @@ const MAG_RELOAD = {
   lmg: { off: [0, 0.6, 0], drop: [-1.2, -6, 0], dir: [0, -1, 0], depth: 0.9 },
   pangun: { off: [1.3, 0, 0], drop: [-3, 3, 0], dir: [0, 1, 0], depth: 1.1 },
 };
+// The roof gun's hold: [x, y, z, scale, yaw, roll, pitch], dead ahead and low, braced on its pintle.
+const ROOF_HOLD = [0.4, -2.0, -5.2, 0.78, 0.02, 0, 0.02];
 const FIRE_EVENTS = ['shoot', 'shotgun', 'nail', 'flame', 'harpoon', 'rocket', 'flare'];
 
 // Small canvas textures for the muzzle flash (a spiky star) and smoke puffs (a soft blob).
@@ -645,6 +647,7 @@ class CockpitView {
   buildInterior() {
     const { group: I, refs } = Models.interior(this.race.player.color, { cabin: this.look3d.cabin });
     this.ornament = refs.ornament ? refs.ornament.userData.sway : null;
+    this.roofHatch = refs.roofHatch;
     this.wheel = refs.wheel;
     this.nadeMeshes = refs.nades;
     this.buildLoadout(I);
@@ -825,6 +828,7 @@ class CockpitView {
 
   // Where the next round on the rack is, in the held gun's own coordinates (for the reloading hand).
   rackPoint(g, wi) {
+    if (wi === this.combat.roofIdx) return new THREE.Vector3(-3.4, -2.6, 1.4); // up top: the ammo cans strapped to the roof beside the hatch
     const row = this.ammoRack && this.ammoRack.find((r) => r.wi === wi);
     if (!row) return null;
     const it = row.items[clamp((row.shown > 0 ? row.shown : 1) - 1, 0, row.items.length - 1)];
@@ -859,9 +863,27 @@ class CockpitView {
       vm.add(m);
       return m;
     });
+    // The roof gun, if one's mounted: held on its pintle low and dead ahead (you're stood behind it in the hatch),
+    // with its shielding round it. It takes the slot after the rack, like Combat.roofIdx.
+    const R = this.combat.build.roof;
+    if (R && R.gun) {
+      const w = R.gun, m = Models.hands(Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, true), (this.look3d.gunFinish || {})[w.id]), w.id, (this.look3d.gunKit || {})[w.id], (this.look3d.patchSeed || {})[w.id]), w.id);
+      const [x, y, z, sc, yaw, roll, pitch] = ROOF_HOLD;
+      m.position.set(x, y, z); m.scale.setScalar(sc); m.rotation.set(pitch, yaw, roll);
+      m.userData.hold = [x, y, z];
+      m.userData.holdRot = [pitch, yaw, roll];
+      m.userData.roof = true;
+      m.add(Models.roofKit('none')); // the pintle and yoke
+      const kit = Models.roofKit(R.shield, { noPost: true });
+      m.add(kit);
+      m.userData.shieldKit = kit; // hidden once it's shot to pieces
+      vm.add(m);
+      guns.push(m);
+    }
     // Props the hands use while reloading: a shotgun shell carried to the loading port.
     guns.forEach((g, i) => {
-      if (this.combat.build.rack[i].id === 'shotgun') {
+      const rw = this.combat.build.rack[i];
+      if (rw && rw.id === 'shotgun') {
         const shell = LP.cyl(0.24, 0.24, 0.8, 14, LP.mat('#a8221a', { roughness: 0.6 }));
         shell.add(LP.cyl(0.25, 0.25, 0.18, 14, LP.mat('#c9a443', { metalness: 0.7 }), 0, -0.35, 0));
         shell.rotation.x = Math.PI / 2;
@@ -1101,6 +1123,8 @@ class CockpitView {
   onEvent(ev) {
     if (ev.type === 'emote') this.emoteAnim = { id: ev.id, t: 0 };
     if (ev.type === 'deflect') this.sparkAt(ev.x, ev.y, 5);
+    if (ev.type === 'gunnerHit') { this.shake = Math.max(this.shake, 1.0); this.hitRed = 0.5; }
+    if (ev.type === 'roofUp' || ev.type === 'roofDown') this.shake = Math.max(this.shake, ev.knocked ? 0.9 : 0.25);
     if (ev.type === 'tyrePop') { this.sparkAt(ev.x, ev.y, 10); if (ev.mine) { this.shake = Math.max(this.shake, 0.6); if (this.cabinMo) this.cabinMo.vroll += ev.side * 0.6; } }
     if (ev.type === 'hatchShut') { if (this.hatchFx) this.hatchFx.bounce = 1; this.shake = Math.max(this.shake, 0.35); }
     if (ev.type === 'block' || ev.type === 'parry') this.hatchHit(ev);
@@ -1129,7 +1153,7 @@ class CockpitView {
       this.shake = Math.max(this.shake, Math.min(1.5, ev.dmg / 12));
       const p = this.race.player;
       const rel = wrapAngle(ev.ang - p.heading);
-      if (Math.abs(rel) < 1.1) this.crack(rel);
+      if (Math.abs(rel) < 1.1 && !this.combat.exposed) this.crack(rel); // (no windscreen to crack with your head out of the roof)
     } else if (ev.type === 'explode') {
       const p = this.race.player;
       const d = Math.hypot(ev.x - p.x, ev.y - p.y);
@@ -1348,7 +1372,12 @@ class CockpitView {
 
     // Camera: eye in the passenger seat, free look, roll + shake.
     this.shake = Math.max(0, this.shake - dt * 3);
-    const eye = this.playerGroup.localToWorld(new THREE.Vector3(EYE.x, EYE.y, EYE.z));
+    // Up in the roof hatch: the eye rises out through the roof (a little forward, over the gun), and the shielding
+    // limits how far round you can swing it.
+    const upK = this.combat.up * this.combat.up * (3 - 2 * this.combat.up);
+    if (this.combat.exposed) { const arc = this.combat.shield.arc; this.look.yaw = clamp(this.look.yaw, -arc, arc); }
+    const eye = this.playerGroup.localToWorld(new THREE.Vector3(EYE.x + 0.4 * upK, EYE.y + 5.4 * upK, EYE.z));
+    if (this.roofHatch) this.roofHatch.rotation.z = 1.95 * clamp(this.combat.up * 2.5, 0, 1); // the lid flips up and over as you climb
     const sh = this.shake;
     eye.x += (Math.random() - 0.5) * sh * 1.2;
     eye.y += (Math.random() - 0.5) * sh * 1.2;
@@ -1515,7 +1544,7 @@ class CockpitView {
   // from the car and your look, breathing, recoil and a dry-fire twitch.
   animateViewmodel(dt, t) {
     const combat = this.combat, p = this.race.player, b = combat.build, vm = this.vm, A = this.anim;
-    const st = combat.wstate[combat.wi], id = b.rack[combat.wi].id;
+    const st = combat.wstate[combat.wi], id = combat.weapon.id;
     const ss = (a, c, x) => { const k = clamp((x - a) / (c - a), 0, 1); return k * k * (3 - 2 * k); }; // smoothstep a..c
     const bump = (a, c, x) => Math.sin(Math.PI * clamp((x - a) / (c - a), 0, 1)); // 0 -> 1 -> 0 over a..c
     this.recoil = Math.max(0, this.recoil - dt * 6);
@@ -1547,6 +1576,7 @@ class CockpitView {
     vm.guns.forEach((g, i) => {
       g.visible = i === combat.wi;
       if (!g.visible) return;
+      if (g.userData.shieldKit) g.userData.shieldKit.visible = (b.roof.shieldHp || 0) > 0;
       const [x, y, z] = g.userData.hold, u = g.userData, hands = u.hands || [];
       // Reset moving parts to rest.
       for (const h of hands) { h.position.copy(h.userData.rest.pos); h.rotation.set(h.userData.rest.rot, 0, 0); h.visible = true; }
@@ -1557,12 +1587,13 @@ class CockpitView {
       if (u.pump) u.pump.position.set(0, 0, 0);
       if (u.barrelGrp) u.barrelGrp.rotation.x = 0;
       if (u.shell) u.shell.visible = false;
-      if (u.tip) { u.tip.position.z = -6.3; u.tip.visible = b.rack[i].mag > 0; }
-      if (u.bolt) u.bolt.visible = b.rack[i].mag > 0; // the harpoon's gone until you load another
-      if (u.pan) u.pan.rotation.y = (b.rack[i].mag * TAU) / 47; // the pan turns a notch with every round
+      const gw = i === combat.roofIdx ? b.roof.gun : b.rack[i]; // the gun this model is (the roof gun sits after the rack)
+      if (u.tip) { u.tip.position.z = -6.3; u.tip.visible = gw.mag > 0; }
+      if (u.bolt) u.bolt.visible = gw.mag > 0; // the harpoon's gone until you load another
+      if (u.pan) u.pan.rotation.y = (gw.mag * TAU) / 47; // the pan turns a notch with every round
       if (u.clip) { // the Liberty's clip: in the gun while there are rounds, flying out with a ping on the last
         u.clip.position.set(0, 0.42, -0.1); u.clip.rotation.set(0, 0, 0);
-        u.clip.visible = b.rack[i].mag > 0;
+        u.clip.visible = gw.mag > 0;
         if (A.pingT > 0) {
           const f = 1 - A.pingT / 0.6;
           u.clip.visible = true;
@@ -2004,6 +2035,13 @@ class CockpitView {
     ctx.fillStyle = '#ffb000';
     ctx.font = '12px monospace';
     ctx.fillText(b.spare ? `SPARE: ${PARTS[b.spare.id].name.toUpperCase()}` : 'NO SPARE', 12, 122);
+    if (c.roofIdx >= 0) { // the roof gun: press V; up top, how much shield is left
+      const S = c.shield, R = b.roof;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = c.exposed ? '#ff9f1c' : '#ffb000';
+      ctx.fillText(c.exposed ? (S.hp ? (R.shieldHp > 0 ? `UP · SHIELD ${Math.round((100 * R.shieldHp) / S.hp)}%` : 'UP · NO SHIELD') : 'UP · EXPOSED') : 'V: ROOF GUN', 246, 122);
+      ctx.textAlign = 'left';
+    }
     // Your four tyres, nose up: amber and full, darkening as they're shot, flashing red when flat.
     if (p.tyres) {
       const max = Math.max(...p.tyres, 40);

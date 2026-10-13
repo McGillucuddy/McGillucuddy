@@ -264,6 +264,9 @@ const Proto = {
       case 'repair-part': { const c = repairPartCost(b, arg); if (c > 0 && buy(c)) b.parts[arg].dur = partMaxDur(b, b.parts[arg].id); this.showGarage(); break; }
       case 'buy-spare': if (!b.spare && buy(spareCost(b, arg))) b.spare = { id: b.parts[arg].id }; this.showGarage(); break;
       case 'buy-ammo': { const w = b.rack[+arg], d = weaponStats(w); if (buy(d.packPrice)) w.reserve += d.pack; this.showGarage(); break; }
+      case 'buy-roof-ammo': { const w = ensureRoof(b).gun; if (w) { const d = weaponStats(w); if (buy(d.packPrice)) w.reserve += d.pack; } this.showGarage(); break; }
+      case 'buy-shield': { const R = ensureRoof(b), T = ROOF_SHIELDS[arg]; if (R.gun && T && R.shield !== arg && buy(T.price)) { R.shield = arg; R.shieldHp = T.hp; } this.showGarage(); break; }
+      case 'repair-shield': { const R = ensureRoof(b), c = shieldRepairCost(b); if (c > 0 && buy(c)) R.shieldHp = ROOF_SHIELDS[R.shield].hp; this.showGarage(); break; }
       case 'buy-nade': if (b.grenades < MAX_GRENADES && buy(GRENADE_PRICE)) b.grenades++; this.showGarage(); break;
       case 'buy-item': {
         const card = this.shop[+arg];
@@ -380,6 +383,7 @@ const Proto = {
         <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
         <div class="ctl"><kbd>Space</kbd> (hold) Slam the blast hatch: it stops bullets and most of a blast, but you can't shoot. Slam it as a rocket hits to bat it back.</div>
         <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
+        <div class="ctl"><kbd>V</kbd> (or <kbd>4</kbd>) Climb up to the roof gun, if you've mounted one, and back down. Steadier and all the way round, but you're exposed and the blast hatch can't cover you.</div>
         <div class="ctl"><kbd>T</kbd> Emote at a rival (hold for the wheel): they get tilted. Pass or wreck them while they're seething for a bonus.</div>
         <div class="ctl"><kbd>M</kbd> Mute · <kbd>Esc</kbd> Pause</div>
         <button class="btn" data-action="title">Back</button>
@@ -496,6 +500,10 @@ const Proto = {
     this.shopOpen = !!d.shopOpen;
     this.dealer = d.dealer || null;
     this.dealerKey = d.dealerKey || 0;
+    { // older saves: machine guns used to be held; they live on the roof now
+      const B = this.build, R = ensureRoof(B);
+      for (let i = B.rack.length - 1; i >= 0; i--) if (WEAPONS[B.rack[i].id].roof && B.rack.length > 1) { const [w] = B.rack.splice(i, 1); if (!R.gun) R.gun = w; else B.stash.weapons.push(w); }
+    }
     this.build.pocket = (this.build.pocket || []).map((x) => Object.assign(x, { id: CONTRA_RENAMED[x.id] || x.id })).filter((x) => CONTRABAND[x.id]);
     if (this.run.flags.comedown) this.run.flags.comedown = this.run.flags.comedown.map((id) => CONTRA_RENAMED[id] || id);
     this.tab = d.tab || 'car';
@@ -1027,6 +1035,7 @@ const Proto = {
           <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further)</div>
           <div class="ctl"><kbd>T</kbd> Flip off a rival (hold for the emote wheel)</div>
           <div class="ctl"><kbd>Space</kbd> (hold) Blast hatch · <kbd>E</kbd> / <kbd>F</kbd> Abilities · <kbd>B</kbd> Fit your spare part</div>
+          ${this.build.roof && this.build.roof.gun ? `<div class="ctl"><kbd>V</kbd> Up to the ${WEAPONS[this.build.roof.gun.id].name} on the roof, and back down</div>` : ''}
           <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
           <div class="ctl"><kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
           <p class="muted small">Shoot rockets and mines out of the air with bullets. Red laser = a gunner is locking on to you.</p>
@@ -1206,7 +1215,7 @@ const Proto = {
     this.state = 'garage';
     const b = this.build, act = this.act;
     if (this.preview) { // parts or tuning changed: rebuild the car on the lift so it shows them
-      const gk = JSON.stringify(gearLook(b));
+      const gk = JSON.stringify([gearLook(b), b.roof && b.roof.gun ? [b.roof.gun.id, b.roof.shield] : 0]);
       if (gk !== this.gearKey) { this.gearKey = gk; this.preview.setLook(carLook(this.cos, b)); }
     }
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
@@ -1311,7 +1320,8 @@ const Proto = {
       </div>`;
     }).join('') + Array.from({ length: slots - b.rack.length }, () => '<div class="part-card muted small">Empty rack slot</div>').join('');
     const stashW = b.stash.weapons.map((w, si) => {
-      const btns = b.rack.length < slots
+      const btns = WEAPONS[w.id].roof ? `<button class="btn small" data-action="equip-weapon" data-arg="${si}:-1">${b.roof && b.roof.gun ? 'Swap onto the roof' : 'Mount on the roof'}</button>`
+        : b.rack.length < slots
         ? `<button class="btn small" data-action="equip-weapon" data-arg="${si}:-1">Add to rack</button>`
         : b.rack.map((r, ri) => `<button class="btn small" data-action="equip-weapon" data-arg="${si}:${ri}">Swap for ${WEAPONS[r.id].name}</button>`).join('');
       return `<div class="gp-row"><div class="gp-name"><b>${WEAPONS[w.id].name}</b><small class="muted">${w.mag}+${w.reserve} rounds${w.mods.some(Boolean) ? ' · ' + w.mods.filter(Boolean).map((m) => MODS[m].name).join(', ') : ''}</small></div>${btns}</div>`;
@@ -1325,6 +1335,7 @@ const Proto = {
         <div class="gp-row"><div class="gp-name"><small>Throwable</small><b>Grenades</b></div><div class="gp-ammo">${b.grenades} / ${MAX_GRENADES}</div>
           <button class="btn small" data-action="buy-nade" ${b.grenades >= MAX_GRENADES || b.scrap < GRENADE_PRICE ? 'disabled' : ''}>+1 for ${GRENADE_PRICE}</button></div>
       </div>
+      ${this.roofPanel()}
       <div class="panel">
         <h2>Abilities</h2>${abil}
         <h2>Stash</h2>
@@ -1333,6 +1344,26 @@ const Proto = {
         ${stashM ? `<h3>Loose mods</h3><div class="mods">${stashM}</div>` : ''}
       </div>
     </div>`;
+  },
+
+  // The roof mount: the machine gun up there, its ammo, and the shielding you can buy round it.
+  roofPanel() {
+    const b = this.build, R = ensureRoof(b);
+    if (!R.gun) return `<div class="panel"><h2>Roof mount</h2><p class="muted small">No gun on the roof. The machine guns (the Grinder LMG and the Widow MG) don't go in your hands: they mount here, over a hatch above your seat, and you climb up to them mid-race with <kbd>V</kbd>. Win or buy one and it goes straight on.</p></div>`;
+    const w = R.gun, d = weaponStats(w), S = ROOF_SHIELDS[R.shield], rep = shieldRepairCost(b);
+    const shields = SHIELD_ORDER.filter((id) => id !== 'none').map((id) => {
+      const T = ROOF_SHIELDS[id], on = R.shield === id;
+      return `<div class="shop-card ${on ? 'sold' : ''}">${Thumbs.img({ type: 'shield', id })}<b>${T.name}</b><small>${T.desc}</small>
+        ${on ? `<small class="good">Fitted · ${Math.max(0, Math.round(R.shieldHp))}/${T.hp}</small>${rep ? `<button class="btn small" data-action="repair-shield" ${b.scrap < rep ? 'disabled' : ''}>Repair for ${rep}</button>` : ''}`
+        : `<button class="btn small" data-action="buy-shield" data-arg="${id}" ${b.scrap < T.price ? 'disabled' : ''}>Fit for ${T.price}</button>`}</div>`;
+    }).join('');
+    return `<div class="panel"><h2>Roof mount</h2>
+      <div class="gp-row">${Thumbs.img({ type: 'mount', id: w.id + '-' + R.shield })}</div>
+      <div class="gp-row"><div class="gp-name"><b>${d.name}</b><small class="muted">Press <kbd>V</kbd> mid-race to climb up to it, and again to drop back down. Steadier than in your hands and it swings ${S.arc >= Math.PI ? 'all the way round' : 'only so far round inside the ' + S.name.toLowerCase()}, but up there you're exposed: rounds that get past the shield can hit you, and the blast hatch can't cover you.</small></div>
+        <div class="gp-ammo">${w.mag}/${d.mag} · ${w.reserve}</div>
+        <button class="btn small" data-action="buy-roof-ammo" ${b.scrap < d.packPrice ? 'disabled' : ''}>+${d.pack} for ${d.packPrice}</button></div>
+      <h3 class="shop-sec">Shielding <small class="muted">(now: ${S.name}${S.weight ? `, ${Math.round(S.weight * 100)}% off top speed` : ''})</small></h3>
+      <div class="shop-grid three">${shields}</div></div>`;
   },
 
   garageMarket() {
@@ -1474,6 +1505,7 @@ const Proto = {
     combat.setHatch(Input.keys.has('Space'));
     this.updateEmoteKey(dt);
     if (Input.consume('KeyB')) combat.fitSpare();
+    if (Input.consume('KeyV') || Input.consume('Digit4')) combat.toggleRoof(); // up into the roof hatch to the mounted gun, or back down
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
     if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
     if (Input.consume('KeyG')) this.throwGrenade();

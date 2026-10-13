@@ -133,7 +133,7 @@ A tiny amount of identity makes the stakes personal and makes champions memorabl
 
 **Open:** picked or rolled crime; whether the face is seen in first person at all (the hands are; maybe a mirror).
 
-## 5. The roof gun (next)
+## 5. The roof gun (built; see the README)
 
 **Decided:** machine guns can be mounted on the roof. Using one means opening a hatch and standing up into it.
 - **The trade:** the mounted gun is steadier, fires on a wider arc (behind you too) and doesn't climb like the
@@ -152,8 +152,11 @@ tier a real choice rather than a straight upgrade:
 Shields take damage like the blast hatch does (they dent, crack and need repairs in the workshop), so protection
 costs scrap to keep, and they show on the car, so rivals can see what you're running.
 
-**Open:** what being hit while exposed does (lost aim, a bleed, or a forced duck back in); whether bosses go for the
-gunner when they see you up top.
+**Decided: being hit while exposed** costs extra hull, throws your aim off for a moment, and three hits in quick
+succession knock you back down into the seat.
+
+**Open:** whether bosses go for the gunner when they see you up top; whether rivals with roof guns of their own
+should exist.
 
 ## 6. Build order
 

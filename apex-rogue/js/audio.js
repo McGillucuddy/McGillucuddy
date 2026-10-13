@@ -169,6 +169,9 @@ const Sound = {
       case 'emote': this.noiseBurst(0.18, 700, 0.08, 1800); break;
       case 'crowd': this.cheer(); break;
       case 'deflect': this.spang(); break;
+      case 'roofUp': this.clang(0.35); this.noiseBurst(0.3, 500, 0.1, 1600); break; // the lid thrown back, and the wind
+      case 'roofDown': this.clang(ev.knocked ? 0.6 : 0.3); break;
+      case 'gunnerHit': this.noiseBurst(0.1, 900, 0.35, 250); this.tone(160, 0.18, 'square', 0.08); break;
       case 'tyrePop': this.noiseBurst(0.12, 2600, ev.mine ? 0.55 : 0.4, 400); this.noiseBurst(0.6, 300, 0.18, 120); break; // the bang, then the rubber flapping
       case 'bossTell': [0, 0.22].forEach((d) => setTimeout(() => { this.tone(392, 0.18, 'sawtooth', 0.07); this.tone(370, 0.18, 'square', 0.04); }, d * 1000)); break; // a two-blast klaxon
       case 'bossRage': this.tone(55, 1.2, 'sawtooth', 0.12); this.noiseBurst(1.0, 200, 0.3, 80); break;
