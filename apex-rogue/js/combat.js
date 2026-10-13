@@ -48,7 +48,8 @@ class Combat {
     // Suppressed guns keep you off the rivals' radar: they take longer to lock on.
     this.quiet = b.rack.some((w) => weaponStats(w).quiet);
     this.weather = opts.weather || {};
-    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1) * (b.chip === 'showboat' ? 0.75 : 1) * (this.weather.lock || 1);
+    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1) * (b.chip === 'showboat' ? 0.75 : 1) * (this.weather.lock || 1) * (has(b, 'deadrosary') ? 0.85 : 1);
+    this.buffs = null; // contraband taken at the briefing (js/blackmarket.js), set when the race starts
     this.stats = { dealt: 0, parries: 0, shotDown: 0, taken: 0, wrecked: 0, scrapBonus: 0 };
 
     // The player's car runs every hit through the build (armour, parts, trinkets).
@@ -56,7 +57,7 @@ class Combat {
     p.damageFilter = (amount, info) => this.filterDamage(amount, info);
     p.ramMul = p.stats.ram * (has(b, 'horseshoe') ? 3 : 1) * (b.chip === 'hothead' ? 1.5 : 1);
     this.ramBase = p.ramMul; // rams before any bayonet in your hands
-    p.ramTakenMul = (has(b, 'horseshoe') ? 1.5 : 1) * (b.chip === 'veteran' ? 1.25 : 1);
+    p.ramTakenMul = (has(b, 'horseshoe') ? 1.5 : 1) * (b.chip === 'veteran' ? 1.25 : 1) * (has(b, 'spikes') ? 1.25 : 1);
     p.oilMul = b.chip === 'daredevil' ? 2 : 1;
 
     // Arm the field: two rocket gunners, a mine layer and a gunner; elites bring an extra gun of each kind.
@@ -108,12 +109,28 @@ class Combat {
     }
     return best;
   }
-  damageTyre(c, i, dmg, owner) {
+  // The Spiked Hubcap trinket: a rival side by side with you has the tyre nearest your wheels shredded.
+  spikeHubs(dt) {
+    const p = this.player, fx = Math.cos(p.heading), fy = Math.sin(p.heading);
+    for (const c of this.race.cars) {
+      if (c === p || c.hp <= 0 || !c.tyres || Math.abs((c.z || 0) - (p.z || 0)) > 6) continue;
+      const dx = c.x - p.x, dy = c.y - p.y, f = dx * fx + dy * fy, s = -dx * fy + dy * fx;
+      if (Math.abs(f) > 18 || Math.abs(s) > CAR_RADIUS * 2 + 5) continue;
+      // Their wheel on the side facing you, front or rear by which is closer to your hubs.
+      const cx = Math.cos(c.heading), cy = Math.sin(c.heading), cf = -dx * cx - dy * cy, cs = dx * cy - dy * cx;
+      const i = (cf > 0 ? 0 : 2) + (cs > 0 ? 1 : 0);
+      if (c.tyres[i] > 0) {
+        this.damageTyre(c, i, 26 * dt, p, true);
+        if (this.rng() < dt * 12) this.events.push({ type: 'deflect', x: (c.x + p.x) / 2, y: (c.y + p.y) / 2 });
+      }
+    }
+  }
+  damageTyre(c, i, dmg, owner, quiet) {
     if (!c.tyres || c.tyres[i] <= 0 || dmg <= 0) return false;
     const p = this.player;
     if (c.armorTyres) {
       dmg *= 0.25;
-      if (owner === p && this.rng() < 0.3) this.events.push({ type: 'deflect', x: c.x, y: c.y });
+      if (owner === p && !quiet && this.rng() < 0.3) this.events.push({ type: 'deflect', x: c.x, y: c.y });
     }
     c.tyres[i] -= dmg;
     c.tyreBy = owner;
@@ -157,7 +174,7 @@ class Combat {
   }
 
   get weapon() { return this.build.rack[this.wi]; }
-  get weaponDef() { return weaponStats(this.weapon); }
+  get weaponDef() { return BlackMarket.apply(weaponStats(this.weapon), this.buffs); }
   get busy() { return this.fitT > 0; }
   get guarded() { return this.hatch.pos >= HATCH.guard; }
   get hatchDown() { return this.hatch.pos > 0.05; } // anywhere off its stop: you can't shoot past it
@@ -166,7 +183,7 @@ class Combat {
   setHatch(want) { this.hatch.want = !!want; }
 
   updateHatch(dt) {
-    const H = this.hatch, p = this.player, fast = has(this.build, 'teddy') ? 2 : 1;
+    const H = this.hatch, p = this.player, fast = (has(this.build, 'teddy') ? 2 : 1) * ((this.buffs && this.buffs.hatch) || 1);
     const live = this.race.state === 'racing' && !p.finished && !H.jammed;
     if (H.want && live && !H.closing && H.pos < 0.6) { // slam it
       H.closing = true; H.downT = 0; H.shutAge = 0;
@@ -305,6 +322,7 @@ class Combat {
   filterDamage(amount, info) {
     const b = this.build, p = this.player, s = p.stats;
     if (this.invulnT > 0) return 0;
+    if (this.buffs && this.buffs.taken) amount *= this.buffs.taken; // painkillers
     if (info.kind === 'bullet' && this.weaponDef.hubcap) amount *= 0.8; // the hubcap on the gun in your hands
     if (info.kind === 'wall' && b.chip === 'cautious') amount *= 0.3;
     if (info.kind === 'wall' && has(b, 'troll')) amount *= 0.6;
@@ -459,6 +477,7 @@ class Combat {
     // Barrels the race says have blown (hit by a car, a bullet or another blast).
     for (const bl of race.blasts.splice(0)) this.explode(bl.x, bl.y, bl.r, bl.dmg, bl.owner, 'barrel');
     this.updateHatch(dt);
+    if (has(this.build, 'spikes') && race.state === 'racing') this.spikeHubs(dt);
     this.updateBoss(dt); // js/bosses.js
     this.updateTilt(dt); // js/emotes.js
     for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1);

@@ -8,6 +8,7 @@
 const TRINKET_MOUNT = {
   dice: 'hang', rabbit_foot: 'hang', keys: 'hang', rosary: 'hang', freshener: 'hang', dogtags: 'hang', shoes: 'hang', clover: 'hang',
   bobblehead: 'stand', troll: 'stand', teddy: 'stand', snowglobe: 'stand', eightball: 'stand', compass: 'stand', lighter: 'stand',
+  deadrosary: 'hang', loaded: 'hang', spikes: 'flat',
   horseshoe: 'flat', medal: 'flat', photo: 'flat', smokes: 'flat', tooth: 'flat', sparkplug: 'flat', cassette: 'flat',
 };
 
@@ -138,6 +139,58 @@ const TRINKET_BUILD = {
       sc.add(metal, SDF.box([0.44, 0.1, 0.07], 0.03, [0, -2.24, 0]), 0.05);
       sc.add(metal, SDF.ellipsoid([0.05, 0.16, 0.04], [0, -2.36, 0.05]), 0.03);
       sc.add(metal, SDF.ellipsoid([0.04, 0.04, 0.035], [0, -2.17, 0.05]), 0.02);
+    }).g;
+  },
+
+  // ---------- From the hole in the wall (js/blackmarket.js) ----------
+
+  // Dead Man's Rosary: knucklebone beads, yellowed, on a black cord, and a little skull where the cross should be.
+  deadrosary() {
+    return Trinkets.make('deadrosary', 0.025, (sc, M) => {
+      const bone = LP.mat('#d8cba8', { roughness: 0.7 }), cord = M.black(), dark = LP.mat('#2a2018', { roughness: 0.9 });
+      const loop = [];
+      for (let k = 0; k <= 16; k++) { const a = (k / 16) * TAU; loop.push([Math.sin(a) * 0.45, -0.95 + Math.cos(a) * 0.85, 0]); }
+      sc.add(cord, SDF.path(loop, 0.02), 0.01);
+      sc.add(cord, SDF.path([[0, -1.8, 0], [0, -2.0, 0]], 0.02), 0.01);
+      for (let k = 0; k < 13; k++) { // knucklebones: little waisted lumps
+        const a = (k / 13) * TAU, p = [Math.sin(a) * 0.45, -0.95 + Math.cos(a) * 0.85, 0];
+        sc.add(bone, SDF.ellipsoid([0.09, 0.13, 0.09], p), 0.01);
+        sc.cut(SDF.torus(0.1, 0.03, p, [Math.PI / 2, 0, 0]), 0.01, [bone]);
+      }
+      // The skull: cranium, cheekbones, jaw, sockets and nose cut in.
+      const S = [0, -2.28, 0];
+      sc.add(bone, SDF.ellipsoid([0.24, 0.24, 0.24], S), 0.03);
+      sc.add(bone, SDF.box([0.28, 0.16, 0.2], 0.06, [S[0], S[1] - 0.2, S[2] + 0.02]), 0.06);
+      for (const sx of [-1, 1]) sc.cut(SDF.ellipsoid([0.07, 0.065, 0.08], [S[0] + sx * 0.09, S[1] - 0.03, S[2] + 0.2]), 0.02, [bone]);
+      sc.cut(SDF.ellipsoid([0.03, 0.05, 0.06], [S[0], S[1] - 0.13, S[2] + 0.22]), 0.01, [bone]);
+      for (let k = -2; k <= 2; k++) sc.add(dark, SDF.box([0.012, 0.06, 0.02], 0.004, [S[0] + k * 0.045, S[1] - 0.25, S[2] + 0.13]), 0.003); // teeth gaps
+    }).g;
+  },
+
+  // Loaded Dice: two hard black casino dice with red pips, one face worn shiny where it's been weighted.
+  loaded() {
+    return Trinkets.make('loaded', 0.026, (sc) => {
+      const cord = LP.mat('#7a1a1a'), pipM = LP.mat('#d81c1c', { roughness: 0.4 });
+      const A = [0, -2.3, -0.3], B = [0.1, -2.55, 0.35];
+      sc.add(cord, SDF.path([[0, 0, 0], [0, -1.4, 0], [0.02, -1.9, -0.2], A], 0.025), 0.02);
+      sc.add(cord, SDF.path([[0, -1.4, 0], [0.05, -2.0, 0.2], B], 0.025), 0.02);
+      const die = (p, rot) => {
+        const mat = LP.mat('#141414', { roughness: 0.25, metalness: 0.2 });
+        sc.add(mat, SDF.box([0.6, 0.6, 0.6], 0.07, p, rot), 0.02);
+        const m = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(...rot));
+        const at = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(m).add(new THREE.Vector3(...p)).toArray();
+        // Sixes on three faces: they're loaded.
+        for (const [axis, sd] of [['y', 1], ['x', 1], ['z', 1], ['y', -1]]) {
+          for (const [u0, v0] of [[-1, -1], [-1, 0], [-1, 1], [1, -1], [1, 0], [1, 1]]) {
+            const u = u0 * 0.13, v = v0 * 0.15, f = 0.3 * sd;
+            const q = axis === 'z' ? at(u, v, f) : axis === 'x' ? at(f, u, v) : at(u, f, v);
+            sc.cut(SDF.ellipsoid([0.05, 0.05, 0.05], q), 0.01, [mat]);
+            sc.add(pipM, SDF.ellipsoid([0.042, 0.042, 0.042], q), 0.004);
+          }
+        }
+      };
+      die(A, [0.5, 0.3, 0.2]);
+      die(B, [-0.3, 0.7, 0.3]);
     }).g;
   },
 
@@ -368,6 +421,22 @@ const TRINKET_BUILD = {
   },
 
   // ---------- Laid flat on the dash ----------
+
+  // Spiked Hubcap: a little chrome hubcap off a wrecked car with three spikes bolted through it, on the dash.
+  spikes() {
+    return Trinkets.make('spikes', 0.025, (sc) => {
+      const chrome = LP.mat('#c8ccd0', { metalness: 0.9, roughness: 0.25 }), steel = LP.mat('#5a5e62', { metalness: 0.8, roughness: 0.45 });
+      sc.add(chrome, SDF.cyl(0.85, 0.16, 'y', 0.08, [0, 0.08, 0]), 0.06); // the dish
+      sc.add(chrome, SDF.ellipsoid([0.42, 0.12, 0.42], [0, 0.18, 0]), 0.08); // the domed centre
+      sc.cut(SDF.cyl(0.6, 0.06, 'y', 0.02, [0, 0.2, 0]), 0.03); // a recessed ring
+      for (let k = 0; k < 6; k++) { const a = (k / 6) * TAU; sc.cut(SDF.box([0.18, 0.4, 0.08], 0.03, [Math.cos(a) * 0.62, 0.12, Math.sin(a) * 0.62], [0, -a, 0]), 0.02); } // vents
+      for (let k = 0; k < 3; k++) { // spikes, welded on
+        const a = (k / 3) * TAU + 0.4, p = [Math.cos(a) * 0.36, 0.2, Math.sin(a) * 0.36];
+        sc.add(steel, SDF.cone(p, [p[0] * 1.15, 0.95, p[2] * 1.15], 0.13, 0.015), 0.03);
+        sc.add(steel, SDF.cyl(0.17, 0.06, 'y', 0.02, [p[0], 0.22, p[2]]), 0.02); // the weld nut
+      }
+    }).g;
+  },
 
   horseshoe() {
     return Trinkets.make('horseshoe', 0.025, (sc) => {

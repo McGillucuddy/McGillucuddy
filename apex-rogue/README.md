@@ -161,7 +161,7 @@ You pick your path through it (`js/runmap.js`):
 |---|---|
 | 🏁 Race | Finish top 3 or take a strike. Make the cut to pick a reward. |
 | ☠ Elite race | Sharper drivers, an extra rocket gunner and gunner, 1.4x placing pay. A trinket is guaranteed among the rewards. |
-| 🛒 Commissary | The only place the black market is open: three sections stocked at random each visit from everything you've unlocked. **Weapons** (two guns, two attachments), **Trinkets** (two) and **Vehicle** (two car parts, an ability or driver chip). Scrap is scarce, so you choose. Repairs, ammo and spares are always available in the garage. |
+| 🛒 Commissary | Legal goods: three sections stocked at random each visit from everything you've unlocked. **Weapons** (two guns, two attachments), **Trinkets** (two) and **Vehicle** (two car parts, an ability or driver chip). Scrap is scarce, so you choose. Repairs, ammo and spares are always available in the garage. |
 | ? Event | A cell-block scene with a choice: bribe a guard to wipe a strike, run contraband, bet on yourself, dig through the scrapyard, snitch on the gunners, visit the chapel, a yard fight, a cell-block trade, a sponsor deal, raid the armoury. |
 | 🔧 Mechanic | A free full repair. |
 | 💰 Bounty race | A regular race with a price on one rival's head: wreck them for 150+ scrap. |
@@ -218,6 +218,7 @@ clipboard beside it. You can click things in the room as well:
 - **Workshop:** your car on a lift (parts, tuning, repairs).
 - **Armory:** your rack and stash guns on a pegboard, with loose mods, ammo cans and the grenade crate on the bench.
 - **Commissary:** a caged hatch with a trader. The goods sit on the counter with price tags; click one to buy it.
+- **The wall** (some visits only): a knocked-through hole under the chalkboard, the black market (below).
 - **Paint booth:** orbits the car. The cabin tab puts you in your seat, and the guns tab goes to the pegboard.
 - **The roll-up door:** takes you out to the next race.
 
@@ -254,10 +255,24 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   with you: a wrecked driver lives half the time, a tyre job always. In a later race they can come back in the same
   car and paint, armed, a bit sharper and tougher, hunting you rather than racing, and fitted out against whatever
   beat them (blast or bullet plating, fire-retardant paint; shoot their tyres out and they come back on armoured
-  tyres with a gunner who goes for yours). They're named in the briefing, called
-  out at the start and ringed in red on the radar. Wreck them to settle it (45-80 scrap); after three races of
+  tyres with a gunner who goes for yours). The briefing doesn't warn you: they're
+  revealed a few seconds after the green light, and ringed in red on the radar. Wreck them to settle it (45-80 scrap); after three races of
   chasing you they give up. A driver you shot dead never comes back. At most three are out for you at once.
 
+- **The black market** (`js/blackmarket.js`). On about 40% of garage visits after a race there's a tap on the back
+  wall and a brick slides out: a dealer you only see as two eyes and a cigarette, selling three things the
+  commissary won't. Nobody searches you for any of it. Prices are high and wander, and now and then he sells you a
+  dud you only find out about when you use it.
+  - **Drugs**, kept in your pocket (five slots) and taken at the race briefing, one of each kind a race: *Crank*
+    (faster reloads and trigger, steadier aim; the shakes the race after), *Bluebirds* painkillers (25% less damage;
+    you start the next race 15 hull down), *Jolt* (the hatch twice as fast; sluggish the race after).
+  - **Booze:** *Pruno* prison wine (+15% damage) and *Spire Whiskey* (+25% damage, half the recoil, a hangover). Both
+    make the cabin swim, and only the view sways, not the gun, so your aim drifts.
+  - **Hot ammo**, loaded at the briefing for every bullet gun that race: *Shredder Rounds* (bullets chew tyres: even
+    the pistol pops one in a handful of hits), *Hot Loads* (incendiary) and *Black Tips* (armour-piercing, +35%).
+  - **Shady trinkets**, only from him, each with a cost: *Dead Man's Rosary* (once a run a wreck doesn't put you
+    out, but gunners lock on faster), *Loaded Dice* (purses always pay the top of their range, -20 max hull) and the
+    *Spiked Hubcap* (side by side, your hubs shred a rival's tyres; you take more ram damage).
 - **Parts** (engine, tyres, armour, nitro) set your stats and each has trade-offs. Every hit is absorbed partly by armour, then hits
   the hull, and also **wears the part facing the hit** (front: engine, sides: tyres, rear: nitro).
   Broken parts cripple the car until repaired in the garage.
@@ -437,6 +452,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/weather.js` | Weather: per-stop forecasts, effects, cockpit particles and lightning, windshield drops, ambience |
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
+| `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
 | `js/vendetta.js` | Vendettas: rivals you put out who come back later in the run, adapted to how you beat them |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |

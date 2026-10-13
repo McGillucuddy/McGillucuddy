@@ -1106,7 +1106,10 @@ class CockpitView {
     if (ev.type === 'dent') this.syncDents(false);
     if (ev.type === 'jam') { this.shake = Math.max(this.shake, 0.5); if (this.hatchFx) this.hatchFx.shudder = 1.5; }
     if (ev.type === 'shoot' || ev.type === 'shotgun') this.ejectCasing(ev.type === 'shotgun');
-    if (FIRE_EVENTS.includes(ev.type)) this.fireKick(FIRE_KICK[this.combat.weapon.id] || FIRE_KICK.smg);
+    if (FIRE_EVENTS.includes(ev.type)) {
+      const k = FIRE_KICK[this.combat.weapon.id] || FIRE_KICK.smg, soft = this.combat.buffs && this.combat.buffs.kick; // whiskey: a steadier hand
+      this.fireKick(soft ? Object.assign({}, k, { back: k.back * soft, climb: k.climb * soft, yaw: k.yaw * soft, roll: k.roll * soft, cam: k.cam * soft }) : k);
+    }
     if (ev.type === 'explode') this.burst(ev.x, ev.y, ev.big);
     if (ev.type === 'switch') this.anim.switchT = 0.38;
     else if (ev.type === 'empty') this.anim.dry = 0.14;
@@ -1358,6 +1361,15 @@ class CockpitView {
     this.camera.lookAt(eye.clone().add(dir));
     if (this.kick) this.camera.rotateX(this.kick.cp); // the punch of a big gun going off
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(yw) * sway);
+    // Drunk (pruno, whiskey): the cabin swims. Only the view moves, not where the gun points, so your aim drifts off
+    // the crosshair's idea of the world a little: that's the cost of the courage.
+    const drunk = combat.buffs && combat.buffs.drunk;
+    if (drunk) {
+      const tt = this.race.time;
+      this.camera.rotateZ(Math.sin(tt * 0.83) * 0.05 * drunk);
+      this.camera.rotateY(Math.sin(tt * 0.51 + 1) * 0.035 * drunk);
+      this.camera.rotateX(Math.sin(tt * 0.67 + 2) * 0.02 * drunk);
+    }
     // Sal's smog: the world closes in while you're in it.
     const smog = combat.smogOn ? combat.smogOn() : 0, F = this.scene.fog;
     if (!this.fogBase) this.fogBase = { near: F.near, far: F.far };

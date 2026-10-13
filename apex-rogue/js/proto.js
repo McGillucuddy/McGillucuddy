@@ -273,6 +273,24 @@ const Proto = {
         this.showGarage();
         break;
       }
+      case 'buy-contra': {
+        const c = this.dealer && this.dealer.stock[+arg];
+        if (!c || c.sold || (c.type !== 'trinket' && b.pocket.length >= POCKET_MAX) || !buy(c.price)) break;
+        if (c.type === 'trinket') applyItem(b, itemCard('trinket', c.id));
+        else b.pocket.push({ id: c.id, dud: !!c.dud });
+        c.sold = true;
+        this.saveRun();
+        this.showGarage();
+        break;
+      }
+      case 'pocket-use': {
+        const x = b.pocket[+arg];
+        if (!x) break;
+        x.use = !x.use;
+        if (x.use) for (const y of b.pocket) if (y !== x && CONTRABAND[y.id].kind === CONTRABAND[x.id].kind) y.use = false; // one of each kind a race
+        this.showBriefing();
+        break;
+      }
       case 'pick-reward': applyItem(b, this.rewards[+arg]); Sound.play({ type: 'buy' }); this.afterReward(); break;
       case 'skip-reward': b.scrap += SKIP_SCRAP; this.afterReward(); break;
       // Loadout (swappable here; only trinkets are permanent)
@@ -452,7 +470,7 @@ const Proto = {
     const data = {
       v: 1, where, pending, rng, runSeed: this.runSeed, build: this.build,
       run: Object.assign({}, this.run, { node: this.run.node ? this.run.node.id : null }),
-      shop: this.shop, shopOpen: this.shopOpen, tab: this.tab, rewards: this.rewards || null, rewardKind: this.rewardKind || null, pendingAct: this.pendingAct ?? null,
+      shop: this.shop, shopOpen: this.shopOpen, dealer: this.dealer || null, dealerKey: this.dealerKey || 0, tab: this.tab, rewards: this.rewards || null, rewardKind: this.rewardKind || null, pendingAct: this.pendingAct ?? null,
       saved: Date.now(),
     };
     try { localStorage.setItem(RUN_KEY, JSON.stringify(data)); } catch (e) { /* storage unavailable */ }
@@ -476,6 +494,9 @@ const Proto = {
     this.runRng = mulberry32(d.rng);
     this.shop = d.shop || [];
     this.shopOpen = !!d.shopOpen;
+    this.dealer = d.dealer || null;
+    this.dealerKey = d.dealerKey || 0;
+    this.build.pocket = this.build.pocket || [];
     this.tab = d.tab || 'car';
     this.rewards = d.rewards;
     this.rewardKind = d.rewardKind;
@@ -552,6 +573,8 @@ const Proto = {
     this.race = null;
     this.shop = [];
     this.shopOpen = false;
+    this.dealer = null;
+    this.dealerKey = 0;
     this.startAct(0, true);
     this.tab = 'car';
     if (this.preview) this.preview.setMode('car');
@@ -691,6 +714,10 @@ const Proto = {
   toGarage() {
     this.state = 'garage';
     if (!this.shopOpen) this.shop = [];
+    // The dealer behind the wall: maybe there, once per stretch between races (js/blackmarket.js).
+    const b = this.build;
+    if (!this.tutorial && b.race > 0 && this.dealerKey !== b.race) { this.dealerKey = b.race; this.dealer = BlackMarket.roll(b, this.runRng, this.run.act); }
+    if (this.tab === 'wall' && !this.dealer) this.tab = 'car';
     this.saveRun();
     if (this.preview) this.preview.setLook(carLook(this.cos, this.build));
     this.showGarage();
@@ -799,6 +826,7 @@ const Proto = {
     this.seed = (this.runRng() * 2 ** 31) | 0;
     const rng = mulberry32(this.seed);
     const biome = this.act.biome;
+    this.dealer = null; // he's gone by the time you're back
     const boss = node.type === 'boss' ? BOSSES[run.act] : null;
     const d = run.act * 4 + Math.round((Math.min(node.row, MAP_ROWS - 1) * 3) / (MAP_ROWS - 1)) + (node.type === 'elite' ? 2 : 0);
     const track = generateTrack(this.seed, biome, { hazardLevel: 1, features: 1 + Math.min(2, run.act) }); // ramps and obstacles, more each act
@@ -879,10 +907,29 @@ const Proto = {
   startRace() {
     this.state = 'race';
     this.wreckT = 0;
-    if (this.race && this.race.vendetta) this.race.message(`☠ ${this.race.vendetta.v.name} is back, and coming for you`, '#ff2a2a', true);
+    this.useContraband();
     if (!this.tutorial && this.race) Playtest.raceStart({ act: this.run.act, type: this.race.node && this.race.node.type, boss: this.race.boss && this.race.boss.name, weather: this.race.weather });
     this.setUI('');
     if (this.view === 'cockpit') this.lock();
+  },
+
+  // Whatever you picked from your pocket goes in now, plus the comedown from last race's.
+  useContraband() {
+    const b = this.build, run = this.run, race = this.race;
+    if (this.tutorial || !race || !this.combat || !b.pocket) return;
+    const used = b.pocket.filter((x) => x.use), real = used.filter((x) => !x.dud).map((x) => x.id);
+    b.pocket = b.pocket.filter((x) => !x.use);
+    const down = run.flags.comedown || [];
+    const B = BlackMarket.buffs(real, down);
+    run.flags.comedown = real.filter((id) => CONTRABAND[id].comedown);
+    this.combat.buffs = Object.keys(B).length ? B : null;
+    if (B.hull) race.player.hp = Math.max(1, race.player.hp - B.hull);
+    const verb = { drug: 'You take the', booze: 'You drink the', ammo: 'You load the' };
+    for (const x of used) {
+      const c = CONTRABAND[x.id];
+      race.message(x.dud ? `The ${c.name} was a dud. He saw you coming.` : `${verb[c.kind]} ${c.name}`, x.dud ? '#ff8a6a' : '#c9a0ff');
+    }
+    if (down.some((id) => CONTRABAND[id] && CONTRABAND[id].down)) race.message('Coming down hard', '#ff8a6a');
   },
 
   pause() {
@@ -954,14 +1001,13 @@ const Proto = {
     const race = this.race, tr = race.track, bio = tr.biome;
     const rivals = race.cars.filter((c) => c !== race.player).map((c) => `
       <div class="rival"><span class="dot" style="background:${c.color}"></span>${c.name}
-      ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.vendetta ? '<em class="tag red">☠ Vendetta</em>' : ''}${c.bounty ? `<em class="tag yellow">💰 Bounty ${c.bounty}</em>` : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
+      ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.bounty ? `<em class="tag yellow">💰 Bounty ${c.bounty}</em>` : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
       <h1>${race.node.tutorial ? 'Tutorial: practice race' : race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : race.node.type === 'bounty' ? 'Bounty race' : 'Race briefing'}</h1>
       <p class="act-line">Act ${ROMAN[this.run.act]} · ${this.act.title}${race.boss && race.boss.mustWin ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
       <p class="wx-line"><span>${wxOf(race.weather).icon}</span> <b>${wxOf(race.weather).name}.</b> ${wxOf(race.weather).desc}</p>
       ${race.node.tutorial ? '<p class="boss-line">No strikes, no scrap, no armed rivals. A coach card will walk you through every gun and trick, one step at a time.</p>' : ''}
-      ${race.vendetta ? `<p class="boss-line vendetta"><b>☠ ${race.vendetta.v.name} is back.</b> They lived through it when ${Vendetta.why(race.vendetta.v)}, and they've come back with ${vendettaAdapt(race.vendetta.v.how).label}, a crew that's armed and a grudge: they're hunting you, not the race. Wreck them to settle it (${VENDETTA.purse[0]}-${VENDETTA.purse[1]} scrap).</p>` : ''}
       ${race.node.tutorial ? '' : race.boss ? `<p class="boss-line"><b>${race.boss.title}.</b> ${race.boss.desc}${bossKit(race.boss) ? ` <span class="boss-help">${bossKit(race.boss).help}</span>` : ''}</p>` : race.node.type === 'elite' ? '<p class="boss-line">Sharper drivers and more guns on the grid. A trinket waits for you if you make the cut.</p>' : ''}
       <p class="muted">${this.build.scrap} scrap · hull ${Math.ceil(this.build.hull)}/${this.build.maxHull} · strikes ${'●'.repeat(this.build.strikes)}${'○'.repeat(STRIKES_TO_LOSE - this.build.strikes)}</p>
       <div class="brief-grid">
@@ -969,14 +1015,14 @@ const Proto = {
           <h2>${bio.name}</h2><p class="muted">${bio.blurb}</p>
           <p>${race.laps} laps · ${Math.round((tr.length * 0.125) / 10) * 10}m lap · ${boosts} boost pads · ${oils} oil slicks</p>
           <p><b>${race.boss ? (race.boss.mustWin ? 'Win the race outright' : 'Finish ahead of ' + race.boss.name) : 'Finish top ' + race.qualify}</b></p>
-          <p class="small">Purse: <b>${PLACE_PURSE[0][0]}-${PLACE_PURSE[0][1]}</b> scrap for a win, ${PLACE_PURSE[race.qualify - 1] ? `${PLACE_PURSE[race.qualify - 1][0]}-${PLACE_PURSE[race.qualify - 1][1]} for ${race.qualify === 1 ? '1st' : race.qualify === 2 ? '2nd' : race.qualify === 3 ? '3rd' : race.qualify + 'th'}` : ''}, ${WRECK_PURSE[0]}-${WRECK_PURSE[1]} per wreck${race.boss ? `, ${BOSS_PURSE[0]}-${BOSS_PURSE[1]} for beating ${race.boss.name}` : ''}${race.node.type === 'elite' ? ' (elite: +40%)' : ''}. Race well and you land higher in the range.</p>
+          <p class="small">Purse: win <b>${PLACE_PURSE[0][0]}-${PLACE_PURSE[0][1]}</b>${race.qualify > 1 && PLACE_PURSE[race.qualify - 1] ? ` · ${ordinal(race.qualify)} ${PLACE_PURSE[race.qualify - 1][0]}-${PLACE_PURSE[race.qualify - 1][1]}` : ''} · wreck ${WRECK_PURSE[0]}-${WRECK_PURSE[1]}${race.boss ? ` · beat ${race.boss.name} ${BOSS_PURSE[0]}-${BOSS_PURSE[1]}` : ''}${race.node.type === 'elite' ? ' · elite +40%' : ''}</p>
         </div>
-        <div class="panel"><h2>Rivals</h2>${rivals}
+        <div class="panel"><h2>Rivals</h2>${rivals}${this.pocketHTML()}
           <h2>Controls</h2>
           <div class="ctl"><kbd>Mouse</kbd> Aim / look around · <kbd>LMB</kbd> Fire</div>
           <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch · <kbd>R</kbd> Reload</div>
           <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further)</div>
-          <div class="ctl"><kbd>T</kbd> Flip off whoever's in your sights (hold for the emote wheel). Tilted rivals drive worse and come for you.</div>
+          <div class="ctl"><kbd>T</kbd> Flip off a rival (hold for the emote wheel)</div>
           <div class="ctl"><kbd>Space</kbd> (hold) Blast hatch · <kbd>E</kbd> / <kbd>F</kbd> Abilities · <kbd>B</kbd> Fit your spare part</div>
           <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
           <div class="ctl"><kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
@@ -987,6 +1033,21 @@ const Proto = {
       <button class="btn ghost" data-action="menu">Main menu</button>
     </div>`);
     drawTrackPreview(document.getElementById('preview'), race);
+  },
+
+  // The briefing's pocket: contraband from the wall to take or load for this race, and last race's comedown.
+  pocketHTML() {
+    const b = this.build, run = this.run;
+    if (this.tutorial || !b) return '';
+    const down = (run.flags.comedown || []).map((id) => CONTRABAND[id]).filter((c) => c && c.down);
+    if (!b.pocket.length && !down.length) return '';
+    const verb = { drug: 'Take', booze: 'Drink', ammo: 'Load' };
+    const items = b.pocket.map((x, i) => {
+      const c = CONTRABAND[x.id];
+      return `<button class="opt ${x.use ? 'on' : ''}" data-action="pocket-use" data-arg="${i}" title="${c.desc.replace(/"/g, '&quot;')}">${x.use ? '✔ ' : ''}${verb[c.kind]} the ${c.name}</button>`;
+    }).join('');
+    return `<h2>Your pocket</h2>${items ? `<div class="opts">${items}</div><p class="muted small">One of each kind a race. Used when the lights go green.</p>` : ''}
+      ${down.length ? `<p class="small bad">Comedown this race: ${down.map((c) => c.down).join('; ')}.</p>` : ''}`;
   },
 
   showPause() {
@@ -1068,6 +1129,7 @@ const Proto = {
     const show = b.chip === 'showboat' ? 1.5 : 1;
     // Purses roll in a range (seeded per race, so a reload pays the same): half luck, half how you raced.
     const prng = mulberry32((this.seed ^ 0x5c4a) >>> 0), style = raceStyle(s), range = purseRange(p.place);
+    const loaded = has(b, 'loaded'), purseRoll = (r, rng, st) => (loaded ? r[1] : rollPurse(r, rng, st)); // Loaded Dice: always the top
     let wreckRoll = 0;
     for (let k = 0; k < s.wrecked; k++) wreckRoll += purseRoll(WRECK_PURSE, prng, style);
     const wx = wxOf(race.weather), mult = show * (race.node.type === 'elite' ? 1.4 : 1) * (has(b, 'tooth') ? 1.3 : 1) * (wx.scrap || 1);
@@ -1146,9 +1208,10 @@ const Proto = {
     }
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
     const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(this.run.act) ? 'Concierge' : 'Commissary', this.shopOpen ? 'Open now' : 'Closed'], ['paint', 'Paint booth', 'Looks, kept between runs']];
+    if (this.dealer) stations.push(['wall', 'The wall', 'Someone\'s tapping']);
     const nav = stations.map(([id, label, sub]) => `<button class="g-station ${this.tab === id ? 'on' : ''}" data-action="tab" data-arg="${id}"><b>${label}</b><small>${sub}</small></button>`).join('');
     const trinkets = b.trinkets.length ? b.trinkets.map((t) => `<span class="perk rarity-epic" title="${TRINKETS[t].desc}">${TRINKETS[t].name}</span>`).join('') : '<span class="muted small">No trinkets yet. They are the only things you keep for the whole run.</span>';
-    const body = { car: () => this.garageCar(bar), weapons: () => this.garageWeapons(), market: () => this.garageMarket(), paint: () => this.garagePaint() }[this.tab]();
+    const body = { car: () => this.garageCar(bar), weapons: () => this.garageWeapons(), market: () => this.garageMarket(), paint: () => this.garagePaint(), wall: () => this.garageWall() }[this.tab]();
     const title = stations.find((st) => st[0] === this.tab);
     this.setUI(`<div class="screen garage proto-garage g3d">
       <div class="g-top">
@@ -1178,7 +1241,7 @@ const Proto = {
     const b = this.build, act = this.act, run = this.run;
     const done = run.map.nodes.filter((n) => n.done && n.type !== 'boss').length;
     this.preview.sync({
-      build: b, shop: this.shopOpen ? this.shop : [], cos: this.cos,
+      build: b, shop: this.shopOpen ? this.shop : [], cos: this.cos, dealer: !!this.dealer,
       act: { luxury: ACT_LUXURY(run.act), boss: BOSSES[run.act], label: `Act ${ROMAN[run.act]}: ${act.title}`, progress: `Stop ${done + 1} of ${MAP_ROWS + 1} this act`, maxStrikes: STRIKES_TO_LOSE },
     });
     this.preview.setStation(this.tab);
@@ -1287,7 +1350,29 @@ const Proto = {
       const cards = this.shop.map((c, i) => [c, i]).filter(([c]) => secOf(c) === sec.id).map(([c, i]) => card(c, i)).join('');
       return cards ? `<h3 class="shop-sec">${sec.name}</h3><div class="shop-grid three">${cards}</div>` : '';
     }).join('');
-    return `<div class="panel"><h2>Black market</h2><p class="muted small">Stock changes every visit. You have <b>${b.scrap} scrap</b>: you won't afford it all, so choose. Purchases go into your stash (or a free slot).</p>${sections}</div>`;
+    return `<div class="panel"><h2>Commissary</h2><p class="muted small">Stock changes every visit. You have <b>${b.scrap} scrap</b>: you won't afford it all, so choose. Purchases go into your stash (or a free slot).</p>${sections}</div>`;
+  },
+
+  // The hole in the wall: the dealer's three things, and what's in your pocket.
+  garageWall() {
+    const b = this.build, D = this.dealer;
+    if (!D) return '';
+    const full = b.pocket.length >= POCKET_MAX;
+    const card = (c, i) => {
+      const t = c.type === 'trinket' ? TRINKETS[c.id] : CONTRABAND[c.id], kind = c.type === 'trinket' ? 'SHADY TRINKET' : CONTRA_KIND[t.kind];
+      const no = c.sold || b.scrap < c.price || (c.type !== 'trinket' && full);
+      return `<div class="shop-card ${c.sold ? 'sold' : ''}">
+        <small class="muted">${kind}</small><b>${t.name}</b><small>${t.desc}${t.down ? ` <i>The race after: ${t.down}.</i>` : ''}</small>
+        <button class="btn small" data-action="buy-contra" data-arg="${i}" ${no ? 'disabled' : ''}>${c.sold ? 'Sold' : full && c.type !== 'trinket' ? 'Pocket full' : 'Buy ' + c.price}</button>
+      </div>`;
+    };
+    const pocket = b.pocket.length ? b.pocket.map((x) => `<span class="perk">${CONTRABAND[x.id].name}</span>`).join('') : '<span class="muted small">Empty.</span>';
+    return `<div class="panel wall-panel"><h2>The hole in the wall</h2>
+      <p class="small"><i>${D.hello}</i></p>
+      <p class="muted small">Two eyes and a cigarette in the dark. Nothing here is legal, nothing is refunded, and now and then it isn't what he says it is.</p>
+      <div class="shop-grid three">${D.stock.map(card).join('')}</div>
+      <h3 class="shop-sec">Your pocket (${b.pocket.length}/${POCKET_MAX})</h3><div class="perks">${pocket}</div>
+      <p class="muted small">Take drugs and booze, and load hot ammo, from the race briefing.</p></div>`;
   },
 
   garagePaint() {
@@ -1417,6 +1502,21 @@ const Proto = {
     this.cam.zoom = lerp(this.cam.zoom, this.baseZoom() * clamp(1.0 - p.speed / 2600, 0.78, 1), Math.min(1, dt * 1.5));
 
     // Wrecked: no crawling home on the rims. A beat for it to land, then you're out of the race (last place).
+    // A vendetta is a surprise: nothing in the briefing, just the reveal a few seconds after the green light.
+    const V = race.vendetta;
+    if (V && !V.shown && race.state === 'racing' && race.time > 4) {
+      V.shown = true;
+      race.message(`☠ ${V.v.name} is back from the dead`, '#ff2a2a', true);
+      Sound.play({ type: 'bossTell' });
+    }
+    if (V && V.shown === true && race.time > 6.4) { V.shown = 2; race.message(`${vendettaAdapt(V.v.how).label}, and hunting you. Wreck them: ${VENDETTA.purse[0]}-${VENDETTA.purse[1]} scrap`, '#ff8a6a'); }
+    // Dead Man's Rosary: once a run, a wreck doesn't take.
+    if (race.state === 'racing' && p.hp <= 0 && !p.finished && !this.tutorial && has(this.build, 'deadrosary') && !this.run.flags.rosaryUsed) {
+      this.run.flags.rosaryUsed = true;
+      p.hp = 30;
+      race.message('The rosary burns in your fist. Not today.', '#c9a0ff', true);
+      Sound.play({ type: 'bossTell' });
+    }
     if (race.state === 'racing' && p.hp <= 0 && !p.finished && !this.tutorial) {
       if (!this.wreckT) {
         this.wreckT = 1e-3;

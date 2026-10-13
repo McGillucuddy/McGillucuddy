@@ -12,6 +12,7 @@ const GARAGE_POSES = {
   car: [[54, 21, 40], [0, 11, 8]],
   weapons: [[-60, 36, -24], [-60, 36, -100]],
   market: [[108, 32, -12], [109, 24, -66]],
+  wall: [[54, 13, -66], [61, 6, -100]], // the hole in the wall under the chalkboard
   overview: [[96, 52, 86], [-16, 12, -22]],
 };
 
@@ -307,7 +308,7 @@ class Garage3D {
       sc.add(LP.mat('#6a1e1a', { roughness: 0.9 }), SDF.box([5, 0.9, 6.5], 0.2, [100, 21.2, -64], [0, 0.3, 0]), 0.1); // the ledger
       sc.add(LP.mat('#3a3a3a', { metalness: 0.5 }), SDF.cyl(1.4, 0.6, 'y', 0.2, [124, 21.1, -59]), 0.2); // ashtray
     });
-    R.add(this.hot(LP.box(30, 1.6, 16, LP.mat(luxury ? '#e8e2d4' : '#6a5a44', { transparent: true, opacity: 0 }), 109, 20.8, -56), 'tab', 'market', 'Commissary: buy from the black market'));
+    R.add(this.hot(LP.box(30, 1.6, 16, LP.mat(luxury ? '#e8e2d4' : '#6a5a44', { transparent: true, opacity: 0 }), 109, 20.8, -56), 'tab', 'market', 'Commissary: legal goods'));
     // Sign: lit letters on a dark board, and a string of bulbs along the cage.
     const sign = this.tex(128, 24, (g, W, H) => {
       g.fillStyle = '#100e0c'; g.fillRect(0, 0, W, H);
@@ -508,6 +509,27 @@ class Garage3D {
 
   // ---------- Things that reflect your run ----------
 
+  // The black market (js/blackmarket.js): a knocked-through hole low in the back wall, bricks on the floor, and in
+  // the dark two eyes and a lit cigarette. Only there on the visits the dealer is.
+  buildHole(D) {
+    const X = 61, Y = 5, Z = -100, brick = LP.mat('#6a5a4a', { roughness: 1 }), dark = LP.mat('#040303', { roughness: 1 });
+    this.hot(LP.box(9, 6.5, 0.6, dark, X, Y, Z + 0.25), 'tab', 'wall', 'The hole in the wall: the black market').userData.dynamic = true;
+    // Broken block edges round the hole, and the ones that came out, on the floor.
+    for (const [dx, dy, w, h] of [[-5, 2.5, 1.6, 2.2], [5, 1.2, 1.4, 2.6], [-3, 3.6, 2.6, 1.0], [2.5, 3.5, 3.2, 0.9], [-5.2, -1.5, 1.2, 2.4], [5.1, -2.2, 1.2, 1.6]]) {
+      D.add(LP.box(w, h, 1.4, brick, X + dx, Y + dy, Z + 0.6));
+    }
+    const b1 = LP.box(4, 2, 2.4, brick, X - 6, 1, Z + 5); b1.rotation.y = 0.5; D.add(b1);
+    const b2 = LP.box(4, 2, 2.4, brick, X + 3, 1, Z + 7); b2.rotation.y = -0.3; D.add(b2);
+    const b3 = LP.box(4, 2, 2.4, brick, X + 2, 3, Z + 6.6); b3.rotation.set(0.2, 0.9, 0.1); D.add(b3);
+    // Someone in there.
+    const eye = LP.glow('#e8d8a0', 0.7);
+    D.add(LP.box(0.7, 0.35, 0.2, eye, X - 1.1, Y + 1.2, Z + 0.62), LP.box(0.7, 0.35, 0.2, eye, X + 1.1, Y + 1.2, Z + 0.62));
+    D.add(LP.box(0.35, 0.35, 0.3, LP.glow('#ff5a1a', 1.6), X + 1.8, Y - 0.8, Z + 0.7)); // the cigarette
+    // A rag laid out on the floor in front of the hole, with something wrapped on it.
+    D.add(LP.box(10, 0.15, 6, LP.mat('#3a3428', { roughness: 1 }), X, 0.1, Z + 6));
+    D.add(LP.box(1.4, 1.0, 2.2, LP.mat('#c9c2b0', { roughness: 0.6 }), X - 2, 0.6, Z + 5.5), LP.box(1.0, 2.4, 1.0, LP.mat('#3a5a2a', { roughness: 0.3, transparent: true, opacity: 0.8 }), X + 2.5, 1.3, Z + 6));
+  }
+
   sync(info) {
     const { build: b, shop, cos, act } = info;
     this.setTheme(!!act.luxury);
@@ -528,6 +550,7 @@ class Garage3D {
       holder.position.set(x, y, -97);
       D.add(holder);
     };
+    if (info.dealer) this.buildHole(D);
     b.rack.forEach((w, i) => hang(w, -82 + i * 22, 50));
     b.stash.weapons.forEach((w, i) => hang(w, -82 + i * 22, 30));
     // Bench: loose mods in little boxes, ammo cans and your grenade crate.

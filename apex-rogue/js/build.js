@@ -98,6 +98,10 @@ const TRINKETS = {
   sparkplug: { name: 'Lucky Spark Plug', desc: 'Nitro refills 35% faster.' },
   tooth: { name: 'Gold Tooth', desc: '+30% scrap from placings.' },
   dogtags: { name: 'Dog Tags', desc: '+20 maximum hull.' },
+  // Shady trinkets: only the dealer behind the wall sells these (js/blackmarket.js), and each one costs you something.
+  deadrosary: { name: "Dead Man's Rosary", shady: true, desc: 'Bone beads off a driver who died in your seat. Once per run, a wreck doesn\'t put you out: you come back on 30 hull. Rival gunners lock on 15% faster.' },
+  loaded: { name: 'Loaded Dice', shady: true, desc: 'Purses always roll at the top of their range. -20 maximum hull.' },
+  spikes: { name: 'Spiked Hubcap', shady: true, desc: 'Fits spikes to your hubs: side by side with a rival, they shred that rival\'s tyres. You take 25% more ram damage.' },
   shoes: { name: 'Bronzed Baby Shoes', desc: 'Once per race, when your hull drops below 30%, patch 25 of it back.' },
   compass: { name: 'Dash Compass', desc: 'Your rockets turn 40% harder towards their target.' },
   cassette: { name: 'Mixtape', desc: 'Reloads 20% faster.' },
@@ -239,12 +243,13 @@ const SKIP_SCRAP = 30;
 const purseRange = (place) => PLACE_PURSE[Math.min(PLACE_PURSE.length, Math.max(1, place)) - 1];
 // A style score 0..1 for the race: wrecks, parries and coming through untouched push you up the range.
 const raceStyle = (s) => clamp(s.wrecked * 0.12 + (s.parries || 0) * 0.15 + (s.taken < 25 ? 0.25 : s.taken < 60 ? 0.1 : 0), 0, 1);
-const purseRoll = (range, rng, style) => Math.round(range[0] + (range[1] - range[0]) * clamp(0.5 * rng() + 0.5 * style, 0, 1));
+const rollPurse = (range, rng, style) => Math.round(range[0] + (range[1] - range[0]) * clamp(0.5 * rng() + 0.5 * style, 0, 1));
+const purseRoll = rollPurse;
 const STRIKES_TO_LOSE = 3;
 
 function newBuild() {
   const b = {
-    scrap: 120, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0,
+    scrap: 120, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0, pocket: [], // pocket: contraband to use at a briefing
     parts: {}, spare: null,
     rack: [], rackBase: 2,
     tuneRange: { engine: { lo: -1, hi: 1 }, tyres: { lo: -1, hi: 1 }, armour: { lo: -1, hi: 1 }, nitro: { lo: -1, hi: 1 } },
@@ -451,7 +456,7 @@ function rollRewards(b, rng, count) {
   for (const id in WEAPONS) if (!ownsWeapon(b, id)) pool.push(['weapon', id, 3]);
   for (const id in ABILITIES) if (!ownsAbility(b, id)) pool.push(['ability', id, 2]);
   for (const id in MODS) pool.push(['mod', id, { common: 2, rare: 1.2, epic: 0.6 }[MODS[id].rarity]]);
-  for (const id in TRINKETS) if (!has(b, id)) pool.push(['trinket', id, 2]);
+  for (const id in TRINKETS) if (!has(b, id) && !TRINKETS[id].shady) pool.push(['trinket', id, 2]);
   for (const id in CHIPS) if (!ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)) pool.push(['chip', id, 1]);
   for (let i = pool.length - 1; i >= 0; i--) if (!isUnlocked(pool[i][0], pool[i][1])) pool.splice(i, 1); // only gear you've unlocked
   const out = [];
@@ -466,7 +471,7 @@ function rollRewards(b, rng, count) {
 // Elite races guarantee a trinket among the cards (while there are trinkets left to find).
 function rollEliteRewards(b, rng) {
   const out = rollRewards(b, rng, 3).filter((c) => c.type !== 'trinket').slice(0, 2);
-  const left = Object.keys(TRINKETS).filter((id) => !has(b, id) && isUnlocked('trinket', id));
+  const left = Object.keys(TRINKETS).filter((id) => !has(b, id) && !TRINKETS[id].shady && isUnlocked('trinket', id));
   if (left.length) out.push(itemCard('trinket', left[Math.floor(rng() * left.length)]));
   while (out.length < 3) { const extra = rollRewards(b, rng, 1)[0]; if (!extra || out.some((c) => c.id === extra.id)) break; out.push(extra); }
   return shuffle(rng, out);
@@ -498,7 +503,7 @@ function rollShop(b, rng, act) {
   const pools = {
     weapon: Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id)),
     mod: Object.keys(MODS),
-    trinket: Object.keys(TRINKETS).filter((id) => !has(b, id)),
+    trinket: Object.keys(TRINKETS).filter((id) => !has(b, id) && !TRINKETS[id].shady),
     part: Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id)),
     ability: Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id)),
     chip: Object.keys(CHIPS).filter((id) => !ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)),
@@ -549,6 +554,7 @@ function applyItem(b, card) {
     b.trinkets.push(card.id);
     if (card.id === 'freshener') for (const inst of [...Object.values(b.parts), ...b.stash.parts]) inst.dur = Math.round(inst.dur * 1.25);
     if (card.id === 'dogtags') { b.maxHull += 20; b.hull += 20; }
+    if (card.id === 'loaded') { b.maxHull -= 20; b.hull = Math.min(b.hull, b.maxHull); }
   } else if (card.type === 'chip') {
     if (!b.chip) b.chip = card.id;
     else b.stash.chips.push(card.id);
