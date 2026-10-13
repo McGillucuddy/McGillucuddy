@@ -62,7 +62,8 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 
 Scrap ranges; wreck-out rule; shootable and armoured tyres; tyre-hunter AI; vendettas; the black market with
 tolerance; item pictures on all cards; the Typewriter's drum turned square to the barrel; magazine wells on every
-mag-fed gun with straight-in reloads; a shorter race briefing.
+mag-fed gun with straight-in reloads; the Grinder LMG's belt reload (feed cover up, belt laid in the tray, cover
+slammed); a shorter race briefing.
 
 ## What we know is weak (from bot playthroughs)
 
@@ -92,7 +93,6 @@ mag-fed gun with straight-in reloads; a shorter race briefing.
 - **Roof-mounted machine gun:** open a roof hatch and stand up into a mounted LMG: steadier, wider arc, but you're
   exposed (the gunner can be hit, no blast hatch). Bought with **shielding tiers**: bare mount, gun shield,
   wraparound, cage turret, each a trade-off (weight, arc, view), dented and repaired like the hatch.
-- **Belt-loading animation** for the Grinder LMG: feed cover up, belt laid in the tray, cover slammed.
 - **The deal and champions:** beating Marlowe ends in a choice (walk free, or take the deal and become the champion
   your later runs must beat); dethroned champions become rivals and die for good.
 - **Ratings:** a live broadcast meter that pays out as sponsor favour; **identity:** a crime with a perk, a mugshot.

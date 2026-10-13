@@ -178,9 +178,11 @@ Object.assign(Models, {
     const rubber = LP.mat('#151515', { roughness: 0.9 });
     const sc = new Sculpt('lmg', 0.045);
     sc.add(steel, SDF.side([[2.9, -0.6], [-3.3, -0.6], [-3.3, 0.55], [2.9, 0.55]], 1.0, 0.1), 0.05);
-    sc.add(steel, SDF.side([[2.4, 0.5], [-0.6, 0.5], [-0.8, 0.85], [2.2, 0.85]], 0.9, 0.08), 0.06); // feed cover
+    // The feed cover, hinged at the front: it lifts on a reload so the belt can be laid in the tray. Its own piece.
+    sc.add(steel, SDF.side([[2.4, 0.5], [-0.6, 0.5], [-0.8, 0.85], [2.2, 0.85]], 0.9, 0.08), 0.06, 'cover');
     for (let k = 0; k < 6; k++) sc.cut(SDF.box([1.0, 0.06, 0.08], 0.01, [0, 0.86, -1.9 + k * 0.35]), 0.01, [steel]);
-    sc.add(worn, SDF.box([0.42, 0.12, 1.4], 0.03, [0, 0.9, 0.2]), 0.02); // optics rail at the back of the cover
+    sc.add(worn, SDF.box([0.42, 0.12, 1.4], 0.03, [0, 0.9, 0.2]), 0.02, 'cover'); // optics rail at the back of the cover
+    sc.add(worn, SDF.box([0.7, 0.04, 1.2], 0.02, [0, 0.52, -0.75]), 0.01); // the feed tray under it
     sc.add(worn, SDF.path([[0, 0.4, -3.75], [0, 1.15, -3.55], [0, 1.22, -2.65], [0, 0.6, -2.45]], 0.08), 0.04); // carry handle
     // Heavy barrel, flash hider, gas tube and block, front sight; the bipod folded under the barrel.
     sc.add(steel, SDF.lathe([[0.3, -2.8], [0.26, -3.2], [0.24, -8.8]], [0, 0.15, 0]), 0.05);
@@ -214,16 +216,23 @@ Object.assign(Models, {
     sc.add(olive, SDF.box([0.95, 1.7, 1.8], 0.14, B), 0.03, 'mag');
     sc.add(olive, SDF.box([1.02, 0.36, 1.86], 0.12, [B[0], B[1] + 0.72, B[2]]), 0.05, 'mag');
     for (const z of [-0.5, 0.5]) sc.add(worn, SDF.cyl(0.08, 0.1, 'x', 0.02, [0.52, B[1] + 0.6, B[2] + z]), 0.01, 'mag');
+    // The belt: the rounds climbing out of the box go with the box; the free end (the top rounds and the two lying
+    // across the feed tray) is its own piece, laid into the tray by hand on a reload.
     const belt = new THREE.CatmullRomCurve3([[-0.25, -0.62, -1.3], [-0.6, -0.3, -1.05], [-0.68, 0.15, -0.85], [-0.56, 0.48, -0.7]].map((p) => new THREE.Vector3(...p)));
-    for (let k = 0; k < 9; k++) {
-      const p = belt.getPointAt(k / 8);
-      sc.add(brass, SDF.cyl(0.075, 0.5, 'z', 0.03, [p.x, p.y, p.z + 0.1]), 0.01, 'mag');
-      sc.add(copper, SDF.cone([p.x, p.y, p.z - 0.15], [p.x, p.y, p.z - 0.32], 0.065, 0.015), 0.01, 'mag');
-    }
+    const round = (x, y, z, set) => {
+      sc.add(brass, SDF.cyl(0.075, 0.5, 'z', 0.03, [x, y, z + 0.1]), 0.01, set);
+      sc.add(copper, SDF.cone([x, y, z - 0.15], [x, y, z - 0.32], 0.065, 0.015), 0.01, set);
+    };
+    for (let k = 0; k < 9; k++) { const p = belt.getPointAt(k / 8); round(p.x, p.y, p.z, k < 6 ? 'mag' : 'belt'); }
+    for (const x of [-0.36, -0.16]) round(x, 0.6, -0.7, 'belt');
+    const BE = belt.getPointAt(6 / 8).toArray(); // where the free end pivots
     sc.uv(steel, 0.32).uv(worn, 0.3).uv(poly, 0.4).uv(olive, 0.5);
     const sets = sc.build(g);
     g.userData.mag = LP.pivot(g, sets.mag, B);
     g.userData.magRest = B;
+    g.userData.cover = LP.pivot(g, sets.cover, [0, 0.55, -2.35]);
+    g.userData.belt = LP.pivot(g, sets.belt, BE);
+    g.userData.beltRest = BE;
     for (const x of [-0.5, 0.5]) for (const z of [-2.2, 2.2]) g.add(GUNTEX.screw(worn, x, -0.3, z, 0.07));
     const barrel = new THREE.Object3D();
     barrel.position.set(0, 0.15, -9.6);

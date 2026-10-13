@@ -1551,6 +1551,8 @@ class CockpitView {
       // Reset moving parts to rest.
       for (const h of hands) { h.position.copy(h.userData.rest.pos); h.rotation.set(h.userData.rest.rot, 0, 0); h.visible = true; }
       if (u.mag) u.mag.position.set(...(u.magRest || [0, -2.7, 0.2])), (u.mag.visible = true);
+      if (u.cover) u.cover.rotation.x = 0;
+      if (u.belt) { u.belt.position.set(...u.beltRest); u.belt.rotation.set(0, 0, 0); u.belt.visible = true; }
       if (u.slide) u.slide.position.set(0, 0.36, Math.min(0.45, this.recoil * 0.5)); // the pistol's slide kicks back on each shot
       if (u.pump) u.pump.position.set(0, 0, 0);
       if (u.barrelGrp) u.barrelGrp.rotation.x = 0;
@@ -1589,6 +1591,7 @@ class CockpitView {
           ry = 0.95 * tilt; rz = 0.25 * tilt; rx = 0.1 * tilt; ox = -1.4 * tilt; oy = 2.6 * tilt; oz = 0.2 * tilt;
           const MR = MAG_RELOAD[id], off = new THREE.Vector3(...MR.off), rest0 = new THREE.Vector3(...(u.magRest || [0, -2.7, 0.2]));
           const hand = hands[1], R = this.rackPoint(g, i), well = rest0.clone().sub(off);
+          const belted = !!(u.cover && u.belt); // a belt-fed gun: after the box, the belt goes into the tray
           const below = well.clone().addScaledVector(new THREE.Vector3(...(MR.dir || [0, -1, 0])).normalize(), MR.depth || 1.2); // lined up outside the well
           const drop = ss(0.15, 0.32, rp);
           if (hand && R) {
@@ -1597,6 +1600,7 @@ class CockpitView {
             else if (rp < 0.45) hand.position.copy(R);
             else if (rp < 0.62) hand.position.lerpVectors(R, below, ss(0.45, 0.62, rp));
             else if (rp < 0.72) hand.position.lerpVectors(below, well, ss(0.63, 0.72, rp)); // and straight in
+            else if (belted) this.loadBelt(u, hand, well, rest, rp);
             else if (rp < 0.8) hand.position.copy(well).add(new THREE.Vector3(0, 0.3 * ss(0.72, 0.78, rp), 0));
             else hand.position.lerpVectors(well, rest, ss(0.8, 0.92, rp));
             hand.rotation.x = hand.userData.rest.rot + 0.6 * bump(0.12, 0.8, rp);
@@ -1604,7 +1608,9 @@ class CockpitView {
           }
           if (rp < 0.32) { u.mag.position.addScaledVector(new THREE.Vector3(...MR.drop), drop); u.mag.visible = drop < 0.98; }
           else if (rp < 0.4) u.mag.visible = false;
-          else if (rp < 0.78 && hand) { u.mag.visible = true; u.mag.position.copy(hand.position).add(off); }
+          else if (rp < (belted ? 0.72 : 0.78) && hand) { u.mag.visible = true; u.mag.position.copy(hand.position).add(off); }
+          if (belted && rp < 0.32) { u.belt.position.addScaledVector(new THREE.Vector3(...MR.drop), drop); u.belt.visible = drop < 0.98; } // the old belt goes with the old box
+          else if (belted && rp < 0.72) u.belt.visible = false;
           oz += bump(0.76, 0.82, rp) * 0.4; // slap
           rx -= bump(0.86, 0.94, rp) * 0.12; // bolt rack kick
         } else if (id === 'shotgun') {
@@ -1714,6 +1720,26 @@ class CockpitView {
   }
 
   // A shot: kick the gun on its springs, punch the view, light the flash, start a smoke puff.
+  // A belt-fed reload, once the new box is on: flip up the feed cover, take the belt's free end (hanging off the
+  // box), lay it across the feed tray, slam the cover down. rp runs 0.72 to 1 here.
+  loadBelt(u, hand, well, rest, rp) {
+    const ss = (a, c, x) => { const k = clamp((x - a) / (c - a), 0, 1); return k * k * (3 - 2 * k); };
+    const V = (x, y, z) => new THREE.Vector3(x, y, z), B = V(...u.beltRest);
+    const coverRear = V(0.1, 1.15, 0.7), coverUp = V(0.1, 2.3, -0.1), hang = B.clone().add(V(-0.4, -0.55, 0.15)), press = V(0.05, 1.05, -0.9);
+    const open = ss(0.75, 0.8, rp) * (1 - ss(0.9, 0.93, rp));
+    u.cover.rotation.x = -1.15 * open;
+    const lay = ss(0.84, 0.89, rp); // the free end: hanging off the box, then lifted into the tray
+    u.belt.visible = true;
+    u.belt.position.lerpVectors(hang, B, lay);
+    u.belt.rotation.set(0, 0, 0.9 * (1 - lay));
+    if (rp < 0.75) hand.position.lerpVectors(well, coverRear, ss(0.72, 0.75, rp));
+    else if (rp < 0.8) hand.position.lerpVectors(coverRear, coverUp, ss(0.75, 0.8, rp)); // lifting the cover
+    else if (rp < 0.84) hand.position.lerpVectors(coverUp, hang, ss(0.8, 0.84, rp));
+    else if (rp < 0.89) hand.position.copy(u.belt.position).add(V(0.1, 0.25, 0)); // carrying the belt in
+    else if (rp < 0.93) hand.position.lerpVectors(B.clone().add(V(0.1, 0.25, 0)), press, ss(0.89, 0.93, rp)); // and slamming the cover
+    else hand.position.lerpVectors(press, rest, ss(0.93, 1, rp));
+  }
+
   fireKick(k) {
     const K = this.kick, j = () => Math.random() * 2 - 1;
     K.vz += k.back * 14;

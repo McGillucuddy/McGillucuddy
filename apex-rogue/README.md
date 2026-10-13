@@ -295,7 +295,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   built from a propane tank (short range, sets everything alight) and a Harpoon Gun (hooks a rival on a
   line and drags them back hard).
   Rifles and machine guns (`js/rifles.js`): the **WC-9 Carbine** (Warden Corp guard issue: accurate full-auto at range)
-  and the belt-fed **Grinder LMG** (a hundred rounds, a brass belt climbing out of its ammo box, a slow reload), plus
+  and the belt-fed **Grinder LMG** (a hundred rounds, a brass belt climbing out of its ammo box; a slow reload: box on, feed cover up, belt laid in the tray, cover slammed), plus
   three **pre-war** guns from the arsenals sealed when the Plate went up: the **Liberty Rifle** (semi-auto, eight heavy
   rounds, and the empty clip pings out), the **Typewriter** drum gun (fifty rounds, walnut foregrip) and the **Widow
   MG** (cooling jacket, a pan magazine on top that turns as it fires). The drum gun and machine guns *bloom*: hold the
