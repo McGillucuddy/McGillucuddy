@@ -823,6 +823,7 @@ const Proto = {
     });
     this.race.node = node;
     this.race.boss = boss;
+    this.race.wreckOut = !node.tutorial; // a wreck puts you out (see updateRace), no limping on
     this.race.music = null; // set once the weather is known, below
     if (node.type === 'bounty') {
       // A price on one rival's head: the strongest non-boss driver on the grid.
@@ -861,7 +862,7 @@ const Proto = {
     this.driver = driver;
     this.combat = new Combat(this.race, { driver, build: b, elite: node.type === 'elite', boss, disarm: !!run.flags.disarm, weather: wx, act: node.tutorial ? 0 : run.act });
     run.flags.disarm = false;
-    if (vend) { const vc = this.race.vendetta.car; if (!vc.weapon) vc.weapon = 'gun'; vc.wpn = vc.wpn || { cd: randRange(rng, 2, 4), lock: 0 }; } // they come armed
+    if (vend) { const vc = this.race.vendetta.car; if (!vc.weapon || vend.how === 'tyres') vc.weapon = 'gun'; vc.wpn = vc.wpn || { cd: randRange(rng, 2, 4), lock: 0 }; } // they come armed
     this.combat.pace = PACE;
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
     this.race.music = Music.forRace(run.act, node.type, this.seed, !!(boss && boss.mustWin), wxId);
@@ -1082,6 +1083,9 @@ const Proto = {
     if (run.flags.bet) { if (p.place <= 2) betPay = run.flags.bet; run.flags.bet = 0; }
     b.scrap += placePay + wreckPay + bossPay + betPay + bountyPay + vendPay - sponsorCut;
     b.hull = Math.max(Math.round(b.maxHull * CREW_PATCH), Math.round(p.hp)); // the crew patches a wreck back to running; the rest is yours to pay for
+    // A wreck breaks things: the crew bodges broken parts back to a quarter so you're not crippled next race.
+    const bodged = p.dnf ? PART_SLOTS.filter((k) => b.parts[k].dur <= 0) : [];
+    for (const k of bodged) b.parts[k].dur = Math.round(partMaxDur(b, b.parts[k].id) * 0.25);
     if (has(b, 'snowglobe')) b.grenades = Math.min(MAX_GRENADES, b.grenades + 1);
     b.race++;
     if (p.place === 1) b.wins++;
@@ -1107,7 +1111,7 @@ const Proto = {
           <div><span>Rockets &amp; mines shot down</span><b>${s.shotDown}</b></div>
           <div><span>Parries</span><b>${s.parries}</b></div>
           <div><span>Damage taken</span><b>${Math.round(s.taken)}</b></div>
-          <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}${b.hull > Math.ceil(p.hp) ? ` <small class="muted">(crew patched to ${b.hull})</small>` : ''}</b></div>
+          <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}${b.hull > Math.ceil(p.hp) ? ` <small class="muted">(crew patched to ${b.hull}${bodged.length ? ', and bodged the ' + bodged.map((k) => SLOT_NAMES[k].toLowerCase()).join(' and ') + ' back to running' : ''})</small>` : ''}</b></div>
           <div><span>Placing purse <small class="muted">${p.dnf ? 'did not finish' : `${range[0]}-${range[1]}`}</small></span><b>${placePay} scrap</b></div>
           <div><span>Wreck bounties</span><b>${wreckPay} scrap</b></div>
           ${bossPay ? `<div><span>Qualifier purse</span><b>${bossPay} scrap</b></div>` : ''}

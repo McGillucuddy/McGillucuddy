@@ -11,7 +11,11 @@ const FIT_TIME = 2.5;
 
 // Tyres: hit points per tyre, and how hard rivals' stray shots hit yours (they never aim for them).
 const TYRE_HP = 40;
-const RIVAL_TYRE = 0.3;
+const TYRE_R = 4.2; // how close a shot's path must pass a wheel to hit the tyre
+const RIVAL_TYRE = 0.15; // a stray rival round that happens to land by a wheel
+// A tyre hunter's aimed burst: a longer wind-up (you see it coming), eight rounds at one wheel. 'start' is how long
+// into the race before anyone tries it; 'gap' is the least time between any two attempts on you.
+const TYRE_HUNT = { rate: 2.0, burst: 8, spread: 0.025, range: 320, start: 25, gap: 12, chance: 0.6 };
 
 // What hurt you, in words (for the playtest report).
 const HURT_KIND = { bullet: 'gunfire', rocket: 'rockets', blast: 'explosions', flame: 'fire', mine: 'mines', harpoon: 'harpoons', boss: 'the boss' };
@@ -68,7 +72,13 @@ class Combat {
     const armour = [0, 0.25, 0.6, 0.9][opts.act || 0] || 0;
     // Rival guns hit softer early on: a wreck puts you out of the race, so Act I has to be survivable with a pistol.
     this.rivalMul = [0.75, 0.9, 1, 1.05][opts.act || 0] || 1;
+    this.player.ramTakenMul *= this.rivalMul; // rams too
+    // Tyre hunters: some rival gunners (none in Act I, more each act after) will go for your tyres, but only once the
+    // race has settled, from close beside or behind you, one at a time, and never straight away. See rivalGuns.
+    const hunters = [0, 0.3, 0.5, 0.7][opts.act || 0] || 0;
+    this.tyreHuntCd = TYRE_HUNT.start;
     for (const c of race.cars) {
+      if (c !== this.player && !c.isBoss && c.tyreHunter == null) c.tyreHunter = this.rng() < hunters;
       if (c !== this.player && c.armorTyres == null) c.armorTyres = (c.isBoss && opts.act > 0) || this.rng() < armour;
       this.initTyres(c);
     }
@@ -84,11 +94,19 @@ class Combat {
     c.tyres = [TYRE_HP, TYRE_HP, TYRE_HP, TYRE_HP].map((h) => h * (runFlat ? 1.5 : 1));
     c.tyreMax = c.tyres[0]; c.flats = 0; c.flatPull = 0; c.flatK = runFlat ? 0.3 : 1; // run-flats: tougher, and you barely feel a flat
   }
-  tyreAt(c, x, y) { // which tyre a point on the car is next to (or -1)
-    const fx = Math.cos(c.heading), fy = Math.sin(c.heading), dx = x - c.x, dy = y - c.y;
-    const f = dx * fx + dy * fy, s = -dx * fy + dy * fx, a = Math.abs(Math.atan2(s, f));
-    const front = a > 0.4 && a < 0.85, rear = a > 2.3 && a < 2.75;
-    return front || rear ? (front ? 0 : 2) + (s > 0 ? 1 : 0) : -1;
+  // Which tyre a shot travelling (ux, uy) from (x, y) hits first, or -1: the first wheel whose position the path
+  // passes within TYRE_R of. Wheels sit at the car's four corners (the model's wheelbase and track).
+  tyreAt(c, x, y, ux, uy) {
+    const fx = Math.cos(c.heading), fy = Math.sin(c.heading);
+    let best = -1, bt = 1e9;
+    for (let i = 0; i < 4; i++) {
+      const f = i < 2 ? 11 : -11, s = i % 2 ? 7.3 : -7.3; // left is +s
+      const wx = c.x + fx * f - fy * s, wy = c.y + fy * f + fx * s, t = (wx - x) * ux + (wy - y) * uy;
+      if (t < -2) continue;
+      const px = x + ux * t - wx, py = y + uy * t - wy;
+      if (px * px + py * py < TYRE_R * TYRE_R && t < bt) { bt = t; best = i; }
+    }
+    return best;
   }
   damageTyre(c, i, dmg, owner) {
     if (!c.tyres || c.tyres[i] <= 0 || dmg <= 0) return false;
@@ -110,11 +128,31 @@ class Combat {
     else if (owner === p) { this.race.message(`Popped ${shortName(c)}'s ${where} tyre!`, '#7CFC00'); this.stats.tyres = (this.stats.tyres || 0) + 1; c.tyredBy = true; }
     return true;
   }
+  // Should this tyre hunter go for a wheel this time, and which? Only when the race has settled, from close beside or
+  // behind you (never head-on from in front), one attempt at a time across the whole field, and only some of the time.
+  tyreTarget(c, d) {
+    const p = this.player;
+    if (!c.tyreHunter || this.race.time < this.tyreHuntCd || d > TYRE_HUNT.range || p.tyres.every((h) => h <= 0)) return null;
+    if (this.rng() > TYRE_HUNT.chance) return null;
+    const fx = Math.cos(p.heading), fy = Math.sin(p.heading), dx = c.x - p.x, dy = c.y - p.y;
+    const f = dx * fx + dy * fy, s = -dx * fy + dy * fx;
+    if (f > 60) return null; // they're ahead of you: no angle on your wheels
+    this.tyreHuntCd = this.race.time + TYRE_HUNT.gap;
+    const left = s > 0, rear = f < 0;
+    let i = (rear ? 2 : 0) + (left ? 1 : 0);
+    if (p.tyres[i] <= 0) i = p.tyres.findIndex((h) => h > 0);
+    this.race.message(`${shortName(c)} is going for your tyres!`, '#ff9f1c');
+    return i;
+  }
+
   // A bullet that lands next to a wheel goes into the tyre (and only half of it into the body).
   bulletTyre(c, pr) {
-    const i = this.tyreAt(c, pr.x, pr.y);
+    // A round covers ~25 units a frame, so it's caught well inside the car: trace it back to where it came in.
+    const qx = pr.x - c.x, qy = pr.y - c.y, v = Math.hypot(pr.vx, pr.vy) || 1, ux = pr.vx / v, uy = pr.vy / v, R = CAR_RADIUS + 2;
+    const qu = qx * ux + qy * uy, back = qu + Math.sqrt(Math.max(0, qu * qu - (qx * qx + qy * qy - R * R)));
+    const i = this.tyreAt(c, pr.x - ux * back, pr.y - uy * back, ux, uy);
     if (i < 0 || !c.tyres || c.tyres[i] <= 0) return false;
-    const rate = pr.owner === this.player ? (pr.tyre == null ? 0.5 : pr.tyre) : RIVAL_TYRE;
+    const rate = pr.tyre != null ? pr.tyre : pr.owner === this.player ? 0.5 : RIVAL_TYRE;
     return this.damageTyre(c, i, pr.dmg * rate, pr.owner);
   }
 
@@ -537,16 +575,26 @@ class Combat {
           if (w.bt <= 0) {
             w.burst--;
             w.bt = 0.09;
+            if (w.wheel != null) { // a tyre burst: at the wheel nearest them, tighter, rounds that chew rubber
+              const f = w.wheel < 2 ? 11 : -11, sd = w.wheel % 2 ? 7.3 : -7.3, hx = Math.cos(p.heading), hy = Math.sin(p.heading), lead = d / 1500;
+              const tx = p.x + hx * f - hy * sd + p.vx * lead, ty = p.y + hy * f + hx * sd + p.vy * lead; // the wheel itself
+              const a = Math.atan2(ty - c.y, tx - c.x) + randRange(this.rng, -TYRE_HUNT.spread, TYRE_HUNT.spread);
+              this.spawn('bullet', c, a, 1500, 1, { dmg: 2.5, life: 0.45, tyre: TYRE_HUNT.rate });
+              if (w.burst <= 0) w.wheel = null;
+              this.events.push({ type: 'enemyShot' });
+              continue;
+            }
             const a = Math.atan2(dy + p.vy * d / 1500, dx + p.vx * d / 1500) + randRange(this.rng, -0.07, 0.07);
             this.spawn('bullet', c, a, 1500, 1, { dmg: 2.5, life: 0.45 });
             this.events.push({ type: 'enemyShot' });
           }
         } else if (w.lock > 0) {
-          if (disabled || d > 520 || c.spinT > 0) { w.lock = 0; w.cd = 2; continue; }
-          w.lock += dt * 2; // half a rocket lock
-          if (w.lock >= this.lockTime) { w.lock = 0; w.burst = 6; w.bt = 0; w.cd = randRange(this.rng, 4, 6); }
+          if (disabled || d > 520 || c.spinT > 0) { w.lock = 0; w.wheel = null; w.cd = 2; continue; }
+          w.lock += dt * (w.wheel != null ? 1.4 : 2); // half a rocket lock; a tyre shot takes longer to line up
+          if (w.lock >= this.lockTime) { w.lock = 0; w.burst = w.wheel != null ? TYRE_HUNT.burst : 6; w.bt = 0; w.cd = randRange(this.rng, 4, 6); }
         } else if (!disabled && w.cd <= 0 && d > 60 && d < 450) {
           w.lock = 1e-4;
+          w.wheel = this.tyreTarget(c, d);
           this.events.push({ type: 'lock', car: c });
         }
       } else if (c.weapon === 'mine' && !disabled && w.cd <= 0) {

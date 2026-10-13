@@ -142,6 +142,16 @@ A tiny amount of identity makes the stakes personal and makes champions memorabl
 - **Which guns:** the Grinder LMG and the Widow MG first (the belt and pan guns), bought as a roof mount in the
   workshop.
 
+**Decided: shielding you buy and build up.** The mount starts bare; the workshop sells protection around it, each
+tier a real choice rather than a straight upgrade:
+- **Bare mount:** full arc, nothing between you and the rounds.
+- **Gun shield:** a welded plate in front of the gun. Stops shots from ahead; your flanks and back are open.
+- **Wraparound:** plates on three sides. Stops most gunfire, but it's heavy (a little top speed) and narrows your arc.
+- **Cage turret:** a full armoured cupola with a slit. Near-total protection from gunfire, the heaviest, the
+  narrowest view, and a blast on the roof can still rattle you.
+Shields take damage like the blast hatch does (they dent, crack and need repairs in the workshop), so protection
+costs scrap to keep, and they show on the car, so rivals can see what you're running.
+
 **Open:** what being hit while exposed does (lost aim, a bleed, or a forced duck back in); whether bosses go for the
 gunner when they see you up top.
 

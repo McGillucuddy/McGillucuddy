@@ -14,7 +14,7 @@ const VENDETTA = {
 
 // How they come back, by what put them out last time.
 const VENDETTA_ADAPT = {
-  tyres: { label: 'armoured tyres', apply: (c) => { c.armorTyres = true; } },
+  tyres: { label: 'armoured tyres and a gunner who goes for yours', apply: (c) => { c.armorTyres = true; c.tyreHunter = true; c.weapon = 'gun'; } },
   blast: { label: 'blast plating', apply: (c) => { c.plate = { blast: 0.5 }; } },
   bullet: { label: 'bullet plating', apply: (c) => { c.plate = { bullet: 0.7 }; } },
   fire: { label: 'fire-retardant paint', apply: (c) => { c.fireproof = true; c.plate = { fire: 0.5 }; } },
