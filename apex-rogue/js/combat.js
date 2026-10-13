@@ -9,6 +9,10 @@ const PARRY_WINDOW = 0.3;
 const GRENADE_G = 700;
 const FIT_TIME = 2.5;
 
+// Tyres: hit points per tyre, and how hard rivals' stray shots hit yours (they never aim for them).
+const TYRE_HP = 40;
+const RIVAL_TYRE = 0.3;
+
 // What hurt you, in words (for the playtest report).
 const HURT_KIND = { bullet: 'gunfire', rocket: 'rockets', blast: 'explosions', flame: 'fire', mine: 'mines', harpoon: 'harpoons', boss: 'the boss' };
 
@@ -59,6 +63,59 @@ class Combat {
     const bossCar = race.cars.find((c) => c.isBoss);
     if (bossCar && opts.boss) bossCar.weapon = opts.boss.weapon;
     for (const c of race.cars) if (c.weapon && c !== this.player) c.wpn = { cd: randRange(this.rng, 3, 7), lock: 0 };
+    // Tyres: four per car. From Act II on, more and more rivals run armoured tyres (steel guards over the rims);
+    // bosses past the first act always do.
+    const armour = [0, 0.25, 0.6, 0.9][opts.act || 0] || 0;
+    // Rival guns hit softer early on: a wreck puts you out of the race, so Act I has to be survivable with a pistol.
+    this.rivalMul = [0.75, 0.9, 1, 1.05][opts.act || 0] || 1;
+    for (const c of race.cars) {
+      if (c !== this.player && c.armorTyres == null) c.armorTyres = (c.isBoss && opts.act > 0) || this.rng() < armour;
+      this.initTyres(c);
+    }
+  }
+
+  // ---------- Tyres ----------
+  // Four tyres per car, indexed front-right, front-left, rear-right, rear-left (the car model's wheel order). A shot
+  // that lands near a corner hits that wheel's tyre. How much a gun hurts tyres is its 'tyre' rating (starter guns are
+  // poor at it; rifles and the nail gun are good); rivals only ever hit yours by accident, at a low rating. Armoured
+  // tyres shrug most of it off. A flat slows the car, costs grip and pulls it towards the flat side.
+  initTyres(c) {
+    const runFlat = c === this.player && PARTS[this.build.parts.tyres.id].mods.runFlat;
+    c.tyres = [TYRE_HP, TYRE_HP, TYRE_HP, TYRE_HP].map((h) => h * (runFlat ? 1.5 : 1));
+    c.tyreMax = c.tyres[0]; c.flats = 0; c.flatPull = 0; c.flatK = runFlat ? 0.3 : 1; // run-flats: tougher, and you barely feel a flat
+  }
+  tyreAt(c, x, y) { // which tyre a point on the car is next to (or -1)
+    const fx = Math.cos(c.heading), fy = Math.sin(c.heading), dx = x - c.x, dy = y - c.y;
+    const f = dx * fx + dy * fy, s = -dx * fy + dy * fx, a = Math.abs(Math.atan2(s, f));
+    const front = a > 0.4 && a < 0.85, rear = a > 2.3 && a < 2.75;
+    return front || rear ? (front ? 0 : 2) + (s > 0 ? 1 : 0) : -1;
+  }
+  damageTyre(c, i, dmg, owner) {
+    if (!c.tyres || c.tyres[i] <= 0 || dmg <= 0) return false;
+    const p = this.player;
+    if (c.armorTyres) {
+      dmg *= 0.25;
+      if (owner === p && this.rng() < 0.3) this.events.push({ type: 'deflect', x: c.x, y: c.y });
+    }
+    c.tyres[i] -= dmg;
+    c.tyreBy = owner;
+    if (c.tyres[i] > 0) return true;
+    c.flats++;
+    const left = (k) => (c.tyres[k] <= 0 ? 1 : 0);
+    c.flatPull = 0.18 * (left(1) + left(3) - left(0) - left(2)); // turns towards the flat side
+    this.explosions.push({ x: c.x, y: c.y, r: 14, t: 0, kind: 'spark' });
+    this.events.push({ type: 'tyrePop', x: c.x, y: c.y, mine: c === p, by: owner === p, side: i % 2 ? 1 : -1 });
+    const where = (i < 2 ? 'front ' : 'rear ') + (i % 2 ? 'left' : 'right');
+    if (c === p) this.race.message(`Your ${where} tyre is gone!`, '#ff9f1c', true);
+    else if (owner === p) { this.race.message(`Popped ${shortName(c)}'s ${where} tyre!`, '#7CFC00'); this.stats.tyres = (this.stats.tyres || 0) + 1; c.tyredBy = true; }
+    return true;
+  }
+  // A bullet that lands next to a wheel goes into the tyre (and only half of it into the body).
+  bulletTyre(c, pr) {
+    const i = this.tyreAt(c, pr.x, pr.y);
+    if (i < 0 || !c.tyres || c.tyres[i] <= 0) return false;
+    const rate = pr.owner === this.player ? (pr.tyre == null ? 0.5 : pr.tyre) : RIVAL_TYRE;
+    return this.damageTyre(c, i, pr.dmg * rate, pr.owner);
   }
 
   get weapon() { return this.build.rack[this.wi]; }
@@ -292,7 +349,7 @@ class Combat {
       if (def.bloom) st.bloom = Math.min(1.5, (st.bloom || 0) + def.bloom);
       for (let k = 0; k < def.pellets; k++) {
         const a = ctl.aim + randRange(this.rng, -spread, spread);
-        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0, tracer: !!def.tracer, puncture: def.puncture || 0, shock: def.shock || 0 });
+        this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0, tracer: !!def.tracer, puncture: def.puncture || 0, shock: def.shock || 0, tyre: def.tyre });
       }
       this.events.push({ type: def.pellets > 1 ? 'shotgun' : def.puncture ? 'nail' : 'shoot', w: this.weapon.id });
       if (def.ping && w.mag === 0) this.events.push({ type: 'ping' }); // the empty clip flies out with a ping
@@ -403,16 +460,17 @@ class Combat {
         race.damage(c, c.bleedDps * dt, { kind: 'bullet' });
         if (c.bleedBy === p && c !== p) {
           this.stats.dealt += before - c.hp;
-          if (before > 0 && c.hp <= 0) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.cloverRefill(); }
+          if (before > 0 && c.hp <= 0) this.creditWreck(c, 'bullet');
         }
       }
+      if (c.fireproof) c.burnT = 0; // a vendetta car that burned last time came back in fire-retardant paint
       if (c.burnT > 0) {
         c.burnT -= dt;
         const before = c.hp;
         race.damage(c, c.burnDps * dt, { kind: 'fire' });
         if (c.burnBy === p && c !== p) {
           this.stats.dealt += before - c.hp;
-          if (before > 0 && c.hp <= 0) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.cloverRefill(); this.race.message(`${shortName(c)} burned out!`, '#ffd23f'); }
+          if (before > 0 && c.hp <= 0) { this.creditWreck(c, 'fire'); this.race.message(`${shortName(c)} burned out!`, '#ffd23f'); }
         }
       }
     }
@@ -583,7 +641,8 @@ class Combat {
         else {
           const role = this.crewHit(c, pr); // through the glass and into the driver or gunner?
           if (role) this.woundCrew(c, role, pr.dmg * (pr.type === 'harpoon' ? 2.5 : 1), pr.owner);
-          this.hitCar(c, pr.dmg, pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, pr.type === 'flame' ? 'fire' : 'bullet');
+          const tyre = !role && pr.type === 'bullet' && this.bulletTyre(c, pr); // or into a tyre
+          this.hitCar(c, pr.dmg * (tyre ? 0.5 : 1), pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, pr.type === 'flame' ? 'fire' : 'bullet');
           if (pr.puncture && c !== pr.owner) { // nails in the tyres: each one drags a little more
             c.slowDrag = Math.min(2.2, (c.slowT > 0 ? c.slowDrag : 0) + pr.puncture * 0.25);
             c.slowT = 1.5;
@@ -715,6 +774,7 @@ class Combat {
         f *= HATCH.blastPass;
       }
       this.hitCar(c, dmg * f, owner, ang, 0.75, 'blast');
+      for (let i = 0; i < 4; i++) if (this.rng() < f) this.damageTyre(c, i, dmg * f * 0.5, owner); // the blast shreds rubber
       // Knockback + spin.
       c.vx -= Math.cos(ang) * 220 * f;
       c.vy -= Math.sin(ang) * 220 * f;
@@ -762,14 +822,25 @@ class Combat {
     c.deadSteer = (Math.random() - 0.5) * 0.5;
     if (c.hp > 0) {
       c.hp = 0;
-      if (owner === p) { this.stats.wrecked++; if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40; this.cloverRefill(); }
+      if (owner === p) this.creditWreck(c, 'driver');
     }
     if (owner === p) this.race.message(`${shortName(c)}'s driver is down!`, '#ffd23f', true);
+  }
+
+  // A rival you wrecked: paid for, and remembered (how you did it decides how they come back, if they live; see
+  // Proto.noteVendettas).
+  creditWreck(c, how) {
+    this.stats.wrecked++;
+    if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
+    this.cloverRefill();
+    if (!c.downed) c.downed = { how };
   }
 
   hitCar(c, dmg, owner, ang, slow, kind) {
     const p = this.player;
     if (c !== p && c.markT > 0) dmg *= 1.2; // tracer-marked
+    if (c.plate && c.plate[kind || 'bullet']) dmg *= c.plate[kind || 'bullet'];
+    if (c === p && owner && owner !== p) dmg *= this.rivalMul || 1; // a vendetta car, plated against what beat it last time
     if (c !== p) dmg = this.bossArmour(c, dmg, ang, kind);
     const before = c.hp;
     this.race.damage(c, dmg, { kind: kind || 'bullet', ang });
@@ -784,9 +855,7 @@ class Combat {
     } else if (owner === p) {
       this.stats.dealt += Math.min(dmg, before);
       if (before > 0 && c.hp <= 0) {
-        this.stats.wrecked++;
-        if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
-        this.cloverRefill();
+        this.creditWreck(c, kind || 'bullet');
         this.race.message(`${shortName(c)} wrecked!`, '#ffd23f');
       }
     }

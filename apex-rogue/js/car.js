@@ -59,6 +59,7 @@ class Car {
 
     let top = s.top, acc = s.accel;
     if (this.limp) { top *= 0.6; acc *= 0.6; }
+    if (this.flats) { const k = this.flatK || 1; top *= 1 - 0.13 * this.flats * k; acc *= 1 - 0.12 * this.flats * k; } // flat tyres
     if (this.offroad) top *= 1 - (1 - this.offroadTop) * s.offroadMul;
     if (this.nitroOn) { top *= 1 + 0.25 * s.nitroPower; acc *= 1 + 0.9 * s.nitroPower; }
     if (this.boostT > 0) { top *= 1.3; acc *= 2.4; this.boostT -= dt; }
@@ -90,12 +91,14 @@ class Car {
     let turn = inp.steer * s.handling * sf * hi * load;
     if (inp.handbrake) turn *= 1.35;
     if (this.spinT > 0) { turn += this.spinDir * 3.5; this.spinT -= dt; }
+    if (this.flatPull) turn += this.flatPull * (this.flatK || 1) * clamp(Math.abs(vF) / 300, 0, 1); // a flat drags the car to its side
     this.heading += turn * dt;
 
     // Lateral grip: bleed sideways velocity; some converts to forward momentum.
     let g = s.grip * gripMul;
     if (inp.handbrake) { g *= 0.22; vF -= vF * 0.6 * dt; }
     if (this.oilT > 0) { g *= 0.15; this.oilT -= dt; }
+    if (this.flats) g *= 1 - 0.14 * this.flats * (this.flatK || 1);
     if (this.offroad) g *= 0.8;
     const keep = Math.exp(-g * dt);
     const lost = vR * (1 - keep);

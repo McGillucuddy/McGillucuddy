@@ -17,7 +17,7 @@ const PARTS = {
   slicks: { slot: 'tyres', name: 'Racing Slicks', desc: '+20% grip on tarmac. Terrible off-road.', price: 220, dur: 70, mods: { grip: 1.2, offroad: 1.6 } },
   all_terrain: { slot: 'tyres', name: 'All-Terrain Tyres', desc: 'Off-road slowdown -60%, but -5% grip.', price: 180, dur: 130, mods: { grip: 0.95, offroad: 0.4 } },
   studded: { slot: 'tyres', name: 'Studded Tyres', desc: '+40% grip on ice and snow. -4% top speed.', price: 180, dur: 110, mods: { iceGrip: 1.4, top: 0.96 } },
-  run_flats: { slot: 'tyres', name: 'Run-Flats', desc: '-5% grip, but when they break you keep 85% grip.', price: 200, dur: 90, mods: { grip: 0.95, runFlat: true } },
+  run_flats: { slot: 'tyres', name: 'Run-Flats', desc: '-5% grip. When worn out you keep 85% grip; they take 50% more to shoot flat, and you barely feel a flat.', price: 200, dur: 90, mods: { grip: 0.95, runFlat: true } },
   chains: { slot: 'tyres', name: 'Snow Chains', desc: '+60% grip on ice, rams deal +30% damage, -8% top speed.', price: 170, dur: 120, mods: { iceGrip: 1.6, ram: 1.3, top: 0.92 } },
 
   scrap_plating: { slot: 'armour', name: 'Scrap Plating', desc: 'Absorbs 20% of incoming damage.', price: 0, dur: 60, mods: { absorb: 0.2 } },
@@ -43,20 +43,20 @@ const BROKEN_TEXT = {
 
 // Ammo-based weapons. mag = rounds per magazine, reserve = spare rounds carried.
 const WEAPONS = {
-  pistol: { name: 'Service Pistol', desc: 'Every inmate starts with one. Accurate and quick to reload, but light. Can pick rockets out of the air.', kind: 'bullet', auto: true, mag: 12, reload: 1.2, rate: 0.19, pellets: 1, spread: 0.022, speed: 1550, dmg: 5.2, life: 0.6, pack: 36, packPrice: 25, start: 60, price: 0 },
-  smg: { name: 'SMG', desc: 'Fast, accurate, low damage. Shoots rockets and mines out of the air.', kind: 'bullet', auto: true, mag: 30, reload: 1.6, rate: 0.085, pellets: 1, spread: 0.035, speed: 1500, dmg: 3.2, life: 0.6, pack: 60, packPrice: 40, start: 90, price: 160 },
-  shotgun: { name: 'Pump Shotgun', desc: 'Close range. Big knockback; one blast clears incoming rockets.', kind: 'bullet', auto: false, mag: 6, reload: 2.2, rate: 0.7, pellets: 7, spread: 0.2, speed: 1250, dmg: 3.4, life: 0.3, knock: 70, pack: 12, packPrice: 40, start: 18, price: 220 },
-  rocket: { name: 'Rocket Launcher', desc: 'Slow, explosive and devastating.', kind: 'rocket', auto: false, mag: 1, reload: 1.8, rate: 0.6, speed: 950, dmg: 26, radius: 62, life: 2.2, pack: 3, packPrice: 90, start: 3, price: 300 },
-  flare: { name: 'Flare Gun', desc: 'Blinds the driver you hit: they swerve and brake for 3 seconds.', kind: 'flare', auto: false, mag: 1, reload: 1.4, rate: 0.5, speed: 1100, dmg: 4, life: 1.2, blind: 3, pack: 4, packPrice: 50, start: 4, price: 180 },
-  nailgun: { name: 'Nail Gun', desc: 'Pneumatic and fully automatic. Nails puncture tyres: every hit drags the rival back a little.', kind: 'bullet', auto: true, mag: 40, reload: 1.9, rate: 0.075, pellets: 1, spread: 0.05, speed: 1250, dmg: 2.4, life: 0.55, puncture: 0.6, pack: 80, packPrice: 40, start: 120, price: 200 },
-  flamer: { name: 'Flamethrower', desc: 'Short range. Sets everything it touches on fire. Fuel goes fast.', kind: 'flame', auto: true, mag: 60, reload: 2.4, rate: 0.06, pellets: 2, spread: 0.14, speed: 560, dmg: 0.9, life: 0.38, burn: 4, burnTime: 3, pack: 120, packPrice: 45, start: 180, price: 260 },
+  pistol: { name: 'Service Pistol', desc: 'Every inmate starts with one. Accurate and quick to reload, but light. Can pick rockets out of the air.', kind: 'bullet', auto: true, mag: 12, reload: 1.2, rate: 0.19, pellets: 1, spread: 0.022, speed: 1550, dmg: 5.2, life: 0.6, pack: 36, packPrice: 25, start: 60, tyre: 0.25, price: 0 },
+  smg: { name: 'SMG', desc: 'Fast, accurate, low damage. Shoots rockets and mines out of the air.', kind: 'bullet', auto: true, mag: 30, reload: 1.6, rate: 0.085, pellets: 1, spread: 0.035, speed: 1500, dmg: 3.2, life: 0.6, pack: 60, packPrice: 40, start: 90, tyre: 0.35, price: 160 },
+  shotgun: { name: 'Pump Shotgun', desc: 'Close range. Big knockback; one blast clears incoming rockets.', kind: 'bullet', auto: false, mag: 6, reload: 2.2, rate: 0.7, pellets: 7, spread: 0.2, speed: 1250, dmg: 3.4, life: 0.3, knock: 70, pack: 12, packPrice: 40, start: 18, tyre: 0.6, price: 220 },
+  rocket: { name: 'Rocket Launcher', desc: 'Slow, explosive and devastating.', kind: 'rocket', auto: false, mag: 1, reload: 1.8, rate: 0.6, speed: 950, dmg: 26, radius: 62, life: 2.2, pack: 3, packPrice: 90, start: 3, tyre: 0.5, price: 300 },
+  flare: { name: 'Flare Gun', desc: 'Blinds the driver you hit: they swerve and brake for 3 seconds.', kind: 'flare', auto: false, mag: 1, reload: 1.4, rate: 0.5, speed: 1100, dmg: 4, life: 1.2, blind: 3, pack: 4, packPrice: 50, start: 4, tyre: 0.3, price: 180 },
+  nailgun: { name: 'Nail Gun', desc: 'Pneumatic and fully automatic. Nails puncture tyres: every hit drags the rival back a little.', kind: 'bullet', auto: true, mag: 40, reload: 1.9, rate: 0.075, pellets: 1, spread: 0.05, speed: 1250, dmg: 2.4, life: 0.55, puncture: 0.6, pack: 80, packPrice: 40, start: 120, tyre: 2.5, price: 200 },
+  flamer: { name: 'Flamethrower', desc: 'Short range. Sets everything it touches on fire. Fuel goes fast.', kind: 'flame', auto: true, mag: 60, reload: 2.4, rate: 0.06, pellets: 2, spread: 0.14, speed: 560, dmg: 0.9, life: 0.38, burn: 4, burnTime: 3, pack: 120, packPrice: 45, start: 180, tyre: 0.2, price: 260 },
   // Rifles and machine guns. Warden Corp issue, liberated, and pre-war surplus from the sealed arsenals under the Plate.
-  carbine: { name: 'WC-9 Carbine', desc: 'Warden Corp guard issue, liberated. Accurate full-auto that carries a long way: the all-rounder.', kind: 'bullet', auto: true, mag: 30, reload: 1.8, rate: 0.1, pellets: 1, spread: 0.026, speed: 1750, dmg: 4.4, life: 0.72, pack: 60, packPrice: 45, start: 90, price: 280 },
-  liberty: { name: 'Liberty Rifle', desc: 'Pre-war army surplus, older than the Plate. Eight heavy, dead-accurate rounds a clip, then the empty clip pings out.', kind: 'bullet', auto: false, mag: 8, reload: 1.5, rate: 0.24, pellets: 1, spread: 0.008, speed: 2100, dmg: 11, life: 0.85, knock: 25, ping: true, pack: 24, packPrice: 45, start: 32, price: 260 },
-  typewriter: { name: 'Typewriter', desc: 'A pre-war drum gun in walnut and blued steel. Fifty rounds as fast as you can hold on, but the longer you hold, the more it climbs.', kind: 'bullet', auto: true, mag: 50, reload: 2.6, rate: 0.065, pellets: 1, spread: 0.04, speed: 1350, dmg: 3.1, life: 0.55, bloom: 0.09, pack: 100, packPrice: 50, start: 150, price: 240 },
-  lmg: { name: 'Grinder LMG', desc: 'Belt-fed, a hundred rounds to the box. It wanders as the barrel heats and takes an age to reload: make the belt count.', kind: 'bullet', auto: true, mag: 100, reload: 3.8, rate: 0.08, pellets: 1, spread: 0.034, speed: 1650, dmg: 4.0, life: 0.7, bloom: 0.025, pack: 100, packPrice: 60, start: 200, price: 380 },
-  pangun: { name: 'Widow MG', desc: 'Pre-war, with a cooling jacket and a pan magazine that turns as it fires. Heavy rounds; changing the pan is slow.', kind: 'bullet', auto: true, mag: 47, reload: 3.0, rate: 0.1, pellets: 1, spread: 0.03, speed: 1700, dmg: 5.4, life: 0.75, bloom: 0.03, pack: 94, packPrice: 60, start: 141, price: 340 },
-  harpoon: { name: 'Harpoon Gun', desc: 'A heavy barbed bolt on a line. Hooks a rival and drags them back hard.', kind: 'harpoon', auto: false, mag: 1, reload: 1.6, rate: 0.5, speed: 1150, dmg: 16, life: 1.1, hook: 1.6, pack: 4, packPrice: 60, start: 5, price: 280 },
+  carbine: { name: 'WC-9 Carbine', desc: 'Warden Corp guard issue, liberated. Accurate full-auto that carries a long way: the all-rounder.', kind: 'bullet', auto: true, mag: 30, reload: 1.8, rate: 0.1, pellets: 1, spread: 0.026, speed: 1750, dmg: 4.4, life: 0.72, pack: 60, packPrice: 45, start: 90, tyre: 0.8, price: 280 },
+  liberty: { name: 'Liberty Rifle', desc: 'Pre-war army surplus, older than the Plate. Eight heavy, dead-accurate rounds a clip, then the empty clip pings out.', kind: 'bullet', auto: false, mag: 8, reload: 1.5, rate: 0.24, pellets: 1, spread: 0.008, speed: 2100, dmg: 11, life: 0.85, knock: 25, ping: true, pack: 24, packPrice: 45, start: 32, tyre: 1, price: 260 },
+  typewriter: { name: 'Typewriter', desc: 'A pre-war drum gun in walnut and blued steel. Fifty rounds as fast as you can hold on, but the longer you hold, the more it climbs.', kind: 'bullet', auto: true, mag: 50, reload: 2.6, rate: 0.065, pellets: 1, spread: 0.04, speed: 1350, dmg: 3.1, life: 0.55, bloom: 0.09, pack: 100, packPrice: 50, start: 150, tyre: 0.5, price: 240 },
+  lmg: { name: 'Grinder LMG', desc: 'Belt-fed, a hundred rounds to the box. It wanders as the barrel heats and takes an age to reload: make the belt count.', kind: 'bullet', auto: true, mag: 100, reload: 3.8, rate: 0.08, pellets: 1, spread: 0.034, speed: 1650, dmg: 4.0, life: 0.7, bloom: 0.025, pack: 100, packPrice: 60, start: 200, tyre: 0.7, price: 380 },
+  pangun: { name: 'Widow MG', desc: 'Pre-war, with a cooling jacket and a pan magazine that turns as it fires. Heavy rounds; changing the pan is slow.', kind: 'bullet', auto: true, mag: 47, reload: 3.0, rate: 0.1, pellets: 1, spread: 0.03, speed: 1700, dmg: 5.4, life: 0.75, bloom: 0.03, pack: 94, packPrice: 60, start: 141, tyre: 0.8, price: 340 },
+  harpoon: { name: 'Harpoon Gun', desc: 'A heavy barbed bolt on a line. Hooks a rival and drags them back hard.', kind: 'harpoon', auto: false, mag: 1, reload: 1.6, rate: 0.5, speed: 1150, dmg: 16, life: 1.1, hook: 1.6, pack: 4, packPrice: 60, start: 5, tyre: 0.3, price: 280 },
 };
 const GRENADE_PRICE = 30;
 const MAX_GRENADES = 5;
@@ -231,10 +231,15 @@ function weldNotch(b, slot, dir) {
 }
 
 // Scrap is scarce on purpose: a good race pays for the repairs and a little over, not for everything in the shop.
-const PLACE_SCRAP = [130, 95, 70, 45, 30, 20, 10];
-const WRECK_SCRAP = 15;
-const BOSS_PURSE = 150;
+// Purses are ranges: where you land is half luck, half how you raced (wrecks, parries, finishing unscathed).
+const PLACE_PURSE = [[100, 160], [70, 115], [50, 85], [30, 55], [20, 40], [10, 25], [5, 15]];
+const WRECK_PURSE = [10, 20]; // per rival you wreck
+const BOSS_PURSE = [120, 180];
 const SKIP_SCRAP = 30;
+const purseRange = (place) => PLACE_PURSE[Math.min(PLACE_PURSE.length, Math.max(1, place)) - 1];
+// A style score 0..1 for the race: wrecks, parries and coming through untouched push you up the range.
+const raceStyle = (s) => clamp(s.wrecked * 0.12 + (s.parries || 0) * 0.15 + (s.taken < 25 ? 0.25 : s.taken < 60 ? 0.1 : 0), 0, 1);
+const purseRoll = (range, rng, style) => Math.round(range[0] + (range[1] - range[0]) * clamp(0.5 * rng() + 0.5 * style, 0, 1));
 const STRIKES_TO_LOSE = 3;
 
 function newBuild() {

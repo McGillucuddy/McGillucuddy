@@ -1198,6 +1198,18 @@ const Models = {
         if (s < 0) rim.rotation.y = Math.PI;
         rim.userData.noGrime = true;
         w.add(t, dish, disc, rim);
+        // Armoured wheels: a riveted steel plate over the rim and a chain-mail band around the tread.
+        if (opts.tyreArmor) {
+          const steel = LP.mat('#5d6264', { metalness: 0.75, roughness: 0.45 });
+          const plate = LP.cyl(R * 0.98, R * 0.98, 0.3, 8, steel, 0, 0, 1.25 * s).rotateX(Math.PI / 2);
+          const boss = LP.cyl(R * 0.3, R * 0.36, 0.5, 6, LP.mat('#3c3f40', { metalness: 0.8, roughness: 0.4 }), 0, 0, 1.5 * s).rotateX(Math.PI / 2);
+          w.add(plate, boss);
+          for (let k = 0; k < 8; k++) {
+            const a = (k / 8) * Math.PI * 2;
+            w.add(LP.cyl(0.22, 0.22, 0.25, 5, steel, Math.cos(a) * R * 0.78, Math.sin(a) * R * 0.78, 1.45 * s).rotateX(Math.PI / 2));
+          }
+          w.add(LP.lathe([[R + 0.08, -0.9 * wS], [R + 0.16, 0], [R + 0.08, 0.9 * wS]], 16, LP.mat('#4a4d4e', { metalness: 0.7, roughness: 0.6 })));
+        }
         w.position.set(x, st.wheelR * rS, (st.wheelZ + (wS - 1) * 0.9) * s);
         g.add(w);
         g.userData.wheels.push(w);

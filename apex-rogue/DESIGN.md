@@ -133,7 +133,19 @@ A tiny amount of identity makes the stakes personal and makes champions memorabl
 
 **Open:** picked or rolled crime; whether the face is seen in first person at all (the hands are; maybe a mirror).
 
-## 5. Build order
+## 5. The roof gun (next)
+
+**Decided:** machine guns can be mounted on the roof. Using one means opening a hatch and standing up into it.
+- **The trade:** the mounted gun is steadier, fires on a wider arc (behind you too) and doesn't climb like the
+  hand-held version, but while you're up in the hatch you're exposed: rivals' shots can hit *you* (a crew hit, not the
+  hull), you can't slam the blast hatch, and climbing up or down takes a moment.
+- **Which guns:** the Grinder LMG and the Widow MG first (the belt and pan guns), bought as a roof mount in the
+  workshop.
+
+**Open:** what being hit while exposed does (lost aim, a bleed, or a forced duck back in); whether bosses go for the
+gunner when they see you up top.
+
+## 6. Build order
 
 Playtesting comes first: if the core loop (driving and shooting at once, the hatch, readability, performance) needs
 work, that work comes before any of this.
@@ -145,7 +157,7 @@ work, that work comes before any of this.
 4. **Ratings.** The meter, the payout at the garage, the broadcast HUD; feeds the champion's fame.
 5. **Identity.** Crime and perk, mugshot, the radio voice.
 
-## 6. How we'll know it works
+## 7. How we'll know it works
 
 - **Ratings:** players change how they drive to chase it (some of the time), and can say what earns it.
 - **The deal:** players hesitate at the choice, and testers split between the two endings rather than all taking one.

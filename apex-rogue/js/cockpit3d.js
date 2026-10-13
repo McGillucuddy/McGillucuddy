@@ -414,9 +414,11 @@ class CockpitView {
       const g = new THREE.Group();
       // Rivals: every one a different heap. Bosses drive their own signature car.
       const k = this.carMeshes.size;
+      // Rivals keep their look for the race (a vendetta car comes back looking the same).
+      if (!car.bossLook) car.look3d = car.vendLook ? Object.assign({}, car.vendLook, { color: car.color, accent: car.accent, weapon: car.weapon, tyreArmor: !!car.armorTyres }) : this.rivalLook(car, k);
       const model = car.bossLook
-        ? Models.car(Object.assign({ color: car.color, accent: car.accent, weapon: car.weapon, number: 1, crew: { gunner: !!car.weapon, seed: k * 13 + 5, helmet: true } }, car.bossLook))
-        : Models.car(this.rivalLook(car, k));
+        ? Models.car(Object.assign({ color: car.color, accent: car.accent, weapon: car.weapon, number: 1, crew: { gunner: !!car.weapon, seed: k * 13 + 5, helmet: true } }, car.bossLook, { tyreArmor: !!car.armorTyres }))
+        : Models.car(car.look3d);
       if (car.bossLook) model.scale.setScalar(1.08);
       g.add(model);
       const box = new THREE.Box3().setFromObject(model);
@@ -446,7 +448,7 @@ class CockpitView {
       twoTone: pick(['none', 'none', 'roof', 'hood', 'lower']), paint2: pick(['#2a2a2e', '#d8cfb0', '#6f6f68', '#c9a443', '#5a6b3a']),
       finish: pick(['gloss', 'matte', 'rusty', 'patched', 'gloss']), grime: pick(['clean', 'dirty', 'dirty', 'filthy']),
       livery: pick(['stencil', 'roundel', 'none', 'stripes', 'flames', 'skull']), rims: pick(['spoke5', 'steel', 'black', 'slotted', 'wire']),
-      exhaust: pick(['single', 'twin', 'side']),
+      exhaust: pick(['single', 'twin', 'side']), tyreArmor: !!car.armorTyres,
     };
   }
 
@@ -1098,6 +1100,7 @@ class CockpitView {
   onEvent(ev) {
     if (ev.type === 'emote') this.emoteAnim = { id: ev.id, t: 0 };
     if (ev.type === 'deflect') this.sparkAt(ev.x, ev.y, 5);
+    if (ev.type === 'tyrePop') { this.sparkAt(ev.x, ev.y, 10); if (ev.mine) { this.shake = Math.max(this.shake, 0.6); if (this.cabinMo) this.cabinMo.vroll += ev.side * 0.6; } }
     if (ev.type === 'hatchShut') { if (this.hatchFx) this.hatchFx.bounce = 1; this.shake = Math.max(this.shake, 0.35); }
     if (ev.type === 'block' || ev.type === 'parry') this.hatchHit(ev);
     if (ev.type === 'dent') this.syncDents(false);
@@ -1254,9 +1257,26 @@ class CockpitView {
       m.g.position.set(car.x, car.z || 0, car.y);
       m.g.rotation.order = 'YXZ';
       m.g.rotation.set(0, -car.heading, car.air ? -car.pitch : 0); // nose up off a ramp, down as it falls
-      for (const w of m.wheels) {
+      m.wheels.forEach((w, i) => {
         w.rotation.z -= (car.forwardSpeed * dt) / 3.8;
         if (w.position.x > 0) w.rotation.y = -(car.input ? car.input.steer : 0) * 0.5; // front wheels steer
+        // A flat sits on its rim: shrunk, dropped, and shedding sparks at speed.
+        const flat = car.tyres && car.tyres[i] <= 0;
+        if (flat !== !!w.userData.flat) {
+          if (w.userData.y0 == null) w.userData.y0 = w.position.y;
+          w.userData.flat = flat;
+          w.scale.set(flat ? 0.8 : 1, flat ? 0.8 : 1, 1);
+          w.position.y = w.userData.y0 * (flat ? 0.8 : 1);
+        }
+        if (flat && Math.abs(car.forwardSpeed) > 120 && Math.random() < 0.25) {
+          const v = w.getWorldPosition(this.tmpV || (this.tmpV = new THREE.Vector3()));
+          this.sparkAt(v.x, v.z, 1);
+        }
+      });
+      if (car.tyres) { // the body slumps towards its flats
+        const f = (i) => (car.tyres[i] <= 0 ? 1 : 0), lean = f(1) + f(3) - f(0) - f(2), nose = f(0) + f(1) - f(2) - f(3);
+        m.model.rotation.x = lean * 0.035;
+        m.model.rotation.z = -nose * 0.025;
       }
       this.carMotion(car, m, dt, t);
       this.updateDamage(car, m, dt);
@@ -1266,7 +1286,7 @@ class CockpitView {
       m.bodyMat.emissive.set(flash ? '#ffffff' : car.burnT > 0 && Math.random() < 0.6 ? '#ff4a0a' : car.blindT > 0 ? '#ff5a1a' : car.empT > 0 && Math.floor(t * 8) % 2 ? '#3fa9ff' : car.hp <= 0 ? '#331100' : '#000000');
       m.bodyMat.emissiveIntensity = flash ? 0.8 : 1;
       m.sprite.visible = !PSX.enabled;
-      const label = `${car.place}. ${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}${car.bounty ? ' $' : ''}`;
+      const label = `${car.place}. ${car.vendetta ? '☠ ' : ''}${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}${car.bounty ? ' $' : ''}`;
       if (label !== m.lastTag) {
         const c = m.tag.ctx;
         c.clearRect(0, 0, 256, 64);
@@ -1274,7 +1294,7 @@ class CockpitView {
         c.textAlign = 'center';
         c.fillStyle = 'rgba(0,0,0,0.55)';
         c.fillRect(128 - c.measureText(label).width / 2 - 10, 8, c.measureText(label).width + 20, 46);
-        c.fillStyle = car.weapon ? '#ff8a6a' : '#ffffff';
+        c.fillStyle = car.vendetta ? '#ff2a2a' : car.weapon ? '#ff8a6a' : '#ffffff';
         c.fillText(label, 128, 43);
         m.tag.tex.needsUpdate = true;
         m.lastTag = label;
@@ -1892,6 +1912,7 @@ class CockpitView {
       const locking = car.wpn && car.wpn.lock > 0;
       ctx.fillStyle = locking ? (Math.floor(t * 10) % 2 ? '#ff2020' : '#ffffff') : car.weapon ? '#ff9f1c' : '#3cff78';
       ctx.beginPath(); ctx.arc(x, y, car.weapon ? 6 : 5, 0, TAU); ctx.fill();
+      if (car.vendetta && car.hp > 0) { ctx.strokeStyle = '#ff2020'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 10, 0, TAU); ctx.stroke(); } // a vendetta: ringed in red
     }
     for (const q of c.projectiles) {
       if (q.type !== 'rocket') continue;
@@ -1942,6 +1963,17 @@ class CockpitView {
     ctx.fillStyle = '#ffb000';
     ctx.font = '12px monospace';
     ctx.fillText(b.spare ? `SPARE: ${PARTS[b.spare.id].name.toUpperCase()}` : 'NO SPARE', 12, 122);
+    // Your four tyres, nose up: amber and full, darkening as they're shot, flashing red when flat.
+    if (p.tyres) {
+      const max = Math.max(...p.tyres, 40);
+      [[1, 0], [0, 0], [1, 1], [0, 1]].forEach(([right, rear], i) => {
+        const x = 214 + right * 22, y = 72 + rear * 22, h = clamp(p.tyres[i] / (p.tyreMax || max), 0, 1);
+        ctx.fillStyle = p.tyres[i] <= 0 ? (Math.floor(t * 4) % 2 ? '#ff3b1f' : '#5a1408') : h < 0.5 ? '#ff7a1f' : '#ffb000';
+        ctx.fillRect(x, y, 10, 16);
+      });
+      ctx.fillStyle = 'rgba(255,176,0,0.35)';
+      ctx.fillRect(226, 76, 8, 30); // the body between them
+    }
     tex.needsUpdate = true;
   }
 

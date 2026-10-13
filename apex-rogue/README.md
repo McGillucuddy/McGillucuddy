@@ -231,6 +231,26 @@ concierge. See `js/garage3d.js`.
 A run is a string of races with **the garage** in between. Finish outside the top 3 and you get a
 strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 
+- **Purses come in a range** (the briefing shows them): a win pays 100-160, 2nd 70-115, 3rd 50-85, down to 5-15 for
+  last; each wreck 10-20; beating a boss 120-180. Where you land in the range is half luck and half how you raced
+  (wrecks, parries, how little damage you took). Elite races pay 40% more. Scrap is scarce on purpose.
+- **Wrecked means out.** If your hull hits zero you're out of the race: no placing purse, and a strike. The crew
+  patches the car back to 40% hull for free; the rest of the repair is yours to pay for. Rival guns hit softer in
+  Act I (75%) and Act II (90%), so the early acts are survivable with a pistol.
+- **Shootable tyres.** Every car has four. A shot that lands by a wheel goes into the tyre (and only half into the
+  body). A flat costs the car speed and grip and pulls it towards the flat side; you see it sit down on its rim and
+  throw sparks. Each gun has its own knack for tyres: the starter pistol, SMG and flamethrower are poor at it (about
+  thirty pistol hits to pop one), rifles and machine guns are good, and the **Nail Gun** is made for it. From Act II
+  more and more rivals run **armoured tyres** (a riveted steel plate over the rim: a quarter of the damage), and
+  bosses past Act I always do. Rivals never aim for your tyres, but a stray shot can still pop one; the dash shows all
+  four. **Run-Flats** take 50% more to pop, and you barely feel a flat.
+- **Vendettas** (`js/vendetta.js`), within a run. Wreck a rival or shoot their tyres out and they may not be done
+  with you: a wrecked driver lives half the time, a tyre job always. In a later race they can come back in the same
+  car and paint, armed, a bit sharper and tougher, hunting you rather than racing, and fitted out against whatever
+  beat them (armoured tyres, blast or bullet plating, fire-retardant paint). They're named in the briefing, called
+  out at the start and ringed in red on the radar. Wreck them to settle it (45-80 scrap); after three races of
+  chasing you they give up. A driver you shot dead never comes back. At most three are out for you at once.
+
 - **Parts** (engine, tyres, armour, nitro) set your stats and each has trade-offs. Every hit is absorbed partly by armour, then hits
   the hull, and also **wears the part facing the hit** (front: engine, sides: tyres, rear: nitro).
   Broken parts cripple the car until repaired in the garage.
@@ -410,6 +430,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/weather.js` | Weather: per-stop forecasts, effects, cockpit particles and lightning, windshield drops, ambience |
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
+| `js/vendetta.js` | Vendettas: rivals you put out who come back later in the run, adapted to how you beat them |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
 | `js/psx.js` | Retro PS1-style rendering: low-res dithered post pass, vertex snapping, grimy pixel textures |

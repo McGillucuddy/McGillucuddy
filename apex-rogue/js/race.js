@@ -76,6 +76,7 @@ class Race {
       if (a.finished && b.finished) return a.finishTime - b.finishTime;
       if (a.finished) return -1;
       if (b.finished) return 1;
+      if (a.dnf !== b.dnf) return a.dnf ? 1 : -1; // a car out of the race is last
       return b.progress - a.progress;
     });
     sorted.forEach((c, k) => { c.place = k + 1; });
