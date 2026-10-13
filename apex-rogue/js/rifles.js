@@ -140,12 +140,13 @@ Object.assign(Models, {
     // Walnut stock and its steel butt plate.
     sc.add(wood, SDF.side(chaikin([[-2.6, 0.45], [-3.6, 0.35], [-6.3, 0.1], [-6.4, -1.75], [-5.8, -1.8], [-3.8, -0.75], [-2.6, -0.3]], 1, 0.2), 0.72, 0.16), 0.05);
     sc.add(steel, SDF.side([[-6.3, 0.1], [-6.5, 0.1], [-6.55, -1.8], [-6.35, -1.8]], 0.74, 0.05), 0.03);
-    // The drum: rims, a hub, the winding key and a neck up into the frame. Its own piece for reloads.
+    // The drum: round and square to the barrel (its faces front and back, so from the seat you see it full on), with
+    // rims, a hub, the winding key on the back face and a neck up into the frame. Its own piece for reloads.
     const D = [0, -1.6, -1.2];
-    sc.add(steel, SDF.cyl(1.15, 0.6, 'x', 0.08, D), 0.03, 'mag');
-    for (const x of [-0.31, 0.31]) sc.add(worn, SDF.torus(1.08, 0.05, [x, D[1], D[2]], [0, Math.PI / 2, 0]), 0.02, 'mag');
-    sc.add(worn, SDF.cyl(0.26, 0.74, 'x', 0.06, D), 0.03, 'mag');
-    sc.add(worn, SDF.box([0.1, 0.5, 0.12], 0.03, [-0.42, D[1], D[2]]), 0.02, 'mag');
+    sc.add(steel, SDF.cyl(1.15, 0.6, 'z', 0.08, D), 0.03, 'mag');
+    for (const dz of [-0.31, 0.31]) sc.add(worn, SDF.torus(1.08, 0.05, [D[0], D[1], D[2] + dz]), 0.02, 'mag');
+    sc.add(worn, SDF.cyl(0.26, 0.74, 'z', 0.06, D), 0.03, 'mag');
+    sc.add(worn, SDF.box([0.12, 0.5, 0.1], 0.03, [D[0], D[1], D[2] + 0.42]), 0.02, 'mag');
     sc.add(steel, SDF.box([0.4, 0.5, 0.5], 0.06, [0, -0.62, -1.2]), 0.04, 'mag');
     sc.uv(steel, 0.32).uv(worn, 0.3).uv(wood, 0.22);
     const sets = sc.build(g);
