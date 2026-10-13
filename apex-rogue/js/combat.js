@@ -480,7 +480,7 @@ class Combat {
     if (has(this.build, 'spikes') && race.state === 'racing') this.spikeHubs(dt);
     this.updateBoss(dt); // js/bosses.js
     this.updateTilt(dt); // js/emotes.js
-    for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1);
+    for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1) * ((this.buffs && this.buffs.cdRate) || 1);
     this.swerveCd -= dt;
     this.invulnT -= dt;
     if (this.shoesHeal) {

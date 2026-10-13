@@ -496,7 +496,8 @@ const Proto = {
     this.shopOpen = !!d.shopOpen;
     this.dealer = d.dealer || null;
     this.dealerKey = d.dealerKey || 0;
-    this.build.pocket = this.build.pocket || [];
+    this.build.pocket = (this.build.pocket || []).map((x) => Object.assign(x, { id: CONTRA_RENAMED[x.id] || x.id })).filter((x) => CONTRABAND[x.id]);
+    if (this.run.flags.comedown) this.run.flags.comedown = this.run.flags.comedown.map((id) => CONTRA_RENAMED[id] || id);
     this.tab = d.tab || 'car';
     this.rewards = d.rewards;
     this.rewardKind = d.rewardKind;
@@ -929,7 +930,7 @@ const Proto = {
       const c = CONTRABAND[x.id];
       race.message(x.dud ? `The ${c.name} was a dud. He saw you coming.` : `${verb[c.kind]} ${c.name}`, x.dud ? '#ff8a6a' : '#c9a0ff');
     }
-    if (down.some((id) => CONTRABAND[id] && CONTRABAND[id].down)) race.message('Coming down hard', '#ff8a6a');
+    if (down.length) race.message('Coming down hard', '#ff8a6a');
   },
 
   pause() {
@@ -1039,15 +1040,15 @@ const Proto = {
   pocketHTML() {
     const b = this.build, run = this.run;
     if (this.tutorial || !b) return '';
-    const down = (run.flags.comedown || []).map((id) => CONTRABAND[id]).filter((c) => c && c.down);
+    const down = (run.flags.comedown || []).map((id) => CONTRABAND[id]).filter((c) => c && c.comedown);
     if (!b.pocket.length && !down.length) return '';
     const verb = { drug: 'Take', booze: 'Drink', ammo: 'Load' };
     const items = b.pocket.map((x, i) => {
       const c = CONTRABAND[x.id];
-      return `<button class="opt ${x.use ? 'on' : ''}" data-action="pocket-use" data-arg="${i}" title="${c.desc.replace(/"/g, '&quot;')}">${x.use ? '✔ ' : ''}${verb[c.kind]} the ${c.name}</button>`;
+      return `<button class="opt ${x.use ? 'on' : ''}" data-action="pocket-use" data-arg="${i}" title="This race: ${contraFx(c.buff)}${c.comedown ? '. Next race: ' + contraFx(c.comedown) : ''}">${x.use ? '✔ ' : ''}${verb[c.kind]} the ${c.name}</button>`;
     }).join('');
     return `<h2>Your pocket</h2>${items ? `<div class="opts">${items}</div><p class="muted small">One of each kind a race. Used when the lights go green.</p>` : ''}
-      ${down.length ? `<p class="small bad">Comedown this race: ${down.map((c) => c.down).join('; ')}.</p>` : ''}`;
+      ${down.length ? `<p class="small bad">Coming down off the ${down.map((c) => c.name).join(' and the ')}: ${down.map((c) => contraFx(c.comedown)).join('; ')}.</p>` : ''}`;
   },
 
   showPause() {
@@ -1241,7 +1242,7 @@ const Proto = {
     const b = this.build, act = this.act, run = this.run;
     const done = run.map.nodes.filter((n) => n.done && n.type !== 'boss').length;
     this.preview.sync({
-      build: b, shop: this.shopOpen ? this.shop : [], cos: this.cos, dealer: !!this.dealer,
+      build: b, shop: this.shopOpen ? this.shop : [], cos: this.cos, dealer: this.dealer ? this.dealer.stock : null,
       act: { luxury: ACT_LUXURY(run.act), boss: BOSSES[run.act], label: `Act ${ROMAN[run.act]}: ${act.title}`, progress: `Stop ${done + 1} of ${MAP_ROWS + 1} this act`, maxStrikes: STRIKES_TO_LOSE },
     });
     this.preview.setStation(this.tab);
@@ -1340,7 +1341,7 @@ const Proto = {
       const fitsMine = c.type === 'mod' && MODS[c.id].fits.some((f) => b.rack.concat(b.stash.weapons).some((w) => w.id === f));
       return `<div class="shop-card ${c.sold ? 'sold' : ''}">
         <small class="muted">${label[c.type] || c.type.toUpperCase()}${c.type === 'part' ? ' · ' + SLOT_NAMES[PARTS[c.id].slot] : ''}${c.type === 'mod' ? ` · fits ${MODS[c.id].fits.map((f) => WEAPONS[f].name).join(', ')}${fitsMine ? ' <b class="good">(you own one)</b>' : ''}` : ''}</small>
-        <b>${c.name}</b><small>${c.desc}</small>
+        ${Thumbs.img(c, b)}<b>${c.name}</b><small>${c.desc}</small>
         <button class="btn small" data-action="buy-item" data-arg="${i}" ${c.sold || b.scrap < c.price ? 'disabled' : ''}>${c.sold ? 'Sold' : 'Buy ' + c.price}</button>
       </div>`;
     };
@@ -1362,7 +1363,7 @@ const Proto = {
       const t = c.type === 'trinket' ? TRINKETS[c.id] : CONTRABAND[c.id], kind = c.type === 'trinket' ? 'SHADY TRINKET' : CONTRA_KIND[t.kind];
       const no = c.sold || b.scrap < c.price || (c.type !== 'trinket' && full);
       return `<div class="shop-card ${c.sold ? 'sold' : ''}">
-        <small class="muted">${kind}</small><b>${t.name}</b><small>${t.desc}${t.down ? ` <i>The race after: ${t.down}.</i>` : ''}</small>
+        <small class="muted">${kind}</small>${Thumbs.img(c, b)}<b>${t.name}</b>${t.street ? `<small class="muted">"${t.street}"</small>` : ''}<small>${c.type === 'trinket' ? t.desc : contraDesc(t)}</small>
         <button class="btn small" data-action="buy-contra" data-arg="${i}" ${no ? 'disabled' : ''}>${c.sold ? 'Sold' : full && c.type !== 'trinket' ? 'Pocket full' : 'Buy ' + c.price}</button>
       </div>`;
     };
@@ -1416,6 +1417,7 @@ const Proto = {
     this.saveRun();
     const cards = this.rewards.map((c, i) => `<button class="up-card rarity-${c.type === 'trinket' || c.type === 'chip' ? 'epic' : c.type === 'part' ? 'common' : 'rare'}" data-action="pick-reward" data-arg="${i}">
       <div class="up-rarity">${c.type}</div>
+      ${Thumbs.img(c, this.build)}
       <div class="up-name">${c.name}</div>
       <div class="up-desc">${c.desc}</div>
       ${c.type === 'part' ? `<div class="up-desc"><i>Replaces your ${PARTS[this.build.parts[PARTS[c.id].slot].id].name}</i></div>` : ''}

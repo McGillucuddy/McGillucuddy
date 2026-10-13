@@ -3,54 +3,87 @@
 // a dealer you never see properly (two eyes and a lit cigarette in the dark) selling what the commissary won't.
 // Nobody searches you for it. Why would they? You're racing to your death on television.
 //
-//   Drugs and booze: taken from your pocket at the race briefing. A big edge for that race; most have a comedown
+//   Drugs and booze (named for what they are): taken from your pocket at the race briefing. A big edge for that race; most have a comedown
 //     the race after.
 //   Hot ammo: loaded at the briefing, for every bullet gun in that race.
 //   Shady trinkets: permanent, like any trinket, with a real downside. Only he sells them.
 // He's not always honest: now and then a drug or a box of rounds is a dud, and you only find out when you use it.
 
 const CONTRABAND = {
-  crank: {
-    kind: 'drug', name: 'Crank', price: [50, 75],
-    desc: 'Cooked in the laundry. For one race: reloads 30% faster, faster trigger, steadier aim.',
-    buff: { reload: 0.7, rate: 0.92, spread: 0.75 }, comedown: { spread: 1.3, reload: 1.15 }, down: 'the shakes (worse aim, slower reloads)',
+  meth: {
+    kind: 'drug', name: 'Methamphetamine', street: 'crank', price: [50, 75],
+    flavor: 'Cooked in the prison laundry and cut with God knows what.',
+    buff: { reload: 0.7, rate: 0.92, spread: 0.75 }, comedown: { spread: 1.3, reload: 1.15 },
   },
-  bluebirds: {
-    kind: 'drug', name: 'Bluebirds', price: [45, 70],
-    desc: 'Little blue painkillers from the infirmary. For one race: you take 25% less damage.',
-    buff: { taken: 0.75 }, comedown: { hull: 15 }, down: 'you start 15 hull down',
+  oxy: {
+    kind: 'drug', name: 'Oxycodone', street: 'blues', price: [45, 70],
+    flavor: 'Little blue 30s, walked out of the infirmary in a sock.',
+    buff: { taken: 0.75 }, comedown: { hull: 15 },
   },
-  jolt: {
-    kind: 'drug', name: 'Jolt', price: [40, 65],
-    desc: 'A syringe of something from the infirmary fridge. For one race: the blast hatch slams and lifts twice as fast.',
-    buff: { hatch: 2 }, comedown: { hatch: 0.7 }, down: 'a sluggish hatch',
+  adrenaline: {
+    kind: 'drug', name: 'Adrenaline', street: 'the jolt', price: [40, 65],
+    flavor: 'An auto-injector off the infirmary crash cart. Straight into the thigh.',
+    buff: { hatch: 2 }, comedown: { hatch: 0.7 },
+  },
+  cocaine: {
+    kind: 'drug', name: 'Cocaine', street: 'snow', price: [55, 85],
+    flavor: 'Wrapped in a page torn out of a Bible.',
+    buff: { rate: 0.85, cdRate: 1.3 }, comedown: { dmg: 0.9 },
+  },
+  diazepam: {
+    kind: 'drug', name: 'Diazepam', street: 'Valium', price: [35, 55],
+    flavor: "A strip from a guard's own prescription. Calm hands, slow hands.",
+    buff: { spread: 0.6, reload: 1.2 },
   },
   pruno: {
-    kind: 'booze', name: 'Pruno', price: [25, 40],
-    desc: 'Prison wine, fermented in a bin bag under a bunk. For one race: +15% damage, and the cabin swims a little.',
+    kind: 'booze', name: 'Pruno', street: 'prison wine', price: [25, 40],
+    flavor: 'Fruit, sugar and ketchup, fermented in a bin bag under a bunk.',
     buff: { dmg: 1.15, drunk: 0.5 },
   },
   whiskey: {
     kind: 'booze', name: 'Spire Whiskey', price: [60, 90],
-    desc: 'The real stuff, smuggled down from the Spire. For one race: +25% damage and half the recoil, but the cabin really swims.',
-    buff: { dmg: 1.25, kick: 0.5, drunk: 1 }, comedown: { reload: 1.12 }, down: 'a hangover (slower reloads)',
+    flavor: 'The real stuff, smuggled down from the Spire in a laundry cart.',
+    buff: { dmg: 1.25, kick: 0.5, drunk: 1 }, comedown: { reload: 1.12 },
   },
   shredder: {
     kind: 'ammo', name: 'Shredder Rounds', price: [55, 85],
-    desc: 'Hollow points packed with wire. For one race your bullets chew tyres: even the pistol pops one in a handful of hits.',
+    flavor: 'Hollow points packed with razor wire.',
     buff: { tyre: 4, tyreMin: 1.5 },
   },
   hotloads: {
     kind: 'ammo', name: 'Hot Loads', price: [60, 90],
-    desc: "Incendiary rounds out of a guard's locker. For one race your bullets set what they hit alight.",
+    flavor: "Incendiary rounds out of a guard's locker, red paint on the tips.",
     buff: { burn: 3 },
   },
   blacktips: {
     kind: 'ammo', name: 'Black Tips', price: [65, 95],
-    desc: 'Pre-war armour-piercing, black paint on the tips. For one race your bullets hit 35% harder.',
+    flavor: 'Pre-war armour-piercing, black paint on the tips.',
     buff: { bulletDmg: 1.35 },
   },
 };
+const CONTRA_RENAMED = { crank: 'meth', bluebirds: 'oxy', jolt: 'adrenaline' }; // older saves
+
+// What a set of effects does, in plain words with the numbers.
+function contraFx(fx) {
+  const pct = (m) => Math.round(Math.abs(1 - m) * 100) + '%', out = [];
+  for (const [k, v] of Object.entries(fx || {})) {
+    if (k === 'reload') out.push(v < 1 ? `reloads ${pct(v)} faster` : `reloads ${pct(v)} slower`);
+    else if (k === 'rate') out.push(v < 1 ? `fires ${pct(v)} faster` : `fires ${pct(v)} slower`);
+    else if (k === 'spread') out.push(v < 1 ? `${pct(v)} tighter aim` : `${pct(v)} shakier aim`);
+    else if (k === 'taken') out.push(`${pct(v)} less damage taken`);
+    else if (k === 'hatch') out.push(v > 1 ? `hatch ${pct(v)} faster` : `hatch ${pct(v)} slower`);
+    else if (k === 'dmg') out.push(v > 1 ? `+${pct(v)} damage` : `-${pct(v)} damage`);
+    else if (k === 'bulletDmg') out.push(`bullets +${pct(v)} damage`);
+    else if (k === 'kick') out.push(`${pct(v)} less recoil`);
+    else if (k === 'drunk') out.push(v >= 1 ? 'the cabin really swims (your aim drifts)' : 'the cabin swims a little');
+    else if (k === 'tyre') out.push(`bullets shred tyres (${v}x, even the pistol)`);
+    else if (k === 'burn') out.push('bullets set what they hit alight');
+    else if (k === 'hull') out.push(`start ${v} hull down`);
+    else if (k === 'cdRate') out.push(`abilities recharge ${pct(v)} faster`);
+  }
+  return out.join(', ');
+}
+const contraDesc = (c) => `${c.flavor} <b>This race:</b> ${contraFx(c.buff)}.${c.comedown ? ` <b>Next race:</b> ${contraFx(c.comedown)}.` : ''}`;
 const CONTRA_KIND = { drug: 'DRUG', booze: 'BOOZE', ammo: 'HOT AMMO' };
 const POCKET_MAX = 5;
 

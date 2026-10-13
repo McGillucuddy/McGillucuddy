@@ -566,3 +566,8 @@ body.proto #ui { z-index: 2; }
 .boss-help { display: block; margin-top: 4px; color: #ffd23f; }
 .shop-sec { margin: 12px 0 6px; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; color: #3a2a1a; border-bottom: 1px solid rgba(60,40,20,.25); padding-bottom: 3px; }
 .clipboard b.good { color: #2a7a2a; }
+/* Item pictures on shop, black market and reward cards (js/thumbs.js). */
+.thumb { display: block; width: 100%; max-width: 220px; aspect-ratio: 200 / 140; margin: 2px auto; object-fit: contain;
+  background: radial-gradient(ellipse at 50% 60%, #3a342c 0%, #1a1714 75%); border-radius: 6px; image-rendering: pixelated; }
+.thumb:not([src]) { opacity: 0.5; }
+.up-card .thumb { max-width: 200px; }

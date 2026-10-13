@@ -511,7 +511,7 @@ class Garage3D {
 
   // The black market (js/blackmarket.js): a knocked-through hole low in the back wall, bricks on the floor, and in
   // the dark two eyes and a lit cigarette. Only there on the visits the dealer is.
-  buildHole(D) {
+  buildHole(D, stock) {
     const X = 61, Y = 5, Z = -100, brick = LP.mat('#6a5a4a', { roughness: 1 }), dark = LP.mat('#040303', { roughness: 1 });
     this.hot(LP.box(9, 6.5, 0.6, dark, X, Y, Z + 0.25), 'tab', 'wall', 'The hole in the wall: the black market').userData.dynamic = true;
     // Broken block edges round the hole, and the ones that came out, on the floor.
@@ -527,7 +527,20 @@ class Garage3D {
     D.add(LP.box(0.35, 0.35, 0.3, LP.glow('#ff5a1a', 1.6), X + 1.8, Y - 0.8, Z + 0.7)); // the cigarette
     // A rag laid out on the floor in front of the hole, with something wrapped on it.
     D.add(LP.box(10, 0.15, 6, LP.mat('#3a3428', { roughness: 1 }), X, 0.1, Z + 6));
-    D.add(LP.box(1.4, 1.0, 2.2, LP.mat('#c9c2b0', { roughness: 0.6 }), X - 2, 0.6, Z + 5.5), LP.box(1.0, 2.4, 1.0, LP.mat('#3a5a2a', { roughness: 0.3, transparent: true, opacity: 0.8 }), X + 2.5, 1.3, Z + 6));
+    // What he's selling, laid out on the rag (the real things: js/thumbs.js has their models).
+    (Array.isArray(stock) ? stock : []).forEach((c, i) => {
+      if (c.sold) return;
+      const m = c.type === 'trinket' ? Models.trinket(c.id) : Models.contra(c.id), holder = new THREE.Group();
+      holder.add(m);
+      const bb = new THREE.Box3().setFromObject(holder), size = bb.getSize(new THREE.Vector3()), mid = bb.getCenter(new THREE.Vector3());
+      const k = 2.6 / Math.max(size.x, size.y, size.z, 0.01);
+      m.position.set(-mid.x, -bb.min.y, -mid.z);
+      holder.scale.setScalar(k);
+      holder.position.set(X - 3.2 + i * 3.2, 0.2, Z + 6);
+      holder.rotation.y = 0.4 - i * 0.3;
+      holder.userData.dynamic = true;
+      this.hot(holder, 'tab', 'wall', 'The hole in the wall: the black market');
+    });
   }
 
   sync(info) {
@@ -550,7 +563,7 @@ class Garage3D {
       holder.position.set(x, y, -97);
       D.add(holder);
     };
-    if (info.dealer) this.buildHole(D);
+    if (info.dealer) this.buildHole(D, info.dealer);
     b.rack.forEach((w, i) => hang(w, -82 + i * 22, 50));
     b.stash.weapons.forEach((w, i) => hang(w, -82 + i * 22, 30));
     // Bench: loose mods in little boxes, ammo cans and your grenade crate.

@@ -259,13 +259,20 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   revealed a few seconds after the green light, and ringed in red on the radar. Wreck them to settle it (45-80 scrap); after three races of
   chasing you they give up. A driver you shot dead never comes back. At most three are out for you at once.
 
+- **You see what you buy** (`js/thumbs.js`): every card in the commissary, the hole in the wall and the reward picks
+  has a rendered picture of the actual item: guns from the side, attachments fitted on a gun, car parts on a car
+  (tyres on the wheel, engines on the hood), trinkets, abilities, driver chips (each its own board) and the
+  contraband itself (the pill bottle, the bag, the injector, the bottle, the box of rounds).
 - **The black market** (`js/blackmarket.js`). On about 40% of garage visits after a race there's a tap on the back
   wall and a brick slides out: a dealer you only see as two eyes and a cigarette, selling three things the
   commissary won't. Nobody searches you for any of it. Prices are high and wander, and now and then he sells you a
   dud you only find out about when you use it.
-  - **Drugs**, kept in your pocket (five slots) and taken at the race briefing, one of each kind a race: *Crank*
-    (faster reloads and trigger, steadier aim; the shakes the race after), *Bluebirds* painkillers (25% less damage;
-    you start the next race 15 hull down), *Jolt* (the hatch twice as fast; sluggish the race after).
+  - **Drugs**, named for what they are, kept in your pocket (five slots) and taken at the race briefing, one of each
+    kind a race. Every card spells out the effect and the comedown with numbers:
+    *Methamphetamine* (reloads 30% faster, fires 8% faster, 25% tighter aim; next race 30% shakier aim, slower
+    reloads), *Oxycodone* (25% less damage taken; next race you start 15 hull down), *Adrenaline* (the hatch twice
+    as fast; sluggish next race), *Cocaine* (fires 15% faster, abilities recharge 30% faster; -10% damage next race)
+    and *Diazepam* (40% tighter aim but slower reloads, no comedown).
   - **Booze:** *Pruno* prison wine (+15% damage) and *Spire Whiskey* (+25% damage, half the recoil, a hangover). Both
     make the cabin swim, and only the view sways, not the gun, so your aim drifts.
   - **Hot ammo**, loaded at the briefing for every bullet gun that race: *Shredder Rounds* (bullets chew tyres: even
@@ -453,6 +460,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
+| `js/thumbs.js` | Item pictures for every shop and reward card; models of the black market's goods, abilities and chips |
 | `js/vendetta.js` | Vendettas: rivals you put out who come back later in the run, adapted to how you beat them |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
