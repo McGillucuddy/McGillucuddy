@@ -43,6 +43,11 @@ Object.assign(Models, {
     sc.add(poly, SDF.side([[-3.6, 0.5], [-6.0, 0.5], [-6.15, -1.45], [-5.7, -1.55], [-4.4, -0.35], [-3.6, -0.15]], 0.62, 0.12), 0.06);
     sc.add(hazard, SDF.box([0.66, 0.24, 0.45], 0.05, [0, 0.38, 4.95]), 0.02);
     sc.add(rubber, SDF.box([0.66, 2.0, 0.18], 0.06, [0, -0.5, 6.12]), 0.03);
+    // The magazine well: a hollow housing under the receiver, flared at the mouth, that the mag slides up into.
+    const well = steel.clone();
+    sc.add(well, SDF.side([[0.46, -0.4], [1.78, -0.4], [1.93, -1.15], [0.7, -1.15]], 0.68, 0.06), 0.03);
+    sc.add(well, SDF.side([[0.62, -1.05], [2.0, -1.05], [2.04, -1.28], [0.6, -1.28]], 0.78, 0.06), 0.03); // the flared mouth
+    sc.cut(SDF.side([[0.57, -0.3], [1.69, -0.3], [1.86, -1.5], [0.79, -1.5]], 0.55, 0.03), 0.02, [well]);
     // The magazine: curved and ribbed, its own piece so it can drop out on a reload.
     sc.add(steel, SDF.side([[0.62, -0.55], [1.62, -0.55], [1.85, -1.7], [2.3, -2.95], [1.45, -3.1], [1.05, -1.8], [0.72, -0.9]], 0.5, 0.06), 0.04, 'mag');
     for (let k = 0; k < 4; k++) sc.cut(SDF.box([0.62, 0.06, 0.5], 0.02, [0, -1.25 - k * 0.42, -1.35 - k * 0.17], [0.35, 0, 0]), 0.01, [steel]);
@@ -148,6 +153,10 @@ Object.assign(Models, {
     sc.add(worn, SDF.cyl(0.26, 0.74, 'z', 0.06, D), 0.03, 'mag');
     sc.add(worn, SDF.box([0.12, 0.5, 0.1], 0.03, [D[0], D[1], D[2] + 0.42]), 0.02, 'mag');
     sc.add(steel, SDF.box([0.4, 0.5, 0.5], 0.06, [0, -0.62, -1.2]), 0.04, 'mag');
+    const well = steel.clone(); // the drum's housing under the receiver, open at the bottom
+    sc.add(well, SDF.box([0.64, 0.5, 0.74], 0.06, [0, -0.5, -1.2]), 0.03);
+    sc.add(well, SDF.box([0.76, 0.1, 0.86], 0.04, [0, -0.73, -1.2]), 0.02); // the lip
+    sc.cut(SDF.box([0.48, 0.7, 0.58], 0.03, [0, -0.62, -1.2]), 0.02, [well]);
     sc.uv(steel, 0.32).uv(worn, 0.3).uv(wood, 0.22);
     const sets = sc.build(g);
     g.userData.mag = LP.pivot(g, sets.mag, D);
@@ -199,6 +208,9 @@ Object.assign(Models, {
     sc.add(rubber, SDF.box([0.78, 2.0, 0.18], 0.06, [0, -0.6, 6.72]), 0.03);
     // Ammo box (canvas, flap and snaps) and the belt rising out of it up the left side: one piece for reloads.
     const B = [0, -1.45, -1.85];
+    const well = steel.clone(); // the box's mount under the receiver: a shallow open tray it latches up into
+    sc.add(well, SDF.box([1.2, 0.36, 2.06], 0.06, [0, -0.6, B[2]]), 0.03);
+    sc.cut(SDF.box([1.06, 0.5, 1.92], 0.03, [0, -0.7, B[2]]), 0.02, [well]);
     sc.add(olive, SDF.box([0.95, 1.7, 1.8], 0.14, B), 0.03, 'mag');
     sc.add(olive, SDF.box([1.02, 0.36, 1.86], 0.12, [B[0], B[1] + 0.72, B[2]]), 0.05, 'mag');
     for (const z of [-0.5, 0.5]) sc.add(worn, SDF.cyl(0.08, 0.1, 'x', 0.02, [0.52, B[1] + 0.6, B[2] + z]), 0.01, 'mag');
@@ -249,6 +261,9 @@ Object.assign(Models, {
     // The pan: a flat drum on a post, ribbed on top round a hub. Its own piece: it turns, and comes off to reload.
     const P = [0, 0.75, -0.55];
     sc.add(steel, SDF.cyl(0.2, 0.4, 'y', 0.04, [0, 0.5, -0.55]), 0.03);
+    const collar = steel.clone(); // the collar the pan's hub seats into
+    sc.add(collar, SDF.cyl(0.44, 0.16, 'y', 0.04, [0, 0.52, -0.55]), 0.02);
+    sc.cut(SDF.cyl(0.33, 0.3, 'y', 0.02, [0, 0.58, -0.55]), 0.01, [collar]);
     sc.add(steel, SDF.cyl(1.3, 0.3, 'y', 0.06, P), 0.02, 'mag');
     for (let k = 0; k < 12; k++) {
       const a = (k / 12) * TAU;

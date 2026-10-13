@@ -1532,8 +1532,14 @@ const Models = {
     sc.add(steel, SDF.box([0.85, 1.35, 0.2], 0.07, [0, -0.45, 5.45]), 0.08);
     sc.add(poly, SDF.box([0.9, 1.4, 0.14], 0.06, [0, -0.45, 5.58]), 0.03);
     sc.add(worn, SDF.torus(0.22, 0.055, [0, -0.25, 2.75], [0, Math.PI / 2, 0]), 0.04);
-    // Magazine: its own piece, so it can drop out on a reload.
+    // The magazine well: an opening up into the bottom of the grip, with a flared steel mouth.
+    sc.cut(SDF.side([[-0.47, -1.45], [0.27, -1.45], [0.25, -2.8], [-0.5, -2.8]], 0.7, 0.04), 0.02, [poly]);
+    const mouth = steel.clone();
+    sc.add(mouth, SDF.side([[-0.62, -2.55], [0.42, -2.55], [0.44, -2.78], [-0.64, -2.78]], 0.9, 0.05), 0.03);
+    sc.cut(SDF.side([[-0.47, -2.4], [0.27, -2.4], [0.26, -2.9], [-0.49, -2.9]], 0.7, 0.04), 0.02, [mouth]);
+    // Magazine: its own piece, so it can drop out on a reload; its top sits up inside the well.
     sc.add(steel, SDF.side([[-0.42, -2.6], [0.18, -2.6], [0.02, -4.5], [-0.6, -4.5]], 0.62, 0.06), 0.04, 'mag');
+    sc.add(steel, SDF.side([[-0.4, -1.5], [0.2, -1.5], [0.18, -2.65], [-0.42, -2.65]], 0.62, 0.05), 0.04, 'mag');
     sc.add(worn, SDF.side([[-0.5, -4.48], [0.12, -4.48], [0.1, -4.75], [-0.66, -4.75]], 0.78, 0.06), 0.03, 'mag');
     sc.uv(steel, 0.35).uv(worn, 0.35).uv(poly, 0.4);
     const sets = sc.build(g);
@@ -1784,9 +1790,12 @@ const Models = {
     sc.add(worn, SDF.cyl(0.08, 0.62, 'x', 0.02, [0, -0.15, -0.9]), 0.02); // slide stop pin
     // Electrical tape round the grip, a few untidy turns following its rake.
     for (const [y, z, h] of [[-0.72, 0.87, 0.26], [-1.12, 0.97, 0.32], [-1.55, 1.08, 0.28]]) sc.add(tape, SDF.box([0.68, h, 1.32], 0.08, [0, y, z], [-0.25, 0, 0.03 * Math.sign(y + 1.2)]), 0.03);
+    // The magazine well: the bottom of the grip opened up, so you can see the mag go in.
+    sc.cut(SDF.side([[-1.62, -1.5], [-0.64, -1.5], [-0.79, -2.1], [-1.77, -2.1]], 0.5, 0.03), 0.02, [poly]);
     // Magazine with its base pad, poking out of the bottom of the grip.
+    const pad = poly.clone();
     sc.add(steel, SDF.side([[-1.28, -0.4], [-0.4, -0.4], [-0.83, -2.12], [-1.71, -2.12]], 0.44, 0.05), 0.03, 'mag');
-    sc.add(poly, SDF.side([[-1.88, -2.0], [-0.66, -2.0], [-0.68, -2.25], [-1.9, -2.25]], 0.66, 0.08), 0.03, 'mag');
+    sc.add(pad, SDF.side([[-1.88, -2.0], [-0.66, -2.0], [-0.68, -2.25], [-1.9, -2.25]], 0.66, 0.08), 0.03, 'mag');
     sc.uv(steel, 0.35).uv(worn, 0.35).uv(poly, 0.4);
     const sets = sc.build(g);
     g.userData.slide = LP.pivot(g, sets.slide, [0, 0.36, 0]);

@@ -52,12 +52,13 @@ const FIRE_KICK = {
 };
 // Magazine-fed guns: where the support hand holds a fresh magazine (offset from where it sits in the gun) and which
 // way the empty one falls. The pan comes off the top and is tossed aside.
+// dir: the way into the well, from outside (the fresh one is lined up that far out, then pushed straight in).
 const MAG_RELOAD = {
-  smg: { off: [0, 1.6, -0.1], drop: [-1.5, -7, 0] },
-  carbine: { off: [0, 1.7, 0], drop: [-1.5, -7, 0] },
-  typewriter: { off: [0, 1.25, 0], drop: [-0.6, -7, 0] },
-  lmg: { off: [0, 0.6, 0], drop: [-1.2, -6, 0] },
-  pangun: { off: [1.3, 0, 0], drop: [-3, 3, 0] },
+  smg: { off: [0, 1.6, -0.1], drop: [-1.5, -7, 0], dir: [0, -1, 0.09], depth: 1.6 },
+  carbine: { off: [0, 1.7, 0], drop: [-1.5, -7, 0], dir: [0, -1, -0.2], depth: 1.3 },
+  typewriter: { off: [0, 1.25, 0], drop: [-0.6, -7, 0], dir: [0, -1, 0], depth: 0.9 },
+  lmg: { off: [0, 0.6, 0], drop: [-1.2, -6, 0], dir: [0, -1, 0], depth: 0.9 },
+  pangun: { off: [1.3, 0, 0], drop: [-3, 3, 0], dir: [0, 1, 0], depth: 1.1 },
 };
 const FIRE_EVENTS = ['shoot', 'shotgun', 'nail', 'flame', 'harpoon', 'rocket', 'flare'];
 
@@ -1588,12 +1589,14 @@ class CockpitView {
           ry = 0.95 * tilt; rz = 0.25 * tilt; rx = 0.1 * tilt; ox = -1.4 * tilt; oy = 2.6 * tilt; oz = 0.2 * tilt;
           const MR = MAG_RELOAD[id], off = new THREE.Vector3(...MR.off), rest0 = new THREE.Vector3(...(u.magRest || [0, -2.7, 0.2]));
           const hand = hands[1], R = this.rackPoint(g, i), well = rest0.clone().sub(off);
+          const below = well.clone().addScaledVector(new THREE.Vector3(...(MR.dir || [0, -1, 0])).normalize(), MR.depth || 1.2); // lined up outside the well
           const drop = ss(0.15, 0.32, rp);
           if (hand && R) {
             const rest = hand.userData.rest.pos;
             if (rp < 0.3) hand.position.lerpVectors(rest, R, ss(0.12, 0.3, rp));
             else if (rp < 0.45) hand.position.copy(R);
-            else if (rp < 0.72) hand.position.lerpVectors(R, well, ss(0.45, 0.72, rp));
+            else if (rp < 0.62) hand.position.lerpVectors(R, below, ss(0.45, 0.62, rp));
+            else if (rp < 0.72) hand.position.lerpVectors(below, well, ss(0.63, 0.72, rp)); // and straight in
             else if (rp < 0.8) hand.position.copy(well).add(new THREE.Vector3(0, 0.3 * ss(0.72, 0.78, rp), 0));
             else hand.position.lerpVectors(well, rest, ss(0.8, 0.92, rp));
             hand.rotation.x = hand.userData.rest.rot + 0.6 * bump(0.12, 0.8, rp);
