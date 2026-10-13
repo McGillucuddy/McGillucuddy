@@ -478,28 +478,37 @@ function rollBossRewards(b, rng) {
   return out;
 }
 
-// The commissary: six items drawn at random from everything you've unlocked (weapons, car parts, attachments,
-// trinkets, abilities, driver chips), never more than two of a kind, so every visit is a different set of choices.
-// Scrap is scarce: you won't afford all of it, and what you buy here is scrap you don't spend on repairs and ammo.
-const SHOP_SIZE = 6;
-const SHOP_MIX = { weapon: [1, 2], part: [1, 2], mod: [0.9, 2], trinket: [0.7, 1], ability: [0.5, 1], chip: [0.4, 1] }; // [weight, at most]
+// The commissary: three sections, each stocked at random every visit from everything you've unlocked, so anything
+// can turn up. Weapons: two guns and two attachments (ones that fit a gun you own are twice as likely). Trinkets: two.
+// Vehicle: two car parts and an ability or driver chip. Scrap is scarce: you won't afford it all, and what you buy
+// here is scrap you don't spend on repairs and ammo.
+const SHOP_SECTIONS = [
+  { id: 'weapons', name: 'Weapons', stock: [['weapon', 2], ['mod', 2]] },
+  { id: 'trinkets', name: 'Trinkets', stock: [['trinket', 2]] },
+  { id: 'vehicle', name: 'Vehicle', stock: [['part', 2], ['ability|chip', 1]] },
+];
 const SHOP_PRICE = { trinket: 240, chip: 200 }; // the ones with no list price
 function rollShop(b, rng, act) {
-  const pool = [];
-  for (const id in WEAPONS) if (WEAPONS[id].price > 0 && !ownsWeapon(b, id)) pool.push(['weapon', id]);
-  for (const id in PARTS) if (PARTS[id].price > 0 && !ownsPart(b, id)) pool.push(['part', id]);
-  for (const id in MODS) pool.push(['mod', id]);
-  for (const id in TRINKETS) if (!has(b, id)) pool.push(['trinket', id]);
-  for (const id in ABILITIES) if (ABILITIES[id].price > 0 && !ownsAbility(b, id)) pool.push(['ability', id]);
-  for (const id in CHIPS) if (!ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)) pool.push(['chip', id]);
-  for (let i = pool.length - 1; i >= 0; i--) if (!isUnlocked(pool[i][0], pool[i][1])) pool.splice(i, 1); // only gear you've unlocked
-  const out = [], n = {};
-  while (out.length < SHOP_SIZE && pool.length) {
-    const p = weightedPick(rng, pool, (q) => SHOP_MIX[q[0]][0]);
-    pool.splice(pool.indexOf(p), 1);
-    if ((n[p[0]] || 0) >= SHOP_MIX[p[0]][1]) continue;
-    n[p[0]] = (n[p[0]] || 0) + 1;
-    out.push(itemCard(p[0], p[1]));
+  const owned = b.rack.concat(b.stash.weapons).map((w) => w.id);
+  const pools = {
+    weapon: Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id)),
+    mod: Object.keys(MODS),
+    trinket: Object.keys(TRINKETS).filter((id) => !has(b, id)),
+    part: Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id)),
+    ability: Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id)),
+    chip: Object.keys(CHIPS).filter((id) => !ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)),
+  };
+  for (const t in pools) pools[t] = pools[t].filter((id) => isUnlocked(t, id)); // only gear you've unlocked
+  const weight = (t, id) => (t === 'mod' && MODS[id].fits.some((w) => owned.includes(w)) ? 2 : 1);
+  const out = [];
+  for (const sec of SHOP_SECTIONS) for (const [types, n] of sec.stock) {
+    const pool = types.split('|').flatMap((t) => pools[t].map((id) => [t, id]));
+    for (let k = 0; k < n && pool.length; k++) {
+      const p = weightedPick(rng, pool, (q) => weight(q[0], q[1]));
+      pool.splice(pool.indexOf(p), 1);
+      pools[p[0]].splice(pools[p[0]].indexOf(p[1]), 1);
+      out.push(Object.assign(itemCard(p[0], p[1]), { section: sec.id }));
+    }
   }
   // Prices: list price (or the trinket and chip rate), creeping up as the run climbs the city.
   const mul = (1 + 0.12 * (act || 0)) * (has(b, 'smokes') ? 0.85 : 1);

@@ -578,7 +578,8 @@ class Garage3D {
     // Goods on the commissary counter, with price tags. Click one to buy it.
     (shop || []).forEach((c, i) => {
       if (c.sold) return;
-      const x = 97 + i * 4.2, y = 21.6, z = -54;
+      // Two rows on the counter: five along the front, the rest behind them (clear of the ledger and the cash box).
+      const back = i >= 5, x = back ? 103 + (i - 5) * 4.2 : 97 + i * 5.4, y = 21.6, z = back ? -60 : -54.5;
       let m;
       if (c.type === 'weapon') { m = Models.weapon(c.id); m.rotation.set(-Math.PI / 2, 0, Math.PI / 2); m.scale.setScalar(0.5); }
       else if (c.type === 'trinket') { m = Models.trinket(c.id); m.scale.setScalar(0.9); }

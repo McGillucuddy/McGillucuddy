@@ -161,7 +161,7 @@ You pick your path through it (`js/runmap.js`):
 |---|---|
 | 🏁 Race | Finish top 3 or take a strike. Make the cut to pick a reward. |
 | ☠ Elite race | Sharper drivers, an extra rocket gunner and gunner, 1.4x placing pay. A trinket is guaranteed among the rewards. |
-| 🛒 Commissary | The only place the black market is open. Repairs, ammo and spares are always available in the garage. |
+| 🛒 Commissary | The only place the black market is open: three sections stocked at random each visit from everything you've unlocked. **Weapons** (two guns, two attachments), **Trinkets** (two) and **Vehicle** (two car parts, an ability or driver chip). Scrap is scarce, so you choose. Repairs, ammo and spares are always available in the garage. |
 | ? Event | A cell-block scene with a choice: bribe a guard to wipe a strike, run contraband, bet on yourself, dig through the scrapyard, snitch on the gunners, visit the chapel, a yard fight, a cell-block trade, a sponsor deal, raid the armoury. |
 | 🔧 Mechanic | A free full repair. |
 | 💰 Bounty race | A regular race with a price on one rival's head: wreck them for 150+ scrap. |

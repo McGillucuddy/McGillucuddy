@@ -1245,12 +1245,22 @@ const Proto = {
   garageMarket() {
     const b = this.build;
     if (!this.shopOpen) return `<div class="panel"><h2>Shuttered</h2><p>The hatch is padlocked. The ${ACT_LUXURY(this.run.act) ? 'concierge only sees drivers at a Concierge stop' : 'commissary only opens at a Commissary stop'} on the route sheet (🛒).</p><p class="muted small">Repairs, ammo, grenades and spare parts are always available in the Workshop and Armory.</p></div>`;
-    const shop = this.shop.map((c, i) => `<div class="shop-card ${c.sold ? 'sold' : ''}">
-        <small class="muted">${c.type.toUpperCase()}${c.type === 'part' ? ' · ' + SLOT_NAMES[PARTS[c.id].slot] : ''}${c.type === 'mod' ? ' · fits ' + MODS[c.id].fits.map((f) => WEAPONS[f].name).join(', ') : ''}</small>
+    const label = { weapon: 'GUN', mod: 'ATTACHMENT', trinket: 'TRINKET', part: 'PART', ability: 'ABILITY', chip: 'DRIVER CHIP' };
+    const card = (c, i) => {
+      const fitsMine = c.type === 'mod' && MODS[c.id].fits.some((f) => b.rack.concat(b.stash.weapons).some((w) => w.id === f));
+      return `<div class="shop-card ${c.sold ? 'sold' : ''}">
+        <small class="muted">${label[c.type] || c.type.toUpperCase()}${c.type === 'part' ? ' · ' + SLOT_NAMES[PARTS[c.id].slot] : ''}${c.type === 'mod' ? ` · fits ${MODS[c.id].fits.map((f) => WEAPONS[f].name).join(', ')}${fitsMine ? ' <b class="good">(you own one)</b>' : ''}` : ''}</small>
         <b>${c.name}</b><small>${c.desc}</small>
         <button class="btn small" data-action="buy-item" data-arg="${i}" ${c.sold || b.scrap < c.price ? 'disabled' : ''}>${c.sold ? 'Sold' : 'Buy ' + c.price}</button>
-      </div>`).join('');
-    return `<div class="panel"><h2>Black market</h2><p class="muted small">Stock changes every visit. Purchases go into your stash (or a free slot).</p><div class="shop-grid three">${shop}</div></div>`;
+      </div>`;
+    };
+    // Grouped by counter section (older saves without sections fall into the vehicle bay by type).
+    const secOf = (c) => c.section || (c.type === 'weapon' || c.type === 'mod' ? 'weapons' : c.type === 'trinket' ? 'trinkets' : 'vehicle');
+    const sections = SHOP_SECTIONS.map((sec) => {
+      const cards = this.shop.map((c, i) => [c, i]).filter(([c]) => secOf(c) === sec.id).map(([c, i]) => card(c, i)).join('');
+      return cards ? `<h3 class="shop-sec">${sec.name}</h3><div class="shop-grid three">${cards}</div>` : '';
+    }).join('');
+    return `<div class="panel"><h2>Black market</h2><p class="muted small">Stock changes every visit. You have <b>${b.scrap} scrap</b>: you won't afford it all, so choose. Purchases go into your stash (or a free slot).</p>${sections}</div>`;
   },
 
   garagePaint() {
