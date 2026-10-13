@@ -71,7 +71,7 @@ class Combat {
     // bosses past the first act always do.
     const armour = [0, 0.25, 0.6, 0.9][opts.act || 0] || 0;
     // Rival guns hit softer early on: a wreck puts you out of the race, so Act I has to be survivable with a pistol.
-    this.rivalMul = [0.75, 0.9, 1, 1.05][opts.act || 0] || 1;
+    this.rivalMul = [0.6, 0.8, 0.95, 1.05][opts.act || 0] || 1;
     this.player.ramTakenMul *= this.rivalMul; // rams too
     // Tyre hunters: some rival gunners (none in Act I, more each act after) will go for your tyres, but only once the
     // race has settled, from close beside or behind you, one at a time, and never straight away. See rivalGuns.

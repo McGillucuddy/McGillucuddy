@@ -236,7 +236,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   (wrecks, parries, how little damage you took). Elite races pay 40% more. Scrap is scarce on purpose.
 - **Wrecked means out.** If your hull hits zero you're out of the race: no placing purse, and a strike. The crew
   patches the car back to 40% hull for free and bodges any broken parts back to a quarter; the rest of the repair is
-  yours to pay for. Rival guns and rams hit softer in Act I (75%) and Act II (90%), so the early acts are survivable
+  yours to pay for. Rival guns and rams hit softer in Act I (60%), Act II (80%) and Act III (95%), so the early acts are survivable
   with a pistol.
 - **Shootable tyres.** Every car has four. A shot that lands by a wheel goes into the tyre (and only half into the
   body). A flat costs the car speed and grip and pulls it towards the flat side; you see it sit down on its rim and
