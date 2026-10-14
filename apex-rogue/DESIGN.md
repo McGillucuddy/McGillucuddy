@@ -12,30 +12,83 @@ Every system should serve one of three things in that sentence: *a nobody* (iden
 your way up* (the run: four acts, bosses, the Crown), *watching you die on TV* (the broadcast: crowd, sponsors,
 ratings). The broadcast is the most under-used of the three today, and the endings are the least developed.
 
-## 1. Ratings: the broadcast as a mechanic
+## 1. The run is a broadcast season (replaces the route sheet and the old ratings idea)
 
-C9TV is always on. The crowd rewards spectacle, and the sponsors pay for what the crowd loves.
+**Decided.** A run is one season of C9TV. You start on the dead channels at the bottom of the dial nobody watches,
+and you climb towards Prime Time. There's no separate map: between shows you flip through the **TV guide**.
 
-**How it works**
-- A **ratings meter** per race, shown as a small broadcast HUD (a "LIVE" bug, a viewer count that climbs and drops).
-- Spectacle raises it: wrecks, close passes, a parried rocket (the hatch slam), a humiliation (taunt then pass or
-  wreck: today's emote bonus moves into ratings), a harpoon drag, a near-miss with a mine, a jump, finishing on a
-  wrecked car, flipping off a boss on camera.
-- Boring lowers it: hiding behind the hatch, hanging at the back, long stretches with no action.
-- **Ratings pay out at the garage** as sponsor interest: the higher your ratings, the better the sponsor offers
-  (free ammo crates, a part at cost, a care package dropped mid-race next time, a paint job). Low ratings: the
-  sponsors drop you, and the warden's channel mocks you on the billboards.
-- Ratings are the **run currency for favour**; scrap stays the currency for buying. Rep stays the meta currency.
+### The dial: four blocks of channels
 
-**Why**
-- Style becomes strategy: playing safe is a real choice with a cost.
-- It ties together systems that are separate today: emotes, the hatch parry, harpoon, wrecks, bosses.
-- It makes the setting a system: the billboards, the C9TV screens, the sponsors and the crowd noise all react to you.
+| Block | Channels | Who's watching | What's there |
+| --- | --- | --- | --- |
+| Public Access (the Undercity) | 2-9 | pirate feeds, a few hundred | scrap purses, junk gear, pistols |
+| Cable (the Stacks) | 10-29 | factory crowds | real guns, the first sponsors |
+| Premium (the Terraces) | 30-59 | paying subscribers | rifles, better sponsors, the black market |
+| Prime Time (the Crown) | 60-99 | the whole city | machine guns, champions, the warden |
 
-**Open**
-- Whether ratings also scale rival aggression (a hot inmate attracts heat).
-- How visible it is mid-race: a corner HUD bug, crowd audio swelling, or only at the end of the race.
-- Sponsor identities (Aureum, Helix, Crown Bank, Warden Corp) each wanting a different kind of spectacle.
+Higher channels pay bigger purses, stock better gear in their rewards and shopping slots, and book tougher rivals.
+Your car, guns and trinkets carry over, so you feel yourself outgrowing the low channels.
+
+### Viewers: the currency you climb with
+
+**Decided.** You start with almost nobody watching. **Viewers** are earned by putting on a show, and they're what
+gets you booked on higher channels.
+- **What earns viewers:** wrecking drivers, winning, taunts and humiliations (flip someone off, then pass or wreck
+  them), parries with the hatch, popped tyres, a grenade through a window, roof-gun time, jumps, near misses,
+  settling a vendetta. Bigger and riskier moves earn more.
+- **What loses them:** hiding behind the hatch, finishing at the back, long dull stretches, getting wrecked.
+- **In the race:** a LIVE bug in the corner with a viewer count that ticks up, with little pop-ups ("+1.2k: flipped
+  off Rex Torque").
+- **Channel gates:** each channel needs a number of viewers to book you. The guide shows the channels you can't get
+  on yet, greyed out with their price in viewers, so you always see what you're climbing towards.
+
+### Sponsors
+
+**Decided.** As your viewers cross thresholds, sponsors start calling. Each time, you choose one of two offers.
+Each sponsor has a taste, a weekly stipend and a perk, and sets you a goal each show:
+- **Helix** (pharma) loves wrecks: "3 wrecks tonight: +60 scrap". Perk: a free patch-up after each show.
+- **Aureum** (luxury) loves style: taunts, near misses, jumps. Perk: better reward picks.
+- **Crown Bank** loves winners: podiums only. Perk: bigger purses.
+- **Warden Corp** loves control: clean racing, no hatch-hiding. Perk: free ammo every show.
+
+You hold a few sponsors at once. Disappoint one show after show and they drop you, live on air.
+
+### Urgency: the schedule doesn't wait
+
+**Decided.** Each block runs for a fixed number of nights, then its **special** airs whether you're ready or not:
+The Turnkey's special, Sal's, Vale's, and Marlowe's season finale. So every night is a choice between climbing (a
+harder channel, more viewers and pay) and preparing (an easier slot, the shopping channel, the repair show), with
+the clock running. Beat the special to move to the next block. Lose it and it's a strike, and you face it again the
+next night.
+
+The network's patience is still three strikes: cancelled means the run is over.
+
+### Shows: what's on each night
+
+Each night, the guide offers three or four shows on channels you can book. A listing gives the show's name, its
+channel and pay, its format, who's on (named rivals, a vendetta, sometimes a boss) and the sponsor's ask.
+- **Race formats** (each plays differently):
+  - *The Derby*: today's race.
+  - *Demolition Hour*: an arena, no laps, last car running.
+  - *The Convoy*: chase and wreck an armoured guard truck.
+  - *Manhunt*: you're the bounty and everyone hunts you.
+  - *Against the Clock*: hazards and the clock, no rivals.
+  - *Escort*: keep a sponsor's car alive.
+- **Other shows:**
+  - *The Shopping Channel*: the commissary.
+  - *Late Night Garage*: repairs.
+  - *Phone-ins and talk shows*: the events.
+  - *Pirate broadcasts*: the black market, sometimes.
+
+### Length
+
+About 40 minutes a run. Four blocks of three nights plus a special each is 16 shows at about 2.5 minutes each,
+briefing and garage included.
+
+**Open:**
+- the exact viewer gates per channel, and how fast viewers come in;
+- whether a wreck also costs viewers ("ratings crash");
+- how many sponsors you can hold at once (proposal: two, three in Prime Time).
 
 ## 2. The deal and the endings
 
@@ -161,21 +214,27 @@ succession knock you back down into the seat.
 **Open:** whether bosses go for the gunner when they see you up top; whether rivals with roof guns of their own
 should exist.
 
-## 6. Build order
+## 6. Build order (the broadcast season first)
 
 Playtesting comes first: if the core loop (driving and shooting at once, the hatch, readability, performance) needs
 work, that work comes before any of this.
 
-1. **The snapshot and the champion boss.** Save the snapshot on taking the deal; build the title race and the
-   champion from it. The core of the feature, and testable alone.
-2. **The deal moment and both endings.** Halloran's offer, the two ending sequences, the run ending.
-3. **The callbacks.** Graffiti, billboards and the memorial for champions, freed inmates and lifers.
-4. **Ratings.** The meter, the payout at the garage, the broadcast HUD; feeds the champion's fame.
-5. **Identity.** Crime and perk, mugshot, the radio voice.
+1. **Viewers.** The in-race LIVE counter and what earns or costs viewers, shown on the results screen. Playable on
+   the current route sheet, so we can tune it first.
+2. **The TV guide and the season.** The four blocks, nights and specials, channel gates by viewers, pay and
+   difficulty by channel. This replaces the route sheet.
+3. **Sponsors.** Offers at viewer thresholds, tastes, stipends, per-show goals, getting dropped.
+4. **New show formats,** one at a time: Demolition Hour, The Convoy, Manhunt, then Against the Clock and Escort.
+5. **The snapshot and the champion boss.** Save the snapshot on taking the deal; build the title race and the
+   champion from it.
+6. **The deal moment and both endings.** Halloran's offer, the two ending sequences, the run ending.
+7. **The callbacks.** Graffiti, billboards and the memorial for champions, freed inmates and lifers.
+8. **Identity.** Crime and perk, mugshot, the radio voice.
 
 ## 7. How we'll know it works
 
-- **Ratings:** players change how they drive to chase it (some of the time), and can say what earns it.
+- **Viewers:** players change how they drive to chase them (some of the time), and can say what earns them.
+- **The season:** players feel the special coming and argue with themselves about climbing versus preparing.
 - **The deal:** players hesitate at the choice, and testers split between the two endings rather than all taking one.
 - **Champions:** players recognise their old car and say so out loud; beating a champion feels better than beating
   Marlowe did.
