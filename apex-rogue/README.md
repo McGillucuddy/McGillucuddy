@@ -300,7 +300,11 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   rounds, and the empty clip pings out), the **Typewriter** drum gun (fifty rounds, walnut foregrip) and the **Widow
   MG** (cooling jacket, a pan magazine on top that turns as it fires). The drum gun and machine guns *bloom*: hold the
   trigger and the spread opens up (the crosshair brackets show it); let go and it settles.
-  Grenades are a separate consumable.
+  Grenades are a separate consumable. Drop one **through an opening** and it goes off inside: down the open roof hatch
+  a rocket gunner works from (behind their rocket pod), or in at the window a rifle gunner leans out of. It cooks off
+  a moment later, kills the crew and wrecks the car (a driver killed like that never comes back as a vendetta),
+  unless their gunner is quick enough to throw it back out (one time in four). Bosses keep theirs shut. Anywhere
+  else it just clatters off.
 - **The roof gun.** The two machine guns, the Grinder LMG and the Widow MG, aren't held: they go on a pintle mount
   over a hatch in the roof above your seat (the hatch is on your car's roof, in a steel frame, its lid standing open
   when there's a gun on the pintle in front of it; winning or buying one puts it straight up there; a second waits in the
@@ -315,8 +319,11 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   - **Shielding** (Armory, round the mount, each a trade, and it shows on your car): a **Gun Shield** plate in front
     (stops what comes from where you're aiming; 140 scrap), a **Wraparound** of plates round three sides (stops most
     gunfire, but it's heavy, 3% off top speed, and you can't swing round to the back; 260), or a **Cage Turret**
-    closed over the top (stops nearly everything from any side, the heaviest at 5%, and you see out and shoot only
-    through a slit ahead; 420). Shields soak hits until they're shot to pieces, then cover nothing until repaired.
+    (420): plates round you and a welded tube cage over the top, the heaviest at 5%, seen out of through a slit. Like
+    real slat armour it's for rockets, not bullets: its plates stop rounds from ahead and the sides like the
+    wraparound's, but over the top and from behind they go between the bars; a rocket that would hit you goes off on
+    the cage a safe way out (about a quarter of its punch reaches you) or has its fuse crushed and fails (about a third
+    of the time); and blasts don't catch you nearly so badly up there. Shields soak hits until they're shot to pieces, then cover nothing until repaired.
 - **Emotes** (`T`, `js/emotes.js`). Your free left hand comes up into view and tells a rival what you think of them:
   - **The gestures:** the finger, a thumbs down, a "come at me" beckon, or devil horns.
   - **Controls:** tap `T` for your last emote; hold it for a wheel, flick the mouse to pick and let go.

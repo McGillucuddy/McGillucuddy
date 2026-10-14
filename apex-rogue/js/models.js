@@ -1223,7 +1223,7 @@ const Models = {
       const T = st.cabin, topAt = (x) => { for (let i = 0; i < T.length - 1; i++) { const [x0, y0] = T[i], [x1, y1] = T[i + 1]; if ((x <= x0 && x >= x1) || (x >= x0 && x <= x1)) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0 || 1); } return T[0][1]; };
       const hx = EYE.x - 0.6, hz = EYE.z, roofY = topAt(hx) + bev, H = 3.6; // the hatch, centred over your seat
       const frameM = LP.mat('#2e3032', { metalness: 0.6, roughness: 0.5 }), lidM = LP.mat(opts.color, { metalness: 0.3, roughness: 0.5 });
-      const open = !!opts.roofGun;
+      const open = !!opts.roofGun || !!opts.roofHatchOpen;
       g.add(LP.box(H, 0.12, H, LP.mat('#050505', { roughness: 1 }), hx, roofY + 0.05, hz)); // the dark opening
       for (const [dx, dz, w, d] of [[0, H / 2 + 0.2, H + 0.8, 0.4], [0, -H / 2 - 0.2, H + 0.8, 0.4], [H / 2 + 0.2, 0, 0.4, H], [-H / 2 - 0.2, 0, 0.4, H]]) g.add(LP.box(w, 0.35, d, frameM, hx + dx, roofY + 0.15, hz + dz)); // the frame
       const hinge = new THREE.Group();

@@ -285,7 +285,10 @@ const ROOF_SHIELDS = {
   none: { name: 'Bare mount', price: 0, cover: 0, block: 0, arc: Math.PI, hp: 0, weight: 0, desc: 'Nothing between you and every gunner on the track. You can swing all the way round.' },
   plate: { name: 'Gun Shield', price: 140, cover: 0.75, block: 1, arc: Math.PI, hp: 60, weight: 0.01, desc: 'A welded plate in front of the gun with a sighting slot. Stops what comes at you from where you\'re aiming; your sides and back are open.' },
   wrap: { name: 'Wraparound', price: 260, cover: 2.0, block: 1, arc: 2.2, hp: 90, weight: 0.03, desc: 'Plates on three sides. Stops most gunfire, but it\'s heavy (3% off your top speed) and you can\'t swing round to the back.' },
-  cage: { name: 'Cage Turret', price: 420, cover: Math.PI, block: 0.85, arc: 1.3, hp: 130, weight: 0.05, desc: 'A full armoured cupola with a slit. Stops nearly everything from any side, but it\'s the heaviest, and you only see and shoot through the slit ahead.' },
+  // The cage is what slat armour really does: its plates stop bullets like the wraparound's (rounds over the top or
+  // from behind go between the bars), but a rocket that would hit you goes off on the bars, a safe distance out, or
+  // has its fuse crushed and fails; and blasts don't catch you nearly as badly up there.
+  cage: { name: 'Cage Turret', price: 420, cover: 2.0, block: 0.9, arc: 1.3, hp: 130, weight: 0.05, rocketCage: true, desc: 'Plates round you and a welded tube cage over the top. Bullets: the plates stop most of what comes from ahead and the sides; over the top and from behind, rounds go between the bars. Rockets: they go off on the cage instead of on you, or have their fuse crushed and fail. The heaviest, and you see out through a slit.' },
 };
 const SHIELD_ORDER = ['none', 'plate', 'wrap', 'cage'];
 const ensureRoof = (b) => { if (!b.roof) b.roof = { gun: null, shield: 'none', shieldHp: 0 }; return b.roof; };

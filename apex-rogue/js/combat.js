@@ -7,6 +7,9 @@ const ROCKET_SPEED = 820;
 const LOCK_TIME = 1.35;
 const PARRY_WINDOW = 0.3;
 const GRENADE_G = 700;
+// Where a grenade can get into a rival (in the car's frame: forward f, left s, height): the open roof hatch on the
+// rocket cars, the window their gunner leans out of on the gun cars (both on the left). See Combat.grenadeIn.
+const GRENADE_IN = { roof: 10.6, hatch: [-3.2, 4.2], hatchR: 2.8, window: [6.6, 10.8], winF: 0.2, winHalf: 4.5, throwBack: 0.25, dmg: 60 };
 const FIT_TIME = 2.5;
 
 // Tyres: hit points per tyre, and how hard rivals' stray shots hit yours (they never aim for them).
@@ -15,7 +18,7 @@ const TYRE_R = 4.2; // how close a shot's path must pass a wheel to hit the tyre
 // Standing up at the roof gun: steadier aim (braced on the mount) but exposed. A round that gets past the shield
 // hits you rather than the car a share of the time (exposure): more damage, a flinch, and enough of them in a few
 // seconds knock you back down. Climbing up or down takes a moment.
-const ROOF = { steady: 0.6, climb: 0.6, drop: 0.45, exposure: 0.45, youDmg: 1.6, blastMul: 1.3, knockHits: 3, knockWindow: 2.5 };
+const ROOF = { cageDud: 0.35, cageRocket: 0.35, cageBlast: 0.7, steady: 0.6, climb: 0.6, drop: 0.45, exposure: 0.45, youDmg: 1.6, blastMul: 1.3, knockHits: 3, knockWindow: 2.5 };
 const RIVAL_TYRE = 0.15; // a stray rival round that happens to land by a wheel
 // A tyre hunter's aimed burst: a longer wind-up (you see it coming), eight rounds at one wheel. 'start' is how long
 // into the race before anyone tries it; 'gap' is the least time between any two attempts on you.
@@ -231,6 +234,22 @@ class Combat {
     if (R && R.gun && this.shield.hp && R.shieldHp <= 0 && !this.shieldGone) { this.shieldGone = true; } // a wrecked shield covers nothing
   }
 
+  // A rocket meeting the cage turret: its bars set it off a safe way out (a fraction of the blast reaches you) or
+  // crush the fuse so it never goes off. Either way the cage takes a beating.
+  cageRocket(pr) {
+    const R = this.build.roof, p = this.player;
+    pr.dead = true;
+    R.shieldHp -= pr.dmg * 0.6;
+    if (this.rng() < ROOF.cageDud) {
+      this.events.push({ type: 'deflect', x: p.x, y: p.y });
+      this.race.message('The cage crushed its fuse: a dud!', '#7CFC00', true);
+    } else {
+      this.explode(pr.x, pr.y, pr.radius * 0.8, pr.dmg * ROOF.cageRocket, pr.owner, 'cage');
+      this.race.message('It went off on the cage!', '#ffcf3a');
+    }
+    if (R.shieldHp <= 0) { this.race.message('Your cage turret is torn apart!', '#ff9f1c', true); this.events.push({ type: 'partBreak' }); }
+  }
+
   // A round arriving while you're up top: the shield may stop it; if not, it may hit you rather than the car.
   // dir: the world angle it came from. Returns 'blocked', 'you' or null (it hits the car as usual).
   exposedHit(dmg, dir) {
@@ -364,6 +383,42 @@ class Combat {
     });
     this.events.push({ type: 'throw' });
     return true;
+  }
+
+  // A grenade coming down onto a rival: through an open roof hatch (the rocket cars, whose gunner stands in one) or in
+  // at the window their gunner leans out of, it drops inside. Anything else just clatters off. Bosses keep theirs shut.
+  grenadeIn(g, z0, x0, y0) {
+    for (const c of this.race.cars) {
+      if (c === this.player || c.isBoss || c.hp <= 0 || !c.weapon) continue;
+      const h = c.heading, loc = (x, y) => { const dx = x - c.x, dy = y - c.y; return [dx * Math.cos(h) + dy * Math.sin(h), -dx * Math.sin(h) + dy * Math.cos(h)]; };
+      const [f, s] = loc(g.x, g.y);
+      if (Math.abs(f) > 24 || Math.abs(s) > 12) continue;
+      const roof = GRENADE_IN.roof + (c.z || 0), win = GRENADE_IN.window;
+      let how = null;
+      if (c.weapon === 'rocket' && z0 >= roof && g.z < roof) { // where it came down through the roof line, between frames
+        const u = (z0 - roof) / Math.max(1e-6, z0 - g.z), [f0, s0] = loc(x0, y0), fx = f0 + (f - f0) * u, sx = s0 + (s - s0) * u;
+        if (Math.hypot(fx - GRENADE_IN.hatch[0], sx - GRENADE_IN.hatch[1]) < GRENADE_IN.hatchR) how = 'hatch';
+      }
+      if (!how && c.weapon === 'gun' && Math.abs(f) < 20 && s > 5 && s < 9 && g.z > win[0] + (c.z || 0) && g.z < win[1] + (c.z || 0) && Math.abs(f - GRENADE_IN.winF) < GRENADE_IN.winHalf) how = 'window';
+      if (!how) continue;
+      g.inCar = c;
+      g.fuse = Math.max(g.fuse, g.t + 0.5); // it cooks off inside a moment later
+      g.willThrow = this.rng() < GRENADE_IN.throwBack; // unless their gunner's quick enough to throw it back out
+      this.events.push({ type: 'grenadeIn', how });
+      this.race.message(how === 'hatch' ? `Grenade down ${shortName(c)}'s hatch!` : `Grenade in ${shortName(c)}'s window!`, '#7CFC00', true);
+      return true;
+    }
+    return false;
+  }
+  // The grenade goes off inside the cabin: the crew don't survive it and the car's done for.
+  cabinBlast(c) {
+    const p = this.player;
+    this.explosions.push({ x: c.x, y: c.y, r: 50, t: 0, kind: 'blast' });
+    this.events.push({ type: 'explode', x: c.x, y: c.y, big: true });
+    if (c.weapon && !c.gunnerDead) this.woundCrew(c, 'gunner', 999, p);
+    if (!c.driverDead) this.woundCrew(c, 'driver', 999, p);
+    this.hitCar(c, GRENADE_IN.dmg, p, 0, 0.6, 'blast');
+    this.race.message(`${shortName(c)}'s cabin goes up!`, '#ffd23f', true);
   }
 
   // Rebuild the player's stats after a part breaks or is replaced.
@@ -776,6 +831,7 @@ class Combat {
           this.blockWithHatch(pr);
           break;
         }
+        if (c === p && this.exposed && pr.type === 'rocket' && this.shield.rocketCage && this.build.roof.shieldHp > 0) { this.cageRocket(pr); break; }
         let you = null;
         if (c === p && this.exposed && pr.type !== 'rocket') { // stood up in the roof: the shield, or you
           you = this.exposedHit(pr.dmg, Math.atan2(-pr.vy, -pr.vx));
@@ -887,9 +943,24 @@ class Combat {
   updateGrenades(dt) {
     for (const g of this.grenades) {
       g.t += dt;
+      if (g.inCar) { // rattling round inside someone's cabin
+        const c = g.inCar;
+        g.x = c.x; g.y = c.y; g.z = 6 + (c.z || 0);
+        if (g.willThrow && !c.gunnerDead && c.hp > 0 && g.t > g.fuse - 0.3) { // the gunner grabs it and gets rid of it
+          g.thrownBack = true; g.inCar = null;
+          const a = Math.atan2(this.player.y - c.y, this.player.x - c.x);
+          g.x = c.x + Math.cos(a) * 30; g.y = c.y + Math.sin(a) * 30; g.vx = c.vx; g.vy = c.vy; g.vz0 = 0; g.z = 6;
+          this.race.message(`${shortName(c)}'s gunner throws it back out!`, '#ff9f1c');
+          continue;
+        }
+        if (g.t >= g.fuse) { g.dead = true; this.cabinBlast(c); }
+        continue;
+      }
+      const z0 = g.z, x0 = g.x, y0 = g.y;
       g.x += g.vx * dt;
       g.y += g.vy * dt;
       g.z = 6 + g.vz0 * g.t - 0.5 * GRENADE_G * g.t * g.t;
+      if (!g.thrownBack && this.grenadeIn(g, z0, x0, y0)) continue;
       if (g.t >= g.fuse) {
         g.dead = true;
         this.explode(g.x, g.y, 90, 24, this.player);
@@ -918,7 +989,10 @@ class Combat {
         this.events.push({ type: 'block', kind: 'blast' });
         f *= HATCH.blastPass;
       }
-      if (c === p && this.exposed && !(this.shield.cover >= Math.PI && this.build.roof.shieldHp > 0)) { f *= ROOF.blastMul; this.flinchT = 0.6; } // a blast with your head out
+      if (c === p && this.exposed) {
+        if (this.shield.rocketCage && this.build.roof.shieldHp > 0) f *= ROOF.cageBlast; // the cage keeps the worst of it off you
+        else { f *= ROOF.blastMul; this.flinchT = 0.6; } // a blast with your head out
+      }
       this.hitCar(c, dmg * f, owner, ang, 0.75, 'blast');
       for (let i = 0; i < 4; i++) if (this.rng() < f) this.damageTyre(c, i, dmg * f * 0.5, owner); // the blast shreds rubber
       // Knockback + spin.

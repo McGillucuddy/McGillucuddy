@@ -169,6 +169,7 @@ const Sound = {
       case 'emote': this.noiseBurst(0.18, 700, 0.08, 1800); break;
       case 'crowd': this.cheer(); break;
       case 'deflect': this.spang(); break;
+      case 'grenadeIn': this.clang(0.25); setTimeout(() => this.clang(0.15), 120); break; // it rattles down inside
       case 'roofUp': this.clang(0.35); this.noiseBurst(0.3, 500, 0.1, 1600); break; // the lid thrown back, and the wind
       case 'roofDown': this.clang(ev.knocked ? 0.6 : 0.3); break;
       case 'gunnerHit': this.noiseBurst(0.1, 900, 0.35, 250); this.tone(160, 0.18, 'square', 0.08); break;

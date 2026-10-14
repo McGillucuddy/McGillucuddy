@@ -380,7 +380,7 @@ const Proto = {
         <h3>In the car</h3>
         <div class="ctl"><kbd>Mouse</kbd> Aim · <kbd>LMB</kbd> Fire · <kbd>R</kbd> Reload</div>
         <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
-        <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
+        <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (land one in a rival's open hatch or window) · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
         <div class="ctl"><kbd>Space</kbd> (hold) Slam the blast hatch: it stops bullets and most of a blast, but you can't shoot. Slam it as a rocket hits to bat it back.</div>
         <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
         <div class="ctl"><kbd>V</kbd> (or <kbd>4</kbd>) Climb up to the roof gun, if you've mounted one, and back down. Steadier and all the way round, but you're exposed and the blast hatch can't cover you.</div>
@@ -1032,7 +1032,7 @@ const Proto = {
           <h2>Controls</h2>
           <div class="ctl"><kbd>Mouse</kbd> Aim / look around · <kbd>LMB</kbd> Fire</div>
           <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch · <kbd>R</kbd> Reload</div>
-          <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further)</div>
+          <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further). Drop one down a rocket car's roof hatch or in a gunner's window.</div>
           <div class="ctl"><kbd>T</kbd> Flip off a rival (hold for the emote wheel)</div>
           <div class="ctl"><kbd>Space</kbd> (hold) Blast hatch · <kbd>E</kbd> / <kbd>F</kbd> Abilities · <kbd>B</kbd> Fit your spare part</div>
           ${this.build.roof && this.build.roof.gun ? `<div class="ctl"><kbd>V</kbd> Up to the ${WEAPONS[this.build.roof.gun.id].name} on the roof, and back down</div>` : ''}

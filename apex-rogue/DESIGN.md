@@ -155,6 +155,9 @@ costs scrap to keep, and they show on the car, so rivals can see what you're run
 **Decided: being hit while exposed** costs extra hull, throws your aim off for a moment, and three hits in quick
 succession knock you back down into the seat.
 
+**Decided: the cage is slat armour.** Its plates stop bullets like the wraparound's; its tube cage defeats rockets
+(set off early or fuse crushed) and softens blasts, not bullets.
+
 **Open:** whether bosses go for the gunner when they see you up top; whether rivals with roof guns of their own
 should exist.
 

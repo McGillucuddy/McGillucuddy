@@ -452,6 +452,7 @@ class CockpitView {
       finish: pick(['gloss', 'matte', 'rusty', 'patched', 'gloss']), grime: pick(['clean', 'dirty', 'dirty', 'filthy']),
       livery: pick(['stencil', 'roundel', 'none', 'stripes', 'flames', 'skull']), rims: pick(['spoke5', 'steel', 'black', 'slotted', 'wire']),
       exhaust: pick(['single', 'twin', 'side']), tyreArmor: !!car.armorTyres,
+      roofHatch: car.weapon === 'rocket', roofHatchOpen: car.weapon === 'rocket', // the rocket gunner works through a hatch in the roof: a way in for a grenade
     };
   }
 
