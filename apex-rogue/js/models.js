@@ -1217,13 +1217,27 @@ const Models = {
     }
     Models.livery(g, st, opts, W, bev);
     if (opts.gear) Models.gear(g, st, opts, W, bev);
-    if (opts.roofGun && !opts.shell) { // the roof gun on its mount over the passenger seat
+    // The roof hatch over the passenger seat (your car only): a square opening in a steel frame, its lid hinged at
+    // the back. With a roof gun mounted the lid stands open and the gun sits on its pintle just in front of it.
+    if ((opts.roofHatch || opts.roofGun) && !opts.shell) {
       const T = st.cabin, topAt = (x) => { for (let i = 0; i < T.length - 1; i++) { const [x0, y0] = T[i], [x1, y1] = T[i + 1]; if ((x <= x0 && x >= x1) || (x >= x0 && x <= x1)) return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0 || 1); } return T[0][1]; };
-      const m = Models.roofMount(opts.roofGun.id, opts.roofGun.shield), k = 0.55;
-      m.scale.setScalar(k);
-      m.rotation.y = -Math.PI / 2; // the gun's forward (-z) along the car's (+x)
-      m.position.set(EYE.x, topAt(EYE.x) + bev + 5.45 * k, EYE.z);
-      g.add(m);
+      const hx = EYE.x - 0.6, hz = EYE.z, roofY = topAt(hx) + bev, H = 3.6; // the hatch, centred over your seat
+      const frameM = LP.mat('#2e3032', { metalness: 0.6, roughness: 0.5 }), lidM = LP.mat(opts.color, { metalness: 0.3, roughness: 0.5 });
+      const open = !!opts.roofGun;
+      g.add(LP.box(H, 0.12, H, LP.mat('#050505', { roughness: 1 }), hx, roofY + 0.05, hz)); // the dark opening
+      for (const [dx, dz, w, d] of [[0, H / 2 + 0.2, H + 0.8, 0.4], [0, -H / 2 - 0.2, H + 0.8, 0.4], [H / 2 + 0.2, 0, 0.4, H], [-H / 2 - 0.2, 0, 0.4, H]]) g.add(LP.box(w, 0.35, d, frameM, hx + dx, roofY + 0.15, hz + dz)); // the frame
+      const hinge = new THREE.Group();
+      hinge.position.set(hx - H / 2 - 0.2, roofY + 0.32, hz);
+      hinge.add(LP.box(H + 0.2, 0.25, H + 0.2, lidM, (H + 0.2) / 2, 0, 0), LP.box(0.5, 0.2, 1.2, frameM, (H + 0.2) / 2 + 1.0, 0.2, 0)); // the lid and its handle
+      hinge.rotation.z = open ? 1.95 : 0; // standing open, tipped back over the hinge
+      g.add(hinge);
+      if (opts.roofGun) { // the gun on its pintle, in front of the hatch
+        const m = Models.roofMount(opts.roofGun.id, opts.roofGun.shield), k = 0.55;
+        m.scale.setScalar(k);
+        m.rotation.y = -Math.PI / 2; // the gun's forward (-z) along the car's (+x)
+        m.position.set(hx + 2.6, topAt(hx + 2.6) + bev + 5.45 * k, hz);
+        g.add(m);
+      }
     }
 
     if (opts.weapon === 'rocket') {

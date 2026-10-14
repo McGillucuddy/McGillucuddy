@@ -302,7 +302,8 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   trigger and the spread opens up (the crosshair brackets show it); let go and it settles.
   Grenades are a separate consumable.
 - **The roof gun.** The two machine guns, the Grinder LMG and the Widow MG, aren't held: they go on a pintle mount
-  over a hatch in the roof above your seat (winning or buying one puts it straight up there; a second waits in the
+  over a hatch in the roof above your seat (the hatch is on your car's roof, in a steel frame, its lid standing open
+  when there's a gun on the pintle in front of it; winning or buying one puts it straight up there; a second waits in the
   stash and can be swapped on in the Armory). Press `V` (or `4`) mid-race to throw the hatch lid back and climb up to
   it; press it again, or pick a hand gun, to drop back into your seat.
   - **Up top:** braced on the mount the gun is 40% steadier and climbs half as much, and with nothing round it you
