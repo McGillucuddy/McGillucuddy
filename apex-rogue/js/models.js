@@ -3263,8 +3263,7 @@ const Models = {
   // (see ROOF_SHIELDS in js/build.js). The plate has a slot for the barrel and sights; the wraparound adds sides; the
   // cage closes over the top, so you see out through a slit. Seen from behind the gun, from the roof hatch.
   roofKit(shieldId, opts) {
-    const g = new THREE.Group(), plateM = DECALS.mat('rust', { metalness: 0.55, roughness: 0.75 }), steel = LP.mat('#3c3f42', { metalness: 0.7, roughness: 0.45 });
-    const bolt = LP.mat('#8a8e92', { metalness: 0.8, roughness: 0.35 }), B = LP.box;
+    const g = new THREE.Group(), steel = LP.mat('#3c3f42', { metalness: 0.7, roughness: 0.45 }), B = LP.box;
     if (!(opts && opts.noPost)) {
       g.add(LP.cyl(0.38, 0.38, 4.6, 10, steel, 0, -2.9, -0.4)); // the pintle
       for (const x of [-0.62, 0.62]) g.add(B(0.16, 1.2, 0.9, steel, x, -0.35, -0.4)); // the yoke cheeks
@@ -3272,27 +3271,58 @@ const Models = {
     }
     const S = shieldId || 'none';
     if (S === 'none') return g;
-    // The gunner stands about 7 units behind the gun's origin (z +7): the wraparound's sides and the cage's walls and
-    // lid run back past them, so it's round you, not just in front.
-    const Z = -3.2, back = 9, top = S === 'cage' ? 4.4 : 1.6, bot = -2.2, W = 3.8, th = 0.22, slit = [1.2, 3.4]; // you see over the plate; in the cage, through the slit
-    // The front plate, built round its openings: the barrel slot, and in the cage the vision slit.
-    const panel = (x0, x1, y0, y1, z) => g.add(B(x1 - x0, y1 - y0, th, plateM, (x0 + x1) / 2, (y0 + y1) / 2, z));
-    const low = S === 'cage' ? slit[0] : top;
-    panel(-W, -0.6, bot, low, Z); panel(0.6, W, bot, low, Z); // either side of the barrel slot
-    panel(-0.6, 0.6, bot, -0.45, Z); panel(-0.6, 0.6, 0.95, low, Z); // under and over it
-    if (S === 'cage') { panel(-W, -2.6, slit[0], slit[1], Z); panel(2.6, W, slit[0], slit[1], Z); panel(-W, W, slit[1], top, Z); } // the slit
-    for (const x of [-W + 0.35, W - 0.35]) for (const y of [bot + 0.35, top - 0.35]) g.add(LP.cyl(0.13, 0.13, 0.12, 6, bolt, x, y, Z + 0.16).rotateX(Math.PI / 2));
-    g.add(B(0.25, 0.25, 2.8, steel, -1.4, -0.9, Z / 2 - 0.2), B(0.25, 0.25, 2.8, steel, 1.4, -0.9, Z / 2 - 0.2)); // arms back to the yoke
-    if (S === 'wrap' || S === 'cage') for (const sd of [-1, 1]) { // side plates, back past where you stand
-      const side = B(th, top - bot, back - Z, plateM, sd * (W + 0.1), (top + bot) / 2, (Z + back) / 2);
-      g.add(side);
-      for (const z of [Z + 1, back - 1]) for (const y of [bot + 0.35, top - 0.35]) g.add(LP.cyl(0.13, 0.13, 0.12, 6, bolt, sd * (W - 0.05), y, z).rotateZ(Math.PI / 2));
+    // Welded from salvaged plate, painted drab and rusting through: one sculpt per tier, so the plates have rolled
+    // edges, the cuts are clean and the welds blend. The gunner stands about 7 units behind the gun (z +7).
+    const sc = new Sculpt('roofkit:' + S, 0.09);
+    const plate = LP.mat('#6b6f52', { metalness: 0.35, roughness: 0.75 }), tube = LP.mat('#34373a', { metalness: 0.65, roughness: 0.5 }), bolt = LP.mat('#8a8e92', { metalness: 0.8, roughness: 0.35 });
+    const P = (size, pos, rot) => sc.add(plate, SDF.box(size, 0.07, pos, rot), 0.05); // a plate, edges rolled
+    const C = (size, pos, rot) => sc.cut(SDF.box(size, 0.04, pos, rot), 0.03, [plate]); // a cut through the plates
+    const T = (pts, r) => sc.add(tube, SDF.path(pts, r || 0.1), 0.06); // a tube, welded in
+    const bolts = (pts) => pts.forEach((q) => sc.add(bolt, SDF.ellipsoid([0.12, 0.12, 0.12], q), 0.02));
+    const tall = S === 'cage', rake = 0.14; // the front leans back towards you
+    // The front: a centre plate with a round barrel port and a notch to sight through, raked back, and two wings
+    // bent back either side of it, their outer top corners cut off.
+    const hC = tall ? 5.6 : 3.4, yC = tall ? 0.6 : -0.3;
+    P([2.9, hC, 0.24], [0, yC, -3.0], [rake, 0, 0]);
+    sc.cut(SDF.cyl(0.45, 1.6, 'z', 0.06, [0, 0.15, -3.0]), 0.04, [plate]); // the barrel port
+    C([0.75, 0.75, 1.4], [0, tall ? 1.55 : 1.45, -3.1], [rake, 0, 0]); // the sight notch
+    for (const sd of [-1, 1]) {
+      P([2.3, hC - 0.4, 0.24], [sd * 2.45, yC - 0.2, -2.5], [rake, -sd * 0.55, 0]);
+      C([1.3, 1.3, 1.4], [sd * 3.55, yC - 0.2 + (hC - 0.4) / 2, -1.95], [0, -sd * 0.55, Math.PI / 4]); // clipped corner
+      bolts([[sd * 1.3, yC + hC / 2 - 0.35, -2.85], [sd * 1.3, yC - hC / 2 + 0.35, -3.15]]);
     }
-    if (S === 'cage') {
-      g.add(B(2 * W + 0.45, th, back - Z + 0.2, plateM, 0, top, (Z + back) / 2)); // the lid of the cupola
-      g.add(B(2 * W + 0.45, top - bot, th, plateM, 0, (top + bot) / 2, back)); // its back
-      g.add(LP.cyl(W + 0.5, W + 0.5, 0.35, 16, steel, 0, bot, (Z + back) / 2)); // the turret ring
+    if (tall) C([4.2, 0.8, 3], [0, 2.6, -2.8], [rake, 0, 0]); // the cage's vision slit, right across the front
+    // Braces from the yoke out to the plates.
+    for (const sd of [-1, 1]) T([[sd * 0.7, -0.9, -0.5], [sd * 1.0, -1.1, -1.8], [sd * 1.2, -1.2, -2.85]], 0.11);
+    if (S === 'wrap' || tall) {
+      // Side plates back past where you stand, chest high, with their back top corners cut away and a vision slot.
+      const sTop = tall ? 1.6 : 1.5, sBot = -2.0, z0 = -1.4, z1 = 7.6;
+      for (const sd of [-1, 1]) {
+        const x = sd * 3.5;
+        P([0.24, sTop - sBot, z1 - z0], [x, (sTop + sBot) / 2, (z0 + z1) / 2], [0, 0, sd * 0.1]); // leaning in a touch
+        C([1.4, 1.8, 1.8], [x, sTop, z1], [Math.PI / 4, 0, 0]);
+        C([1.4, 0.28, 1.6], [x, 0.7, 1.2]); // a vision slot
+        bolts([[x - sd * 0.2, sTop - 0.3, z0 + 0.6], [x - sd * 0.2, sBot + 0.3, z0 + 0.6], [x - sd * 0.2, sBot + 0.3, z1 - 0.8]]);
+      }
     }
+    if (tall) {
+      // The cage: a welded frame of tube over the top and round the back, so it's closed in but you can see out.
+      const top = 4.4, zf = -2.6, zb = 8.6, X = 3.4;
+      for (const sd of [-1, 1]) {
+        T([[sd * X, 1.6, zf + 1.5], [sd * X, top, zf + 1.5]]); // front posts
+        T([[sd * X, 1.6, zb], [sd * X, top, zb]]); // back posts
+        T([[sd * X, 1.6, (zf + zb) / 2 + 1], [sd * X, top, (zf + zb) / 2 + 1]]); // middle posts
+        T([[sd * X, top, zf + 0.2], [sd * X, top, zb]]); // top rails
+        T([[sd * X, 1.7, zf + 1.5], [sd * X, top - 0.1, (zf + zb) / 2 + 1]], 0.08); // a diagonal brace each side
+      }
+      for (const z of [zf + 0.2, zf + 3.2, zb - 3.2, zb]) T([[-X, top, z], [X, top, z]]); // the roof bars
+      T([[-X, 2.8, zb], [X, 2.8, zb]]); T([[-X, 1.6, zb], [X, 1.6, zb]]); // the back
+      T([[0, top, zf + 0.2], [0, top, zb]], 0.08); // a spine
+    }
+    sc.uv(plate, 0.5);
+    const k = new THREE.Group();
+    sc.build(k);
+    g.add(k);
     return g;
   },
   // A whole roof mount (gun, pintle, shield, base ring) for the garage and the shop pictures.
