@@ -53,6 +53,23 @@ Each sponsor has a taste, a weekly stipend and a perk, and sets you a goal each 
 
 You hold a few sponsors at once. Disappoint one show after show and they drop you, live on air.
 
+**Decided: sponsors put their colours on you.** Signing with a sponsor means racing in their livery and carrying
+their guns:
+- **Car liveries:** each sponsor has its own paint scheme, decals and bolt-on kit.
+  - Helix: hospital white and green crosses.
+  - Aureum: black and gold, polished trim.
+  - Crown Bank: navy and banknote patterns.
+  - Warden Corp: prison orange and hazard stripes.
+- **Gun finishes:** each sponsor also has a finish for your guns: Helix's lab-white polymer, Aureum's gold leaf,
+  Crown Bank's engraved steel, Warden Corp's riot-orange.
+- **Several sponsors:** the main sponsor (the first you signed) owns the paint; the others get their decals on the
+  doors and bonnet.
+- **Dropped:** the livery comes off. The car shows up with patches of bare primer where their logos were.
+- **Keeping it:** finish a season with a sponsor still signed and their livery and gun finish unlock for good in the
+  paint booth.
+
+**Open:** whether you can refuse to wear the colours (a smaller stipend) or it's part of every contract.
+
 ### Urgency: the schedule doesn't wait
 
 **Decided.** Each block runs for a fixed number of nights, then its **special** airs whether you're ready or not:
@@ -79,6 +96,22 @@ channel and pay, its format, who's on (named rivals, a vendetta, sometimes a bos
   - *Late Night Garage*: repairs.
   - *Phone-ins and talk shows*: the events.
   - *Pirate broadcasts*: the black market, sometimes.
+
+### Venues: each format has its own kind of place
+
+**Decided.** Not every show is on a race track; the venue fits the format:
+
+| Format | Venue | What it's like |
+| --- | --- | --- |
+| The Derby | a **circuit** (the tracks we have now) | laps, positions, the classic |
+| Demolition Hour | an **arena**: a walled bowl, a stadium floor, a scrapyard pit | no laps; circle, ram and shoot; ramps, pillars and the crowd right there; last car running |
+| The Convoy | a **highway**, point to point | a long run with traffic lanes, overpasses and tunnels; the guard truck and its outriders ahead |
+| Manhunt | **city streets**, an open grid | blocks, alleys and crossroads; rivals come at you from side streets; survive the clock or get to the exit |
+| Against the Clock | a **gauntlet** course | jumps, crushers, fire jets, collapsing floors; no rivals |
+| Escort | a **route through the district**, point to point | narrow sections and ambush points; protect the car in front |
+
+Each venue is generated in the district's style (Undercity concrete, Stacks factories, Terraces marble, Crown
+neon), so a Demolition Hour in the Stacks is a different place from one in the Crown.
 
 ### Length
 
@@ -224,12 +257,14 @@ work, that work comes before any of this.
 2. **The TV guide and the season.** The four blocks, nights and specials, channel gates by viewers, pay and
    difficulty by channel. This replaces the route sheet.
 3. **Sponsors.** Offers at viewer thresholds, tastes, stipends, per-show goals, getting dropped.
-4. **New show formats,** one at a time: Demolition Hour, The Convoy, Manhunt, then Against the Clock and Escort.
-5. **The snapshot and the champion boss.** Save the snapshot on taking the deal; build the title race and the
+4. **New show formats and their venues,** one at a time: Demolition Hour (the arena), The Convoy (the highway),
+   Manhunt (the city grid), then Against the Clock (the gauntlet) and Escort.
+5. **Sponsor liveries and gun finishes,** after sponsors exist.
+6. **The snapshot and the champion boss.** Save the snapshot on taking the deal; build the title race and the
    champion from it.
-6. **The deal moment and both endings.** Halloran's offer, the two ending sequences, the run ending.
-7. **The callbacks.** Graffiti, billboards and the memorial for champions, freed inmates and lifers.
-8. **Identity.** Crime and perk, mugshot, the radio voice.
+7. **The deal moment and both endings.** Halloran's offer, the two ending sequences, the run ending.
+8. **The callbacks.** Graffiti, billboards and the memorial for champions, freed inmates and lifers.
+9. **Identity.** Crime and perk, mugshot, the radio voice.
 
 ## 7. How we'll know it works
 
