@@ -255,6 +255,26 @@ below. A chalkboard shows the act, race, scrap, strikes and a tally of races
 survived. In the upper-city acts the sponsors have smartened the garage up, and the commissary becomes a
 concierge. See `js/garage3d.js`.
 
+### Your driver's bond (prototype)
+
+Your driver gets to know you (`js/bond.js`). Bond grows with every second you race together, every rival
+you put out, every order that lands, every finish (more for a podium or a win, and a lot for a boss). Each
+round you put into them costs you. Bond is kept per driver: a bench driver keeps theirs, and a new
+recruit starts as a stranger.
+
+| Level | XP | Adds |
+|---|---|---|
+| Stranger | 0 | Does what they're told, slowly |
+| Cellmate | 60 | Acts on your orders about twice as fast |
+| Partner | 170 | Tighter driving: +4% corner grip and a sharper line |
+| Ride or Die | 330 | Orders held 50% longer, and no flinch when hit |
+| Family | 540 | Calls out incoming rockets and missile locks on the radio |
+
+On the radio they remember what you've been through. Before the start they bring up your kills, your wins,
+the boss you beat, last night's bad finish or the time you shot them, and they count kills out loud as they
+go. The Workshop shows the level, progress, the record and the perks. When a driver dies, the results say
+how long you rode together.
+
 ### Your car's history (prototype)
 
 The car remembers the run (`js/history.js`). All of it lives on the build, so it ends with the run:
@@ -593,6 +613,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
 | `js/ragdoll.js` | Ragdolls: who gets thrown out of a wrecked car, and the verlet bodies that tumble down the road |
+| `js/bond.js` | Your driver's bond: XP from racing together, levels and their perks, the radio lines about your shared history |
 | `js/history.js` | The car's history: its name, kill marks, scars and boss trophies, and how they're drawn |
 | `js/infamy.js` | Infamy (earning it, the live feed), the Fan Club's goods, The Crowd Turns, the run record and what the walls say about you |
 | `js/build.js` (`ROOF_SHIELDS`), `js/combat.js` (`toggleRoof`, `exposedHit`) | The roof gun: the mount, shielding, climbing up, exposure |

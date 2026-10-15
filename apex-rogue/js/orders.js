@@ -80,7 +80,8 @@ Object.assign(Combat.prototype, {
     const target = def.needsTarget ? Emotes.target(this, aim) || (kind === 'ram' ? null : this.nearestAhead()) : null;
     if (def.needsTarget && !target) { this.radio(ORDER_DONE.none); this.orderCd = 0.8; return false; }
     const C = ORDER_CHIP[this.build.chip] || {}, k = C[kind] ?? 1;
-    D.order = { kind, target, t: def.t, delay: C.delay ?? ORDER.delay, k, done: null };
+    const B = this.bondPerks || {}; // a driver who knows you acts sooner and holds on longer (js/bond.js)
+    D.order = { kind, target, t: def.t * (B.hold || 1), delay: (C.delay ?? ORDER.delay) * (B.delay || 1), k, done: null };
     this.orderCd = def.cd;
     this.lastOrder = kind;
     this.radio((C.line && C.line[kind]) ? [C.line[kind]] : def.ack);
@@ -105,7 +106,7 @@ Object.assign(Combat.prototype, {
     if (!O) return;
     if (O.delay > 0) O.delay -= dt; else O.t -= dt;
     if (O.done) {
-      if (O.done === 'hit') this.events.push({ type: 'crowd' });
+      if (O.done === 'hit') { this.events.push({ type: 'crowd' }); if (this.bondEvent) this.bondEvent('order'); }
       this.radio(ORDER_DONE[O.done] || ORDER_DONE.timeout);
       this.driver.order = null;
     }

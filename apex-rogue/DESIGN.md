@@ -54,9 +54,14 @@ goals should ask for them ("ram three cars tonight").
 
 **Built** (`js/crew.js`). A recruited inmate drives, not an autopilot: chips became drivers with randomized prison
 names, a mugshot and a habit. Collared like you (the leash that keeps the car on course). Win the Crown and you both
-walk free; **planned:** take the deal and your driver stays on as the champion's driver. **Built:** friendly fire (you can shoot your own driver: wounds, death, replacement). **Next:** rival fire
-through your windscreen can wound your driver (worse driving until patched), the blast hatch protecting them;
-drivers who die are replaced from the block; the walls and the fan mail talk about your driver too.
+walk free; **planned:** take the deal and your driver stays on as the champion's driver. **Built:** friendly fire
+(you can shoot your own driver: wounds, death, replacement), rival fire through the glass, and the **bond**
+(`js/bond.js`): XP from racing together, five levels from Stranger to Family that make them quicker on orders,
+tighter on the line, steadier under fire and finally a second pair of eyes, and radio lines that remember your
+shared history. **Next:** the walls and the fan mail talk about your driver too.
+
+**Built: the car remembers** (`js/history.js`): a name on the bonnet and in the broadcast, kill marks, scars until
+repaired, boss trophies bolted on.
 
 ### Infamy: the currency you spend
 

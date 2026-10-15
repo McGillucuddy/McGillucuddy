@@ -644,3 +644,10 @@ body.proto #ui { z-index: 2; }
 /* The car's name and record, top of the garage (js/history.js) */
 .car-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .car-name-row .car-name { width: 190px; font-size: 15px; background: #1b1a17; color: #e8e0c8; border-color: #4a463c; }
+/* Bond with your driver (js/bond.js) */
+.bond-row { display: flex; align-items: center; gap: 8px; margin: 4px 0 2px; }
+.bond-lv { font-weight: bold; color: #2d5f8a; min-width: 90px; }
+.bond-bar { width: 140px; }
+.bond-bar > div { background: #5a9bd0 !important; }
+.bond-perks { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; color: #8a8576; }
+.bond-perks .on { color: #2d5f8a; }

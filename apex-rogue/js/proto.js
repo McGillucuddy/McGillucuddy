@@ -927,7 +927,8 @@ const Proto = {
     const stats = buildStats(b);
     if (biome === 'tundra') stats.grip *= stats.iceGrip;
     const chipLat = { cautious: 0.85, hothead: 1.08, daredevil: 1.04, veteran: 1.06 }[b.chip] || 1;
-    stats.aLat = (1050 + 650 * 0.15) * Math.sqrt(track.biome.grip) * chipLat;
+    const bondP = Bond.perks(node.tutorial ? 0 : Bond.level(Bond.rec(b).xp)); // how well your driver knows you (js/bond.js)
+    stats.aLat = (1050 + 650 * 0.15) * Math.sqrt(track.biome.grip) * chipLat * bondP.grip;
     const player = new Car({ name: 'You', color: paintColor(this.cos), accent: '#1d1d1d', isPlayer: true, stats, hp: b.hull });
     const driver = new AIDriver(player, 0.95, rng);
     driver.rammer = b.chip === 'hothead';
@@ -989,7 +990,8 @@ const Proto = {
     this.combat.tutorial = !!node.tutorial;
     this.combat.inmate = this.cos.inmate || '4471'; // for the broadcast's captions
     this.combat.crew = Crew.current(b); // your driver, for the radio (js/crew.js)
-    driver.skill = 0.95 - DRIVER.wobble * (1 - Crew.hp(b) / DRIVER.hp); // still nursing a wound from last time
+    driver.skill = 0.95 - DRIVER.wobble * (1 - Crew.hp(b) / DRIVER.hp) + bondP.skill; // still nursing a wound from last time
+    this.combat.bondPerks = bondP;
     this.combat.crowdTurns = !node.tutorial && !!run.flags.crowd; // bought at the Fan Club (js/infamy.js)
     // Bounties on every rival (the bounty stop's most-wanted keeps its big one).
     if (!node.tutorial) for (const c of this.race.cars) if (c !== player && !c.isBoss) c.bounty = Math.max(c.bounty || 0, rivalBounty(c, run.act, node.type === 'elite'));
@@ -1013,7 +1015,11 @@ const Proto = {
     if (!this.tutorial && this.race) Playtest.raceStart({ act: this.run.act, type: this.race.node && this.race.node.type, boss: this.race.boss && this.race.boss.name, weather: this.race.weather });
     this.setUI('');
     if (this.view === 'cockpit') this.lock();
-    if (!this.tutorial && this.race && this.combat && this.combat.crew) this.race.message(`On air: ${this.combat.inmate} and ${this.combat.crew.short} in ${CarHistory.name(this.build)}`, '#c9c2a8');
+    if (!this.tutorial && this.race && this.combat && this.combat.crew) {
+      this.race.message(`On air: ${this.combat.inmate} and ${this.combat.crew.short} in ${CarHistory.name(this.build)}`, '#c9c2a8');
+      const line = Bond.opener(Bond.rec(this.build), Math.random, this.combat.inmate); // something you've been through together
+      if (line) this.combat.radio([line]);
+    }
   },
 
   // Whatever you picked from your pocket goes in now, plus the comedown from last race's.
@@ -1286,6 +1292,8 @@ const Proto = {
     if (run.flags.bet) { if (p.place <= 2) betPay = run.flags.bet; run.flags.bet = 0; }
     b.scrap += placePay + wreckPay + bossPay + betPay + bountyPay + vendPay - sponsorCut;
     b.hull = Math.max(Math.round(b.maxHull * CREW_PATCH), Math.round(p.hp)); // the crew patches a wreck back to running; the rest is yours to pay for
+    const bondWas = this.tutorial ? null : Bond.info(b); // before a dead driver's place is taken
+    const bond = this.tutorial || this.combat.crewDone ? null : this.combat.bondAfterRace(p.place, ok, boss && boss.name); // js/bond.js
     const lost = this.tutorial || this.combat.crewDone ? null : Crew.afterRace(b, run, !!this.combat.ownDriverDead); // your driver: heals, or is replaced
     if (!this.tutorial && !this.combat.crewDone) Crew.gunnerAfterRace(b, !!this.combat.gunnerOut);
     if (lost) lost.by = this.combat.driverKilledBy;
@@ -1329,7 +1337,8 @@ const Proto = {
           ${vres && vres.settled.length ? `<div><span>☠ Vendetta settled: ${vres.settled.map((v) => v.name + (v.over === 'dead' ? ' (for good)' : '')).join(', ')}</span><b>${vendPay} scrap</b></div>` : ''}
           ${vres && vres.escaped.length ? `<div class="unlock small">☠ ${vres.escaped.map((v) => v.name).join(', ')} got away. They're still out there.</div>` : ''}
           ${(() => { if (this.tutorial) return ''; const h = CarHistory.of(b), k = race.cars.filter((c) => c !== p && c.downed && c.downed.how !== 'crowd').length, tr = boss && ok ? BOSSES[run.act] : null; return k || tr ? `<div class="unlock small">${k ? `${k} more kill mark${k === 1 ? '' : 's'} stencilled on <b>${h.name}</b> (${h.kills.length} in all).` : ''}${tr ? ` ${tr.name}'s trophy gets bolted on.` : ''}</div>` : ''; })()}
-          ${lost ? `<div class="unlock" style="color:#ff6b5a">☠ ${lost.by === 'rival' ? `They shot ${lost.was.name} through the glass.` : `You shot ${lost.was.name}.`} They're dead. The block sends ${lost.now.name} to drive for you.</div>` : ''}
+          ${lost ? `<div class="unlock" style="color:#ff6b5a">☠ ${lost.by === 'rival' ? `They shot ${lost.was.name} through the glass.` : `You shot ${lost.was.name}.`} They're dead${bondWas && bondWas.r.races ? ` after ${bondWas.r.races + 1} race${bondWas.r.races ? 's' : ''} together (${bondWas.name})` : ''}. The block sends ${lost.now.name} to drive for you.</div>` : ''}
+          ${bond ? `<div class="unlock small" style="color:#9fd0ff">Bond with ${this.combat.crew.short}: <b>${bond.got >= 0 ? '+' : ''}${bond.got}</b> · ${bond.info.name}${bond.up ? ' (new level!)' : ''}${bond.info.nextName ? ` · ${Math.ceil(bond.info.next)} to ${bond.info.nextName}` : ''}</div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
           ${this.tutorial ? '' : `<div class="infamy-row"><span>Infamy${fameGot ? ` <small class="muted">${Object.entries(fameWhy).map(([w, n]) => `${w.toLowerCase()} ${n}`).join(', ')}</small>` : ' <small class="muted">nobody noticed you</small>'}</span><b>+${fameGot} (${b.infamy})</b></div>`}
           ${slow}
@@ -1419,7 +1428,7 @@ const Proto = {
         ${alts ? `<div class="alts"><small class="muted">In your stash:</small> ${alts}</div>` : ''}
       </div>`;
     }).join('');
-    const chips = b.stash.chips.map((id, i) => `<button class="btn small" data-action="equip-chip" data-arg="${i}" title="${CHIPS[id].name}: ${CHIPS[id].desc}">Swap in ${Crew.id(id).name} (${CHIPS[id].name})</button>`).join('');
+    const chips = b.stash.chips.map((id, i) => `<button class="btn small" data-action="equip-chip" data-arg="${i}" title="${CHIPS[id].name}: ${CHIPS[id].desc}">Swap in ${Crew.id(id).name} (${CHIPS[id].name}, ${Bond.info(b, id + ':' + ((b.crewGen && b.crewGen[id]) || 0)).name})</button>`).join('');
     const hist = CarHistory.of(b), scars = CarHistory.shown(b).length;
     return `<div class="garage-grid one">
       <div class="panel">
@@ -1434,7 +1443,10 @@ const Proto = {
         ${slots}
         <p class="small">Spare part: <b>${b.spare ? PARTS[b.spare.id].name : 'none'}</b> <span class="muted">(press <kbd>B</kbd> mid-race to fit it when that part breaks)</span></p>
         <h3>Your driver</h3>
-        <div class="gp-chip">${(() => { const c = Crew.current(b); return `<b>${c.name}</b> <small class="muted">#${c.number} · ${b.chip ? `${CHIPS[b.chip].name}: ${CHIPS[b.chip].desc}` : 'whoever the block sent you: no particular habits'}</small>${Crew.hp(b) < DRIVER.hp ? `<br><span class="bad small">Wounded: ${Math.round((100 * Crew.hp(b)) / DRIVER.hp)}%. Drives worse until patched up.</span> <button class="btn tiny" data-action="patch-driver" ${b.scrap < Crew.patchCost(b) ? 'disabled' : ''}>Patch up: ${Crew.patchCost(b)} scrap</button>` : ''}`; })()}</div>
+        <div class="gp-chip">${(() => { const c = Crew.current(b); const bi = Bond.info(b); return `<b>${c.name}</b> <small class="muted">#${c.number} · ${b.chip ? `${CHIPS[b.chip].name}: ${CHIPS[b.chip].desc}` : 'whoever the block sent you: no particular habits'}</small>
+          <div class="bond-row"><span class="bond-lv">${bi.name}</span><div class="bar bond-bar"><div style="width:${Math.round(bi.f * 100)}%"></div></div><small class="muted">${bi.nextName ? `${Math.ceil(bi.next)} to ${bi.nextName}` : 'as close as it gets'}</small></div>
+          <small class="muted">${bi.r.races ? `${bi.r.races} race${bi.r.races === 1 ? '' : 's'} together · ${bi.r.kills} kill${bi.r.kills === 1 ? '' : 's'}${bi.r.wins ? ` · ${bi.r.wins} win${bi.r.wins === 1 ? '' : 's'}` : ''}${bi.r.ff ? ` · you've shot them ${bi.r.ff === 1 ? 'once' : bi.r.ff + ' times'}` : ''}` : 'You haven\'t raced together yet.'}</small>
+          <div class="bond-perks small">${BOND_LEVELS.slice(1).map((L, i) => `<span class="${bi.lv > i ? 'on' : ''}" title="${L.perk}">${bi.lv > i ? '✔' : '·'} ${L.name}: ${L.perk}</span>`).join('')}</div>${Crew.hp(b) < DRIVER.hp ? `<br><span class="bad small">Wounded: ${Math.round((100 * Crew.hp(b)) / DRIVER.hp)}%. Drives worse until patched up.</span> <button class="btn tiny" data-action="patch-driver" ${b.scrap < Crew.patchCost(b) ? 'disabled' : ''}>Patch up: ${Crew.patchCost(b)} scrap</button>` : ''}`; })()}</div>
         ${Crew.gunnerHp(b) < GUNNER.hp ? `<div class="gp-chip"><b>You</b> <span class="bad small">Wounded: ${Math.round((100 * Crew.gunnerHp(b)) / GUNNER.hp)}%. Your aim shakes until you're stitched up.</span> <button class="btn tiny" data-action="patch-gunner" ${b.scrap < Crew.gunnerPatchCost(b) ? 'disabled' : ''}>Stitch up: ${Crew.gunnerPatchCost(b)} scrap</button></div>` : ''}
         ${chips ? `<div class="alts">${chips}</div>` : ''}
       </div>

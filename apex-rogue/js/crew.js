@@ -92,6 +92,7 @@ Object.assign(Combat.prototype, {
   hitOwnDriver(dmg, part, n) {
     if (this.tutorial || this.ownDriverDead || Settings.data.friendlyFire === false) return;
     this.hurtDriver(dmg * (n || 1) * (part === 'head' ? DRIVER.head : 1), 'you', part);
+    if (this.bondEvent) this.bondEvent('ff'); // it costs you with them (js/bond.js)
   },
 
   // Your driver takes a wound: from you (friendly fire) or from a rival's round through the glass.
@@ -102,7 +103,7 @@ Object.assign(Combat.prototype, {
     this.events.push({ type: 'ownDriverHit', part });
     this.driverHurtT = 0.6;
     if (this.driver) {
-      this.driver.swerve(this.rng() < 0.5 ? -1 : 1, 0.35); // they flinch, and the car with them
+      if (!(this.bondPerks && this.bondPerks.steady)) this.driver.swerve(this.rng() < 0.5 ? -1 : 1, 0.35); // they flinch, and the car with them (unless the bond's that strong)
       this.driver.skill = 0.95 - DRIVER.wobble * (1 - b.driverHp / DRIVER.hp); // and drive worse for it
     }
     const c = this.crew || Crew.current(b);

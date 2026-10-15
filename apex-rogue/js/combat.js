@@ -649,6 +649,7 @@ class Combat {
       if (c.cookT > 0 && (c.cookT -= dt) <= 0) { this.explode(c.x, c.y, 60, 14, null, 'wreck'); this.race.message(`${shortName(c)}'s tank goes up!`, '#ffb070'); }
     }
     if (this.updateOrders) this.updateOrders(dt); // js/orders.js
+    if (this.updateBond) this.updateBond(dt); // js/bond.js
     this.yellCd = Math.max(0, (this.yellCd || 0) - dt);
     this.driverHurtT = Math.max(0, (this.driverHurtT || 0) - dt);
     if (this.big) this.big.t += dt;
@@ -1107,6 +1108,7 @@ class Combat {
       let n = this.fame(how === 'driver' ? INFAMY.clean : INFAMY.wreck, how === 'driver' ? 'CLEAN KILL' : 'WRECK');
       if (this.exposed) n += this.fame(INFAMY.roofWreck, 'FROM THE ROOF');
       this.wreckMoment(c, how, n); // the broadcast cuts to you, if it was one to remember
+      if (this.bondEvent) this.bondEvent(how === 'driver' ? 'clean' : 'kill'); // your driver remembers it (js/bond.js)
     }
   }
 
