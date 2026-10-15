@@ -110,6 +110,8 @@ class AIDriver {
         if (fwd > -10 && fwd < 120 && Math.abs(o.lat - car.lat) < tr.hw) { lane = clamp(o.lat / tr.hw, -0.8, 0.8); break; }
       }
     }
+    // Orders from the gunner (js/orders.js): ram, get alongside, tail.
+    if (this.orderLane) lane = this.orderLane(race, lane);
     // An ordered swerve overrides the racing line for a moment.
     if (this.forceT > 0) {
       this.forceT -= dt;
@@ -147,6 +149,8 @@ class AIDriver {
     else if (car.nitro > 60 && target > car.stats.top * 1.3 && this.rng() < dt * 0.6 * this.skill) {
       this.nitroHold = randRange(this.rng, 1, 2.5);
     }
+
+    if (this.orderSpeed) ({ throttle, brake, nitro } = this.orderSpeed({ throttle, brake, nitro }, speed, target)); // floor it, ease off...
 
     // Unstick: reverse briefly, then reset onto the track if still stuck.
     if (speed < 40 && race.state === 'racing') this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt);

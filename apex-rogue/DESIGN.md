@@ -42,6 +42,14 @@ gets you booked on higher channels.
 - **Channel gates:** each channel needs a number of viewers to book you. The guide shows the channels you can't get
   on yet, greyed out with their price in viewers, so you always see what you're climbing towards.
 
+### Driver orders
+
+**Built** (`js/orders.js`). You stay the gunner; the driver takes orders. Middle mouse rams the car under your
+crosshair; a C wheel gives get alongside, tail them, floor it and ease off (which steadies your aim). Orders take a
+moment, run 6-8 seconds and the driver reports back on the radio; chips change how keen they are. Swerves (A/D)
+stay instant. **Open:** whether orders should cost something (a cooldown is all for now), and whether sponsors'
+goals should ask for them ("ram three cars tonight").
+
 ### Infamy: the currency you spend
 
 **Built** (`js/infamy.js`). Viewers are what you climb with; **Infamy** is what you spend. Both come from the same

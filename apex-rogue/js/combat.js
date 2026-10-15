@@ -196,6 +196,7 @@ class Combat {
     const d = BlackMarket.apply(weaponStats(this.weapon), this.buffs);
     if (this.exposed) { d.spread *= ROOF.steady; d.bloom = (d.bloom || 0) * ROOF.steady; } // braced on the mount
     if (this.flinchT > 0) d.spread *= 2.2; // just hit: your aim's all over the place
+    if (this.orderAiming) d.spread *= ORDER.easeAim; // you told the driver to ease off: a steadier platform
     return d;
   }
   get busy() { return this.fitT > 0 || this.climbT > 0; }
@@ -616,6 +617,7 @@ class Combat {
     this.updateTilt(dt); // js/emotes.js
     if (this.updateCrowd) this.updateCrowd(dt); // js/infamy.js
     if (this.checkEjections) this.checkEjections(); // js/ragdoll.js
+    if (this.updateOrders) this.updateOrders(dt); // js/orders.js
     if (this.big) this.big.t += dt;
     for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1) * ((this.buffs && this.buffs.cdRate) || 1);
     this.swerveCd -= dt;

@@ -17,7 +17,8 @@ beat Marlowe and you walk free. Between races you're in a garage: repair, rearm,
 
 Mouse aims and looks around; left click fires; `1`/`2`/`3` or wheel switch guns; `R` reloads; right click or `G`
 throws a grenade; hold `Space` to slam the **blast hatch** (a steel plate over the windscreen: blocks fire, and timed
-right it bats a rocket back); `E`/`F` abilities; `A`/`D` order the driver to swerve; `T` flips off a rival (tilts
+right it bats a rocket back); `E`/`F` abilities; `A`/`D` order the driver to swerve; middle mouse orders a ram on the car you're aiming at; hold `C` for the
+order wheel (get alongside, tail them, floor it, ease off); `T` flips off a rival (tilts
 them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 
 ## Core systems
@@ -56,6 +57,8 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   boss beaten, win by a nose) get a C9TV caption over the dash, a crowd roar, a beat of slow motion and a TV flicker
   at the edges. Wrecked cars can throw their crew out as tumbling ragdolls. Routine pop-ups are now a small corner
   feed.
+- **Driver orders:** middle mouse "Ram them!", and a C wheel for get alongside / tail / floor it / ease off (easing
+  off steadies your aim). The driver answers on the radio; chips change how keen they are.
 - **The TV:** you pick each stop on a CRT, flipping channels: races are named shows, the commissary is home
   shopping, the mechanic a test card, events the news, the boss a special presentation. The route sheet is now the
   TV guide.
@@ -73,7 +76,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 
 ## What changed most recently
 
-The TV channel screen; big-moment broadcast captions, slow motion and ragdoll ejections; the corner kill feed; Infamy and the Fan Club; graffiti that reacts to your run; bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
+Driver orders; the TV channel screen; big-moment broadcast captions, slow motion and ragdoll ejections; the corner kill feed; Infamy and the Fan Club; graffiti that reacts to your run; bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
 tolerance; item pictures on all cards; the Typewriter's drum turned square to the barrel; magazine wells on every
 mag-fed gun with straight-in reloads; the Grinder LMG's belt reload (feed cover up, belt laid in the tray, cover
 slammed); the roof-mounted machine guns with shielding tiers; a shorter race briefing.

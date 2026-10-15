@@ -135,8 +135,9 @@ const Proto = {
     window.addEventListener('mousemove', (e) => {
       this.mouse.x = e.clientX;
       this.mouse.y = e.clientY;
-      if (this.locked && this.emoteHold && this.emoteHold.open) { // steering the emote wheel
-        const E = this.emoteHold;
+      const wheel = (this.emoteHold && this.emoteHold.open && this.emoteHold) || (this.orderHold && this.orderHold.open && this.orderHold);
+      if (this.locked && wheel) { // steering the emote or order wheel
+        const E = wheel;
         E.x = clamp(E.x + e.movementX, -120, 120); E.y = clamp(E.y + e.movementY, -120, 120);
       } else if (this.locked && this.cockpit) {
         const l = this.cockpit.look;
@@ -151,6 +152,7 @@ const Proto = {
       if (this.view === 'cockpit' && !this.locked) { this.lock(); return; }
       if (e.button === 0) { this.mouse.down = true; this.mouse.pressed = true; }
       if (e.button === 2) this.throwGrenade();
+      if (e.button === 1) { e.preventDefault(); this.combat.order('ram', this.aimAngle()); } // "Ram them!" (js/orders.js)
     });
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.down = false; });
     this.c2d.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1096,6 +1098,27 @@ const Proto = {
     this.combat.emote(id, this.aimAngle());
   },
 
+  // Orders: tap C to repeat your last order, hold it for the wheel (js/orders.js).
+  updateOrderKey(dt) {
+    const E = this.orderHold;
+    if (!E && Input.consume('KeyC')) { this.orderHold = { t: 0, x: 0, y: 0, open: false }; return; }
+    if (!E) return;
+    E.t += dt;
+    if (E.t > 0.18) E.open = true;
+    if (Input.keys.has('KeyC')) return;
+    this.orderHold = null;
+    let id = this.combat.lastOrder || 'alongside';
+    if (E.open) {
+      if (Math.hypot(E.x, E.y) < 30) return;
+      id = this.orderAt(E);
+    }
+    this.combat.order(id, this.aimAngle());
+  },
+  orderAt(E) {
+    const a = Math.atan2(E.y, E.x);
+    return ORDER_WHEEL[Math.round(((a + Math.PI / 2 + TAU) % TAU) / (Math.PI / 2)) % 4];
+  },
+
   emoteAt(E) { // up, right, down, left
     const a = Math.atan2(E.y, E.x);
     return EMOTE_ORDER[Math.round(((a + Math.PI / 2 + TAU) % TAU) / (Math.PI / 2)) % 4];
@@ -1157,7 +1180,8 @@ const Proto = {
           <div class="ctl"><kbd>T</kbd> Flip off a rival (hold for the emote wheel)</div>
           <div class="ctl"><kbd>Space</kbd> (hold) Blast hatch · <kbd>E</kbd> / <kbd>F</kbd> Abilities · <kbd>B</kbd> Fit your spare part</div>
           ${this.build.roof && this.build.roof.gun ? `<div class="ctl"><kbd>V</kbd> Up to the ${WEAPONS[this.build.roof.gun.id].name} on the roof, and back down</div>` : ''}
-          <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
+          <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve · <kbd>MMB</kbd> "Ram them!" at the car you're aiming at</div>
+          <div class="ctl"><kbd>C</kbd> (hold) Orders: get alongside, tail them, floor it, ease off (a steadier aim). Tap to repeat.</div>
           <div class="ctl"><kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
           <p class="muted small">Shoot rockets and mines out of the air with bullets. Red laser = a gunner is locking on to you.</p>
           </details>
@@ -1680,6 +1704,7 @@ const Proto = {
     if (Input.consume('KeyF')) combat.activateAbility(1);
     combat.setHatch(Input.keys.has('Space'));
     this.updateEmoteKey(dt);
+    this.updateOrderKey(dt);
     if (Input.consume('KeyB')) combat.fitSpare();
     if (Input.consume('KeyV') || Input.consume('Digit4')) combat.toggleRoof(); // up into the roof hatch to the mounted gun, or back down
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
@@ -2008,6 +2033,7 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     ctx.restore();
   }
   drawEmoteWheel(ctx, P, W, H);
+  drawOrderWheel(ctx, P, W, H);
 
   // Threat ring: arcs pointing at locks and incoming rockets.
   const R = Math.min(W, H) * 0.3;
@@ -2095,6 +2121,7 @@ function drawCockpitHUD(ctx, P, W, H, t) {
   ctx.fillStyle = 'rgba(255,255,255,0.8)';
   ctx.font = `13px ${hudFont()}`;
   ctx.fillText(`Lap ${p.finished ? race.laps : lap}/${race.laps}`, 74, 35);
+  drawOrderStatus(ctx, P);
 
   if (PSX.enabled) {
     // Chunky name tags drawn on the crisp HUD layer (3D text would be mush at 240p).
@@ -2104,7 +2131,8 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     for (const tg of P.cockpit.tags(W, H).sort((a, b2) => a.d - b2.d)) {
       // Only the ones close by, or the one you're aiming at; never two on top of each other.
       const aimed = Math.hypot(tg.x - W / 2, tg.y - H / 2) < 110;
-      if (tg.d > 520 && !aimed) continue;
+      if (tg.d > 520 && !aimed && !tg.target) continue;
+      if (tg.target) tg.label = '▼ ' + tg.label; // the car your driver's after
       if (shown.some((s) => Math.abs(s.x - tg.x) < 90 && Math.abs(s.y - tg.y) < 18)) continue;
       shown.push(tg);
       if (aimed && tg.bounty) tg.label += ' $' + tg.bounty;

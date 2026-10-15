@@ -119,6 +119,16 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
 
 - The car's AI drives. You aim with the mouse and fire whatever's on your rack, starting with the **pistol**,
   throw **grenades** (look higher to throw further), slam the **blast hatch**, and order the driver to **swerve**.
+- **Driver orders** (`js/orders.js`). You don't drive, but you can shout. **Middle mouse**: "Ram them!" at the car
+  under your crosshair (the driver lines up on it at full throttle, braking late, nitro when there's room, and calls
+  it when you make contact). **Hold C** for the order wheel: **Get alongside** (pull level with your target for a
+  broadside), **Tail them** (sit about 90 back on their bumper), **Floor it** (full throttle, braking only well past
+  the safe speed, nitro), **Ease off** (back off to about 70% pace: a steadier platform, your spread drops by a
+  quarter). Tap C to repeat the last order. The driver answers on the radio (in the corner feed), takes a moment
+  to act, and gives up after 6-8 seconds or when the target's wrecked or dropped well behind. The order in force
+  shows under your place, and its target is marked ▼ on its name tag. Driver chips change how orders are taken:
+  the **Hothead** rams at once and harder but only half-eases; the **Cautious** driver hesitates, rams and floors it
+  timidly; the **Daredevil** floors it harder. A/D swerves stay instant.
 - Some rivals are armed: **rocket gunners** paint you with a red laser before firing homing rockets,
   and a **mine layer** drops mines when you're behind it. Shoot rockets and mines out of the air, or
   slam the hatch just as a rocket hits to **parry** it back at the shooter.
