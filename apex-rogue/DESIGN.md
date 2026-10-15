@@ -92,8 +92,7 @@ their guns:
 - **Several sponsors:** the main sponsor (the first you signed) owns the paint; the others get their decals on the
   doors and bonnet.
 - **Dropped:** the livery comes off. The car shows up with patches of bare primer where their logos were.
-- **Keeping it:** finish a season with a sponsor still signed and their livery and gun finish unlock for good in the
-  paint booth.
+- **Keeping it:** a sponsor's livery lasts the run (runs are self-contained).
 
 **Decided: the colours are part of every contract.** You can't sign and refuse to wear them: you're a walking
 billboard.
@@ -168,12 +167,12 @@ Both should land, in different keys: freedom is earned and quiet; the deal is tr
 - **Wrecked for good / killed** (if that becomes a fail state): their name goes on the memorial wall with the season.
 
 **Decided: what each ending leaves behind.**
-- **Walking free unlocks a cosmetic for good**: a "Free" paint (civilian colours with the prison number painted over,
-  or the gate pass stamped on the door), and the inmate's name goes on a "they got out" wall in the garage, so you can
-  see how many you've freed. Freed names also join the Dez arguments on the walls ("4471 WALKED FREE" / "NO HE DIDN'T").
+- **Walking free** is the end of that inmate's story. (Superseded: cross-run cosmetics and a "they got out" wall; runs
+  are self-contained.)
 - **Taking the deal leaves a champion** (section 3).
-- **Rep is the same for both.** Rep is the player's progress across runs, not the inmate's, so beating the Crown boss
-  pays it either way. The choice is about the story and what you leave behind, never about which pays better.
+- **Runs are self-contained (decided).** No reputation, no unlocks, nothing carried between runs but your paint job;
+  scrap and Infamy are the only currencies, and both die with the run. The ending choice is about the story, never
+  about what pays better.
 
 **Decided: the deal is that you never stop racing.** Halloran doesn't let champions retire. That's why Marlowe is
 still out there every season, and the cost of the deal you only see later: your champion fights every inmate after

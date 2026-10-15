@@ -269,7 +269,7 @@ class Garage3D {
       if (k < info.strikes) { g.strokeStyle = '#ff6a5a'; g.beginPath(); g.moveTo(92 + k * 30, 92); g.lineTo(110 + k * 30, 110); g.moveTo(110 + k * 30, 92); g.lineTo(92 + k * 30, 110); g.stroke(); }
     }
     g.fillStyle = '#e8e8e0';
-    g.fillText(`Rep: ${info.rep}`, 12, 140);
+    g.fillText(`Infamy: ${info.rep}`, 12, 140);
     // Tally of races survived.
     for (let k = 0; k < info.race - 1; k++) { const x = 170 + (k % 5) * 8 + Math.floor(k / 5) * 46; g.fillRect(x, 124, 2, 20); if (k % 5 === 4) { g.save(); g.translate(x - 32, 132); g.rotate(-0.4); g.fillRect(0, 0, 40, 2); g.restore(); } }
     this.chalk.tex.needsUpdate = true;
@@ -670,7 +670,7 @@ class Garage3D {
     PSX.apply(D);
     PSX.apply(this.hotRoot);
     PSX.setTextures(this.room, PSX.enabled);
-    this.drawChalk({ act: act.label, race: b.race + 1, of: act.progress, scrap: b.scrap, strikes: b.strikes, maxStrikes: act.maxStrikes, rep: cos.rep });
+    this.drawChalk({ act: act.label, race: b.race + 1, of: act.progress, scrap: b.scrap, strikes: b.strikes, maxStrikes: act.maxStrikes, rep: b.infamy || 0 });
   }
 
   setLook(look) {

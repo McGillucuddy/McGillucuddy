@@ -86,8 +86,8 @@ const EVENTS = [
     id: 'snitch', title: 'The snitch',
     text: 'You overheard the gunners planning an ambush. The warden pays for information.',
     options: [
-      { label: 'Tell the warden', desc: 'Rival gunners start your next race unarmed. You lose 30 reputation.', apply: (b, r) => { r.flags.disarm = true; r.flags.repLoss = 30; return 'Their guns are confiscated. Nobody looks you in the eye.'; } },
-      { label: 'Warn the drivers', desc: '+40 reputation.', apply: (b, r) => { r.flags.repGain = 40; return 'Word gets round that you are solid.'; } },
+      { label: 'Tell the warden', desc: 'Rival gunners start your next race unarmed. You lose 15 Infamy: nobody loves a snitch.', apply: (b, r) => { r.flags.disarm = true; b.infamy = Math.max(0, (b.infamy || 0) - 15); return 'Their guns are confiscated. Nobody looks you in the eye.'; } },
+      { label: 'Warn the drivers', desc: '+12 Infamy.', apply: (b, r) => { b.infamy = (b.infamy || 0) + 12; return 'Word gets round that you are solid.'; } },
     ],
   },
   {
@@ -107,7 +107,7 @@ const EVENTS = [
     options: [
       { label: 'Pay him off (60 scrap)', desc: 'Walk away clean.', ok: (b) => b.scrap >= 60, apply: (b) => { b.scrap -= 60; return 'He counts it twice and lets you pass.'; } },
       { label: 'Stand your ground', desc: '50/50: win +80 scrap and +20 rep, or lose 30 hull to sabotage.', apply: (b, r, rng) => {
-        if (rng() < 0.5) { b.scrap += 80; r.flags.repGain = (r.flags.repGain || 0) + 20; return 'He goes down hard. His friends pay you to keep quiet (+80 scrap).'; }
+        if (rng() < 0.5) { b.scrap += 80; b.infamy = (b.infamy || 0) + 6; return 'He goes down hard. His friends pay you to keep quiet (+80 scrap).'; }
         b.hull = Math.max(1, b.hull - 30); return 'You win the fight, but someone loosens your wheel nuts that night (-30 hull).';
       } },
     ],

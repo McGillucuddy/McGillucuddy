@@ -39,7 +39,6 @@ const Proto = {
     }
     this.cos = loadCosmetics();
     Trinkets.inmate = this.cos.inmate; // the number on the Signed Mugshot
-    Meta.rep = this.cos.rep;
     Settings.load();
     Playtest.load();
     this.tab = 'car';
@@ -259,7 +258,6 @@ const Proto = {
       case 'title-new': if (this.titleFrom) this.showTitle(this.titleFrom, 'confirm'); else this.action('new-run'); break;
       case 'continue': this.continueRun(); break;
       case 'how-to': this.showTitle(this.titleFrom, 'howto'); break;
-      case 'unlocks': this.showTitle(this.titleFrom, 'unlocks'); break;
       case 'intro': this.playIntro({ cold: true, from: this.titleFrom }); break;
       case 'exit': this.exitGame(); break;
       case 'abandon': this.gameOver(false); break;
@@ -377,31 +375,14 @@ const Proto = {
     if (panel === 'confirm') {
       side = `<div class="t-panel">
         <h2>Abandon this run?</h2>
-        <p>Your run in ${ACTS[run.act].title} ends here. Paint, finishes and rep are kept.</p>
+        <p>Your run in ${ACTS[run.act].title} ends here. Your paint and finishes are kept; nothing else is.</p>
         <div class="t-row"><button class="btn primary" data-action="new-run">Start over</button><button class="btn" data-action="title">Keep it</button></div>
-      </div>`;
-    } else if (panel === 'unlocks') {
-      const groups = Object.entries(UNLOCK_REP).map(([type, list]) => {
-        const items = Object.entries(list).sort((a, b) => a[1] - b[1]);
-        const got = items.filter(([, r]) => r <= Meta.rep).length;
-        const rows = items.map(([id, r]) => {
-          const it = UNLOCK_TYPES[type][id], on = r <= Meta.rep;
-          return `<li class="${on ? 'on' : 'off'}" title="${it.desc.replace(/"/g, '&quot;')}">${on ? '' : '🔒 '}${it.name}${on ? '' : `<small>${r}</small>`}</li>`;
-        }).join('');
-        return `<h3>${UNLOCK_LABEL[type]} <small>${got}/${items.length}</small></h3><ul class="unlock-list">${rows}</ul>`;
-      }).join('');
-      side = `<div class="t-panel unlocks">
-        <h2>Unlocks</h2>
-        <p>Every run starts with a pistol and a clapped-out car. Gear only turns up in shops and rewards once you've unlocked it with reputation. You earn rep by finishing races, winning, wrecking rivals and beating bosses. It's kept for good.</p>
-        ${this.nextUnlockLine()}
-        ${groups}
-        <button class="btn" data-action="title">Back</button>
       </div>`;
     } else if (panel === 'howto') {
       side = `<div class="t-panel howto">
         <h2>How it works</h2>
         <p>You are a prisoner riding gun in a death race. Climb the channels from public access to prime time and win the Crown to walk free. Finish outside the qualifying places three times and you're back in your cell.</p>
-        <p>Between races: buy and fit parts in the garage, tune them, load the gun rack, and paint the car. Scrap is your money for this run. Reputation is kept for good: it unlocks new gear and paint for every run after.</p>
+        <p>Between races: buy and fit parts in the garage, tune them, load the gun rack, and paint the car. Scrap is your money and Infamy is your fame, both for this run only: every run starts from nothing, with every gun, part and paint job out there to find.</p>
         <h3>In the car</h3>
         <div class="ctl"><kbd>Mouse</kbd> Aim · <kbd>LMB</kbd> Fire · <kbd>R</kbd> Reload</div>
         <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
@@ -421,11 +402,10 @@ const Proto = {
         ${from ? `<button class="btn primary big" data-action="continue">Continue ▶<small>${where}</small></button>` : ''}
         <button class="btn ${from ? '' : 'primary big'}" data-action="title-new">New run</button>
         <button class="btn" data-action="tutorial">Tutorial${Settings.data.tutorialDone ? '' : '<small>New here? Start with a practice race.</small>'}</button>
-        <button class="btn" data-action="unlocks">Unlocks<small>${Object.values(UNLOCK_REP).reduce((n, l) => n + Object.values(l).filter((r) => r <= Meta.rep).length, 0)} of ${Object.values(UNLOCK_REP).reduce((n, l) => n + Object.keys(l).length, 0)} gear unlocked</small></button>
         <button class="btn" data-action="settings">Settings</button>
         <button class="btn" data-action="how-to">How to play</button>
         <button class="btn ghost" data-action="exit">Exit</button>
-        <p class="t-links small"><a href="#" data-action="feedback">Send feedback</a> · <a href="#" data-action="intro">Watch intro</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'} · Rep <b>${this.cos.rep}</b>${window.BUILD ? ` · <span class="muted">${window.BUILD}</span>` : ''}</p>
+        <p class="t-links small"><a href="#" data-action="feedback">Send feedback</a> · <a href="#" data-action="intro">Watch intro</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'} ${window.BUILD ? ` · <span class="muted">${window.BUILD}</span>` : ''}</p>
       </div>
       ${side}
     </div>`);
@@ -736,7 +716,6 @@ const Proto = {
         <div class="cash">${b.scrap} scrap</div>
         <div>Hull <b>${Math.ceil(b.hull)}</b>/${b.maxHull}</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
-        <div>Rep <b>${this.cos.rep}</b></div>
         <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
         <button class="g-settings g-menu" data-action="menu" title="Main menu">☰ Menu</button>
       </div>
@@ -896,8 +875,6 @@ const Proto = {
       <h1>Escape failed</h1>
       <p>Three strikes. The warden sends you back to your cell after ${b.race} race${b.race === 1 ? '' : 's'} and ${b.wins} win${b.wins === 1 ? '' : 's'}.</p>
       <p class="muted">Trinkets collected: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
-      <p>Everything you unlocked stays unlocked. The next inmate gets a better shot.</p>
-      ${this.nextUnlockLine()}
       <button class="btn primary big" data-action="new-run">New run ▶</button>
       <button class="btn" data-action="feedback">Send feedback</button>
       <button class="btn" data-action="menu">Main menu</button>
@@ -909,30 +886,14 @@ const Proto = {
     Playtest.endRun('won the Crown: walked free');
     this.state = 'over';
     this.clearRun();
-    // Walking free is the biggest rep there is.
-    const before = this.cos.rep;
-    this.cos.rep += 150;
-    Meta.rep = this.cos.rep;
-    saveCosmetics(this.cos);
-    const gear = gearUnlockedBetween(before, this.cos.rep);
     this.setUI(`<div class="screen end won">
       <h1>Free</h1>
       <p>You won the Crown. The warden signs two releases in front of the whole upper city, smiling for the cameras: yours, and ${Crew.current(b).name}'s. The collars come off together.</p>
       <p class="muted">${b.race} races · ${b.wins} wins · trinkets: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
-      <p class="unlock">+150 reputation for walking free${gear.length ? `. 🔓 Unlocked: ${gear.map((g) => `<b>${g.name}</b>`).join(', ')}` : ''}</p>
-      ${this.nextUnlockLine()}
       <button class="btn primary big" data-action="new-run">New run ▶</button>
       <button class="btn" data-action="feedback">Send feedback</button>
       <button class="btn" data-action="menu">Main menu</button>
     </div>`);
-  },
-
-  // What the next run is playing for: how far to the next piece of gear.
-  nextUnlockLine() {
-    const next = Object.entries(UNLOCK_REP).flatMap(([type, list]) => Object.entries(list).map(([id, r]) => ({ type, id, r })))
-      .filter((u) => u.r > Meta.rep).sort((a, b) => a.r - b.r)[0];
-    if (!next) return '<p class="muted small">Every piece of gear is unlocked.</p>';
-    return `<p class="muted small next-unlock">Reputation ${Meta.rep} · next unlock: <b>${UNLOCK_TYPES[next.type][next.id].name}</b> at ${next.r}</p>`;
   },
 
   // The game is played from the cockpit; the top-down view is only a fallback for machines without WebGL.
@@ -1339,14 +1300,6 @@ const Proto = {
     b.race++;
     if (p.place === 1) b.wins++;
     if (!ok) b.strikes++;
-    // Reputation persists between runs and unlocks paint-shop options.
-    const repGain = Math.round((raceRep(p.place, s.wrecked) + (boss && ok ? 40 : 0)) * (wx.rep || 1)) + (run.flags.repGain || 0) - (run.flags.repLoss || 0), repBefore = this.cos.rep; // beating a boss makes your name
-    run.flags.repGain = run.flags.repLoss = 0;
-    this.cos.rep += repGain;
-    saveCosmetics(this.cos);
-    Meta.rep = this.cos.rep;
-    const unlocked = allCosmeticOptions().filter((o) => o.rep > repBefore && o.rep <= this.cos.rep).map((o) => o.name);
-    const gear = gearUnlockedBetween(repBefore, this.cos.rep);
     const parts = PART_SLOTS.map((slot) => `<span class="${b.parts[slot].dur <= 0 ? 'bad' : ''}">${SLOT_NAMES[slot]} ${b.parts[slot].dur <= 0 ? 'BROKEN' : Math.round((100 * b.parts[slot].dur) / partMaxDur(b, b.parts[slot].id)) + '%'}</span>`).join(' · ');
     const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : c.wrecked || (c.isPlayer && c.dnf) ? '<b class="bad">WRECKED</b>' : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
     this.setUI(`<div class="screen results">
@@ -1372,10 +1325,6 @@ const Proto = {
           ${lost ? `<div class="unlock" style="color:#ff6b5a">☠ ${lost.by === 'rival' ? `They shot ${lost.was.name} through the glass.` : `You shot ${lost.was.name}.`} They're dead. The block sends ${lost.now.name} to drive for you.</div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
           ${this.tutorial ? '' : `<div class="infamy-row"><span>Infamy${fameGot ? ` <small class="muted">${Object.entries(fameWhy).map(([w, n]) => `${w.toLowerCase()} ${n}`).join(', ')}</small>` : ' <small class="muted">nobody noticed you</small>'}</span><b>+${fameGot} (${b.infamy})</b></div>`}
-          <div><span>Reputation</span><b>+${repGain} (${this.cos.rep})</b></div>
-          ${gear.length ? `<div class="unlock gear">🔓 New gear in the shops and rewards: ${gear.map((g) => `<b>${g.name}</b>`).join(', ')}</div>` : ''}
-          ${unlocked.length ? `<div class="unlock small">Paint shop unlocked: ${unlocked.join(', ')}</div>` : ''}
-          ${this.nextUnlockLine()}
           ${slow}
           <p class="small">${parts}</p>
         </div>
@@ -1409,7 +1358,6 @@ const Proto = {
         <div class="cash">${b.scrap} scrap</div>
         <div class="infamy" title="Infamy: earned by putting on a show, spent on fan mail">${b.infamy || 0} infamy</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
-        <div>Rep <b>${this.cos.rep}</b></div>
         <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
         <button class="g-settings g-menu" data-action="menu" title="Main menu">☰ Menu</button>
       </div>
@@ -1617,12 +1565,11 @@ const Proto = {
   garagePaint() {
     const c = this.cos, sub = this.paintTab || 'body';
     const opt = (key, list, render, cur = c[key], argKey = key) => list.map((o) => {
-      const locked = o.rep > c.rep, on = cur === o.id;
+      const locked = false, on = cur === o.id; // every paint job is open: runs are self-contained
       return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'disabled' : ''} data-action="cosmetic" data-arg="${argKey}:${o.id}" title="${locked ? 'Unlocks at ' + o.rep + ' reputation' : o.name}">${render ? render(o) : ''}<span>${locked ? '🔒 ' + o.rep : o.name}</span></button>`;
     }).join('');
     const sw = (o) => `<i class="swatch" style="background:${o.color}"></i>`;
     const L = COSMETICS, row = (title, html) => `<h3>${title}</h3><div class="opts">${html}</div>`;
-    const next = allCosmeticOptions().filter((o) => o.rep > c.rep).sort((a, b2) => a.rep - b2.rep)[0];
     const pages = {
       body: () => row('Body', opt('style', L.style)) + row('Paint', opt('paint', L.paint, sw)) + row('Two-tone', opt('twoTone', L.twoTone))
         + (c.twoTone !== 'none' ? row('Second colour', opt('paint2', L.paint, sw)) : '')
@@ -1646,7 +1593,7 @@ const Proto = {
     const tabs = [['body', 'Body'], ['kit', 'Kit'], ['cabin', 'Cabin'], ['guns', 'Guns'], ['presets', 'Presets']]
       .map(([id, n]) => `<button class="opt ${sub === id ? 'on' : ''}" data-action="paint-tab" data-arg="${id}">${n}</button>`).join('');
     return `<div class="paint-opts">
-      <p class="muted small">Your look is kept between runs. Reputation: <b>${c.rep}</b>${next ? ` · next unlock: ${next.name} at ${next.rep}` : ' · everything unlocked'}</p>
+      <p class="muted small">Your look is kept between runs. Every finish, paint and part of the kit is yours to choose.</p>
       <div class="opts subtabs">${tabs}</div>
       ${sub === 'cabin' || sub === 'body' || sub === 'kit' ? `<p class="muted small">Drag the view to look ${sub === 'cabin' ? 'round the cabin' : 'round the car'}${sub === 'cabin' ? '' : ' · scroll to zoom'}.</p>` : ''}${pages[sub]()}</div>`;
   },

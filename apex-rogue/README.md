@@ -21,12 +21,11 @@ A new run starts in the garage, where you can drag to spin the car a full 360° 
 Played from the cockpit: you ride shotgun with a gun in your hands. A top-down view is kept only as a fallback
 for machines without WebGL, and the PS1-style retro look is always on.
 
-**Progression.** Every run starts with a **service pistol**, two grenades, a blast hatch and a clapped-out car.
-Everything else unlocks for good with reputation, the same rep that unlocks paint:
-- **What unlocks:** 13 weapons, 20 car parts, 4 abilities, 30 attachments, 22 trinkets and 7 drivers. Each item has its own rep threshold.
-- **Where it turns up:** gear only appears in shops and rewards once it's unlocked.
-- **Earning rep:** finish races, win, wreck rivals, beat bosses (+40) and walk free (+150).
-- **Seeing progress:** the results and end screens name new unlocks and the next one to aim for. **Unlocks** on the menu lists everything, locked and unlocked.
+**Runs are self-contained.** Every run starts with a **service pistol**, two grenades, a blast hatch and a
+clapped-out car, and nothing carries over from one run to the next except your paint job. There's no reputation
+and nothing to unlock: all 13 weapons, 20 car parts, 4 abilities, 30 attachments, 22 trinkets and 7 kinds of driver
+can turn up in shops and rewards from the first race. There are two currencies, both for the run only: **scrap**
+(money: purses, bounties) and **Infamy** (fame: the show you put on).
 
 **Race music.** Every race gets its own synthesized track. The act sets the mood, the race type and seed set the key, tempo, chord progression and arp:
 - **Act I, Undercity:** dark synthwave with a dirty bass.
@@ -42,7 +41,7 @@ The music plays from the briefing, ducks while paused and fades at the flag. **S
 - **Undercity:** Acid Drip (corrodes parts) and Blackout.
 - **Stacks:** Ash Fall and Furnace Day (engines run hot).
 - **Terraces:** Golden Hour (+25% scrap, but you're lit up for gunners) and Sprinkler Mist.
-- **Crown:** Firework Gala (+50% rep), Ion Storm (abilities recharge faster) and Smog Tide.
+- **Crown:** Firework Gala (a fireworks show), Ion Storm (abilities recharge faster) and Smog Tide.
 
 Weather changes fog, light and sky tint. It adds particles kept out of the cabin, drops on the windshield, lightning and thunder, an ambience bed and race-music tweaks.
 In play it can change grip, rival lock-on time, part wear, payouts and ability recharge.
@@ -111,8 +110,8 @@ Everything but the drums ducks under the kick. Browsers hold sound back until yo
 9. Learn the threats.
 10. Finish.
 
-`Enter` skips a step. Rivals are unarmed and slower, and your hull is reinforced. There are no strikes, scrap or rep. Any run in progress is set aside and handed back afterwards.
-The end screen explains the route sheet, garage, strikes and rep.
+`Enter` skips a step. Rivals are unarmed and slower, and your hull is reinforced. There are no strikes or scrap. Any run in progress is set aside and handed back afterwards.
+The end screen explains the route sheet, garage and strikes.
 
 You can reach the menu from the route sheet and garage (`☰ Menu`), the pause screen, the race briefing, and the end screens.
 `Esc` backs out of a menu panel, or returns to your run. `prototype.html?run` skips the menu and starts a run straight away.
@@ -190,7 +189,7 @@ You pick your path through it (`js/runmap.js`), on a TV:
 |---|---|
 | 🏁 Race | Finish top 3 or take a strike. Make the cut to pick a reward. |
 | ☠ Elite race | Sharper drivers, an extra rocket gunner and gunner, 1.4x placing pay. A trinket is guaranteed among the rewards. |
-| 🛒 Commissary | Legal goods: three sections stocked at random each visit from everything you've unlocked. **Weapons** (two guns, two attachments), **Trinkets** (two) and **Vehicle** (two car parts, an ability or a driver for hire). Scrap is scarce, so you choose. Repairs, ammo and spares are always available in the garage. |
+| 🛒 Commissary | Legal goods: three sections stocked at random each visit. **Weapons** (two guns, two attachments), **Trinkets** (two) and **Vehicle** (two car parts, an ability or a driver for hire). Scrap is scarce, so you choose. Repairs, ammo and spares are always available in the garage. |
 | ? Event | A cell-block scene with a choice: bribe a guard to wipe a strike, run contraband, bet on yourself, dig through the scrapyard, snitch on the gunners, visit the chapel, a yard fight, a cell-block trade, a sponsor deal, raid the armoury. |
 | 🔧 Mechanic | A free full repair. |
 | 💰 Bounty race | A regular race with a price on one rival's head: wreck them for 150+ scrap. |
@@ -413,7 +412,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   - **Parry:** slam it just as a rocket arrives and the plate bats it back at the shooter.
   - **Wear:** every hit dents it (the dents show inside the cabin). Dented through, it jams and hangs crooked off its hinge until you **beat it out** in the garage (Workshop) or the mechanic fixes it.
   - **The animation:** it drops with a clang and a bounce off its stop, shudders when hit, sprays sparks through the slit, and the gun lowers while it's down.
-- **Abilities** on `E` and `F`: nitro burst, smoke screen, EMP pulse. All three are unlocked with rep and found in rewards and shops.
+- **Abilities** on `E` and `F`: nitro burst, smoke screen, EMP pulse. Found in rewards and shops.
 - **Your parts show on your car.** Armour bolts on as plates, reactive bricks, a spiked cage, ceramic tiles or
   window bars; tuning it heavier adds a hood plate, then a ram and arch guards, lighter thins it out. The
   nitro bottle is strapped on the boot or roof (bigger for capacity, smaller with a purge valve for power;
@@ -466,9 +465,9 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **Part tuning (builds):** one trade-off slider per part: engine reliable↔boosted, tyres hard↔soft, armour light↔heavy, nitro capacity↔power.
   - **Start of a run:** every car can tune one notch either way.
   - **Welding:** a second notch in each direction is welded on in the workshop for 90 scrap. Each direction is bought on its own, and the welds belong to the car, so they stay when you swap parts.
-  - **Extreme notch:** a third notch per part (160 scrap) unlocks for good with rep: engine 140, tyres 180, armour 220, nitro 260.
+  - **Extreme notch:** a third notch per part (160 scrap).
   - **The look:** the car shows its tune, getting bulkier armour, bigger bottles and so on.
-- **Paint shop** (cosmetic, kept between runs; races earn **reputation**, which unlocks options). The
+- **Paint shop** (cosmetic, kept between runs; every option open from the start). The
   3D preview switches between exterior, interior and gun-rack views.
   - **Body:** style, paint, two-tone (roof / lower / hood) with a second colour, finish, grime (washed
     to caked in mud), livery, race number, number plate.

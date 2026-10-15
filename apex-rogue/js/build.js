@@ -165,7 +165,7 @@ const MODS = {
 };
 const modFits = (modId, weaponId) => MODS[modId].fits.includes(weaponId);
 
-// The extreme (third) tuning notch for each part, unlocked with rep (see UNLOCK_REP.tune).
+// The extreme (third) tuning notch for each part.
 const TUNE_EXTREME = {
   engine: { name: 'Extreme engine tune', desc: 'A third tuning notch on the engine, both ways: bored out, or detuned to last.' },
   tyres: { name: 'Extreme tyre tune', desc: 'A third tuning notch on the tyres: rock hard, or soft as chewing gum.' },
@@ -174,7 +174,8 @@ const TUNE_EXTREME = {
 };
 
 // ---------- Unlocks ----------
-// Gear unlocks for good with reputation, the same rep that unlocks paint. You start each run with a pistol;
+// Runs are self-contained: there's no reputation and nothing to unlock, so every item below is in the pool from the
+// first race. (The table is kept as a rough guide to how strong each item is.) You start each run with a pistol;
 // everything else has to turn up in a shop or a reward, and only unlocked gear ever does.
 // Each number is the rep needed (0 = available from the first run).
 const UNLOCK_REP = {
@@ -201,10 +202,9 @@ const UNLOCK_REP = {
 };
 const UNLOCK_TYPES = { weapon: WEAPONS, part: PARTS, ability: ABILITIES, mod: MODS, trinket: TRINKETS, chip: CHIPS, tune: TUNE_EXTREME };
 const UNLOCK_LABEL = { weapon: 'Weapons', part: 'Car parts', ability: 'Abilities', mod: 'Attachments', trinket: 'Trinkets', chip: 'Drivers', tune: 'Extreme tuning' };
-// The player's reputation, kept in step with the saved cosmetics by the game.
-const Meta = { rep: 0 };
+const Meta = { rep: 0 }; // (unused: there's no reputation between runs any more)
 const unlockRep = (type, id) => (UNLOCK_REP[type] && UNLOCK_REP[type][id]) || 0;
-const isUnlocked = (type, id) => unlockRep(type, id) <= Meta.rep;
+const isUnlocked = () => true; // every run is self-contained: all the gear is in the pool from the first race
 // Everything that unlocks in (before, after], for the results screen.
 const gearUnlockedBetween = (before, after) => Object.entries(UNLOCK_REP).flatMap(([type, list]) => Object.entries(list)
   .filter(([, r]) => r > before && r <= after).map(([id]) => ({ type, id, name: UNLOCK_TYPES[type][id].name })));
@@ -217,7 +217,7 @@ const TUNING = {
   nitro: { left: 'Capacity', right: 'Power', desc: 'Stronger boost from a smaller bottle.' },
 };
 // Tuning in notches of 0.5. Every car starts with one notch each way. A second is welded on in the workshop
-// (scrap, per direction, kept on the car whatever part is fitted). A third, extreme notch per part unlocks with rep.
+// (scrap, per direction, kept on the car whatever part is fitted). A third, extreme notch per part.
 const TUNE_STEPS = [-1.5, -1, -0.5, 0, 0.5, 1, 1.5];
 const WELD_COST = [0, 0, 90, 160]; // to open notch 2, notch 3
 const tuneRange = (b, slot) => (b.tuneRange && b.tuneRange[slot]) || { lo: -1, hi: 1 }; // in notches

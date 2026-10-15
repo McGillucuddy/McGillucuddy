@@ -1,6 +1,6 @@
 'use strict';
-// Cosmetic customization: kept between runs in localStorage and unlocked with reputation.
-// Every option is { id, name, rep } (rep = reputation needed to unlock).
+// Cosmetic customization: your look, kept between runs in localStorage. Every option is open from the start
+// (the old rep numbers on each option are ignored).
 
 const COSMETICS = {
   style: [
@@ -179,7 +179,6 @@ function loadPreset(c, i) {
   for (const k of LOOK_KEYS) if (snap[k] !== undefined) {
     // Skip anything no longer unlocked (shouldn't happen, but presets outlive balance changes).
     const opt = cosOption(k, snap[k]);
-    if (opt && opt.rep > c.rep) continue;
     c[k] = JSON.parse(JSON.stringify(snap[k]));
   }
 }

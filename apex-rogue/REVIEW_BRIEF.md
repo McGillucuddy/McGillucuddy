@@ -74,7 +74,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   down; no blast hatch). Shielding tiers bought in the Armory: Gun Shield (front), Wraparound (three sides, heavy,
   limited swing), Cage Turret (enclosed, heaviest, slit view).
 - **Also:** per-act weather (rain, smog, blackout, acid drip...), boss signature moves and intro cards, run saving,
-  a tutorial, rep-based unlocks between runs, graffiti and lore on the garage walls, a playtest report generator
+  a tutorial, self-contained runs (no unlocks; scrap and Infamy only), graffiti and lore on the garage walls, a playtest report generator
   (Send feedback in the pause menu).
 
 ## What changed most recently
