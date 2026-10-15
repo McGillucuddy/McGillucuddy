@@ -637,7 +637,7 @@ class CockpitView {
       this.wheel.add(f);
       fists.push(f);
     }
-    this.myCrew = { drv, me, I, fists, led, arms: People.liveArms(I, M.suit, 2), glance: 0, glanceT: 3 };
+    this.myCrew = { drv, me, I, fists, led, arms: People.liveArms(I, d.armMat || M.suit, 2), glance: 0, glanceT: 3 };
     // Friendly fire (js/crew.js): is the crosshair on your driver right now? Head or body, and how squarely (the
     // share of a shot's pellets that go into them).
     const ray = new THREE.Ray(), v = new THREE.Vector3(), dir = new THREE.Vector3();
