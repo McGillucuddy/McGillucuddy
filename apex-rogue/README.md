@@ -311,9 +311,10 @@ volume and looks for overlaps.
 
 ### Feel: grenades, hits and crashes (prototype)
 
-- **Grenades** (`GRENADE` in `js/combat.js`): pulling the pin lights a 1.7 s fuse. Thrown straight away, the
-  grenade lands after 0.8 s, bounces (off the road and off cars), rolls and then goes off. Hold the button
-  to cook it and it bursts as it lands. A ring round the crosshair burns down and ticks faster near the end.
+- **Grenades** (`GRENADE` in `js/combat.js`): pulling the pin lights a 3 second fuse, and the game
+  assumes you know it: no prompts. Thrown straight away, the grenade lands after 0.8 s, bounces (off the road
+  and off cars), rolls and then goes off. Hold the button to cook it and it bursts sooner after landing. While
+  you hold it, the crosshair pulses once a second with a tick (the third pulse red), and that's all.
   Hold it too long and it goes off in your cabin: hull damage and wounds to you and your driver. The grenade
   tumbles in flight with a fizzing fuse spark.
 - **Hits:** every round that lands on a rival makes a tink, quieter with distance. A rival's glass cracks as

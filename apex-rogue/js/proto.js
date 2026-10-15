@@ -2096,14 +2096,13 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(cx, cy, 34, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - wst.reloadT / wd.reload)); ctx.stroke();
   }
-  // A live grenade in your hand: the fuse burning down round the crosshair, red when it's nearly gone.
+  // A live grenade in your hand: no words, just the crosshair pulsing once a second, three times. Everyone knows
+  // what comes after three.
   if (c.cook) {
-    const left = Math.max(0, GRENADE.fuse - c.cook.t), f = left / GRENADE.fuse, hot = left < 0.6;
-    ctx.strokeStyle = hot ? (Math.floor(c.cook.t * 12) % 2 ? '#ff3b1f' : '#ffd23f') : '#9be36a';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(cx, cy, 26, -Math.PI / 2, -Math.PI / 2 + TAU * f); ctx.stroke();
-    ctx.textAlign = 'center'; ctx.font = `bold 12px ${hudFont()}`; ctx.fillStyle = ctx.strokeStyle;
-    ctx.fillText(left < GRENADE.fuse - GRENADE.air ? 'COOKED: THROW!' : `PIN OUT ${left.toFixed(1)}`, cx, cy - 36);
+    const k = c.cook.t % 1, n = Math.floor(c.cook.t), a = (1 - k) * (1 - k);
+    ctx.strokeStyle = `rgba(${n >= 2 ? '255,90,60' : '255,230,170'},${(0.9 * a).toFixed(3)})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, 15 + k * 22, 0, TAU); ctx.stroke();
   }
   // Ammo by the crosshair only when it's running out (the full count is in the loadout panel).
   const low = c.weapon.mag <= Math.max(1, Math.floor(wd.mag * 0.3));

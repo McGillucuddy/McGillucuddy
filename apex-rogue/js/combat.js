@@ -10,7 +10,7 @@ const GRENADE_G = 700;
 // A real grenade: pull the pin and the fuse is lit whether you throw it or not. Thrown straight away it lands, bounces
 // and rolls before it goes; hold it a moment ("cooking") and it bursts as it lands. Hold it too long and it goes off
 // in your hand. It bounces off cars as well as the road. (air: the flight time to the aim point.)
-const GRENADE = { fuse: 1.7, air: 0.8, bounce: 0.38, roll: 1.8, carBounce: 0.45, r: 1.2, hand: { car: 30, you: 14, driver: 12 } };
+const GRENADE = { fuse: 3, air: 0.8, bounce: 0.38, roll: 1.8, carBounce: 0.45, r: 1.2, hand: { car: 30, you: 14, driver: 12 } };
 // Where a grenade can get into a rival (in the car's frame: forward f, left s, height): the open roof hatch on the
 // rocket cars, the window their gunner leans out of on the gun cars (both on the left). See Combat.grenadeIn.
 const GRENADE_IN = { roof: 10.6, hatch: [-3.2, 4.2], hatchR: 2.8, window: [6.6, 10.8], winF: 0.2, winHalf: 4.5, throwBack: 0.25, dmg: 60 };
@@ -390,14 +390,14 @@ class Combat {
     return true;
   }
 
-  // Pull the pin (hold the throw button): the fuse is burning from now.
+  // Pull the pin (hold the throw button): the fuse is burning from now. Three seconds, as everyone knows.
   cookGrenade() {
     const b = this.build, p = this.player;
     if (this.cook) return true;
     if (this.hatchDown) return false; // the window's shut
     if (b.grenades <= 0 || p.finished || this.busy) { this.events.push({ type: 'empty' }); return false; }
     b.grenades--;
-    this.cook = { t: 0, tick: 0 };
+    this.cook = { t: 0, sec: -1 };
     this.events.push({ type: 'pin' });
     return true;
   }
@@ -425,8 +425,9 @@ class Combat {
     if (this.player.finished) { this.cook = null; this.build.grenades++; return; } // the race is over: pin back in
     C.t += dt;
     const left = GRENADE.fuse - C.t;
-    C.tick -= dt;
-    if (C.tick <= 0) { this.events.push({ type: 'cookTick', late: left < 0.6 }); C.tick = left < 0.6 ? 0.12 : 0.3; }
+    // One tick a second, with the crosshair's pulse: three and it goes.
+    const sec = Math.floor(C.t);
+    if (sec !== C.sec) { C.sec = sec; this.events.push({ type: 'cookTick', late: sec >= 2 }); }
     if (left > 0) return;
     this.cook = null;
     const p = this.player, H = GRENADE.hand;
