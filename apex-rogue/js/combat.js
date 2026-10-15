@@ -22,7 +22,7 @@ const ROOF = { cageDud: 0.35, cageRocket: 0.35, cageBlast: 0.7, steady: 0.6, cli
 const RIVAL_TYRE = 0.15; // a stray rival round that happens to land by a wheel
 // A tyre hunter's aimed burst: a longer wind-up (you see it coming), eight rounds at one wheel. 'start' is how long
 // into the race before anyone tries it; 'gap' is the least time between any two attempts on you.
-const TYRE_HUNT = { rate: 2.0, burst: 8, spread: 0.025, range: 320, start: 25, gap: 12, chance: 0.6 };
+const TYRE_HUNT = { on: false, rate: 2.0, burst: 8, spread: 0.025, range: 320, start: 25, gap: 12, chance: 0.6 };
 
 // What hurt you, in words (for the playtest report).
 const HURT_KIND = { exposed: 'hits on you at the roof gun', bullet: 'gunfire', rocket: 'rockets', blast: 'explosions', flame: 'fire', mine: 'mines', harpoon: 'harpoons', boss: 'the boss' };
@@ -92,7 +92,7 @@ class Combat {
     this.player.ramTakenMul *= this.rivalMul; // rams too
     // Tyre hunters: some rival gunners (none in Act I, more each act after) will go for your tyres, but only once the
     // race has settled, from close beside or behind you, one at a time, and never straight away. See rivalGuns.
-    const hunters = [0, 0.3, 0.5, 0.7][opts.act || 0] || 0;
+    const hunters = TYRE_HUNT.on ? [0, 0.3, 0.5, 0.7][opts.act || 0] || 0 : 0;
     this.tyreHuntCd = TYRE_HUNT.start;
     for (const c of race.cars) {
       if (c !== this.player && !c.isBoss && c.tyreHunter == null) c.tyreHunter = this.rng() < hunters;
@@ -1044,7 +1044,7 @@ class Combat {
       c.hp = 0;
       if (owner === p) this.creditWreck(c, 'driver');
     }
-    if (owner === p) this.race.message(`${shortName(c)}'s driver is down!`, '#ffd23f', true);
+    if (owner === p) this.race.message(`${shortName(c)}'s driver is down!${c.bounty ? ` Clean kill: +${Math.round(c.bounty * BOUNTY.cleanKill)}` : ''}`, '#ffd23f', true);
   }
 
   // A rival you wrecked: paid for, and remembered (how you did it decides how they come back, if they live; see
@@ -1076,7 +1076,7 @@ class Combat {
       this.stats.dealt += Math.min(dmg, before);
       if (before > 0 && c.hp <= 0) {
         this.creditWreck(c, kind || 'bullet');
-        this.race.message(`${shortName(c)} wrecked!`, '#ffd23f');
+        this.race.message(`${shortName(c)} wrecked!${c.bounty ? ` +${c.bounty} bounty` : ''}`, '#ffd23f');
       }
     }
   }

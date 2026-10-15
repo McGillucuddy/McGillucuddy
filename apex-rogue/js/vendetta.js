@@ -5,6 +5,7 @@
 // killed (shot through the windscreen) is gone for good.
 
 const VENDETTA = {
+  on: false, // switched off for now (bounties took their place); the code stays for later
   max: 3, // alive at once
   survive: 0.5, // chance a wrecked driver crawled out (a tyre job always lives)
   comeback: 0.55, // chance per race that a waiting vendetta shows up
@@ -28,6 +29,7 @@ const Vendetta = {
 
   // After a race: settle the ones that came back, and mark new ones.
   afterRace(run, race, rng, look) {
+    if (!VENDETTA.on) return { settled: [], escaped: [], born: null };
     const V = this.list(run), out = { settled: [], born: null, escaped: [] };
     run.flags.raceNo = (run.flags.raceNo || 0) + 1;
     const p = race.player;
@@ -57,6 +59,7 @@ const Vendetta = {
 
   // Before a race: maybe one comes back. Not in the tutorial or a boss race (the boss is the story there).
   pick(run, rng, node) {
+    if (!VENDETTA.on) return null;
     if (node.tutorial || node.type === 'boss') return null;
     const wait = this.active(run); // all from earlier races: pick runs before this one starts
     if (!wait.length || rng() > VENDETTA.comeback) return null;

@@ -901,6 +901,8 @@ const Proto = {
     run.flags.disarm = false;
     if (vend) { const vc = this.race.vendetta.car; if (!vc.weapon || vend.how === 'tyres') vc.weapon = 'gun'; vc.wpn = vc.wpn || { cd: randRange(rng, 2, 4), lock: 0 }; } // they come armed
     this.combat.pace = PACE;
+    // Bounties on every rival (the bounty stop's most-wanted keeps its big one).
+    if (!node.tutorial) for (const c of this.race.cars) if (c !== player && !c.isBoss) c.bounty = Math.max(c.bounty || 0, rivalBounty(c, run.act, node.type === 'elite'));
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
     this.race.music = Music.forRace(run.act, node.type, this.seed, !!(boss && boss.mustWin), wxId);
     WeatherGlass.reset();
@@ -1012,7 +1014,7 @@ const Proto = {
     const race = this.race, tr = race.track, bio = tr.biome;
     const rivals = race.cars.filter((c) => c !== race.player).map((c) => `
       <div class="rival"><span class="dot" style="background:${c.color}"></span>${c.name}
-      ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.bounty ? `<em class="tag yellow">💰 Bounty ${c.bounty}</em>` : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
+      ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.bounty ? `<em class="tag yellow">💰 ${c.bounty}</em>` : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
       <h1>${race.node.tutorial ? 'Tutorial: practice race' : race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : race.node.type === 'bounty' ? 'Bounty race' : 'Race briefing'}</h1>
@@ -1026,7 +1028,7 @@ const Proto = {
           <h2>${bio.name}</h2><p class="muted">${bio.blurb}</p>
           <p>${race.laps} laps · ${Math.round((tr.length * 0.125) / 10) * 10}m lap · ${boosts} boost pads · ${oils} oil slicks</p>
           <p><b>${race.boss ? (race.boss.mustWin ? 'Win the race outright' : 'Finish ahead of ' + race.boss.name) : 'Finish top ' + race.qualify}</b></p>
-          <p class="small">Purse: win <b>${PLACE_PURSE[0][0]}-${PLACE_PURSE[0][1]}</b>${race.qualify > 1 && PLACE_PURSE[race.qualify - 1] ? ` · ${ordinal(race.qualify)} ${PLACE_PURSE[race.qualify - 1][0]}-${PLACE_PURSE[race.qualify - 1][1]}` : ''} · wreck ${WRECK_PURSE[0]}-${WRECK_PURSE[1]}${race.boss ? ` · beat ${race.boss.name} ${BOSS_PURSE[0]}-${BOSS_PURSE[1]}` : ''}${race.node.type === 'elite' ? ' · elite +40%' : ''}</p>
+          <p class="small">Purse: win <b>${PLACE_PURSE[0][0]}-${PLACE_PURSE[0][1]}</b>${race.qualify > 1 && PLACE_PURSE[race.qualify - 1] ? ` · ${ordinal(race.qualify)} ${PLACE_PURSE[race.qualify - 1][0]}-${PLACE_PURSE[race.qualify - 1][1]}` : ''} · bounties on every rival (💰 below)${race.boss ? ` · beat ${race.boss.name} ${BOSS_PURSE[0]}-${BOSS_PURSE[1]}` : ''}${race.node.type === 'elite' ? ' · elite +40%' : ''}</p>
         </div>
         <div class="panel"><h2>Rivals</h2>${rivals}${this.pocketHTML()}
           <h2>Controls</h2>
@@ -1142,12 +1144,13 @@ const Proto = {
     // Purses roll in a range (seeded per race, so a reload pays the same): half luck, half how you raced.
     const prng = mulberry32((this.seed ^ 0x5c4a) >>> 0), style = raceStyle(s), range = purseRange(p.place);
     const loaded = has(b, 'loaded'), purseRoll = (r, rng, st) => (loaded ? r[1] : rollPurse(r, rng, st)); // Loaded Dice: always the top
-    let wreckRoll = 0;
-    for (let k = 0; k < s.wrecked; k++) wreckRoll += purseRoll(WRECK_PURSE, prng, style);
+    // Bounties on everyone you put out (clean kills, the driver shot through the glass, pay half as much again).
+    const claimed = race.cars.filter((c) => c !== p && c.downed && c.bounty).map((c) => ({ c, pay: Math.round(c.bounty * (c.downed.how === 'driver' ? BOUNTY.cleanKill : 1)), clean: c.downed.how === 'driver' }));
+    const wreckRoll = claimed.reduce((a, x) => a + x.pay, 0);
     const wx = wxOf(race.weather), mult = show * (race.node.type === 'elite' ? 1.4 : 1) * (has(b, 'tooth') ? 1.3 : 1) * (wx.scrap || 1);
     const placePay = p.dnf ? 0 : Math.round(purseRoll(range, prng, style) * mult), wreckPay = Math.round((wreckRoll + s.scrapBonus) * show);
     const bossPay = boss && ok ? purseRoll(BOSS_PURSE, prng, style) : 0;
-    const bc = race.bountyCar, bountyPay = bc && bc.hp <= 0 ? bc.bounty : 0;
+    const bc = race.bountyCar, bountyPay = 0; // the most-wanted's price is paid with the other bounties
     // Vendettas: settle the one that came back (wreck it, get paid), and remember who might.
     const vres = this.tutorial ? null : Vendetta.afterRace(run, race, prng, (c) => c.look3d || null);
     const vendPay = vres ? vres.settled.reduce((a) => a + Math.round(purseRoll(VENDETTA.purse, prng, style) * show), 0) : 0;
@@ -1187,9 +1190,9 @@ const Proto = {
           <div><span>Damage taken</span><b>${Math.round(s.taken)}</b></div>
           <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}${b.hull > Math.ceil(p.hp) ? ` <small class="muted">(crew patched to ${b.hull}${bodged.length ? ', and bodged the ' + bodged.map((k) => SLOT_NAMES[k].toLowerCase()).join(' and ') + ' back to running' : ''})</small>` : ''}</b></div>
           <div><span>Placing purse <small class="muted">${p.dnf ? 'did not finish' : `${range[0]}-${range[1]}`}</small></span><b>${placePay} scrap</b></div>
-          <div><span>Wreck bounties</span><b>${wreckPay} scrap</b></div>
+          <div><span>Bounties${claimed.length ? ` <small class="muted">${claimed.map((x) => `${shortName(x.c)} ${x.pay}${x.clean ? ' (clean kill)' : ''}`).join(', ')}</small>` : ''}</span><b>${wreckPay} scrap</b></div>
           ${bossPay ? `<div><span>Qualifier purse</span><b>${bossPay} scrap</b></div>` : ''}
-          ${bc ? `<div><span>Bounty on ${bc.name}</span><b>${bountyPay ? bountyPay + ' scrap' : 'not wrecked'}</b></div>` : ''}
+          ${bc && !bc.downed ? `<div><span>Most wanted: ${bc.name}</span><b>got away</b></div>` : ''}
           ${sponsorCut ? `<div><span>Sponsor takes back</span><b class="bad">-${sponsorCut} scrap</b></div>` : ''}
           ${betPay ? `<div><span>Bet winnings</span><b>${betPay} scrap</b></div>` : ''}
           ${vres && vres.settled.length ? `<div><span>☠ Vendetta settled: ${vres.settled.map((v) => v.name + (v.over === 'dead' ? ' (for good)' : '')).join(', ')}</span><b>${vendPay} scrap</b></div>` : ''}

@@ -32,7 +32,9 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 - **Rivals:** six per race; some armed (gunners lock on with a visible laser, rocket gunners, mine layers). Their
   drivers and gunners can be shot through the glass.
 - **Economy (deliberately scarce):** purses are ranges, rolled half on luck and half on how you raced (wrecks,
-  parries, damage avoided): a win pays 100-160 scrap, 3rd 50-85, last 5-15; each wreck 10-20; a boss 120-180.
+  parries, damage avoided): a win pays 100-160 scrap, 3rd 50-85, last 5-15; a boss 120-180. **Bounties:** every rival
+  has a price on their head (10-30 in Act I, more for armed cars, later acts and elite races), paid when you wreck
+  them, half again for a clean kill (driver shot dead).
   Starting scrap 120. The commissary (legal shop) appears at shop stops, stocked at random in three sections:
   weapons and attachments, trinkets, vehicle parts and abilities.
 - **Wrecked means out:** at zero hull you're out of the race (no purse, a strike). The crew patches you to 40% hull
@@ -40,12 +42,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   Act III.
 - **Shootable tyres:** four per car; a shot whose path passes a wheel hits the tyre. Each gun has a tyre rating
   (pistol ~31 hits to pop one, Liberty 4, Nail Gun 7). Flats cost speed and grip and pull to one side. From Act II
-  more rivals have armoured tyres (a quarter of the damage). Some rival gunners are **tyre hunters** (Act II on): only
-  after 25 seconds, only from beside or behind you, one attempt at a time across the field, with a warning.
-- **Vendettas (within a run):** wreck a rival or pop their tyres and they may come back in a later race, same car
-  and paint, armed, hunting you, adapted to how you beat them (plating, fireproofing, armoured tyres). Revealed a
-  few seconds after the start, ringed red on the radar. Wreck them again to settle it (45-80 scrap). A driver you
-  shot dead never returns.
+  more rivals have armoured tyres (a quarter of the damage).
 - **The black market:** on ~40% of garage visits a brick comes out of the back wall: a dealer (two eyes and a
   cigarette) sells three things. Real drugs with spelled-out effects and comedowns (methamphetamine, oxycodone,
   adrenaline, cocaine, diazepam), booze (pruno, whiskey: the cabin view sways so your aim drifts), hot ammo
@@ -64,7 +61,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 
 ## What changed most recently
 
-Scrap ranges; wreck-out rule; shootable and armoured tyres; tyre-hunter AI; vendettas; the black market with
+Bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
 tolerance; item pictures on all cards; the Typewriter's drum turned square to the barrel; magazine wells on every
 mag-fed gun with straight-in reloads; the Grinder LMG's belt reload (feed cover up, belt laid in the tray, cover
 slammed); the roof-mounted machine guns with shielding tiers; a shorter race briefing.
@@ -77,7 +74,6 @@ slammed); the roof-mounted machine guns with shielding tiers; a shorter race bri
 - **Act II to Act III** felt like a difficulty cliff in older builds; not re-measured since the damage changes.
 - **Economy:** winning runs bank 300-900 scrap; losing runs spiral (little scrap, can't repair). The free crew patch
   is the safety net. Is scarcity fun or just punishing?
-- **Readability:** vendetta name tags are hidden under the retro filter; you rely on the start callout and radar.
 
 ## Where we want your opinion most
 
@@ -87,8 +83,8 @@ slammed); the roof-mounted machine guns with shielding tiers; a shorter race bri
 3. **The black market:** are the drugs and comedowns interesting choices or noise? Is tolerance (25% per use, 40%
    floor) the right curve? Is 40% of visits too often?
 4. **The roof gun:** is climbing up worth the exposure? Are the shield tiers real choices or is one obviously best?
-5. **Tyres:** worth the complexity? Are tyre hunters fair ("difficult but not impossible")?
-6. **Vendettas:** do they create memorable moments, or just a tougher rival?
+5. **Tyres:** worth the complexity?
+6. **Bounties:** do they make you pick targets, or is it just more scrap?
 7. **The pitch and tone:** "a nobody inmate fighting up a city that's watching you die on TV." Does the game sell it?
    What would make the broadcast feel more present?
 8. **Anything that confused you** in the first ten minutes.
@@ -103,6 +99,6 @@ slammed); the roof-mounted machine guns with shielding tiers; a shorter race bri
 
 `README.md` (the game as built, every system), `DESIGN.md` (plans and decisions), `LORE.md` (the world).
 Code: `js/proto.js` (game flow, screens), `js/combat.js` (guns, damage, tyres, rival guns), `js/cockpit3d.js` (the
-first-person view and animations), `js/build.js` (items, shop, economy), `js/blackmarket.js`, `js/vendetta.js`,
+first-person view and animations), `js/build.js` (items, shop, economy), `js/blackmarket.js`,
 `js/thumbs.js`, `js/models.js` / `js/rifles.js` (models), `js/race.js` / `js/car.js` / `js/ai.js` (racing).
 About 20,000 lines of plain JavaScript, no build step.

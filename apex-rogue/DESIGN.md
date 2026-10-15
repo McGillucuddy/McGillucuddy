@@ -35,7 +35,7 @@ Your car, guns and trinkets carry over, so you feel yourself outgrowing the low 
 gets you booked on higher channels.
 - **What earns viewers:** wrecking drivers, winning, taunts and humiliations (flip someone off, then pass or wreck
   them), parries with the hatch, popped tyres, a grenade through a window, roof-gun time, jumps, near misses,
-  settling a vendetta. Bigger and riskier moves earn more.
+  claiming a bounty (a clean kill counts double). Bigger and riskier moves earn more.
 - **What loses them:** hiding behind the hatch, finishing at the back, long dull stretches, getting wrecked.
 - **In the race:** a LIVE bug in the corner with a viewer count that ticks up, with little pop-ups ("+1.2k: flipped
   off Rex Torque").
@@ -84,7 +84,7 @@ The network's patience is still three strikes: cancelled means the run is over.
 ### Shows: what's on each night
 
 Each night, the guide offers three or four shows on channels you can book. A listing gives the show's name, its
-channel and pay, its format, who's on (named rivals, a vendetta, sometimes a boss) and the sponsor's ask.
+channel and pay, its format, who's on (named rivals and their bounties, sometimes a boss) and the sponsor's ask.
 - **Race formats** (each plays differently):
   - *The Derby*: today's race.
   - *Demolition Hour*: an arena, no laps, last car running.

@@ -237,9 +237,13 @@ function weldNotch(b, slot, dir) {
 // Scrap is scarce on purpose: a good race pays for the repairs and a little over, not for everything in the shop.
 // Purses are ranges: where you land is half luck, half how you raced (wrecks, parries, finishing unscathed).
 const PLACE_PURSE = [[100, 160], [70, 115], [50, 85], [30, 55], [20, 40], [10, 25], [5, 15]];
-const WRECK_PURSE = [10, 20]; // per rival you wreck
+const WRECK_PURSE = [10, 20]; // old per-wreck purse (bounties replaced it); kept for older references
 const BOSS_PURSE = [120, 180];
 const SKIP_SCRAP = 30;
+// Bounties: a price on every rival's head, by how dangerous they are: their gun, armoured tyres, the act, an elite
+// grid. Wreck them and it's yours; kill the driver through the glass for a clean kill and half as much again.
+const BOUNTY = { base: 10, weapon: { mine: 5, gun: 10, rocket: 20 }, armour: 10, act: 0.3, elite: 1.4, cleanKill: 1.5 };
+const rivalBounty = (c, act, elite) => Math.round(((BOUNTY.base + (BOUNTY.weapon[c.weapon] || 0) + (c.armorTyres ? BOUNTY.armour : 0)) * (1 + BOUNTY.act * act) * (elite ? BOUNTY.elite : 1)) / 5) * 5;
 const purseRange = (place) => PLACE_PURSE[Math.min(PLACE_PURSE.length, Math.max(1, place)) - 1];
 // A style score 0..1 for the race: wrecks, parries and coming through untouched push you up the range.
 const raceStyle = (s) => clamp(s.wrecked * 0.12 + (s.parries || 0) * 0.15 + (s.taken < 25 ? 0.25 : s.taken < 60 ? 0.1 : 0), 0, 1);

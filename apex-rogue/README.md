@@ -233,8 +233,12 @@ A run is a string of races with **the garage** in between. Finish outside the to
 strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 
 - **Purses come in a range** (the briefing shows them): a win pays 100-160, 2nd 70-115, 3rd 50-85, down to 5-15 for
-  last; each wreck 10-20; beating a boss 120-180. Where you land in the range is half luck and half how you raced
+  last; beating a boss 120-180. Where you land in the range is half luck and half how you raced
   (wrecks, parries, how little damage you took). Elite races pay 40% more. Scrap is scarce on purpose.
+- **Bounties.** Every rival carries a price on their head, shown in the briefing (💰) and on their name tag ($):
+  10 scrap, plus 5 for a mine layer, 10 for a gunner, 20 for a rocket car and 10 for armoured tyres; +30% per act
+  and +40% in an elite race (rounded to 5). Wreck them and it's yours, paid with the purse. Shoot the driver dead
+  (a **clean kill**) and it pays half again. A bounty stop on the route adds one most-wanted rival worth 150+.
 - **Wrecked means out.** If your hull hits zero you're out of the race: no placing purse, and a strike. The crew
   patches the car back to 40% hull for free and bodges any broken parts back to a quarter; the rest of the repair is
   yours to pay for. Rival guns and rams hit softer in Act I (60%), Act II (80%) and Act III (95%), so the early acts are survivable
@@ -245,19 +249,10 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   thirty pistol hits to pop one), rifles and machine guns are good, and the **Nail Gun** is made for it. From Act II
   more and more rivals run **armoured tyres** (a riveted steel plate over the rim: a quarter of the damage), and
   bosses past Act I always do. A shot hits a tyre when its path passes close to that wheel, so aim at the wheel.
-  **Tyre hunters:** from Act II some rival gunners (30%, then 50%, 70%) will go for yours, but never straight away:
-  only after the first 25 seconds, only from beside or behind you, one attempt at a time across the field (at least
-  12 seconds apart), and with a warning ("X is going for your tyres!") and a longer lock you can see coming. Sit in
-  front of a hunter for 20 seconds and you'll probably lose a tyre; swerve, shoot their gunner or get ahead and you
-  won't. Stray rounds can still pop one now and then. The dash shows all four. **Run-Flats** take 50% more to pop,
+  Stray rival rounds can pop one now and then. The dash shows all four. **Run-Flats** take 50% more to pop,
   and you barely feel a flat.
-- **Vendettas** (`js/vendetta.js`), within a run. Wreck a rival or shoot their tyres out and they may not be done
-  with you: a wrecked driver lives half the time, a tyre job always. In a later race they can come back in the same
-  car and paint, armed, a bit sharper and tougher, hunting you rather than racing, and fitted out against whatever
-  beat them (blast or bullet plating, fire-retardant paint; shoot their tyres out and they come back on armoured
-  tyres with a gunner who goes for yours). The briefing doesn't warn you: they're
-  revealed a few seconds after the green light, and ringed in red on the radar. Wreck them to settle it (45-80 scrap); after three races of
-  chasing you they give up. A driver you shot dead never comes back. At most three are out for you at once.
+- **Vendettas and tyre hunters** (`js/vendetta.js`, `TYRE_HUNT` in `js/combat.js`) are built but switched off for
+  now (`VENDETTA.on`, `TYRE_HUNT.on`); bounties took their place.
 
 - **You see what you buy** (`js/thumbs.js`): every card in the commissary, the hole in the wall and the reward picks
   has a rendered picture of the actual item: guns from the side, attachments fitted on a gun, car parts on a car
@@ -302,7 +297,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   trigger and the spread opens up (the crosshair brackets show it); let go and it settles.
   Grenades are a separate consumable. Drop one **through an opening** and it goes off inside: down the open roof hatch
   a rocket gunner works from (behind their rocket pod), or in at the window a rifle gunner leans out of. It cooks off
-  a moment later, kills the crew and wrecks the car (a driver killed like that never comes back as a vendetta),
+  a moment later, kills the crew and wrecks the car,
   unless their gunner is quick enough to throw it back out (one time in four). Bosses keep theirs shut. Anywhere
   else it just clatters off.
 - **The roof gun.** The two machine guns, the Grinder LMG and the Widow MG, aren't held: they go on a pintle mount
@@ -487,7 +482,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
 | `js/build.js` (`ROOF_SHIELDS`), `js/combat.js` (`toggleRoof`, `exposedHit`) | The roof gun: the mount, shielding, climbing up, exposure |
 | `js/thumbs.js` | Item pictures for every shop and reward card; models of the black market's goods, abilities and chips |
-| `js/vendetta.js` | Vendettas: rivals you put out who come back later in the run, adapted to how you beat them |
+| `js/vendetta.js` | Vendettas (switched off): rivals you put out who come back later in the run, adapted to how you beat them |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |
 | `js/psx.js` | Retro PS1-style rendering: low-res dithered post pass, vertex snapping, grimy pixel textures |
