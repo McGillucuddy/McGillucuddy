@@ -615,3 +615,29 @@ body.proto #ui { z-index: 2; }
 .tv-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 .tv-hint { margin: 0; }
 @media (max-width: 600px) { .tv-cap-top b { font-size: 14px; } .tv-osd { font-size: 20px; } .tv-set { padding: 12px 12px 8px; border-radius: 16px; } }
+
+/* The wall of TVs: tonight's channels on the big sets, whatever else is on round them. */
+.tv-wrap.wall { width: min(1080px, calc(100% - 24px)); gap: 6px; }
+.tv-row { display: flex; gap: 10px; justify-content: center; align-items: flex-end; width: 100%; flex-wrap: wrap; }
+.tv-unit { position: relative; border-radius: 12px; padding: 8px 8px 5px; background: var(--case, linear-gradient(170deg, #b8b09a, #7f7766)); box-shadow: 0 8px 18px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.3), inset 0 -3px 0 rgba(0,0,0,0.25); }
+.tv-unit.v0 { --case: linear-gradient(170deg, #c2b9a2, #847b68); }
+.tv-unit.v1 { --case: linear-gradient(170deg, #34322f, #121110); }
+.tv-unit.v2 { --case: repeating-linear-gradient(95deg, #6a4528 0 6px, #5a3a20 6px 9px, #74502e 9px 15px); }
+.tv-unit.v3 { --case: linear-gradient(170deg, #a8acb0, #5e6266); }
+.tv-unit .tv-screen { max-height: none; width: 100%; border-radius: 16px / 12px; box-shadow: 0 0 0 4px #1c1915, inset 0 0 30px rgba(0,0,0,0.9); }
+.tv-unit .tv-osd { top: 5px; right: 9px; font-size: 12px; text-shadow: 0 0 4px rgba(80,255,80,0.8), 1px 1px 0 #000; }
+.tv-knobs { display: flex; justify-content: flex-end; gap: 5px; height: 9px; margin-top: 4px; }
+.tv-knobs i { width: 9px; height: 9px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #6a655c, #141210); }
+.tv-row.fill .tv-unit { width: 118px; filter: brightness(0.72) saturate(0.85); }
+.tv-row.fill .tv-unit:nth-child(2n) { width: 136px; }
+.tv-row.fill .tv-unit:nth-child(3n) { width: 104px; }
+.tv-row.mainrow .tv-unit { width: min(300px, calc(25% - 10px)); min-width: 200px; cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
+.tv-row.mainrow .tv-unit .tv-osd { font-size: 17px; top: 7px; right: 12px; }
+.tv-row.mainrow .tv-unit:hover { transform: translateY(-2px); }
+.tv-unit.on { transform: translateY(-5px) scale(1.04); box-shadow: 0 0 0 3px #ffd23f, 0 0 34px rgba(255,210,63,0.35), 0 10px 22px rgba(0,0,0,0.6); z-index: 1; }
+.tv-mini { position: absolute; left: 8%; right: 8%; bottom: 8%; z-index: 2; background: #f4f0e6; color: #111; font: bold 12px "Courier New", monospace; text-align: center; padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-unit:not(.on) .tv-mini { background: rgba(244,240,230,0.75); }
+.tv-detail { width: min(640px, 100%); font-family: "Courier New", monospace; }
+.tv-detail .tv-cap-top b { font-size: 18px; }
+@media (max-width: 700px) { .tv-row.fill .tv-unit { width: 84px; } .tv-row.fill .tv-unit:nth-child(n+4) { display: none; } .tv-row.mainrow .tv-unit { min-width: 140px; width: 44%; } }
+@media (max-width: 600px) { .tv-wrap { top: 104px; } }

@@ -59,7 +59,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   feed.
 - **Driver orders:** middle mouse "Ram them!", and a C wheel for get alongside / tail / floor it / ease off (easing
   off steadies your aim). The driver answers on the radio; chips change how keen they are.
-- **The TV:** you pick each stop on a CRT, flipping channels: races are named shows, the commissary is home
+- **The wall of TVs:** you pick each stop from a wall of CRTs, tonight's channels on the big sets: races are named shows, the commissary is home
   shopping, the mechanic a test card, events the news, the boss a special presentation. The route sheet is now the
   TV guide.
 - **The walls react to you:** the garage graffiti picks up your run in your inmate number: a headline over the door,

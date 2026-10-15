@@ -225,7 +225,7 @@ const Proto = {
       case 'to-briefing': this.showMap(); break;
       case 'to-map': this.showMap(); break;
       case 'tv-flip': this.tvFlip(this.tvSel + +arg); break;
-      case 'tv-ch': if (+arg !== this.tvSel) this.tvFlip(+arg); break;
+      case 'tv-ch': if (+arg !== this.tvSel) this.tvFlip(+arg); else this.tvBook(); break; // a second click books it
       case 'tv-book': this.tvBook(); break;
       case 'tv-guide': this.guideOpen = !this.guideOpen; this.showMap(); break;
       case 'open-garage': this.toGarage(); break;
@@ -623,11 +623,10 @@ const Proto = {
     if (!quiet) this.showMap();
   },
 
-  // ---------- Route sheet ----------
-
-  // ---------- The TV (js/tv.js): tonight's channels ----------
-  // Each reachable stop is a channel. Flip with the arrows (or click), book one, and the night begins. The full
-  // route is one button away, as the TV guide (the route sheet below).
+  // ---------- The wall of TVs (js/tv.js): tonight's channels ----------
+  // A stack of mismatched sets, every one tuned to something. Tonight's channels (each reachable stop) play on the
+  // big sets in the middle: click one (or ← →) to look at it, click it again (or Enter, or Book it) to take it. The
+  // smaller sets round them show whatever else is on. The full route is the TV guide (the route sheet below).
   showMap() {
     if (this.guideOpen) { this.showGuide(); return; }
     this.state = 'map';
@@ -637,8 +636,15 @@ const Proto = {
     this.tvShows = shows;
     this.tvSel = clamp(this.tvSel || 0, 0, shows.length - 1);
     const reachRow = shows.length ? shows[0].node.row : MAP_ROWS, left = MAP_ROWS - reachRow;
-    const night = `ACT ${ROMAN[run.act]} · ${TV.BLOCKS[run.act][2]} · NIGHT ${reachRow + 1}${reachRow < MAP_ROWS ? ` · SPECIAL IN ${left}` : ' · TONIGHT: THE SPECIAL'}`;
-    const lineup = shows.map((s, i) => `<button class="tv-chan ${i === this.tvSel ? 'on' : ''}" data-action="tv-ch" data-arg="${i}"><b>CH ${String(s.ch).padStart(2, '0')}</b><span>${s.name}</span></button>`).join('');
+    const night = `Act ${ROMAN[run.act]} · ${TV.BLOCKS[run.act][2].toLowerCase()} · night ${reachRow + 1}${reachRow < MAP_ROWS ? ` · the special in ${left}` : ' · <b>tonight: the special</b>'}`;
+    const fill = TV.fillers(run, 9);
+    const ch = (n) => (n == null ? '' : `CH ${String(n).padStart(2, '0')}`);
+    const unit = (show, i, main, v) => `<div class="tv-unit v${v} ${main ? 'main' : ''} ${main && i === this.tvSel ? 'on' : ''}" ${main ? `data-action="tv-ch" data-arg="${i}" title="${show.name}: click to look, click again to book"` : ''}>
+        <div class="tv-screen"><canvas data-tv="${main ? 'm' : 'f'}${i}"></canvas><div class="tv-osd">${ch(show.ch)}</div>${main ? `<div class="tv-mini">${show.name}</div>` : ''}<div class="tv-glass"></div></div>
+        <div class="tv-knobs"><i></i><i></i></div></div>`;
+    const top = fill.slice(0, 5).map((f, i) => unit(f, i, false, (i * 3 + 1) % 4)).join('');
+    const bottom = fill.slice(5).map((f, i) => unit(f, i + 5, false, (i * 3 + 2) % 4)).join('');
+    const mid = shows.map((s, i) => unit(s, i, true, [0, 2, 1, 3][i % 4])).join('');
     this.setUI(`<div class="screen mapscreen tvscreen g3d">
       <div class="g-top">
         <div><b>Act ${ROMAN[run.act]}</b> · ${act.title}</div>
@@ -649,58 +655,46 @@ const Proto = {
         <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
         <button class="g-settings g-menu" data-action="menu" title="Main menu">☰ Menu</button>
       </div>
-      <div class="tv-wrap">
-        <div class="tv-sheet">Booking sheet, from the warden's office: <i>the following programmes will have you tonight.</i></div>
-        <div class="tv-set">
-          <div class="tv-screen">
-            <canvas id="tvPic"></canvas>
-            <div class="tv-osd" id="tvOsd"></div>
-            <div class="tv-night">${night}</div>
-            <div class="tv-cap" id="tvCap"></div>
-            <div class="tv-glass"></div>
-          </div>
-          <div class="tv-panel">
-            <div class="tv-grille"></div>
-            <button class="tv-btn" data-action="tv-flip" data-arg="-1" title="Channel down (← or A)">◀</button>
-            <span class="tv-chlabel">CH</span>
-            <button class="tv-btn" data-action="tv-flip" data-arg="1" title="Channel up (→ or D)">▶</button>
-            <div class="tv-knob"></div>
-          </div>
-        </div>
-        <div class="tv-lineup">${lineup}</div>
+      <div class="tv-wrap wall">
+        <div class="tv-sheet">Booking sheet from the warden's office: <i>the following programmes will have you tonight.</i> <span class="muted">${night}</span></div>
+        <div class="tv-row fill">${top}</div>
+        <div class="tv-row mainrow">${mid}</div>
+        <div class="tv-row fill">${bottom}</div>
+        <div class="tv-detail" id="tvCap"></div>
         <div class="tv-actions">
           <button class="btn primary big" data-action="tv-book">Book it ▶</button>
           <button class="btn" data-action="tv-guide" title="The whole act: every channel and where each night leads">📰 TV guide</button>
           <button class="btn" data-action="open-garage">Garage</button>
         </div>
-        <p class="muted small tv-hint">← → or A / D to change channel · Enter to book</p>
+        <p class="muted small tv-hint">← → or A / D to pick a set · Enter (or click it again) to book</p>
       </div>
     </div>`);
-    this.tvState = { show: shows[this.tvSel], staticT: 0.35 };
-    const cv = document.getElementById('tvPic');
-    if (cv) TV.run(cv, () => this.tvState);
+    this.tvStates = shows.map((s) => ({ show: s, staticT: 0.3 + Math.random() * 0.3 }));
+    document.querySelectorAll('canvas[data-tv]').forEach((cv) => {
+      const k = cv.dataset.tv, i = +k.slice(1);
+      if (k[0] === 'm') TV.run(cv, () => this.tvStates[i]);
+      else { const st = { show: fill[i], staticT: Math.random() * 0.5 }; TV.run(cv, () => st, true); }
+    });
     this.tvCaption();
     this.syncGarage();
     if (this.preview) this.preview.setStation('overview');
   },
 
-  // Change channel: a burst of static, then the new picture and its caption.
+  // Look at another set: it lights up, and its caption goes under the wall.
   tvFlip(i) {
     const shows = this.tvShows;
     if (!shows || !shows.length) return;
     this.tvSel = (i + shows.length) % shows.length;
-    this.tvState = { show: shows[this.tvSel], staticT: 0.22 };
-    Sound.play({ type: 'static' });
-    document.querySelectorAll('.tv-chan').forEach((el, k) => el.classList.toggle('on', k === this.tvSel));
+    Sound.play({ type: 'click' });
+    document.querySelectorAll('.tv-unit.main').forEach((el, k) => el.classList.toggle('on', k === this.tvSel));
     this.tvCaption();
   },
 
   tvCaption() {
-    const S = this.tvShows && this.tvShows[this.tvSel], cap = document.getElementById('tvCap'), osd = document.getElementById('tvOsd');
+    const S = this.tvShows && this.tvShows[this.tvSel], cap = document.getElementById('tvCap');
     if (!S || !cap) return;
-    osd.textContent = `CH ${String(S.ch).padStart(2, '0')}`;
     const wx = S.wx && S.wx !== WEATHER.clear ? ` · ${S.wx.icon} ${S.wx.name}` : '';
-    cap.innerHTML = `<div class="tv-cap-top"><span class="tv-tag">C9TV</span><b>${S.name}${S.sub ? ': ' + S.sub : ''}</b></div>
+    cap.innerHTML = `<div class="tv-cap-top"><span class="tv-tag">CH ${String(S.ch).padStart(2, '0')}</span><b>${S.name}${S.sub ? ': ' + S.sub : ''}</b></div>
       <div class="tv-cap-line">${S.line}${wx}</div><div class="tv-cap-line2">${S.line2}</div>`;
   },
 

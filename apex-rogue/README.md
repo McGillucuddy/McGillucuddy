@@ -167,9 +167,12 @@ The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor
 A run is four acts. Each act is a **route sheet**: seven rows of 2-4 branching stops (the last row before the boss leans towards repairs and shopping) and then a boss qualifier.
 You pick your path through it (`js/runmap.js`), on a TV:
 
-- **The TV** (`js/tv.js`). Each night you sit in front of a battered CRT with a booking sheet from the warden's
-  office: "the following programmes will have you tonight". Every stop you can take is a channel. Flip with ← → (or
-  A / D, or the buttons on the set, or the channel list under it) through a burst of static, and **Book it** (Enter).
+- **The wall of TVs** (`js/tv.js`). Each night you face a stack of mismatched sets (beige, black, woodgrain,
+  silver) under a booking sheet from the warden's office: "the following programmes will have you tonight". Every
+  stop you can take plays on one of the big sets in the middle, all at once. Click one (or ← → / A D) to look at it
+  and its caption appears under the wall; click it again, press Enter or **Book it** to take it. The smaller,
+  dimmer sets round them show whatever else is on: the C9TV ident, the season's death toll ticking up, sponsor ads
+  (Aureum, Helix, Crown Bank, Warden Corp), the warden's address, a weather map, static.
   Channels are numbered by the act's block of the dial: Public Access 2-9, Cable 10-29, Premium 30-59, Prime Time
   60-99. Each has an animated picture and a broadcast caption (name, format, pay, weather):
   - **Races** are shows with names ("MIDNIGHT DERBY", "SMOG RALLY", "GOLDEN HOUR", "THE MAIN EVENT"): a night road
