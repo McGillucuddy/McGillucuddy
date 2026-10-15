@@ -87,6 +87,12 @@ const Graffiti = {
   MEMORIAL: ['TOMMY K XXXVIII', 'BONES XL', 'RUSK XL', 'LITTLE JO XL', 'SANTI XLI', 'OLD MAN REY XXXIX'],
   PAINT: ['#d8d4cc', '#b8bcc0', '#b8322a', '#2f5aa8', '#3f9a3f', '#c84a8a', '#d8b83a', '#c86a22', '#151515', '#6a3aa8'],
   pick(r, a) { return a[Math.floor(r() * a.length)]; },
+  // A lore line in your inmate number; once you've lasted, someone's answered "IS NEXT".
+  yours(lines, fame) {
+    if (!fame) return lines;
+    if (lines[0] === '4471 IS NEXT' && fame.next) return fame.next;
+    return lines.map((t) => t.replace('4471', fame.n));
+  },
 
   // ---------- Strokes ----------
 
@@ -322,23 +328,72 @@ const Graffiti = {
   },
 
   // A memorial: RIP and the names, with the Derby each of them died in, and a cross.
-  memorial(dst, x, y, h, r, P) {
-    const names = [...Graffiti.MEMORIAL].sort(() => r() - 0.5).slice(0, 4);
+  // reserve: the top rows are left for the drivers you killed (painted fresh later: memorialFresh).
+  memorial(dst, x, y, h, r, P, reserve = 0) {
+    const names = [...Graffiti.MEMORIAL].sort(() => r() - 0.5).slice(0, Graffiti.memorialRows(reserve) - reserve);
     Graffiti.write(dst, x, y, h * 1.8, r, 'RIP', '#e8e4d8', P, 9999, true);
     const L = Graffiti.layer(dst.canvas.width, dst.canvas.height);
     L.g.strokeStyle = '#e8e4d8'; L.g.lineWidth = h * 0.25; L.g.lineCap = 'round';
     const cx = x + h * 6.6;
     L.g.beginPath(); L.g.moveTo(cx, y - h * 2.2); L.g.lineTo(cx, y + h * 0.6); L.g.moveTo(cx - h * 0.8, y - h * 1.4); L.g.lineTo(cx + h * 0.8, y - h * 1.4); L.g.stroke();
     Graffiti.spray(dst, L, r, { soft: 0.5, haze: h * 0.2, hazeA: 0.3, drips: 0.3, P });
-    names.forEach((n, i) => Graffiti.write(dst, x + h * 0.2, y + h * 1.4 + i * h * 1.6, h * 0.8, r, n, i % 2 ? '#d8d4cc' : '#c8c0b0', P, 9999, false)); // each added in its own hand
+    names.forEach((n, i) => Graffiti.write(dst, x + h * 0.2, y + h * 1.4 + (i + reserve) * h * 1.6, h * 0.8, r, n, i % 2 ? '#d8d4cc' : '#c8c0b0', P, 9999, false)); // each added in its own hand
+  },
+  memorialRows: (reserve) => Math.max(4, reserve + 3),
+  // The drivers you killed, added to the memorial in fresh paint (after the wall has aged), and who's blamed.
+  memorialFresh(dst, x, y, h, r, P, fame) {
+    const mine = fame.memorial.slice(-3);
+    if (!mine.length) return;
+    mine.forEach((n, i) => Graffiti.write(dst, x + h * 0.2, y + h * 1.4 + i * h * 1.6, h * 0.8, r, n, '#f4f0e6', P, 9999, false));
+    Graffiti.write(dst, x + h * 0.2, y + h * 1.6 + Graffiti.memorialRows(mine.length) * h * 1.6, h * 0.75, r, `${fame.n} DID THIS`, '#d8342a', P, 9999, true);
   },
 
   // The rest of a wall: buffing, then n marks (tags, throw-ups, stencils, writing), aged together.
-  wall(dst, W, H, r, n, info, memorial) {
+  wall(dst, W, H, r, n, info, memorial, mine) {
     Graffiti.buff(dst, W, H, r, info.P);
-    if (memorial) Graffiti.memorial(dst, W * 0.62, H * 0.5, 2.2 * info.P, r, info.P);
-    Graffiti.fill(dst, W, H, r, n, info, memorial ? [W * 0.58, H * 0.3, W, H * 0.95] : null);
+    const fame = info.fame && info.fame.memorial.length ? info.fame : null;
+    if (memorial) Graffiti.memorial(dst, W * 0.62, H * 0.5, 2.2 * info.P, r, info.P, fame ? Math.min(3, fame.memorial.length) : 0);
+    Graffiti.fill(dst, W, H, r, n, info, memorial ? [W * 0.58, H * 0.3, W, H * 0.95] : mine ? [0, 0, W, H * 0.7] : null);
     Graffiti.age(dst, W, H, r, info);
+    // Fresh paint over the old: what they're writing about you now (js/infamy.js).
+    if (memorial && fame) Graffiti.memorialFresh(dst, W * 0.62, H * 0.5, 2.2 * info.P, r, info.P, fame);
+    if (mine) Graffiti.mine(dst, W, H, r, mine, info);
+  },
+
+  // The walls react to you: a headline sprayed big, lines with replies, a tally of your wrecks. Fresh, so it sits
+  // bright on top of the aged paint. M: { headline, lines: [[line, reply?]], tally, n }.
+  mine(dst, W, H, r, M, info) {
+    const P = info.P;
+    let y = H * 0.14;
+    if (M.headline) {
+      const probe = Graffiti.layout(M.headline, 0, 0, 10, () => 0.5, { spacing: 0.86 }).w / 10;
+      const h = Math.min(H * 0.42, 6 * P, (W * 0.9) / probe);
+      Graffiti.write(dst, W * 0.04, y + h, h, r, M.headline, Graffiti.pick(r, ['#d8342a', '#e8e4d8', '#d8b83a']), P, W * 0.95, true);
+      y += h * 2.0;
+    }
+    if (M.tally) { // your number, and the wrecks in fives
+      const h = 2.4 * P, x0 = W * 0.06;
+      Graffiti.write(dst, x0, y + h, h, r, M.n, '#e8e4d8', P, 9999, false);
+      const L = Graffiti.layer(W, H);
+      L.g.strokeStyle = '#e8e4d8'; L.g.lineWidth = Math.max(1.5, P * 0.25); L.g.lineCap = 'round';
+      const tx = x0 + h * 3.6, step = h * 0.32;
+      for (let k = 0; k < M.tally; k++) {
+        const grp = Math.floor(k / 5), i = k % 5, gx = tx + grp * step * 6;
+        if (gx > W - step * 2) break;
+        L.g.beginPath();
+        if (i < 4) { L.g.moveTo(gx + i * step, y + h * 0.05); L.g.lineTo(gx + i * step + (r() - 0.5) * 2, y + h * 1.05); }
+        else { L.g.moveTo(gx - step * 0.4, y + h * 0.85); L.g.lineTo(gx + step * 3.4, y + h * 0.2); }
+        L.g.stroke();
+      }
+      Graffiti.spray(dst, L, r, { soft: 0.4, P });
+      y += h * 2.2;
+    }
+    const lh = 2.1 * P;
+    for (const ln of M.lines) {
+      if (y > H - lh * 1.5) break;
+      Graffiti.conversation(dst, W * 0.05 + r() * W * 0.08, y + lh, lh, r, ln, P, W * 0.85);
+      y += lh * (ln[1] ? 4.4 : 2.6);
+    }
   },
 
   // Buffed patches: somebody rollered over old work in a not-quite-matching grey.
@@ -375,7 +430,7 @@ const Graffiti = {
       if (kind === 'tag') Graffiti.tag(dst, x, y, h, r, Graffiti.pick(r, Graffiti.WRITERS), col, P);
       else if (kind === 'crew') Graffiti.tag(dst, x, y, h, r, Graffiti.pick(r, Graffiti.CREWS), col, P);
       else if (kind === 'throwup') Graffiti.throwup(dst, x, y, h, r, Graffiti.pick(r, Graffiti.WRITERS).slice(0, 3 + Math.floor(r() * 2)), P);
-      else if (kind === 'lore') Graffiti.conversation(dst, x, y - bh * 0.6, h, r, Graffiti.pick(r, r() < 0.5 ? Graffiti.LORE[0] : Graffiti.LORE[act + 1]), P, Math.min(bw, W - x - h));
+      else if (kind === 'lore') Graffiti.conversation(dst, x, y - bh * 0.6, h, r, Graffiti.yours(Graffiti.pick(r, r() < 0.5 ? Graffiti.LORE[0] : Graffiti.LORE[act + 1]), info.fame), P, Math.min(bw, W - x - h));
       else if (kind === 'stencil') { const L = Graffiti.layer(W, H); Graffiti.stencil(L.g, x + h * 0.6, y - h * 0.55, h, r, col === '#151515' ? col : Graffiti.pick(r, ['#151515', '#d8d4cc', '#b8322a'])); Graffiti.spray(dst, L, r, { soft: 1.0, haze: h * 0.1, hazeA: 0.6, drips: 0.06, P, box: [x - h * 0.2, y - h * 1.6, h * 2.6, h * 2.4] }); }
       else { const L = Graffiti.layer(W, H); Graffiti.smiley(L.g, x + h * 0.5, y - h * 0.5, h * 0.42, col === '#151515' ? '#d8b83a' : col); Graffiti.spray(dst, L, r, { soft: 0.6, haze: h * 0.06, hazeA: 0.4, drips: 0.25, P, box: [x - h * 0.2, y - h * 1.2, h * 1.6, h * 1.6] }); }
     }

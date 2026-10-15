@@ -158,7 +158,7 @@ class Combat {
     this.events.push({ type: 'tyrePop', x: c.x, y: c.y, mine: c === p, by: owner === p, side: i % 2 ? 1 : -1 });
     const where = (i < 2 ? 'front ' : 'rear ') + (i % 2 ? 'left' : 'right');
     if (c === p) this.race.message(`Your ${where} tyre is gone!`, '#ff9f1c', true);
-    else if (owner === p) { this.race.message(`Popped ${shortName(c)}'s ${where} tyre!`, '#7CFC00'); this.stats.tyres = (this.stats.tyres || 0) + 1; c.tyredBy = true; }
+    else if (owner === p) { this.race.message(`Popped ${shortName(c)}'s ${where} tyre!`, '#7CFC00'); this.stats.tyres = (this.stats.tyres || 0) + 1; c.tyredBy = true; if (this.fame) this.fame(INFAMY.tyre, 'TYRE'); }
     return true;
   }
   // Should this tyre hunter go for a wheel this time, and which? Only when the race has settled, from close beside or
@@ -419,6 +419,8 @@ class Combat {
     if (!c.driverDead) this.woundCrew(c, 'driver', 999, p);
     this.hitCar(c, GRENADE_IN.dmg, p, 0, 0.6, 'blast');
     this.race.message(`${shortName(c)}'s cabin goes up!`, '#ffd23f', true);
+    this.stats.grenadeIn = (this.stats.grenadeIn || 0) + 1;
+    if (this.fame) this.fame(INFAMY.grenadeIn, 'GRENADE IN THE CABIN');
   }
 
   // Rebuild the player's stats after a part breaks or is replaced.
@@ -608,6 +610,7 @@ class Combat {
     if (has(this.build, 'spikes') && race.state === 'racing') this.spikeHubs(dt);
     this.updateBoss(dt); // js/bosses.js
     this.updateTilt(dt); // js/emotes.js
+    if (this.updateCrowd) this.updateCrowd(dt); // js/infamy.js
     for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1) * ((this.buffs && this.buffs.cdRate) || 1);
     this.swerveCd -= dt;
     this.invulnT -= dt;
@@ -788,7 +791,7 @@ class Combat {
             o.dead = true;
             pr.dead = true;
             this.explode(o.x, o.y, 30, 6, pr.owner);
-            if (pr.owner === p) { this.stats.shotDown++; this.race.message('Rocket shot down!', '#5ad8ff'); }
+            if (pr.owner === p) { this.stats.shotDown++; this.race.message('Rocket shot down!', '#5ad8ff'); if (this.fame) this.fame(INFAMY.shotDown, 'SHOT DOWN'); }
             break;
           }
         }
@@ -904,6 +907,7 @@ class Combat {
       pr.vy = -pr.vy * 1.2;
       this.stats.parries++;
       this.race.message('PARRY!', '#5ad8ff', true);
+      if (this.fame) this.fame(INFAMY.parry, 'PARRY');
       if (has(this.build, 'dice')) {
         // Fuzzy dice: a parry tops up the magazine in your hands.
         const w = this.weapon, def = this.weaponDef, take = Math.min(def.mag - w.mag, w.reserve);
@@ -1054,6 +1058,10 @@ class Combat {
     if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
     this.cloverRefill();
     if (!c.downed) c.downed = { how };
+    if (how !== 'crowd' && this.fame) { // Infamy (js/infamy.js): a clean kill is the better show, and more so from up on the roof
+      this.fame(how === 'driver' ? INFAMY.clean : INFAMY.wreck, how === 'driver' ? 'CLEAN KILL' : 'WRECK');
+      if (this.exposed) this.fame(INFAMY.roofWreck, 'FROM THE ROOF');
+    }
   }
 
   hitCar(c, dmg, owner, ang, slow, kind) {

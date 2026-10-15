@@ -9,6 +9,7 @@ const TRINKET_MOUNT = {
   dice: 'hang', rabbit_foot: 'hang', keys: 'hang', rosary: 'hang', freshener: 'hang', dogtags: 'hang', shoes: 'hang', clover: 'hang',
   bobblehead: 'stand', troll: 'stand', teddy: 'stand', snowglobe: 'stand', eightball: 'stand', compass: 'stand', lighter: 'stand',
   deadrosary: 'hang', loaded: 'hang', spikes: 'flat',
+  scarf: 'hang', letters: 'flat', mugshot: 'stand',
   horseshoe: 'flat', medal: 'flat', photo: 'flat', smokes: 'flat', tooth: 'flat', sparkplug: 'flat', cassette: 'flat',
 };
 
@@ -546,6 +547,68 @@ const TRINKET_BUILD = {
     return g;
   },
 };
+
+// ---------- From the Fan Club (js/infamy.js) ----------
+Object.assign(TRINKET_BUILD, {
+  // Fan Club Scarf: a little knitted scarf in prison orange, looped over the mirror, two tails with white bands and
+  // a fringe.
+  scarf() {
+    return Trinkets.make('scarf', 0.025, (sc) => {
+      const knit = LP.mat('#d6631d', { roughness: 1 }), band = LP.mat('#efe8d8', { roughness: 1 });
+      sc.add(knit, SDF.torus(0.32, 0.11, [0, -0.3, 0], [0, 0, 0]), 0.04); // the loop over the mirror arm
+      for (const [sx, len, tw] of [[-1, 2.1, 0.1], [1, 1.7, -0.15]]) {
+        const top = [sx * 0.22, -0.55, 0], bot = [sx * 0.3, -0.55 - len, sx * 0.08];
+        sc.add(knit, SDF.box([0.36, len, 0.08], 0.04, [(top[0] + bot[0]) / 2, (top[1] + bot[1]) / 2, (top[2] + bot[2]) / 2], [0, tw, sx * 0.05]), 0.05);
+        for (const f of [0.55, 0.75]) sc.add(band, SDF.box([0.38, 0.12, 0.1], 0.03, [top[0] + (bot[0] - top[0]) * f, top[1] + (bot[1] - top[1]) * f, top[2] + (bot[2] - top[2]) * f], [0, tw, sx * 0.05]), 0.02);
+        for (let k = 0; k < 5; k++) sc.add(knit, SDF.cyl(0.025, 0.22, 'y', 0.01, [bot[0] - 0.14 + k * 0.07, bot[1] - 0.12, bot[2]]), 0.01); // fringe
+      }
+    }).g;
+  },
+
+  // Love Letters: a bundle of envelopes tied with a bootlace, one with a lipstick kiss on it.
+  letters() {
+    return Trinkets.make('letters', 0.02, (sc) => {
+      const paper = [LP.mat('#efe8d8', { roughness: 1 }), LP.mat('#e8d4d8', { roughness: 1 }), LP.mat('#d8dce8', { roughness: 1 })];
+      const lace = LP.mat('#1a1614', { roughness: 0.9 }), lips = LP.mat('#c8202a', { roughness: 0.6 });
+      for (let k = 0; k < 5; k++) sc.add(paper[k % 3], SDF.box([1.5, 0.06, 0.95], 0.02, [(k % 2) * 0.06 - 0.03, 0.04 + k * 0.065, (k % 3) * 0.04 - 0.04], [0, (k - 2) * 0.06, 0]), 0.005);
+      sc.add(lace, SDF.box([0.06, 0.4, 1.02], 0.03, [0.15, 0.2, 0]), 0.01); // the lace round the bundle
+      sc.add(lace, SDF.box([1.58, 0.4, 0.06], 0.03, [0, 0.2, 0.05]), 0.01);
+      sc.add(lace, SDF.torus(0.1, 0.025, [0.15, 0.4, 0.05], [Math.PI / 2, 0, 0.4]), 0.01); // the bow
+      sc.add(lace, SDF.torus(0.1, 0.025, [0.33, 0.4, 0.05], [Math.PI / 2, 0, -0.4]), 0.01);
+      for (const sx of [-1, 1]) sc.add(lips, SDF.ellipsoid([0.12, 0.02, 0.06], [-0.45 + sx * 0.08, 0.37, -0.22]), 0.01); // a kiss
+    }).g;
+  },
+
+  // Signed Mugshot: your booking photo on a card, propped against a little wire stand, signed across the corner.
+  mugshot() {
+    const g = new THREE.Group();
+    const wire = LP.mat('#3a3a3a', { metalness: 0.7, roughness: 0.4 });
+    const sc = new Sculpt('trinket:mugshot', 0.02);
+    sc.add(LP.mat('#f2efe6', { roughness: 0.9 }), SDF.box([1.2, 1.5, 0.03], 0.01, [0, 0.8, 0], [-0.22, 0, 0]), 0.0001);
+    sc.add(wire, SDF.path([[-0.4, 0, -0.35], [0, 0.6, -0.12], [0.4, 0, -0.35]], 0.02), 0.01); // the stand behind it
+    sc.add(wire, SDF.box([1.1, 0.04, 0.12], 0.02, [0, 0.05, 0.14]), 0.01); // the lip it rests on
+    sc.build(g);
+    if (!Trinkets.mugTex) {
+      const c = document.createElement('canvas'); c.width = 96; c.height = 120;
+      const x = c.getContext('2d');
+      x.fillStyle = '#9aa0a0'; x.fillRect(0, 0, 96, 120);
+      x.strokeStyle = 'rgba(30,30,30,0.6)'; x.lineWidth = 1;
+      for (let y = 8; y < 120; y += 12) { x.beginPath(); x.moveTo(0, y); x.lineTo(y % 24 ? 10 : 18, y); x.stroke(); } // the height chart
+      x.fillStyle = '#2a2420'; x.beginPath(); x.ellipse(48, 46, 18, 22, 0, 0, Math.PI * 2); x.fill(); // head
+      x.beginPath(); x.moveTo(14, 120); x.quadraticCurveTo(48, 62, 82, 120); x.fill(); // shoulders
+      x.fillStyle = '#d6631d'; x.beginPath(); x.moveTo(20, 120); x.quadraticCurveTo(48, 78, 76, 120); x.fill(); // the jumpsuit
+      x.fillStyle = '#111'; x.fillRect(26, 86, 44, 18); // the placard
+      x.fillStyle = '#eee'; x.font = 'bold 12px monospace'; x.textAlign = 'center'; x.fillText(String((Trinkets.inmate || '4471')).slice(0, 6), 48, 99);
+      x.strokeStyle = '#1a3aa8'; x.lineWidth = 2; x.beginPath(); x.moveTo(52, 20); x.bezierCurveTo(62, 6, 70, 30, 78, 14); x.bezierCurveTo(84, 4, 88, 24, 92, 10); x.stroke(); // the signature
+      Trinkets.mugTex = new THREE.CanvasTexture(c); Trinkets.mugTex.colorSpace = THREE.SRGBColorSpace;
+    }
+    const pic = LP.mesh(new THREE.PlaneGeometry(1.0, 1.3), LP.mat('#ffffff', { map: Trinkets.mugTex }), 0, 0.82, 0.03);
+    pic.rotation.x = -0.22;
+    pic.position.z = 0.03 + Math.sin(0.22) * 0.02;
+    g.add(pic);
+    return g;
+  },
+});
 
 Object.assign(Models, {
   trinket(id) {

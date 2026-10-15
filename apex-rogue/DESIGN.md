@@ -42,6 +42,17 @@ gets you booked on higher channels.
 - **Channel gates:** each channel needs a number of viewers to book you. The guide shows the channels you can't get
   on yet, greyed out with their price in viewers, so you always see what you're climbing towards.
 
+### Infamy: the currency you spend
+
+**Built** (`js/infamy.js`). Viewers are what you climb with; **Infamy** is what you spend. Both come from the same
+showmanship: every live Infamy pop-up is a moment the broadcast would cut to. Spent at the **Fan Club** (the mail
+under the track door) on things only fans send: care packages, bootleg ammo, donations, The Crowd Turns, an Encore
+(wipe a strike) and fan-made trinkets. Humiliations pay Infamy now instead of scrap: scrap is for killing and
+placing, Infamy for style.
+- **The world reacts:** the run's record is written on the garage walls in your inmate number (see README).
+- **Open:** when viewers arrive, lifetime Infamy in a run is the natural viewer count (spending it doesn't lose you
+  viewers). Whether billboards and commentators should also pick up the record.
+
 ### Sponsors
 
 **Decided.** As your viewers cross thresholds, sponsors start calling. Each time, you choose one of two offers.

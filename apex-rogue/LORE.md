@@ -34,7 +34,10 @@ so treat it as fixed, and add to it here first when something new is introduced.
   of the arsenal is.*
 - **Warden Corp** arms its guards with the **WC-9 Carbine** (yellow Warden Corp band on the stock) and the belt-fed
   **Grinder**; the ones in the Derby were liberated (*open: from whom*).
-- **Inmate 4471** is the player (the default inmate number). Someone has written "4471 IS NEXT" on the wall.
+- **Inmate 4471** is the player (the default inmate number). Someone has written "4471 IS NEXT" on the wall; once
+  you've lasted a couple of races someone answers it ("NOT YET", then "NEXT TO WALK" after a boss). The inmates
+  keep writing about you as the run goes: what you did, who you killed (added to the memorial: "4471 DID THIS"),
+  what you took. Fans write in too: the **Fan Club** is the mail shoved under the track door.
 
 ## The bosses
 

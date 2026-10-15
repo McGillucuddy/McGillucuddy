@@ -38,6 +38,7 @@ const Proto = {
       this.view = 'top';
     }
     this.cos = loadCosmetics();
+    Trinkets.inmate = this.cos.inmate; // the number on the Signed Mugshot
     Meta.rep = this.cos.rep;
     Settings.load();
     Playtest.load();
@@ -286,6 +287,22 @@ const Proto = {
         this.showGarage();
         break;
       }
+      case 'buy-fan': {
+        const c = this.fans && this.fans.stock[+arg], run = this.run;
+        if (!c || Infamy.blocked(c, b, run) || (b.infamy || 0) < c.price) break;
+        b.infamy -= c.price;
+        if (c.type === 'trinket') applyItem(b, itemCard('trinket', c.id));
+        else if (c.id === 'care') { b.hull = Math.min(b.maxHull, b.hull + 40); b.grenades = Math.min(MAX_GRENADES, b.grenades + 1); }
+        else if (c.id === 'ammo') { for (const w of b.rack.concat(b.roof && b.roof.gun ? [b.roof.gun] : [])) { const d = weaponStats(w); if (d.pack) w.reserve += d.pack * 2; } }
+        else if (c.id === 'donations') b.scrap += FAN_DONATION(run.act);
+        else if (c.id === 'crowd') run.flags.crowd = true;
+        else if (c.id === 'encore') { b.strikes = Math.max(0, b.strikes - 1); run.flags.encoreAct = run.act; }
+        c.sold = true;
+        Sound.play({ type: 'buy' });
+        this.saveRun();
+        this.showGarage();
+        break;
+      }
       case 'pocket-use': {
         const x = b.pocket[+arg];
         if (!x) break;
@@ -384,7 +401,7 @@ const Proto = {
         <div class="ctl"><kbd>Space</kbd> (hold) Slam the blast hatch: it stops bullets and most of a blast, but you can't shoot. Slam it as a rocket hits to bat it back.</div>
         <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
         <div class="ctl"><kbd>V</kbd> (or <kbd>4</kbd>) Climb up to the roof gun, if you've mounted one, and back down. Steadier and all the way round, but you're exposed and the blast hatch can't cover you.</div>
-        <div class="ctl"><kbd>T</kbd> Emote at a rival (hold for the wheel): they get tilted. Pass or wreck them while they're seething for a bonus.</div>
+        <div class="ctl"><kbd>T</kbd> Emote at a rival (hold for the wheel): they get tilted. Pass or wreck them while they're seething for Infamy.</div>
         <div class="ctl"><kbd>M</kbd> Mute · <kbd>Esc</kbd> Pause</div>
         <button class="btn" data-action="title">Back</button>
       </div>`;
@@ -474,7 +491,7 @@ const Proto = {
     const data = {
       v: 1, where, pending, rng, runSeed: this.runSeed, build: this.build,
       run: Object.assign({}, this.run, { node: this.run.node ? this.run.node.id : null }),
-      shop: this.shop, shopOpen: this.shopOpen, dealer: this.dealer || null, dealerKey: this.dealerKey || 0, tab: this.tab, rewards: this.rewards || null, rewardKind: this.rewardKind || null, pendingAct: this.pendingAct ?? null,
+      shop: this.shop, shopOpen: this.shopOpen, dealer: this.dealer || null, dealerKey: this.dealerKey || 0, fans: this.fans || null, tab: this.tab, rewards: this.rewards || null, rewardKind: this.rewardKind || null, pendingAct: this.pendingAct ?? null,
       saved: Date.now(),
     };
     try { localStorage.setItem(RUN_KEY, JSON.stringify(data)); } catch (e) { /* storage unavailable */ }
@@ -500,6 +517,7 @@ const Proto = {
     this.shopOpen = !!d.shopOpen;
     this.dealer = d.dealer || null;
     this.dealerKey = d.dealerKey || 0;
+    this.fans = d.fans || null;
     { // older saves: machine guns used to be held; they live on the roof now
       const B = this.build, R = ensureRoof(B);
       for (let i = B.rack.length - 1; i >= 0; i--) if (WEAPONS[B.rack[i].id].roof && B.rack.length > 1) { const [w] = B.rack.splice(i, 1); if (!R.gun) R.gun = w; else B.stash.weapons.push(w); }
@@ -584,6 +602,7 @@ const Proto = {
     this.shopOpen = false;
     this.dealer = null;
     this.dealerKey = 0;
+    this.fans = null;
     this.startAct(0, true);
     this.tab = 'car';
     if (this.preview) this.preview.setMode('car');
@@ -726,6 +745,8 @@ const Proto = {
     // The dealer behind the wall: maybe there, once per stretch between races (js/blackmarket.js).
     const b = this.build;
     if (!this.tutorial && b.race > 0 && this.dealerKey !== b.race) { this.dealerKey = b.race; this.dealer = BlackMarket.roll(b, this.runRng, this.run.act); }
+    // The Fan Club (js/infamy.js): fresh mail after every race, rolled on its own so it doesn't disturb the run's dice.
+    if (!this.tutorial && (!this.fans || this.fans.key !== b.race)) this.fans = { key: b.race, stock: Infamy.roll(b, this.run, mulberry32((this.runSeed ^ (b.race + 1) * 7919) >>> 0)) };
     if (this.tab === 'wall' && !this.dealer) this.tab = 'car';
     this.saveRun();
     if (this.preview) this.preview.setLook(carLook(this.cos, this.build));
@@ -901,6 +922,8 @@ const Proto = {
     run.flags.disarm = false;
     if (vend) { const vc = this.race.vendetta.car; if (!vc.weapon || vend.how === 'tyres') vc.weapon = 'gun'; vc.wpn = vc.wpn || { cd: randRange(rng, 2, 4), lock: 0 }; } // they come armed
     this.combat.pace = PACE;
+    this.combat.tutorial = !!node.tutorial;
+    this.combat.crowdTurns = !node.tutorial && !!run.flags.crowd; // bought at the Fan Club (js/infamy.js)
     // Bounties on every rival (the bounty stop's most-wanted keeps its big one).
     if (!node.tutorial) for (const c of this.race.cars) if (c !== player && !c.isBoss) c.bounty = Math.max(c.bounty || 0, rivalBounty(c, run.act, node.type === 'elite'));
     this.race.onRenderWorld = (ctx, t) => this.combat.render2D(ctx, t);
@@ -1146,6 +1169,7 @@ const Proto = {
     const loaded = has(b, 'loaded'), purseRoll = (r, rng, st) => (loaded ? r[1] : rollPurse(r, rng, st)); // Loaded Dice: always the top
     // Bounties on everyone you put out (clean kills, the driver shot through the glass, pay half as much again).
     const claimed = race.cars.filter((c) => c !== p && c.downed && c.bounty).map((c) => ({ c, pay: Math.round(c.bounty * (c.downed.how === 'driver' ? BOUNTY.cleanKill : 1)), clean: c.downed.how === 'driver' }));
+    if (has(b, 'letters')) for (const x of claimed) x.pay = Math.round(x.pay * 1.25); // Love Letters
     const wreckRoll = claimed.reduce((a, x) => a + x.pay, 0);
     const wx = wxOf(race.weather), mult = show * (race.node.type === 'elite' ? 1.4 : 1) * (has(b, 'tooth') ? 1.3 : 1) * (wx.scrap || 1);
     const placePay = p.dnf ? 0 : Math.round(purseRoll(range, prng, style) * mult), wreckPay = Math.round((wreckRoll + s.scrapBonus) * show);
@@ -1164,6 +1188,14 @@ const Proto = {
     const bodged = p.dnf ? PART_SLOTS.filter((k) => b.parts[k].dur <= 0) : [];
     for (const k of bodged) b.parts[k].dur = Math.round(partMaxDur(b, b.parts[k].id) * 0.25);
     if (has(b, 'snowglobe')) b.grenades = Math.min(MAX_GRENADES, b.grenades + 1);
+    // Infamy (js/infamy.js): what you earned live, plus the win, the podium, the boss; and the record for the walls.
+    if (!this.tutorial) for (const [why, n] of Infamy.finish(race, ok)) this.combat.fame(n, why.toUpperCase());
+    const fameGot = this.tutorial ? 0 : (s.infamy || 0);
+    b.infamy = (b.infamy || 0) + fameGot;
+    if (!this.tutorial) { Infamy.afterRace(run, race, s, ok, claimed); Infamy.rec(run).total += fameGot; }
+    run.flags.crowd = false;
+    const fameWhy = {};
+    for (const [why, n] of s.fameLog || []) fameWhy[why] = (fameWhy[why] || 0) + n;
     b.race++;
     if (p.place === 1) b.wins++;
     if (!ok) b.strikes++;
@@ -1198,6 +1230,7 @@ const Proto = {
           ${vres && vres.settled.length ? `<div><span>☠ Vendetta settled: ${vres.settled.map((v) => v.name + (v.over === 'dead' ? ' (for good)' : '')).join(', ')}</span><b>${vendPay} scrap</b></div>` : ''}
           ${vres && vres.escaped.length ? `<div class="unlock small">☠ ${vres.escaped.map((v) => v.name).join(', ')} got away. They're still out there.</div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
+          ${this.tutorial ? '' : `<div class="infamy-row"><span>Infamy${fameGot ? ` <small class="muted">${Object.entries(fameWhy).map(([w, n]) => `${w.toLowerCase()} ${n}`).join(', ')}</small>` : ' <small class="muted">nobody noticed you</small>'}</span><b>+${fameGot} (${b.infamy})</b></div>`}
           <div><span>Reputation</span><b>+${repGain} (${this.cos.rep})</b></div>
           ${gear.length ? `<div class="unlock gear">🔓 New gear in the shops and rewards: ${gear.map((g) => `<b>${g.name}</b>`).join(', ')}</div>` : ''}
           ${unlocked.length ? `<div class="unlock small">Paint shop unlocked: ${unlocked.join(', ')}</div>` : ''}
@@ -1224,14 +1257,16 @@ const Proto = {
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
     const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(this.run.act) ? 'Concierge' : 'Commissary', this.shopOpen ? 'Open now' : 'Closed'], ['paint', 'Paint booth', 'Looks, kept between runs']];
     if (this.dealer) stations.push(['wall', 'The wall', 'Someone\'s tapping']);
+    if (this.fans) stations.push(['fans', 'Fan mail', `${b.infamy || 0} Infamy`]);
     const nav = stations.map(([id, label, sub]) => `<button class="g-station ${this.tab === id ? 'on' : ''}" data-action="tab" data-arg="${id}"><b>${label}</b><small>${sub}</small></button>`).join('');
     const trinkets = b.trinkets.length ? b.trinkets.map((t) => `<span class="perk rarity-epic" title="${TRINKETS[t].desc}">${TRINKETS[t].name}</span>`).join('') : '<span class="muted small">No trinkets yet. They are the only things you keep for the whole run.</span>';
-    const body = { car: () => this.garageCar(bar), weapons: () => this.garageWeapons(), market: () => this.garageMarket(), paint: () => this.garagePaint(), wall: () => this.garageWall() }[this.tab]();
+    const body = { car: () => this.garageCar(bar), weapons: () => this.garageWeapons(), market: () => this.garageMarket(), paint: () => this.garagePaint(), wall: () => this.garageWall(), fans: () => this.garageFans() }[this.tab]();
     const title = stations.find((st) => st[0] === this.tab);
     this.setUI(`<div class="screen garage proto-garage g3d">
       <div class="g-top">
         <div><b>Act ${ROMAN[this.run.act]}</b> · ${act.title}</div>
         <div class="cash">${b.scrap} scrap</div>
+        <div class="infamy" title="Infamy: earned by putting on a show, spent on fan mail">${b.infamy || 0} infamy</div>
         <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
         <div>Rep <b>${this.cos.rep}</b></div>
         <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
@@ -1257,6 +1292,7 @@ const Proto = {
     const done = run.map.nodes.filter((n) => n.done && n.type !== 'boss').length;
     this.preview.sync({
       build: b, shop: this.shopOpen ? this.shop : [], cos: this.cos, dealer: this.dealer ? this.dealer.stock : null,
+      fans: this.fans ? { stock: this.fans.stock, total: Infamy.rec(run).total } : null, wall: Infamy.wall(run, this.cos),
       act: { luxury: ACT_LUXURY(run.act), boss: BOSSES[run.act], label: `Act ${ROMAN[run.act]}: ${act.title}`, progress: `Stop ${done + 1} of ${MAP_ROWS + 1} this act`, maxStrikes: STRIKES_TO_LOSE },
     });
     this.preview.setStation(this.tab);
@@ -1410,6 +1446,30 @@ const Proto = {
       <div class="shop-grid three">${D.stock.map(card).join('')}</div>
       <h3 class="shop-sec">Your pocket (${b.pocket.length}/${POCKET_MAX})</h3><div class="perks">${pocket}</div>
       <p class="muted small">Take drugs and booze, and load hot ammo, from the race briefing.</p></div>`;
+  },
+
+  // The Fan Club: what the fans shove under the track door, paid for in Infamy (js/infamy.js).
+  garageFans() {
+    const b = this.build, run = this.run, F = this.fans, got = b.infamy || 0, R = Infamy.rec(run);
+    if (!F) return '';
+    if (R.total < FAN_CLUB_OPEN) {
+      return `<div class="panel fans-panel"><h2>Fan mail</h2><p class="muted small">A couple of letters under the door, both addressed to whoever had this seat before you. Nobody's watching you yet.</p>
+        <p class="small">Put on a show: clean kills, wrecks, parries, a grenade through a window, flip someone off and then pass them. Earn <b>${FAN_CLUB_OPEN} Infamy</b> and the fans start writing.</p>
+        <p class="muted small">You have <b>${got}</b> Infamy.</p></div>`;
+    }
+    const card = (c, i) => {
+      const t = c.type === 'trinket' ? TRINKETS[c.id] : FAN_CLUB[c.id], why = Infamy.blocked(c, b, run), no = !!why || got < c.price;
+      const desc = (t.desc || '').replace('{scrap}', FAN_DONATION(run.act));
+      return `<div class="shop-card ${c.sold ? 'sold' : ''}">
+        <small class="muted">${c.type === 'trinket' ? 'FAN-MADE TRINKET' : 'FROM THE FANS'}</small>${Thumbs.img(c, b)}<b>${t.name}</b><small>${desc}</small>
+        <button class="btn small" data-action="buy-fan" data-arg="${i}" ${no ? 'disabled' : ''}>${why || c.price + ' Infamy'}</button>
+      </div>`;
+    };
+    const letters = ['"Saw you put that rocket back where it came from. Do it again."', '"My cellmate has your number on his wall. Don\'t die, he\'ll be unbearable."', '"I bet twenty scrap on you and you made me look stupid. Do it again."', '"Flip off Vale for me."', '"Mum says you\'re a bad influence. I made you this anyway."'];
+    return `<div class="panel fans-panel"><h2>Fan mail</h2>
+      <p class="small"><i>${letters[(b.race + R.total) % letters.length]}</i></p>
+      <p class="muted small">Shoved under the track door since your last race. Paid for in <b>Infamy</b>: you have <b>${got}</b> (${R.total} earned this run).</p>
+      <div class="shop-grid three">${F.stock.map(card).join('')}</div></div>`;
   },
 
   garagePaint() {
@@ -1925,6 +1985,26 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     }
   }
   drawMessages(ctx, race, W, H);
+  drawInfamyFeed(ctx, P, W, H);
+}
+
+// Infamy as you earn it (js/infamy.js): a short pink list on the right, each line sliding in and fading.
+function drawInfamyFeed(ctx, P, W, H) {
+  const F = P.combat && P.combat.fameFeed;
+  if (!F || !F.length) return;
+  ctx.textAlign = 'right';
+  ctx.font = `bold 18px ${hudFont()}`;
+  let y = H * 0.42;
+  for (const f of F) {
+    const a = clamp(Math.min(f.t * 8, (3 - f.t) * 1.5), 0, 1), dx = (1 - clamp(f.t * 6, 0, 1)) * 30;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillText(f.text, W - 28 + dx + 2, y + 2);
+    ctx.fillStyle = '#ff6ad5';
+    ctx.fillText(f.text, W - 28 + dx, y);
+    y += 24;
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawTopdownCombatHUD(ctx, P, W, H, t) {

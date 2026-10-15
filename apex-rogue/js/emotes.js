@@ -2,7 +2,7 @@
 // Emotes: your free (left) hand comes up into view and tells a rival what you think of them. Tap T for your last
 // one (the finger, to start with); hold T for the wheel and flick the mouse to pick. Whoever is under your
 // crosshair gets TILTED: they drive sloppier and come straight for you. Pass them or wreck them while they're
-// tilted and the crowd pays out. Taunt a boss and they answer.
+// tilted and the crowd loves it (Infamy: js/infamy.js). Taunt a boss and they answer.
 
 const EMOTES = {
   flip: { name: 'Flip off', icon: '🖕', line: 'flips off' },
@@ -13,7 +13,6 @@ const EMOTES = {
 const EMOTE_ORDER = ['flip', 'thumbs', 'beckon', 'horns']; // wheel: up, right, down, left
 const EMOTE_CD = 2.5;
 const TILT_TIME = 8;
-const HUMILIATE_PASS = 10, HUMILIATE_WRECK = 20;
 
 // What the bosses say back when you taunt them.
 const BOSS_COMEBACKS = {
@@ -102,8 +101,13 @@ Object.assign(Combat.prototype, {
     const c = Emotes.target(this, aim);
     this.events.push({ type: 'emote', id, target: c });
     if (!c) return true; // to nobody in particular
-    const first = !(c.tiltT > 0);
-    c.tiltT = c.isBoss ? TILT_TIME * 0.6 : TILT_TIME;
+    const first = !(c.tiltT > 0), mug = has(this.build, 'mugshot');
+    c.tiltT = (c.isBoss ? TILT_TIME * 0.6 : TILT_TIME) * (mug ? 1.5 : 1);
+    // Infamy for the gesture itself, a little, a few times a race (js/infamy.js).
+    const fl = this.stats.flipped || (this.stats.flipped = []);
+    if (!fl.includes(c.name)) fl.push(c.name);
+    this.flips = (this.flips || 0) + 1;
+    if (this.fame && this.flips <= INFAMY.flipCap) this.fame(INFAMY.flip * (mug ? 2 : 1), 'TAUNT');
     if (first) {
       c.wasAhead = c.place < p.place; // were they ahead of you when you got under their skin?
       if (c.ai) { c.ai.skillBase = c.ai.skillBase ?? c.ai.skill; c.ai.skill = c.ai.skillBase - 0.12; c.ai.rammer = true; c.ai.grudge = p; }
@@ -125,14 +129,16 @@ Object.assign(Combat.prototype, {
       // Humiliation: you go past someone who was ahead when you taunted them, or they get wrecked while seething.
       if (c.wasAhead && p.place < c.place && !c.humiliated) {
         c.humiliated = true;
-        this.stats.scrapBonus += HUMILIATE_PASS;
-        this.race.message(`Humiliated ${shortName(c)}: +${HUMILIATE_PASS} scrap`, '#7CFC00');
+        this.stats.humiliated = (this.stats.humiliated || 0) + 1;
+        this.race.message(`Humiliated ${shortName(c)}!`, '#7CFC00');
+        if (this.fame) this.fame(INFAMY.humiliatePass * (has(this.build, 'mugshot') ? 2 : 1), 'HUMILIATED');
         this.events.push({ type: 'crowd' });
       }
       if (c.hp <= 0 && !c.humiliatedWreck) {
         c.humiliatedWreck = true;
-        this.stats.scrapBonus += HUMILIATE_WRECK;
-        this.race.message(`The crowd loves it: +${HUMILIATE_WRECK} scrap`, '#7CFC00', true);
+        this.stats.humiliated = (this.stats.humiliated || 0) + 1;
+        this.race.message('The crowd loves it!', '#7CFC00', true);
+        if (this.fame) this.fame(INFAMY.humiliateWreck * (has(this.build, 'mugshot') ? 2 : 1), 'WRECKED WHILE SEETHING');
         this.events.push({ type: 'crowd' });
       }
       if (c.tiltT <= 0 && c.ai && c.ai.skillBase != null) { c.ai.skill = c.ai.skillBase; c.ai.rammer = false; c.ai.grudge = null; c.wasAhead = false; }

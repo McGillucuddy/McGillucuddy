@@ -571,3 +571,7 @@ body.proto #ui { z-index: 2; }
   background: radial-gradient(ellipse at 50% 60%, #3a342c 0%, #1a1714 75%); border-radius: 6px; image-rendering: pixelated; }
 .thumb:not([src]) { opacity: 0.5; }
 .up-card .thumb { max-width: 200px; }
+
+/* Infamy (js/infamy.js): the second currency, in fan-club pink. */
+.g-top .infamy { color: #ff6ad5; font-weight: 700; }
+.results .payout .infamy-row b { color: #ff6ad5; }

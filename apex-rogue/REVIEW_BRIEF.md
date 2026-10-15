@@ -49,6 +49,11 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   (shredder, incendiary, armour-piercing) and shady trinkets with real costs (Dead Man's Rosary, Loaded Dice, Spiked
   Hubcap). No shakedowns, no duds. **Tolerance:** each use of the same drug or drink in a run hits 25% weaker
   (floor 40%) while the comedown stays full.
+- **Infamy and the Fan Club:** a second currency for showmanship (clean kills, grenades through windows, parries,
+  taunts and humiliations, wins, bosses), shown live in pink. Spent on fan mail: care packages, ammo, donations, The
+  Crowd Turns (the stands pelt the leader), an Encore (wipe a strike) and fan-made trinkets.
+- **The walls react to you:** the garage graffiti picks up your run in your inmate number: a headline over the door,
+  lines and replies about what you did, a wreck tally, your kills on the memorial.
 - **You see what you buy:** every shop and reward card shows a rendered picture of the actual item (guns from the
   side, attachments on a gun, parts on a car, the contraband itself).
 - **The roof gun:** both machine guns are roof-mounted, not held. `V` climbs up through a hatch over your seat:
@@ -61,7 +66,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 
 ## What changed most recently
 
-Bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
+Infamy and the Fan Club; graffiti that reacts to your run; bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
 tolerance; item pictures on all cards; the Typewriter's drum turned square to the barrel; magazine wells on every
 mag-fed gun with straight-in reloads; the Grinder LMG's belt reload (feed cover up, belt laid in the tray, cover
 slammed); the roof-mounted machine guns with shielding tiers; a shorter race briefing.
@@ -84,7 +89,8 @@ slammed); the roof-mounted machine guns with shielding tiers; a shorter race bri
    floor) the right curve? Is 40% of visits too often?
 4. **The roof gun:** is climbing up worth the exposure? Are the shield tiers real choices or is one obviously best?
 5. **Tyres:** worth the complexity?
-6. **Bounties:** do they make you pick targets, or is it just more scrap?
+6. **Bounties and Infamy:** do bounties make you pick targets? Does Infamy change how you play, and is the Fan Club
+   worth visiting? Do you notice the walls talking about you?
 7. **The pitch and tone:** "a nobody inmate fighting up a city that's watching you die on TV." Does the game sell it?
    What would make the broadcast feel more present?
 8. **Anything that confused you** in the first ten minutes.
@@ -99,6 +105,6 @@ slammed); the roof-mounted machine guns with shielding tiers; a shorter race bri
 
 `README.md` (the game as built, every system), `DESIGN.md` (plans and decisions), `LORE.md` (the world).
 Code: `js/proto.js` (game flow, screens), `js/combat.js` (guns, damage, tyres, rival guns), `js/cockpit3d.js` (the
-first-person view and animations), `js/build.js` (items, shop, economy), `js/blackmarket.js`,
+first-person view and animations), `js/build.js` (items, shop, economy), `js/blackmarket.js`, `js/infamy.js`,
 `js/thumbs.js`, `js/models.js` / `js/rifles.js` (models), `js/race.js` / `js/car.js` / `js/ai.js` (racing).
 About 20,000 lines of plain JavaScript, no build step.

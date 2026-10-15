@@ -13,6 +13,7 @@ const GARAGE_POSES = {
   weapons: [[-60, 36, -24], [-60, 36, -100]],
   market: [[108, 32, -12], [109, 24, -66]],
   wall: [[54, 13, -66], [61, 6, -100]], // the hole in the wall under the chalkboard
+  fans: [[-78, 24, 4], [-116, 6, -54]], // fan mail piled inside the track door
   overview: [[96, 52, 86], [-16, 12, -22]],
 };
 
@@ -470,8 +471,8 @@ class Garage3D {
   // The inmates tag the garage with the name of whoever stands between them and the next act: a big piece on the
   // wall beside the track door (seen from the menu and the overview) and a wide one on the far wall (the car's
   // turntable swings past it). Every other wall carries years of everyone else's paint. See js/graffiti.js.
-  setBoss(boss) {
-    const key = boss && boss.name + (this.luxury ? ':lux' : '');
+  setBoss(boss, fame) {
+    const key = boss && boss.name + (this.luxury ? ':lux' : '') + (fame ? ':' + Infamy.wallKey(fame) : '');
     if (!boss || key === this.bossKey) return;
     this.bossKey = key;
     this.boss = boss;
@@ -484,7 +485,7 @@ class Garage3D {
       const P = 9, c = document.createElement('canvas'); // ~9 px a world unit
       c.width = Math.round(w * P); c.height = Math.round(h * P);
       const local = ry === 0 ? x : ry > 0 ? -z : z, wallW = ry === 0 ? 260 : 200;
-      const info = { P, x0: local - w / 2, top: y + h / 2, wallW, blocks, act };
+      const info = { P, x0: local - w / 2, top: y + h / 2, wallW, blocks, act, fame };
       draw(c.getContext('2d'), c.width, c.height, mulberry32(act * 7919 + seed), info);
       const t = new THREE.CanvasTexture(c);
       t.colorSpace = THREE.SRGBColorSpace;
@@ -497,17 +498,52 @@ class Garage3D {
     wall(58, 64, (g, W, H, r, info) => Graffiti.piece(g, W, H, r, boss, 'stack', info), -129.3, 36, -68, Math.PI / 2, 1);
     wall(132, 62, (g, W, H, r, info) => Graffiti.piece(g, W, H, r, boss, 'wide', info), 129.3, 36, 36, -Math.PI / 2, 2);
     // Everything else: round the door, both sides of the pegboard, behind the posters, past the name.
-    const filler = (w, h, x, y, z, ry, n, seed, memorial) => wall(w, h, (g, W, H, r, info) => Graffiti.wall(g, W, H, r, n, info, memorial), x, y, z, ry, seed);
+    const filler = (w, h, x, y, z, ry, n, seed, memorial, mine) => wall(w, h, (g, W, H, r, info) => Graffiti.wall(g, W, H, r, n, info, memorial, mine), x, y, z, ry, seed);
+    // What they've written about you (js/infamy.js): the headline over the door, your tally by the pegboard, the
+    // rest spread round the room.
+    const F = fame && (fame.headline || fame.lines.length || fame.tally) ? fame : null, part = (lines, extra) => (F ? Object.assign({ n: F.n, lines, headline: null, tally: 0 }, extra) : null);
+    const L = F ? F.lines : [];
     filler(74, 66, -129.6, 36, 61, Math.PI / 2, 8, 3, true); // left wall past the door (behind the posters), with the memorial
-    filler(62, 15, -129.3, 63, -8, Math.PI / 2, 2, 4); // over the door
-    filler(22, 66, -118, 36, -99.3, 0, 3, 5); // back wall, left of the pegboard
-    filler(32, 40, -2, 22, -99.3, 0, 3, 6); // between the pegboard and the chalkboard
-    filler(34, 46, 84, 26, -99.3, 0, 4, 7); // right of the chalkboard
-    filler(56, 30, 129.3, 22, -60, -Math.PI / 2, 4, 8); // far wall, past the name
+    filler(62, 15, -129.3, 63, -8, Math.PI / 2, 2, 4, false, F && F.headline ? part([], { headline: F.headline }) : null); // over the door
+    filler(22, 66, -118, 36, -99.3, 0, 3, 5, false, F && F.tally ? part([], { tally: Math.min(F.tally, 10) }) : null); // back wall, left of the pegboard
+    filler(32, 40, -2, 22, -99.3, 0, 3, 6, false, L[0] ? part(L.slice(0, 2)) : null); // between the pegboard and the chalkboard
+    filler(34, 46, 84, 26, -99.3, 0, 4, 7, false, L[2] ? part(L.slice(2, 4)) : null); // right of the chalkboard
+    filler(56, 30, 129.3, 22, -60, -Math.PI / 2, 4, 8, false, L[4] ? part(L.slice(4, 6)) : null); // far wall, past the name
     this.scene.add(G);
   }
 
   // ---------- Things that reflect your run ----------
+
+  // The Fan Club (js/infamy.js): mail shoved under the track door, piling up inside it as your Infamy grows, and the
+  // things the fans sent on top.
+  buildMail(D, F) {
+    const X = -118, Z = -52, paper = [LP.mat('#efe8d8', { roughness: 1 }), LP.mat('#e8d4d8', { roughness: 1 }), LP.mat('#d8dce8', { roughness: 1 })];
+    const sackM = LP.mat('#8a7a5a', { roughness: 1 }), rng = mulberry32(F.total * 31 + 7);
+    const sacks = F.total < FAN_CLUB_OPEN ? 0 : Math.min(4, 1 + Math.floor(F.total / 60)), loose = Math.min(40, 3 + Math.floor(F.total / 3));
+    for (let k = 0; k < sacks; k++) {
+      const s = this.sculptOnce('mailsack', 0.25, (sc) => {
+        sc.add(sackM, SDF.ellipsoid([4.4, 4.0, 3.8], [0, 3.6, 0]), 0.8); // the body, slumped
+        sc.add(sackM, SDF.box([7.6, 1.2, 6.6], 1.0, [0, 0.6, 0]), 1.2); // flat where it sits
+        sc.add(sackM, SDF.cone([0, 6.4, 0], [0.3, 9.0, 0.2], 2.2, 1.1), 0.8); // gathered neck
+        sc.add(LP.mat('#3a2a1a'), SDF.torus(1.45, 0.25, [0.2, 8.0, 0.1], [0, 0, 0]), 0.2); // the cord
+        for (let i = 0; i < 3; i++) sc.add(sackM, SDF.box([0.25, 2.4, 0.6], 0.1, [Math.cos(i * 2.1) * 1.6, 4.2, Math.sin(i * 2.1) * 1.6], [0, -i * 2.1, 0.12]), 0.6); // folds
+        for (let i = 0; i < 4; i++) sc.add(paper[i % 3], SDF.box([2.2, 0.15, 1.5], 0.06, [-0.3 + i * 0.3, 9.4 + i * 0.12, -0.3 + (i % 2) * 0.6], [0.9 * (i % 2 ? 1 : -1), i * 0.6, 0.5]), 0.05);
+      });
+      s.position.set(X + (k % 2) * 8 - 2, 0, Z - Math.floor(k / 2) * 8 + 4);
+      s.rotation.y = rng() * TAU;
+      D.add(s);
+    }
+    for (let k = 0; k < loose; k++) { // letters fanned across the floor from the gap under the door
+      const e = LP.box(2.4, 0.1, 1.6, paper[k % 3], -126 + rng() * 14, 0.08 + k * 0.004, -30 - rng() * 30);
+      e.rotation.y = rng() * TAU;
+      D.add(e);
+    }
+    const hot = LP.box(22, 12, 22, LP.mat('#000', { transparent: true, opacity: 0 }), X, 6, Z);
+    hot.userData.dynamic = true;
+    this.hot(hot, 'tab', 'fans', 'Fan mail: spend Infamy');
+  }
+
+  sculptOnce(key, cell, fill) { const g = new THREE.Group(), sc = new Sculpt('garage:' + key, cell); fill(sc); sc.build(g); return g; }
 
   // The black market (js/blackmarket.js): a knocked-through hole low in the back wall, bricks on the floor, and in
   // the dark two eyes and a lit cigarette. Only there on the visits the dealer is.
@@ -546,7 +582,7 @@ class Garage3D {
   sync(info) {
     const { build: b, shop, cos, act } = info;
     this.setTheme(!!act.luxury);
-    if (act.boss) this.setBoss(act.boss); // after the theme: plaster or cinderblock changes how the paint sits
+    if (act.boss) this.setBoss(act.boss, info.wall); // after the theme: plaster or cinderblock changes how the paint sits
     this.dyn.clear();
     this.hotRoot.children.filter((o) => o.userData.dynamic).forEach((o) => this.hotRoot.remove(o));
     const D = this.dyn;
@@ -564,6 +600,7 @@ class Garage3D {
       D.add(holder);
     };
     if (info.dealer) this.buildHole(D, info.dealer);
+    if (info.fans) this.buildMail(D, info.fans);
     b.rack.forEach((w, i) => hang(w, -82 + i * 22, 50));
     b.stash.weapons.forEach((w, i) => hang(w, -82 + i * 22, 30));
     // Bench: loose mods in little boxes, ammo cans and your grenade crate.

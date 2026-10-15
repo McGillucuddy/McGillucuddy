@@ -157,6 +157,62 @@ Object.assign(Models, {
   },
 });
 
+// ---------- What the fans send (js/infamy.js) ----------
+const FAN_BUILD = {
+  // A wooden crate, lid off, an orange sweater stuffed in the top and a grenade on it.
+  care() {
+    return Thumbs.sculpt('fan:care', 0.06, (sc) => {
+      const wood = LP.mat('#8a6a42', { roughness: 1 }), knit = LP.mat('#d6631d', { roughness: 1 }), olive = LP.mat('#4a5230', { roughness: 0.6 });
+      sc.add(wood, SDF.box([3.2, 2.0, 2.4], 0.08, [0, 1.0, 0]), 0.05);
+      sc.cut(SDF.box([2.9, 1.8, 2.1], 0.05, [0, 1.3, 0]), 0.05, [wood]);
+      for (const y of [0.5, 1.5]) sc.cut(SDF.box([3.3, 0.06, 2.5], 0.01, [0, y, 0]), 0.02, [wood]); // plank seams
+      sc.add(knit, SDF.ellipsoid([1.4, 0.5, 1.0], [0, 1.95, 0]), 0.3);
+      sc.add(olive, SDF.ellipsoid([0.35, 0.45, 0.35], [0.5, 2.6, 0.2]), 0.05);
+      sc.add(olive, SDF.box([0.2, 0.3, 0.12], 0.04, [0.5, 3.1, 0.2]), 0.03);
+    });
+  },
+  // Two cardboard boxes of reloads, one open with brass showing.
+  ammo() {
+    return Thumbs.sculpt('fan:ammo', 0.05, (sc) => {
+      const card = LP.mat('#a8865a', { roughness: 1 }), brass = LP.mat('#c9a443', { metalness: 0.8, roughness: 0.3 });
+      sc.add(card, SDF.box([2.4, 1.0, 1.6], 0.04, [0, 0.5, 0]), 0.02);
+      sc.add(card, SDF.box([2.2, 1.0, 1.5], 0.04, [0.2, 1.5, -0.1], [0, 0.25, 0]), 0.02);
+      sc.cut(SDF.box([2.0, 0.6, 1.3], 0.03, [0.2, 1.9, -0.1], [0, 0.25, 0]), 0.03, [card]);
+      for (let i = 0; i < 6; i++) for (let j = 0; j < 4; j++) sc.add(brass, SDF.cyl(0.09, 0.5, 'y', 0.02, [-0.6 + i * 0.32 + 0.2, 1.7, -0.6 + j * 0.3]), 0.01);
+    });
+  },
+  // Envelopes, one torn open, with scrap (nuts and bolts) spilling out.
+  donations() {
+    return Thumbs.sculpt('fan:donations', 0.05, (sc) => {
+      const paper = LP.mat('#efe8d8', { roughness: 1 }), steel = LP.mat('#8a8f94', { metalness: 0.8, roughness: 0.4 });
+      sc.add(paper, SDF.box([2.6, 0.08, 1.6], 0.03, [-0.4, 0.04, 0], [0, 0.2, 0]), 0.01);
+      sc.add(paper, SDF.box([2.6, 0.08, 1.6], 0.03, [0.3, 0.14, 0.3], [0, -0.3, 0]), 0.01);
+      for (let k = 0; k < 7; k++) sc.add(steel, SDF.cyl(0.14, 0.12, 'y', 0.03, [1.0 + (k % 3) * 0.32, 0.25, -0.3 + Math.floor(k / 3) * 0.32]), 0.02);
+      sc.add(steel, SDF.cyl(0.07, 0.9, 'x', 0.02, [1.4, 0.3, 0.6]), 0.02); // a bolt
+    });
+  },
+  // What the crowd throws: a bottle, a shoe, a battery.
+  crowd() {
+    return Thumbs.sculpt('fan:crowd', 0.05, (sc) => {
+      const glass = LP.mat('#3a6a3a', { roughness: 0.2, transparent: true, opacity: 0.8 }), shoe = LP.mat('#2a2420', { roughness: 0.8 }), bat = LP.mat('#c8a83a', { roughness: 0.5 });
+      sc.add(glass, SDF.cyl(0.4, 1.6, 'x', 0.15, [-0.8, 0.4, 0]), 0.1);
+      sc.add(glass, SDF.cyl(0.14, 0.8, 'x', 0.05, [0.3, 0.4, 0]), 0.1);
+      sc.add(shoe, SDF.ellipsoid([1.1, 0.35, 0.45], [0.6, 0.35, 1.0]), 0.15);
+      sc.add(shoe, SDF.ellipsoid([0.5, 0.45, 0.4], [0.2, 0.6, 1.0]), 0.15);
+      sc.add(bat, SDF.cyl(0.22, 0.9, 'z', 0.04, [-0.6, 0.22, 1.2]), 0.02);
+    });
+  },
+  // A mail sack stuffed with letters to the warden.
+  encore() {
+    return Thumbs.sculpt('fan:encore', 0.06, (sc) => {
+      const sack = LP.mat('#8a7a5a', { roughness: 1 }), paper = LP.mat('#efe8d8', { roughness: 1 }), cord = LP.mat('#3a2a1a');
+      sc.add(sack, SDF.ellipsoid([1.4, 1.6, 1.2], [0, 1.5, 0]), 0.3);
+      sc.add(cord, SDF.torus(0.55, 0.06, [0, 2.9, 0], [0, 0, 0]), 0.05);
+      for (let k = 0; k < 5; k++) sc.add(paper, SDF.box([0.9, 0.05, 0.6], 0.02, [-0.3 + k * 0.15, 3.1 + k * 0.05, -0.2 + (k % 2) * 0.3], [0.4 * (k % 2 ? 1 : -1), k * 0.6, 0.3]), 0.01);
+    });
+  },
+};
+
 // ---------- The picture renderer ----------
 const Thumbs = {
   W: 200, H: 140,
@@ -193,6 +249,7 @@ const Thumbs = {
     if (type === 'weapon') return { obj: Models.weapon(id), view: [-1.3, 0.18] }; // from the side
     if (type === 'trinket') return { obj: Models.trinket(id), view: [0.4, 0.2] };
     if (type === 'contra') return { obj: Models.contra(id), view: [0.55, 0.6] };
+    if (type === 'fan') return { obj: (FAN_BUILD[id] || FAN_BUILD.encore)(), view: [0.55, 0.45] };
     if (type === 'mod') { // fitted on a gun it fits (one of yours if you have one), framed on the attachment
       const gun = extra || MODS[id].fits[0];
       const g = Models.modVisuals(Models.weapon(gun), gun, [id], false), focus = [];

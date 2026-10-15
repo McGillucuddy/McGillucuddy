@@ -102,6 +102,10 @@ const TRINKETS = {
   deadrosary: { name: "Dead Man's Rosary", shady: true, desc: 'Bone beads off a driver who died in your seat. Once per run, a wreck doesn\'t put you out: you come back on 30 hull. Rival gunners lock on 15% faster.' },
   loaded: { name: 'Loaded Dice', shady: true, desc: 'Purses always roll at the top of their range. -20 maximum hull.' },
   spikes: { name: 'Spiked Hubcap', shady: true, desc: 'Fits spikes to your hubs: side by side with a rival, they shred that rival\'s tyres. You take 25% more ram damage.' },
+  // Fan-made trinkets: only the Fan Club has these (js/infamy.js), paid for in Infamy.
+  scarf: { name: 'Fan Club Scarf', fan: true, desc: 'Knitted in prison orange with your number on it. +25% Infamy from everything.' },
+  letters: { name: 'Love Letters', fan: true, desc: 'A bundle of them, tied with a bootlace, in the glovebox. Bounties pay 25% more.' },
+  mugshot: { name: 'Signed Mugshot', fan: true, desc: 'Your own mugshot, sent in for you to sign. You kept it. Taunts and humiliations earn double Infamy; rivals stay tilted 50% longer.' },
   shoes: { name: 'Bronzed Baby Shoes', desc: 'Once per race, when your hull drops below 30%, patch 25 of it back.' },
   compass: { name: 'Dash Compass', desc: 'Your rockets turn 40% harder towards their target.' },
   cassette: { name: 'Mixtape', desc: 'Reloads 20% faster.' },
@@ -489,7 +493,7 @@ function rollRewards(b, rng, count) {
   for (const id in WEAPONS) if (!ownsWeapon(b, id)) pool.push(['weapon', id, 3]);
   for (const id in ABILITIES) if (!ownsAbility(b, id)) pool.push(['ability', id, 2]);
   for (const id in MODS) pool.push(['mod', id, { common: 2, rare: 1.2, epic: 0.6 }[MODS[id].rarity]]);
-  for (const id in TRINKETS) if (!has(b, id) && !TRINKETS[id].shady) pool.push(['trinket', id, 2]);
+  for (const id in TRINKETS) if (!has(b, id) && !TRINKETS[id].shady && !TRINKETS[id].fan) pool.push(['trinket', id, 2]);
   for (const id in CHIPS) if (!ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)) pool.push(['chip', id, 1]);
   for (let i = pool.length - 1; i >= 0; i--) if (!isUnlocked(pool[i][0], pool[i][1])) pool.splice(i, 1); // only gear you've unlocked
   const out = [];
@@ -504,7 +508,7 @@ function rollRewards(b, rng, count) {
 // Elite races guarantee a trinket among the cards (while there are trinkets left to find).
 function rollEliteRewards(b, rng) {
   const out = rollRewards(b, rng, 3).filter((c) => c.type !== 'trinket').slice(0, 2);
-  const left = Object.keys(TRINKETS).filter((id) => !has(b, id) && !TRINKETS[id].shady && isUnlocked('trinket', id));
+  const left = Object.keys(TRINKETS).filter((id) => !has(b, id) && !TRINKETS[id].shady && !TRINKETS[id].fan && isUnlocked('trinket', id));
   if (left.length) out.push(itemCard('trinket', left[Math.floor(rng() * left.length)]));
   while (out.length < 3) { const extra = rollRewards(b, rng, 1)[0]; if (!extra || out.some((c) => c.id === extra.id)) break; out.push(extra); }
   return shuffle(rng, out);
@@ -536,7 +540,7 @@ function rollShop(b, rng, act) {
   const pools = {
     weapon: Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id)),
     mod: Object.keys(MODS),
-    trinket: Object.keys(TRINKETS).filter((id) => !has(b, id) && !TRINKETS[id].shady),
+    trinket: Object.keys(TRINKETS).filter((id) => !has(b, id) && !TRINKETS[id].shady && !TRINKETS[id].fan),
     part: Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id)),
     ability: Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id)),
     chip: Object.keys(CHIPS).filter((id) => !ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)),

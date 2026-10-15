@@ -254,6 +254,24 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **Vendettas and tyre hunters** (`js/vendetta.js`, `TYRE_HUNT` in `js/combat.js`) are built but switched off for
   now (`VENDETTA.on`, `TYRE_HUNT.on`); bounties took their place.
 
+- **Infamy** (`js/infamy.js`): the second currency. Scrap is what the warden pays for placing and killing; Infamy
+  is what the city gives you for putting on a show. It pops up in pink on the right as you earn it:
+  - **Live:** a wreck 4, a clean kill 8 (+2 for either from up on the roof), a grenade through a window 12, a parry
+    4, a rocket or mine shot down 1, a tyre popped 2, a taunt 1 (first three a race), a humiliation 5 or 8.
+  - **At the flag:** a win 10, a podium 4, a boss beaten 20. The results screen breaks down what you earned.
+  - **The Fan Club** ("Fan mail" in the garage): letters shoved under the track door, piling up inside it in sacks
+    as your Infamy grows. It opens once you've earned 10 in the run. Every visit: a **Care Package** (20: 40 hull and
+    a grenade), **Bootleg Ammo** (15: two boxes for every gun), **Fan Donations** (25: 50 scrap, +20 an act), **The
+    Crowd Turns** (30: next race the stands pelt the leader, 6 damage every 4 seconds), an **Encore** (90: wipe a
+    strike, once an act), and one **fan-made trinket**: the Fan Club Scarf (+25% Infamy), Love Letters (bounties +25%)
+    or the Signed Mugshot (double Infamy for taunts and humiliations, tilts last 50% longer).
+- **The walls talk about you** (`Infamy.wall`, `Graffiti.mine`). The run keeps a record (wrecks, clean kills, who
+  you flipped off, bosses beaten, grenades, parries, what you took from the dealer) and the inmates write it on the
+  garage walls in fresh paint, in your inmate number: a headline over the track door ("4471 HAS THE KEYS NOW",
+  "DONT RACE 4471"), lines and replies round the room ("4471 SHOOTS THE DRIVER" / "EVERY TIME", "4471 OWES ME FOR
+  THE BLUES", "4471 CANT HOLD THEIR PRUNO" / "WHO CAN"), a tally of your wrecks by the pegboard, the drivers you shot
+  dead added to the memorial with "4471 DID THIS" under them, and the old "4471 IS NEXT" answered ("NOT YET", then
+  "NEXT TO WALK"). Change your inmate number in the paint booth and the walls use it.
 - **You see what you buy** (`js/thumbs.js`): every card in the commissary, the hole in the wall and the reward picks
   has a rendered picture of the actual item: guns from the side, attachments fitted on a gun, car parts on a car
   (tyres on the wheel, engines on the hood), trinkets, abilities, driver chips (each its own board) and the
@@ -323,7 +341,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   - **The gestures:** the finger, a thumbs down, a "come at me" beckon, or devil horns.
   - **Controls:** tap `T` for your last emote; hold it for a wheel, flick the mouse to pick and let go.
   - **Tilt:** whoever is under your crosshair gets **tilted** for 8 seconds. They drive sloppier and come straight for you, rams and guns first.
-  - **The payout:** pass someone who was ahead of you while they're tilted (+15 scrap), or see them wrecked while they're seething (+30) — the crowd roars.
+  - **The payout:** a taunt earns a little **Infamy** (the first three a race); pass someone who was ahead of you while they're tilted (+5 Infamy), or see them wrecked while they're seething (+8): the crowd roars.
   - **Bosses:** taunt one and they answer back.
 - **The blast hatch** (hold `Space`): a welded steel plate hinged on the roof that slams down over the windscreen.
   - **What it stops:** gunfire, and 70% of a blast. A mine under the car still gets through.
@@ -473,13 +491,14 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/input.js`, `js/audio.js`, `js/music.js` | Keyboard/gamepad/touch input, synthesized WebAudio sound, the menu theme |
 | `js/tutorial.js` | Tutorial steps and the in-race coach card |
 | `js/bosses.js` | Boss health bar, signature moves, and each boss's colours and put-down for the garage graffiti |
-| `js/emotes.js` | Emote gestures (the hand models), the wheel, tilted rivals and the humiliation bonus |
+| `js/emotes.js` | Emote gestures (the hand models), the wheel, tilted rivals and the humiliation Infamy |
 | `js/intro.js` | The studio sting and the cold open: gate, radar logo, in-engine cinematic, captions, sound cues |
 | `js/people.js` | People: the sculpted body used for drivers, crews, your own body and the trader; live two-bone arms |
 | `js/weather.js` | Weather: per-stop forecasts, effects, cockpit particles and lightning, windshield drops, ambience |
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
+| `js/infamy.js` | Infamy (earning it, the live feed), the Fan Club's goods, The Crowd Turns, the run record and what the walls say about you |
 | `js/build.js` (`ROOF_SHIELDS`), `js/combat.js` (`toggleRoof`, `exposedHit`) | The roof gun: the mount, shielding, climbing up, exposure |
 | `js/thumbs.js` | Item pictures for every shop and reward card; models of the black market's goods, abilities and chips |
 | `js/vendetta.js` | Vendettas (switched off): rivals you put out who come back later in the run, adapted to how you beat them |
