@@ -168,6 +168,7 @@ const Sound = {
       // Emotes and the crowd; bosses' tells.
       case 'emote': this.noiseBurst(0.18, 700, 0.08, 1800); break;
       case 'crowd': this.cheer(); break;
+      case 'static': this.noiseBurst(0.2, 3200, 0.1); break; // changing channel
       case 'bigMoment': this.cheer(); [784, 988, 1175].forEach((f, i) => setTimeout(() => { this.tone(f, 0.16, 'square', 0.06); this.tone(f / 2, 0.16, 'triangle', 0.08); }, i * 90)); break; // the roar and the broadcast's sting
       case 'deflect': this.spang(); break;
       case 'grenadeIn': this.clang(0.25); setTimeout(() => this.clang(0.15), 120); break; // it rattles down inside

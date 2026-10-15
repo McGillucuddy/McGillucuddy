@@ -16,7 +16,7 @@ npx serve apex-rogue     # then open the printed URL
 ## Gunner prototype (`prototype.html`)
 
 An experiment in the next direction for the game: **the car drives itself and you are the gunner.**
-A new run starts in the garage, where you can drag to spin the car a full 360° and scroll to zoom. **🗺 Pick your race** (on the clipboard and at the bottom of the screen) opens the route sheet when you're ready.
+A new run starts in the garage, where you can drag to spin the car a full 360° and scroll to zoom. **📺 Tonight's channels** (on the clipboard and at the bottom of the screen) turns on the TV when you're ready.
 
 Played from the cockpit: you ride shotgun with a gun in your hands. A top-down view is kept only as a fallback
 for machines without WebGL, and the PS1-style retro look is always on.
@@ -37,7 +37,7 @@ Everything else unlocks for good with reputation, the same rep that unlocks pain
 Bosses push the tempo and add pounding toms. The final race lets the kick loose under the full choir.
 The music plays from the briefing, ducks while paused and fades at the flag. **Settings → Race music** sets its volume.
 
-**Weather.** Every race stop on the route sheet has a forecast, shown as an icon on the stop and in the briefing, so it can steer your route.
+**Weather.** Every race has a forecast, shown in its TV caption, on the TV guide and in the briefing, so it can steer your route.
 - **Classics:** rain, thunderstorm, smog and cloud bank.
 - **Undercity:** Acid Drip (corrodes parts) and Blackout.
 - **Stacks:** Ash Fall and Furnace Day (engines run hot).
@@ -155,7 +155,23 @@ The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor
 ### Acts and environments (prototype)
 
 A run is four acts. Each act is a **route sheet**: seven rows of 2-4 branching stops (the last row before the boss leans towards repairs and shopping) and then a boss qualifier.
-You pick your path through it (`js/runmap.js`):
+You pick your path through it (`js/runmap.js`), on a TV:
+
+- **The TV** (`js/tv.js`). Each night you sit in front of a battered CRT with a booking sheet from the warden's
+  office: "the following programmes will have you tonight". Every stop you can take is a channel. Flip with ← → (or
+  A / D, or the buttons on the set, or the channel list under it) through a burst of static, and **Book it** (Enter).
+  Channels are numbered by the act's block of the dial: Public Access 2-9, Cable 10-29, Premium 30-59, Prime Time
+  60-99. Each has an animated picture and a broadcast caption (name, format, pay, weather):
+  - **Races** are shows with names ("MIDNIGHT DERBY", "SMOG RALLY", "GOLDEN HOUR", "THE MAIN EVENT"): a night road
+    through the act's towers with tail lights weaving ahead, rain over the picture if it's forecast. **Elite** races
+    are red ("BLOOD MONEY"), the **bounty** race is "MOST WANTED" with the price, and the **boss** is a "SPECIAL
+    PRESENTATION" with their mugshot.
+  - **Commissary** = home shopping (a grinning host, a product on a plinth, CALL NOW), **mechanic** = the test card
+    (PLEASE STAND BY), **events** = the news (an anchor and a BREAKING bar), **stash** = a pirate signal through the
+    snow.
+  - The corner shows the act, the block, the night and how many nights until the special.
+- **The TV guide** (📰 on the TV) is the whole act on a grubby sheet: every stop and where each one leads, tonight's
+  channels circled. You can book from it too.
 
 | Stop | What happens |
 |---|---|

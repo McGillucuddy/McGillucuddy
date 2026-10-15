@@ -266,7 +266,8 @@ work, that work comes before any of this.
 
 1. **Viewers.** The in-race LIVE counter and what earns or costs viewers, shown on the results screen. Playable on
    the current route sheet, so we can tune it first.
-2. **The TV guide and the season.** The four blocks, nights and specials, channel gates by viewers, pay and
+2. **The TV guide and the season.** *First step built:* the TV (`js/tv.js`) is now the face of the route: each
+   reachable stop is a channel with a picture and caption, and the route sheet is the TV guide. Still to come: The four blocks, nights and specials, channel gates by viewers, pay and
    difficulty by channel. This replaces the route sheet.
 3. **Sponsors.** Offers at viewer thresholds, tastes, stipends, per-show goals, getting dropped.
 4. **New show formats and their venues,** one at a time: Demolition Hour (the arena), The Convoy (the highway),

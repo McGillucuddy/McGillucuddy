@@ -222,6 +222,10 @@ const Proto = {
       case 'resume': this.resume(); break;
       case 'to-briefing': this.showMap(); break;
       case 'to-map': this.showMap(); break;
+      case 'tv-flip': this.tvFlip(this.tvSel + +arg); break;
+      case 'tv-ch': if (+arg !== this.tvSel) this.tvFlip(+arg); break;
+      case 'tv-book': this.tvBook(); break;
+      case 'tv-guide': this.guideOpen = !this.guideOpen; this.showMap(); break;
       case 'open-garage': this.toGarage(); break;
       case 'pick-node': {
         // Draw the marker to the stop, thump the stamp, fade to black, then go.
@@ -392,7 +396,7 @@ const Proto = {
     } else if (panel === 'howto') {
       side = `<div class="t-panel howto">
         <h2>How it works</h2>
-        <p>You are a prisoner riding gun in a death race. Climb three acts of the route sheet and win the Crown to walk free. Finish outside the qualifying places three times and you're back in your cell.</p>
+        <p>You are a prisoner riding gun in a death race. Climb the channels from public access to prime time and win the Crown to walk free. Finish outside the qualifying places three times and you're back in your cell.</p>
         <p>Between races: buy and fit parts in the garage, tune them, load the gun rack, and paint the car. Scrap is your money for this run. Reputation is kept for good: it unlocks new gear and paint for every run after.</p>
         <h3>In the car</h3>
         <div class="ctl"><kbd>Mouse</kbd> Aim · <kbd>LMB</kbd> Fire · <kbd>R</kbd> Reload</div>
@@ -581,7 +585,7 @@ const Proto = {
       <p>You finished <b>${ordinal(place)}</b>. In a real race that ${place <= 3 ? '<b class="good">qualifies</b>' : '<b class="bad">is a strike</b>'}.</p>
       <h2>Between races</h2>
       <div class="tut-cards">
-        <div class="panel"><h3>🗺 Route sheet</h3><p>Each act is a map of stops. Pick your path: races pay scrap, shops sell gear, the mechanic patches you up, and events can go either way. The boss waits at the top.</p></div>
+        <div class="panel"><h3>📺 Tonight's channels</h3><p>Each night the warden's office books you onto one of a few channels: races pay scrap, home shopping opens the commissary, the test card means free repairs, and the news can go either way. The TV guide shows where each choice leads. The boss is the special at the end of the act.</p></div>
         <div class="panel"><h3>🔧 Garage</h3><p>Fit better engines, tyres, armour and nitro, then tune them. Load the gun rack, fit attachments, buy ammo and grenades, and paint the car.</p></div>
         <div class="panel"><h3>⚖ Strikes and rep</h3><p>Miss the top 3 and you take a strike; three ends the run. Wrecks and podiums earn rep, which unlocks paint and finishes for every run after.</p></div>
       </div>
@@ -619,7 +623,96 @@ const Proto = {
 
   // ---------- Route sheet ----------
 
+  // ---------- The TV (js/tv.js): tonight's channels ----------
+  // Each reachable stop is a channel. Flip with the arrows (or click), book one, and the night begins. The full
+  // route is one button away, as the TV guide (the route sheet below).
   showMap() {
+    if (this.guideOpen) { this.showGuide(); return; }
+    this.state = 'map';
+    this.saveRun();
+    this.shopOpen = false;
+    const b = this.build, run = this.run, act = this.act, shows = TV.lineup(run, b);
+    this.tvShows = shows;
+    this.tvSel = clamp(this.tvSel || 0, 0, shows.length - 1);
+    const reachRow = shows.length ? shows[0].node.row : MAP_ROWS, left = MAP_ROWS - reachRow;
+    const night = `ACT ${ROMAN[run.act]} · ${TV.BLOCKS[run.act][2]} · NIGHT ${reachRow + 1}${reachRow < MAP_ROWS ? ` · SPECIAL IN ${left}` : ' · TONIGHT: THE SPECIAL'}`;
+    const lineup = shows.map((s, i) => `<button class="tv-chan ${i === this.tvSel ? 'on' : ''}" data-action="tv-ch" data-arg="${i}"><b>CH ${String(s.ch).padStart(2, '0')}</b><span>${s.name}</span></button>`).join('');
+    this.setUI(`<div class="screen mapscreen tvscreen g3d">
+      <div class="g-top">
+        <div><b>Act ${ROMAN[run.act]}</b> · ${act.title}</div>
+        <div class="cash">${b.scrap} scrap</div>
+        <div class="infamy">${b.infamy || 0} infamy</div>
+        <div>Hull <b>${Math.ceil(b.hull)}</b>/${b.maxHull}</div>
+        <div>Strikes <b class="bad">${'●'.repeat(b.strikes)}</b><b>${'○'.repeat(STRIKES_TO_LOSE - b.strikes)}</b></div>
+        <button class="g-settings" data-action="settings" title="Settings">⚙ Settings</button>
+        <button class="g-settings g-menu" data-action="menu" title="Main menu">☰ Menu</button>
+      </div>
+      <div class="tv-wrap">
+        <div class="tv-sheet">Booking sheet, from the warden's office: <i>the following programmes will have you tonight.</i></div>
+        <div class="tv-set">
+          <div class="tv-screen">
+            <canvas id="tvPic"></canvas>
+            <div class="tv-osd" id="tvOsd"></div>
+            <div class="tv-night">${night}</div>
+            <div class="tv-cap" id="tvCap"></div>
+            <div class="tv-glass"></div>
+          </div>
+          <div class="tv-panel">
+            <div class="tv-grille"></div>
+            <button class="tv-btn" data-action="tv-flip" data-arg="-1" title="Channel down (← or A)">◀</button>
+            <span class="tv-chlabel">CH</span>
+            <button class="tv-btn" data-action="tv-flip" data-arg="1" title="Channel up (→ or D)">▶</button>
+            <div class="tv-knob"></div>
+          </div>
+        </div>
+        <div class="tv-lineup">${lineup}</div>
+        <div class="tv-actions">
+          <button class="btn primary big" data-action="tv-book">Book it ▶</button>
+          <button class="btn" data-action="tv-guide" title="The whole act: every channel and where each night leads">📰 TV guide</button>
+          <button class="btn" data-action="open-garage">Garage</button>
+        </div>
+        <p class="muted small tv-hint">← → or A / D to change channel · Enter to book</p>
+      </div>
+    </div>`);
+    this.tvState = { show: shows[this.tvSel], staticT: 0.35 };
+    const cv = document.getElementById('tvPic');
+    if (cv) TV.run(cv, () => this.tvState);
+    this.tvCaption();
+    this.syncGarage();
+    if (this.preview) this.preview.setStation('overview');
+  },
+
+  // Change channel: a burst of static, then the new picture and its caption.
+  tvFlip(i) {
+    const shows = this.tvShows;
+    if (!shows || !shows.length) return;
+    this.tvSel = (i + shows.length) % shows.length;
+    this.tvState = { show: shows[this.tvSel], staticT: 0.22 };
+    Sound.play({ type: 'static' });
+    document.querySelectorAll('.tv-chan').forEach((el, k) => el.classList.toggle('on', k === this.tvSel));
+    this.tvCaption();
+  },
+
+  tvCaption() {
+    const S = this.tvShows && this.tvShows[this.tvSel], cap = document.getElementById('tvCap'), osd = document.getElementById('tvOsd');
+    if (!S || !cap) return;
+    osd.textContent = `CH ${String(S.ch).padStart(2, '0')}`;
+    const wx = S.wx && S.wx !== WEATHER.clear ? ` · ${S.wx.icon} ${S.wx.name}` : '';
+    cap.innerHTML = `<div class="tv-cap-top"><span class="tv-tag">C9TV</span><b>${S.name}${S.sub ? ': ' + S.sub : ''}</b></div>
+      <div class="tv-cap-line">${S.line}${wx}</div><div class="tv-cap-line2">${S.line2}</div>`;
+  },
+
+  tvBook() {
+    const S = this.tvShows && this.tvShows[this.tvSel];
+    if (!S || this.picking) return;
+    this.picking = true;
+    Sound.play({ type: 'click' });
+    this.fadeThrough(() => { this.picking = false; this.tvSel = 0; this.pickNode(S.node.id); });
+  },
+
+  // ---------- Route sheet (the TV guide) ----------
+
+  showGuide() {
     this.state = 'map';
     this.saveRun();
     this.shopOpen = false;
@@ -634,7 +727,7 @@ const Proto = {
         ${can ? `data-action="pick-node" data-arg="${n.id}"` : 'disabled'} data-info="${info.replace(/"/g, '&quot;')}"><span>${t.icon}</span><small>${n.type === 'boss' ? 'Boss' : t.label}</small>${wx && wx !== WEATHER.clear ? `<i class="wx" title="${wx.name}">${wx.icon}</i>` : ''}</button>`;
     }).join('');
     const here = run.cur != null ? RouteSheet.pos(mapNode(map, run.cur)) : null;
-    const hint = reach.length === 1 && mapNode(map, reach[0]).type === 'boss' ? `Next: the qualifier against ${boss.name}.` : 'Pick one of the circled stops.';
+    const hint = reach.length === 1 && mapNode(map, reach[0]).type === 'boss' ? `Next: the qualifier against ${boss.name}.` : 'Circled: tonight\'s channels. Click one to book it, or go back to the TV.';
     this.setUI(`<div class="screen mapscreen g3d">
       <div class="g-top">
         <div><b>Act ${ROMAN[run.act]}</b> · ${act.title}</div>
@@ -650,7 +743,7 @@ const Proto = {
         <div class="form-head">
           <canvas id="mugshot" width="120" height="140"></canvas>
           <div>
-            <div class="form-title">Route sheet · Act ${ROMAN[run.act]}: ${act.title}</div>
+            <div class="form-title">TV guide · Act ${ROMAN[run.act]}: ${act.title}</div>
             <div class="form-boss">At the top: <b>${boss.name}</b>, ${boss.title}</div>
           </div>
         </div>
@@ -661,7 +754,7 @@ const Proto = {
         </div>
         <div class="route-info" id="routeInfo">${hint}</div>
       </div>
-      <button class="btn big g-go garage-btn" data-action="open-garage">Garage: repairs, loadout, paint</button>
+      <button class="btn big g-go garage-btn" data-action="tv-guide">📺 Back to the TV</button>
     </div>`);
     const cv = document.getElementById('routeCanvas');
     if (cv) RouteSheet.draw(cv, map, reach, run.cur);
@@ -681,6 +774,7 @@ const Proto = {
   },
 
   pickNode(id) {
+    this.guideOpen = false;
     const run = this.run, node = mapNode(run.map, id);
     if (!node || !reachableNodes(run.map, run.cur).includes(id)) return;
     this.saveRun(id); // if the page goes away mid-stop, this stop replays from here
@@ -1284,13 +1378,13 @@ const Proto = {
       <nav class="g-nav">${nav}</nav>
       <div class="g-panel clipboard">
         <div class="clip"></div>
-        <div class="g-head"><h2 class="g-title">${title[1]}</h2><button class="btn small g-route" data-action="to-map" title="The route sheet: choose your next stop">🗺 Pick your race</button></div>
+        <div class="g-head"><h2 class="g-title">${title[1]}</h2><button class="btn small g-route" data-action="to-map" title="Tonight's channels: choose your next stop">📺 Tonight's channels</button></div>
         ${this.tab === 'car' ? '<p class="small muted g-hint">Drag the car to spin it round · scroll to zoom</p>' : ''}
         <div class="perks trinket-row">${trinkets}</div>
         ${body}
         <p class="small muted g-links"><a href="#" data-action="feedback">Send feedback</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'}</p>
       </div>
-      <button class="btn primary big g-go" data-action="to-map">🗺 Pick your race ▶</button>
+      <button class="btn primary big g-go" data-action="to-map">📺 Tonight's channels ▶</button>
     </div>`);
     this.syncGarage();
   },
@@ -1416,7 +1510,7 @@ const Proto = {
 
   garageMarket() {
     const b = this.build;
-    if (!this.shopOpen) return `<div class="panel"><h2>Shuttered</h2><p>The hatch is padlocked. The ${ACT_LUXURY(this.run.act) ? 'concierge only sees drivers at a Concierge stop' : 'commissary only opens at a Commissary stop'} on the route sheet (🛒).</p><p class="muted small">Repairs, ammo, grenades and spare parts are always available in the Workshop and Armory.</p></div>`;
+    if (!this.shopOpen) return `<div class="panel"><h2>Shuttered</h2><p>The hatch is padlocked. The ${ACT_LUXURY(this.run.act) ? 'concierge only sees drivers at a Concierge stop' : 'commissary only opens when you book the home shopping channel'} on the TV (🛒).</p><p class="muted small">Repairs, ammo, grenades and spare parts are always available in the Workshop and Armory.</p></div>`;
     const label = { weapon: 'GUN', mod: 'ATTACHMENT', trinket: 'TRINKET', part: 'PART', ability: 'ABILITY', chip: 'DRIVER CHIP' };
     const card = (c, i) => {
       const fitsMine = c.type === 'mod' && MODS[c.id].fits.some((f) => b.rack.concat(b.stash.weapons).some((w) => w.id === f));
@@ -1546,6 +1640,11 @@ const Proto = {
     if (this.state === 'title' && Input.consume('Escape') && !document.getElementById('settings')) {
       if (this.titlePanel) this.showTitle(this.titleFrom);
       else if (this.titleFrom) this.continueRun();
+    }
+    if (this.state === 'map' && !this.guideOpen && this.tvShows && !document.getElementById('settings')) { // the TV's remote
+      if (Input.consume('ArrowLeft') || Input.consume('KeyA')) this.tvFlip(this.tvSel - 1);
+      if (Input.consume('ArrowRight') || Input.consume('KeyD')) this.tvFlip(this.tvSel + 1);
+      if (Input.consume('Enter')) this.tvBook();
     }
     if (this.state === 'race') {
       if (Input.consume('KeyP') || Input.consume('Escape')) this.pause();

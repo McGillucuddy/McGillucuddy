@@ -582,3 +582,36 @@ body.proto #ui { z-index: 2; }
 .ctl-box summary h2 { display: inline; }
 .ctl-box summary::after { content: ' ▸ show'; color: var(--muted, #8a8a99); font-size: 13px; }
 .ctl-box[open] summary::after { content: ' ▾'; }
+
+/* ---------- The TV (js/tv.js): tonight's channels ---------- */
+.tv-wrap { position: absolute; left: 50%; transform: translateX(-50%); top: 58px; bottom: 8px; width: min(760px, calc(100% - 32px)); display: flex; flex-direction: column; align-items: center; gap: 8px; overflow-y: auto; }
+.tv-sheet { color: #d8d0b8; font-size: 13px; background: rgba(20,16,12,0.75); padding: 5px 12px; border-radius: 4px; text-align: center; }
+.tv-set { position: relative; width: 100%; background: linear-gradient(170deg, #b8b09a 0%, #8f8774 60%, #6f6858 100%); border-radius: 26px; padding: 22px 22px 14px; box-shadow: 0 18px 40px rgba(0,0,0,0.6), inset 0 2px 0 rgba(255,255,255,0.35), inset 0 -4px 0 rgba(0,0,0,0.25); }
+.tv-screen { position: relative; aspect-ratio: 4 / 3; max-height: calc(100vh - 350px); margin: 0 auto; background: #050505; border-radius: 34px / 26px; overflow: hidden; box-shadow: 0 0 0 10px #2a2622, 0 0 0 12px #14110e, inset 0 0 60px rgba(0,0,0,0.9); }
+.tv-screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; filter: saturate(1.15) contrast(1.05) blur(0.35px); }
+.tv-glass { position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.22) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at 30% 18%, rgba(255,255,255,0.13), transparent 45%),
+    radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%); }
+.tv-osd { position: absolute; top: 14px; right: 26px; font: bold 30px "Courier New", monospace; color: #6dff6d; text-shadow: 0 0 6px rgba(80,255,80,0.8), 2px 2px 0 #000; z-index: 2; }
+.tv-night { position: absolute; top: 18px; left: 22px; font: bold 11px "Courier New", monospace; color: #e8e2c8; background: rgba(0,0,0,0.55); padding: 3px 7px; z-index: 2; letter-spacing: 1px; }
+.tv-cap { position: absolute; left: 6%; right: 6%; bottom: 7%; z-index: 2; font-family: "Courier New", monospace; }
+.tv-cap-top { display: flex; align-items: stretch; }
+.tv-tag { background: #c8141a; color: #fff; font-weight: bold; font-size: 13px; padding: 6px 9px; }
+.tv-cap-top b { background: #f4f0e6; color: #111; font-size: 20px; padding: 4px 12px; flex: 1; letter-spacing: 1px; }
+.tv-cap-line, .tv-cap-line2 { background: rgba(10,10,12,0.86); color: #f0e8d0; font-size: 12.5px; padding: 3px 12px; }
+.tv-cap-line2 { color: #ff9ae0; padding-bottom: 5px; }
+.tv-panel { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+.tv-grille { flex: 1; height: 22px; margin-right: 12px; background: repeating-linear-gradient(90deg, #3a352c 0 3px, transparent 3px 7px); border-radius: 4px; opacity: 0.7; }
+.tv-btn { width: 44px; height: 30px; border-radius: 5px; border: none; background: linear-gradient(#3a3631, #22201c); color: #e8e2c8; font-size: 15px; cursor: pointer; box-shadow: 0 2px 0 #0e0c0a, inset 0 1px 0 rgba(255,255,255,0.15); }
+.tv-btn:active { transform: translateY(2px); box-shadow: none; }
+.tv-chlabel { font: bold 12px "Courier New", monospace; color: #2a2620; }
+.tv-knob { width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #5a554c, #1a1814); box-shadow: 0 2px 4px rgba(0,0,0,0.5); margin-left: 8px; }
+.tv-lineup { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.tv-chan { display: flex; flex-direction: column; align-items: flex-start; min-width: 150px; padding: 6px 12px; border-radius: 4px; border: 2px solid #3a3530; background: rgba(14,12,10,0.88); color: #cfc8b0; cursor: pointer; font-family: "Courier New", monospace; }
+.tv-chan b { color: #6dff6d; font-size: 13px; }
+.tv-chan span { font-size: 12px; }
+.tv-chan.on { border-color: #ffd23f; color: #fff; box-shadow: 0 0 0 2px rgba(255,210,63,0.25); }
+.tv-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.tv-hint { margin: 0; }
+@media (max-width: 600px) { .tv-cap-top b { font-size: 14px; } .tv-osd { font-size: 20px; } .tv-set { padding: 12px 12px 8px; border-radius: 16px; } }

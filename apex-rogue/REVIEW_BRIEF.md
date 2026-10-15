@@ -56,6 +56,9 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   boss beaten, win by a nose) get a C9TV caption over the dash, a crowd roar, a beat of slow motion and a TV flicker
   at the edges. Wrecked cars can throw their crew out as tumbling ragdolls. Routine pop-ups are now a small corner
   feed.
+- **The TV:** you pick each stop on a CRT, flipping channels: races are named shows, the commissary is home
+  shopping, the mechanic a test card, events the news, the boss a special presentation. The route sheet is now the
+  TV guide.
 - **The walls react to you:** the garage graffiti picks up your run in your inmate number: a headline over the door,
   lines and replies about what you did, a wreck tally, your kills on the memorial.
 - **You see what you buy:** every shop and reward card shows a rendered picture of the actual item (guns from the
@@ -70,7 +73,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 
 ## What changed most recently
 
-Big-moment broadcast captions, slow motion and ragdoll ejections; the corner kill feed; Infamy and the Fan Club; graffiti that reacts to your run; bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
+The TV channel screen; big-moment broadcast captions, slow motion and ragdoll ejections; the corner kill feed; Infamy and the Fan Club; graffiti that reacts to your run; bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
 tolerance; item pictures on all cards; the Typewriter's drum turned square to the barrel; magazine wells on every
 mag-fed gun with straight-in reloads; the Grinder LMG's belt reload (feed cover up, belt laid in the tray, cover
 slammed); the roof-mounted machine guns with shielding tiers; a shorter race briefing.
