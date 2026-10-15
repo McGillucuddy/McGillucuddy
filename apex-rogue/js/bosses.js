@@ -41,7 +41,7 @@ Object.assign(Combat.prototype, {
     const down = bc.hp <= 0 || bc.finished || p.finished;
     if (!S.rage && bc.hp < bc.stats.maxHp * 0.5 && !down) {
       S.rage = true;
-      this.race.message(K.rageLine, '#ff3b1f', true);
+      this.race.message(K.rageLine, '#ff3b1f', true, true);
       this.events.push({ type: 'bossRage' });
       if (bc.wpn) bc.wpn.cd = 0;
     }
@@ -66,7 +66,7 @@ Object.assign(Combat.prototype, {
       const inRange = K.move === 'ram' ? d < 300 : K.move === 'smog' ? true : d < 760;
       if (inRange) {
         S.tell = K.move === 'smog' ? 0.6 : 1.1;
-        this.race.message(`${shortName(bc)}: ${K.tell}`, '#ff3b1f', true);
+        this.race.message(`${shortName(bc)}: ${K.tell}`, '#ff3b1f', true, true);
         this.events.push({ type: 'bossTell' });
       }
     }

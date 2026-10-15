@@ -1613,13 +1613,13 @@ const Proto = {
     if (race.state === 'racing' && p.hp <= 0 && !p.finished && !this.tutorial && has(this.build, 'deadrosary') && !this.run.flags.rosaryUsed) {
       this.run.flags.rosaryUsed = true;
       p.hp = 30;
-      race.message('The rosary burns in your fist. Not today.', '#c9a0ff', true);
+      race.message('The rosary burns in your fist. Not today.', '#c9a0ff', true, true);
       Sound.play({ type: 'bossTell' });
     }
     if (race.state === 'racing' && p.hp <= 0 && !p.finished && !this.tutorial) {
       if (!this.wreckT) {
         this.wreckT = 1e-3;
-        race.message('WRECKED', '#ff3b1f', true);
+        race.message('WRECKED', '#ff3b1f', true, true);
         Sound.play({ type: 'explode', big: true });
         if (this.cockpit) this.cockpit.shake = Math.max(this.cockpit.shake || 0, 1.2);
       }
@@ -1808,18 +1808,38 @@ function drawFitProgress(ctx, P, W, H) {
   ctx.fillText('FITTING SPARE PART…', W / 2, H * 0.62 + 20);
 }
 
-function drawMessages(ctx, race, W, H) {
+// Messages stay out of your sightline. Race-flow calls (GO, laps, the finish, WRECKED, a boss's warning) sit near
+// the top of the screen; everything else (wrecks, bounties, kills, Infamy) is a small feed in the top-right corner,
+// newest first, like a kill feed.
+function drawMessages(ctx, race, W, H, fame) {
+  const fade = (t, life) => clamp(Math.min(t * 6, (life - t) * 2.5), 0, 1);
   ctx.textAlign = 'center';
-  let y = H * 0.24;
+  let y = race.bossCar ? 98 : 40; // under the boss's health bar
   for (const m of race.messages) {
-    const a = clamp(Math.min(m.t * 6, (m.life - m.t) * 3), 0, 1);
-    ctx.globalAlpha = a;
-    ctx.font = `bold ${m.big ? 44 : 22}px ${hudFont()}`;
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    if (!m.center) continue;
+    ctx.globalAlpha = fade(m.t, m.life);
+    ctx.font = `bold 26px ${hudFont()}`;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.fillText(m.text, W / 2 + 2, y + 2);
     ctx.fillStyle = m.color;
     ctx.fillText(m.text, W / 2, y);
-    y += m.big ? 52 : 30;
+    y += 32;
+  }
+  const feed = race.messages.filter((m) => !m.center).map((m) => ({ text: m.text, color: m.color, t: m.t, life: m.life }))
+    .concat((fame || []).map((f) => ({ text: f.text, color: '#ff6ad5', t: f.t, life: 3 })))
+    .sort((a, b) => a.t - b.t).slice(0, 8);
+  ctx.textAlign = 'right';
+  ctx.font = `bold 14px ${hudFont()}`;
+  y = 28;
+  for (const m of feed) {
+    const a = fade(m.t, m.life), w = ctx.measureText(m.text).width, dx = (1 - clamp(m.t * 8, 0, 1)) * 24;
+    ctx.globalAlpha = a * 0.6;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(W - 24 - w - 8 + dx, y - 14, w + 16, 20);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = m.color;
+    ctx.fillText(m.text, W - 24 + dx, y);
+    y += 23;
   }
   ctx.globalAlpha = 1;
 }
@@ -1984,27 +2004,7 @@ function drawCockpitHUD(ctx, P, W, H, t) {
       ctx.fillText(n, W / 2, H / 2 - 60);
     }
   }
-  drawMessages(ctx, race, W, H);
-  drawInfamyFeed(ctx, P, W, H);
-}
-
-// Infamy as you earn it (js/infamy.js): a short pink list on the right, each line sliding in and fading.
-function drawInfamyFeed(ctx, P, W, H) {
-  const F = P.combat && P.combat.fameFeed;
-  if (!F || !F.length) return;
-  ctx.textAlign = 'right';
-  ctx.font = `bold 18px ${hudFont()}`;
-  let y = H * 0.42;
-  for (const f of F) {
-    const a = clamp(Math.min(f.t * 8, (3 - f.t) * 1.5), 0, 1), dx = (1 - clamp(f.t * 6, 0, 1)) * 30;
-    ctx.globalAlpha = a;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillText(f.text, W - 28 + dx + 2, y + 2);
-    ctx.fillStyle = '#ff6ad5';
-    ctx.fillText(f.text, W - 28 + dx, y);
-    y += 24;
-  }
-  ctx.globalAlpha = 1;
+  drawMessages(ctx, race, W, H, P.combat && P.combat.fameFeed);
 }
 
 function drawTopdownCombatHUD(ctx, P, W, H, t) {

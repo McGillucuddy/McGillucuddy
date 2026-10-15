@@ -57,8 +57,10 @@ class Race {
 
   get playerPlace() { return this.player.place; }
 
-  message(text, color, big) {
-    this.messages.push({ text, color: color || '#fff', t: 0, life: big ? 2.2 : 1.6, big });
+  // center: race-flow calls (GO, laps, the finish, a wreck, a boss's warning) sit at the top of the screen; everything
+  // else goes in the small feed in the corner.
+  message(text, color, big, center) {
+    this.messages.push({ text, color: color || '#fff', t: 0, life: center ? 2.2 : big ? 3.2 : 2.6, big, center });
   }
 
   respawn(car) {
@@ -96,7 +98,7 @@ class Race {
       if (this.countdown <= 0) {
         this.state = 'racing';
         this.events.push({ type: 'beep', hi: true });
-        this.message('GO!', '#7CFC00', true);
+        this.message('GO!', '#7CFC00', true, true);
         if (playerInput.throttle > 0) {
           if (this.throttleHeldEarly) {
             this.player.wheelspinT = 0.8;
@@ -222,10 +224,10 @@ class Race {
         this.finishOrder.push(car);
         if (car === this.player) {
           this.events.push({ type: 'finish' });
-          this.message(`Finished ${ordinal(this.finishOrder.length)}!`, '#ffd23f', true);
+          this.message(`Finished ${ordinal(this.finishOrder.length)}!`, '#ffd23f', true, true);
         }
       } else if (car === this.player) {
-        this.message(newLap === this.laps - 1 ? 'Final lap!' : `Lap ${newLap + 1}/${this.laps}`, '#fff', true);
+        this.message(newLap === this.laps - 1 ? 'Final lap!' : `Lap ${newLap + 1}/${this.laps}`, '#fff', true, true);
         if (car.perks.has('pitcrew') && car.hp < car.stats.maxHp) {
           car.hp = Math.min(car.stats.maxHp, car.hp + 15);
           this.message('Pit crew: +15 HP', '#7CFC00');
@@ -353,7 +355,7 @@ class Race {
       if (!car.hits) car.hits = [];
       if (car.hits.length < 12) car.hits.push({ ang: info.ang, amt: amount, kind: info.kind });
     }
-    if (wasAlive && car.hp <= 0 && car === this.player && !this.wreckOut) this.message('Engine wrecked! Limp mode', '#ff4040', true);
+    if (wasAlive && car.hp <= 0 && car === this.player && !this.wreckOut) this.message('Engine wrecked! Limp mode', '#ff4040', true, true);
   }
 
   collideCars() {
