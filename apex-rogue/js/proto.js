@@ -976,6 +976,9 @@ const Proto = {
     });
     this.race.node = node;
     this.race.boss = boss;
+    // Everyone on the grid gets a prison nickname, fresh every race (js/crew.js); bosses keep theirs.
+    const taken = new Set([Crew.current(b).nick]);
+    this.race.cars.forEach((c, k) => { if (c !== player && !c.isBoss) { const n = Crew.rival(this.seed, k, taken); c.name = n.name; c.nick = n.nick; c.last = n.last; } });
     this.race.wreckOut = !node.tutorial; // a wreck puts you out (see updateRace), no limping on
     this.race.music = null; // set once the weather is known, below
     if (node.type === 'bounty') {

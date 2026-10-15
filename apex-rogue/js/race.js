@@ -544,7 +544,7 @@ class Race {
       const d = Math.hypot(car.x - this.player.x, car.y - this.player.y);
       if (d > 600) continue;
       ctx.fillStyle = car.isBoss ? '#ffd23f' : 'rgba(255,255,255,0.8)';
-      ctx.fillText(`${car.place}. ${car.name.split(' ')[0]}`, car.x, car.y - 22);
+      ctx.fillText(`${car.place}. ${shortName(car)}`, car.x, car.y - 22);
     }
     ctx.restore();
 

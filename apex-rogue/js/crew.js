@@ -3,19 +3,19 @@
 // off, which is why nobody just drives away). You start a run with whoever the block sends; better drivers are
 // recruited along the way. Each has a habit that changes how they drive (internally these are still the "chips":
 // build.chip is the trait of the driver in the seat, build.stash.chips the ones waiting on the bench).
-// Names are a prison nickname and a surname, rolled fresh every run but fixed within it, so the same recruit keeps
-// their name from the reward card to the radio to the release papers.
+// Names are a prison nickname (from one pool shared with the rivals) and a surname, rolled fresh every run but fixed
+// within it, so the same recruit keeps their name from the reward card to the radio to the release papers.
 
-const CREW_NICKS = {
-  stock: ['Lucky', 'Junior', 'Tiny', 'Biscuit', 'Moose', 'Pockets', 'Rabbit', 'Kid'],
-  hothead: ['Mad Dog', 'Knuckles', 'Torch', 'Razor', 'Bulldog', 'Hammer', 'Pitbull'],
-  cautious: ['Granny', 'Preacher', 'Doc', 'Sunday', 'Mumbles', 'Professor', 'Deacon'],
-  daredevil: ['Crash', 'Sparky', 'Jackknife', 'Rocket', 'Wildcard', 'Kamikaze', 'Stunt'],
-  gun_nut: ['Trigger', 'Shells', 'Ratchet', 'Snake Eyes', 'Boom Boom', 'Lead', 'Pistol'],
-  veteran: ['Old Man', 'Getaway', 'Bishop', 'Wheels', 'Pops', 'Smokey', 'Chauffeur'],
-  ghost: ['Ghost', 'Smoke', 'Whisper', 'Spider', 'Shadow', 'Phantom', 'Slim'],
-  showboat: ['Hollywood', 'Flash', 'Sugar', 'Prince', 'Diamond', 'Glitter', 'Showtime'],
-};
+// One big pool of prison nicknames, for everyone: your drivers and every rival on the grid. Nothing about a name
+// says how someone drives; a "Granny" can be a hothead.
+const CREW_NICKS = ['Lucky', 'Junior', 'Tiny', 'Biscuit', 'Moose', 'Pockets', 'Rabbit', 'Kid', 'Mad Dog', 'Knuckles',
+  'Torch', 'Razor', 'Bulldog', 'Hammer', 'Pitbull', 'Granny', 'Preacher', 'Doc', 'Sunday', 'Mumbles', 'Professor',
+  'Deacon', 'Crash', 'Sparky', 'Jackknife', 'Rocket', 'Wildcard', 'Kamikaze', 'Stunt', 'Trigger', 'Shells', 'Ratchet',
+  'Snake Eyes', 'Boom Boom', 'Lead', 'Pistol', 'Old Man', 'Getaway', 'Bishop', 'Wheels', 'Pops', 'Smokey', 'Chauffeur',
+  'Ghost', 'Smoke', 'Whisper', 'Spider', 'Shadow', 'Phantom', 'Slim', 'Hollywood', 'Flash', 'Sugar', 'Prince',
+  'Diamond', 'Glitter', 'Showtime', 'Gravel', 'Two-Tone', 'Shiv', 'Hacksaw', 'Cupcake', 'Teeth', 'Lefty', 'Stitches',
+  'Mouse', 'Bones', 'Chalk', 'Tin Can', 'Pretty Boy', 'Sarge', 'Nails', 'Halfpint', 'Brick', 'Tadpole', 'Fingers',
+  'Dutch', 'Bingo', 'Weasel', 'Cookie', 'Saint', 'Juice', 'Patches', 'Crow', 'Mama', 'Turbo', 'Gator', 'Sleepy'];
 const CREW_LAST = ['Reyes', 'Okafor', 'Kowalski', 'Delacroix', 'Brannigan', 'Haddad', 'Lindqvist', 'Moreno', 'Sullivan',
   'Novak', 'Abara', 'Castellano', 'Duffy', 'Ibarra', 'Jankowski', 'Kerrigan', 'Malone', 'Nakata', 'Petrakis', 'Quinlan',
   'Rourke', 'Szabo', 'Tolliver', 'Vasquez', 'Whitlock', 'Yilmaz', 'Zelenko', 'Fitch', 'Gallo', 'Hargrove'];
@@ -37,10 +37,21 @@ const Crew = {
     trait = trait || 'stock';
     const gen = Crew.gens[trait] || 0;
     const h = (TV.hash((Crew.runSeed >>> 0) % 100000 + gen * 7919, [...trait].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) >>> 0));
-    const nicks = CREW_NICKS[trait] || CREW_NICKS.stock;
-    const nick = nicks[h % nicks.length], last = CREW_LAST[TV.hash(h % 1000003, 991) % CREW_LAST.length];
+    const nick = CREW_NICKS[h % CREW_NICKS.length], last = CREW_LAST[TV.hash(h % 1000003, 991) % CREW_LAST.length];
     return { trait, nick, last, name: `"${nick}" ${last}`, short: nick, number: String(1000 + ((h >>> 3) % 9000)), seed: (h % 100000) + 17, label: CREW_TRAIT[trait] || trait };
   },
+  // A rival driver on tonight's grid: random for every race, but the same if the race is replayed from a save.
+  // taken: nicknames already on the grid (and your own driver's), so no two match.
+  rival(seed, k, taken) {
+    let h = TV.hash((seed >>> 0) % 1000003, k * 131 + 7);
+    let nick = CREW_NICKS[h % CREW_NICKS.length];
+    for (let i = 1; taken.has(nick) && i < CREW_NICKS.length; i++) nick = CREW_NICKS[(h + i * 7) % CREW_NICKS.length];
+    taken.add(nick);
+    const last = CREW_LAST[TV.hash(h % 1000003, 577) % CREW_LAST.length];
+    return { nick, last, name: `"${nick}" ${last}` };
+  },
+  // A name without its quotes, for the walls and the record.
+  plain(name) { return String(name).replace(/"/g, ''); },
   // The driver in your seat.
   current(b) { return Crew.id(b && b.chip); },
   hp(b) { return b.driverHp == null ? DRIVER.hp : b.driverHp; },

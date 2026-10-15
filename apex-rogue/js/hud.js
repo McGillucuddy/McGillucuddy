@@ -38,7 +38,7 @@ function drawHUD(ctx, race, W, H, t, wrongWay) {
       ctx.fillStyle = c.color;
       ctx.fillRect(22, y - 9, 8, 8);
       ctx.fillStyle = c.isPlayer ? '#ffd23f' : i + 1 <= race.qualify ? '#fff' : 'rgba(255,255,255,0.55)';
-      ctx.fillText(`${i + 1}. ${c.isPlayer ? 'YOU' : c.name.split(' ')[0]}${c.finished ? ' ✓' : ''}`, 36, y);
+      ctx.fillText(`${i + 1}. ${c.isPlayer ? 'YOU' : shortName(c)}${c.finished ? ' ✓' : ''}`, 36, y);
       if (i + 1 === race.qualify && i < list.length - 1) {
         ctx.strokeStyle = 'rgba(255,107,107,0.8)';
         ctx.setLineDash([4, 3]);

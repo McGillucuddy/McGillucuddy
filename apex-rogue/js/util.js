@@ -63,4 +63,4 @@ function ordinal(n) {
 }
 
 // Name tags and messages use first names; bosses keep their full title.
-const shortName = (car) => (car.isBoss ? car.name : car.name.split(' ')[0]);
+const shortName = (car) => car.nick || (car.isBoss ? car.name : car.name.split(' ')[0]); // a nickname if they have one

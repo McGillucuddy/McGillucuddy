@@ -105,7 +105,7 @@ Object.assign(Combat.prototype, {
     c.tiltT = (c.isBoss ? TILT_TIME * 0.6 : TILT_TIME) * (mug ? 1.5 : 1);
     // Infamy for the gesture itself, a little, a few times a race (js/infamy.js).
     const fl = this.stats.flipped || (this.stats.flipped = []);
-    if (!fl.includes(c.name)) fl.push(c.name);
+    if (!fl.includes(shortName(c))) fl.push(shortName(c));
     this.flips = (this.flips || 0) + 1;
     if (this.fame && this.flips <= INFAMY.flipCap) this.fame(INFAMY.flip * (mug ? 2 : 1), 'TAUNT');
     if (first) {

@@ -39,7 +39,7 @@ const Infamy = {
     const R = Infamy.rec(run), p = race.player;
     R.races++;
     R.wrecks += s.wrecked;
-    for (const x of claimed) if (x.clean && !R.clean.includes(x.c.name)) R.clean.push(x.c.name);
+    for (const x of claimed) { const n = Crew.plain(x.c.name); if (x.clean && !R.clean.includes(n)) R.clean.push(n); }
     for (const n of s.flipped || []) if (!R.flipped.includes(n)) R.flipped.push(n);
     R.humiliated += s.humiliated || 0;
     R.grenadeIn += s.grenadeIn || 0;
@@ -102,7 +102,7 @@ const Infamy = {
     const L = out.lines, flags = run.flags, tol = flags.tolerance || {};
     if (R.clean.length) L.push([`${N} SHOOTS THE DRIVER`, R.clean.length > 1 ? 'EVERY TIME' : 'GOOD']);
     if (R.grenadeIn) L.push([`${N} DELIVERS`, 'THROUGH THE WINDOW']);
-    if (R.flipped.length) L.push([`${N} FLIPPED OFF ${R.flipped[R.flipped.length - 1].split(' ')[0].toUpperCase()}`, R.flipped.length > 2 ? 'AND EVERYONE ELSE' : null]);
+    if (R.flipped.length) L.push([`${N} FLIPPED OFF ${Crew.plain(R.flipped[R.flipped.length - 1]).toUpperCase()}`, R.flipped.length > 2 ? 'AND EVERYONE ELSE' : null]);
     if (R.humiliated >= 2) L.push([`${N} HAS NO MANNERS`, '<3']);
     if (R.parries >= 3) L.push([`${N} SENDS ROCKETS BACK`]);
     if (R.tyres >= 4) L.push([`${N} POPS TYRES FOR FUN`]);

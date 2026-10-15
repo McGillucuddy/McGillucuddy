@@ -264,6 +264,8 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **Purses come in a range** (the briefing shows them): a win pays 100-160, 2nd 70-115, 3rd 50-85, down to 5-15 for
   last; beating a boss 120-180. Where you land in the range is half luck and half how you raced
   (wrecks, parries, how little damage you took). Elite races pay 40% more. Scrap is scarce on purpose.
+- **Rival names.** Every rival on the grid gets a random prison nickname and surname each race ("Pops" Moreno,
+  "Razor" Vasquez), from the same pool as your drivers; the feed and name tags use the nickname. Bosses keep theirs.
 - **Bounties.** Every rival carries a price on their head, shown in the briefing (💰) and on the name tag of the rival you're aiming at ($):
   10 scrap, plus 5 for a mine layer, 10 for a gunner, 20 for a rocket car and 10 for armoured tyres; +30% per act
   and +40% in an elite race (rounded to 5). Wreck them and it's yours, paid with the purse. Shoot the driver dead
@@ -414,7 +416,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   the course and it goes off, which is why nobody just drives away). You start with whoever the block sends, with
   no particular habits; better drivers are **recruited**: from rewards, the commissary, and after each boss
   ("a driver wants in"). Each has a randomized prison name, fixed for the run ("Mad Dog" Whitlock, "Granny"
-  Moreno, "Ghost" Malone), an inmate number, a mugshot on their card, and a habit with a downside: **Hothead**,
+  Moreno, "Ghost" Malone; the nickname is random, nothing to do with how they drive), an inmate number, a mugshot on their card, and a habit with a downside: **Hothead**,
   **Cautious**, **Daredevil**, **Gun Nut**, and from bosses **Getaway Veteran**, **Ghost**, **Showboat**. Swap
   drivers in the garage (Workshop). They sit at the wheel in the cockpit, hands on the rim, glancing at you when
   you shoot or give an order, the collar's red light blinking; they answer your orders on the radio by name. Win
