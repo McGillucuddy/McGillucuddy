@@ -115,14 +115,14 @@ const People = {
       shades: LP.mat('#0e0e10', { metalness: 0.5, roughness: 0.2 }), helmet: LP.mat('#1c1c1e', { metalness: 0.4, roughness: 0.35 }),
       glove: LP.mat(o.role === 'trader' ? L.skin : '#2a221c', { roughness: 0.8 }), boot: LP.mat('#1a1410', { roughness: 0.8 }), dark: LP.mat('#1c1c1c', { roughness: 0.7 }),
     };
-    const stand = o.pose === 'stand', w = People.BUILD[L.build] || 1, heavy = L.build === 'heavy';
+    const walk = o.pose === 'walk', stand = o.pose === 'stand' || walk, w = People.BUILD[L.build] || 1, heavy = L.build === 'heavy';
     const vest = L.top === 'vest' && o.role !== 'trader', bare = vest ? M.skin : M.suit; // vest: the arms are bare
     const gear = o.helmet ? 'helmet' : L.gear;
-    const key = ['person2', o.pose, o.role, o.arms, o.head ? 'h' : 'n', gear, L.beard, L.shades && o.role !== 'trader' ? 's' : '', L.build, L.face, vest ? 'v' : '', L.rolled ? 'r' : '', L.tattoo || '', L.brow, o.cell].join(':');
+    const key = ['person2', o.pose, o.role, o.arms, o.head ? 'h' : 'n', gear, L.beard, L.shades && o.role !== 'trader' ? 's' : '', L.build, L.face, vest ? 'v' : '', L.rolled ? 'r' : '', L.tattoo || '', L.brow, o.cell, o.leg ? o.leg.knee.concat(o.leg.ankle).join(',') : ''].join(':');
     const g = new THREE.Group();
     const torso = new THREE.Group(); g.add(torso);
     // Body (and legs, which don't move with the torso pivot, so they're sculpted onto the figure itself).
-    const body = new Sculpt(key + ':body', o.cell), legs = new Sculpt(key + ':legs', o.cell * 1.2);
+    const body = new Sculpt(key + ':body', o.cell), legsAll = new Sculpt(key + ':legs', o.cell * 1.2);
     const top = vest ? M.vest : M.suit;
     body.add(M.suit, SDF.ellipsoid([1.1, 0.8, 1.45 * w], [0, 0.75, 0]), 0.4); // pelvis
     body.add(top, SDF.ellipsoid([0.95 + (heavy ? 0.2 : 0), 1.0, 1.25 * w], [0.12 + (heavy ? 0.12 : 0), 2.0, 0]), 0.6); // belly
@@ -145,6 +145,23 @@ const People = {
       body.add(M.seam, SDF.torus(1.02 * w, 0.06, [0.1, 1.42, 0], [Math.PI / 2, 0, 0]), 0.03); // the waist seam
     }
     // Arms, sculpted to a pose (the player's driver gets live arms instead, see People.liveArms).
+    const swing = [];
+    if (o.arms === 'swing') { // hanging at the sides on shoulder pivots, so they can swing as the figure walks
+      const fore = vest || L.rolled ? M.skin : M.suit;
+      for (const s of [-1, 1]) {
+        const sh = [0.05, 4.25, s * 1.72 * w], el = [0.15, -2.0, s * 0.28], wr = [0.4, -3.75, s * 0.32];
+        const a = new Sculpt(key + ':arm' + s, o.cell), piv = new THREE.Group();
+        a.add(bare, SDF.cone([0, 0, 0], el, 0.46 * w, 0.38), 0.3);
+        a.add(fore, SDF.cone(el, wr, 0.38, 0.3), 0.25);
+        a.add(L.rolled && !vest ? M.suit : fore, SDF.ellipsoid([0.42, 0.42, 0.42], el), 0.2);
+        if (!vest && !L.rolled) a.add(M.suit, SDF.torus(0.34, 0.09, wr, [0, 0, Math.PI / 2]), 0.05);
+        People.fist(a, M, wr, [wr[0] - el[0], wr[1] - el[1], wr[2] - el[2]], s);
+        a.build(piv);
+        piv.position.set(...sh);
+        torso.add(piv);
+        swing.push(piv);
+      }
+    }
     if (o.arms === 'static') {
       const A = People.ARM_POSES[o.role] || People.ARM_POSES.driver, fore = vest || L.rolled ? M.skin : M.suit;
       for (const s of [-1, 1]) {
@@ -161,9 +178,20 @@ const People = {
     }
     body.build(torso);
     // Legs: seated (thighs along the seat, shins down to the floor) or standing (a little apart, knees soft).
-    const LEG = stand ? [[0.05, -0.1], [0.35, -3.8], [0.05, -7.5]] : [[0.3, 0.55], [4.1, 0.9], [4.7, -3.3]];
+    // (o.leg: a seated figure's knee and ankle for a particular seat, so the feet land on that floor.)
+    const LEG = stand ? [[0.05, -0.1], [0.35, -3.8], [0.05, -7.5]] : o.leg ? [[0.3, 0.55], o.leg.knee, o.leg.ankle] : [[0.3, 0.55], [4.1, 0.9], [4.7, -3.3]];
+    const strides = [];
     for (const s of [-1, 1]) {
-      const sp = stand ? 0.15 : 0, hip = [LEG[0][0], LEG[0][1], s * 0.85 * w], knee = [LEG[1][0], LEG[1][1], s * (1.0 + sp) * w], ank = [LEG[2][0], LEG[2][1], s * (1.05 + sp * 2)];
+      const sp = walk ? 0.02 : stand ? 0.15 : 0;
+      let hip = [LEG[0][0], LEG[0][1], s * 0.85 * w], knee = [LEG[1][0], LEG[1][1], s * (1.0 + sp) * w], ank = [LEG[2][0], LEG[2][1], s * (1.05 + sp * 2)];
+      // Walking: each leg is its own piece on a hip pivot (sculpted relative to the hip), so it can swing.
+      let legs = legsAll, piv = null;
+      if (walk) {
+        piv = new THREE.Group(); piv.position.set(...hip);
+        const rel = (v) => [v[0] - hip[0], v[1] - hip[1], v[2] - hip[2]];
+        [hip, knee, ank] = [rel(hip), rel(knee), rel(ank)];
+        legs = new Sculpt(key + ':leg' + s, o.cell * 1.2);
+      }
       legs.add(M.suit, SDF.cone(hip, knee, 0.82 * w, 0.6), 0.45); // thigh
       legs.add(M.suit, SDF.cone(knee, ank, 0.58, 0.46), 0.3); // shin
       legs.add(M.suit, SDF.ellipsoid([0.52, 0.52, 0.56], [knee[0] + 0.25, knee[1] + 0.05, knee[2]]), 0.25); // knee
@@ -173,8 +201,9 @@ const People = {
       legs.add(M.boot, SDF.box([2.2, 1.05, 1.1], 0.38, [ank[0] + 0.6, ank[1] - 0.35, ank[2]]), 0.2); // boot
       legs.add(M.boot, SDF.cyl(0.55, 0.7, 'y', 0.15, [ank[0], ank[1] + 0.15, ank[2]]), 0.2); // boot top round the ankle
       legs.add(M.dark, SDF.box([2.3, 0.24, 1.15], 0.08, [ank[0] + 0.6, ank[1] - 0.82, ank[2]]), 0.1); // sole
+      if (piv) { legs.build(piv); g.add(piv); strides.push(piv); }
     }
-    legs.build(g);
+    if (!walk) legsAll.build(g);
     // Head on its pivot.
     const head = new THREE.Group();
     head.position.set(0.15, 5.4, 0);
@@ -191,7 +220,7 @@ const People = {
       patch.rotation.y = Math.PI / 2;
       torso.add(patch);
     }
-    g.userData = { torso, head, looks: L, M, helmet: !!o.helmet, armMat: vest ? M.skin : M.suit, shoulders: [[0.05, 4.25, -1.72 * w], [0.05, 4.25, 1.72 * w]] };
+    g.userData = { torso, head, looks: L, M, legs: strides, arms: swing, helmet: !!o.helmet, armMat: vest ? M.skin : M.suit, shoulders: [[0.05, 4.25, -1.72 * w], [0.05, 4.25, 1.72 * w]] };
     return g;
   },
 

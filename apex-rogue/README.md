@@ -281,13 +281,33 @@ playing them from `Sound.play` would slot straight into the same events.
   garage.
 - **The commissary** is the sponsors' shop window. It only opens on nights the home shopping channel films in
   your block. No cameras, no sales.
-- **Bench drivers** you've recruited but aren't driving sit on upturned crates in the garage, waiting their
-  turn. Hover one to see their name and bond.
+- **People about the garage:** the mechanic, the drivers on your bench and a trustee walk around the
+  floor (`GARAGE_WALK`, `Garage3D.updateWalkers`). They follow a graph of open spots that keeps them off the
+  lift, the car and the furniture, stop a while at each and look at the car or about them. They wait for
+  each other and step round if blocked. Their legs and arms swing on hip and shoulder pivots
+  (`People.figure` with `pose: 'walk', arms: 'swing'`). Hover one to see who they are; a bench driver
+  shows their bond.
 - **Your collar:** you wear one too. You can't see it from your seat, but its light blinks red on your hands
   and the dash, out of step with your driver's.
 - **The season tape** (`js/tape.js`): win or lose, the run ends on the broadcast's VHS recap. Every race is an
   episode with its result and the big moments the broadcast cut to, followed by the car (name, kill marks,
   trophies), the Infamy you earned, and everyone who drove for you with their bond. The dead are marked.
+
+### The cabin fits together (prototype)
+
+Nothing in your car passes through anything else. Checked with a voxel test that fills every cabin object's
+volume and looks for overlaps.
+
+- **The seats:** each front cushion is a thigh long and ends behind the knee, so shins hang clear of it.
+- **The driver's legs** are posed for the car: knees low enough to clear the wheel's rim, feet out on the
+  floor under the dash.
+- **Your legs:** your ankle sits in the shackle's cuff.
+- **The door rack:** guns are fitted between the seat bolster and the wheel; long guns shrink to fit.
+- **The grenade crate** sits on the console, not in it.
+- **The blast hatch:** open, it rests on the roof hatch's frame. Climbing up to the roof gun, you push it
+  down over the glass first, because it lies over the hatch you climb through.
+- **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
+  turning in place inside your own neck.
 
 ### Feel: grenades, hits and crashes (prototype)
 

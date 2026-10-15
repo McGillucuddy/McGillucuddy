@@ -1,4 +1,5 @@
 'use strict';
+const RACK_SPAN = [-3.4, 2.4];
 // First-person cockpit view (Three.js) of the same 2D race simulation.
 // Sim (x, y) maps to three (x, height, y). Car-local axes: +X forward, +Y up, +Z right.
 
@@ -626,10 +627,12 @@ class CockpitView {
   buildCrew(I) {
     const cab = this.look3d.cabin || {}, inmate = String(cab.inmate || '4471'), seed = (parseInt(inmate, 10) || 4471) * 3 + 11;
     const who = this.combat.crew || Crew.current(this.combat.build);
-    const drv = People.figure({ seed: who.seed, role: 'driver', arms: 'none', cell: 0.08, number: who.number });
+    // Legs posed for this car: the driver's feet out on the floor under the dash with the knees low enough to clear
+    // the wheel's rim; yours back in the ankle cuff of the shackle bolted to your footwell.
+    const drv = People.figure({ seed: who.seed, role: 'driver', arms: 'none', cell: 0.08, number: who.number, leg: { knee: [3.6, 0.35], ankle: [6.84, -2.0] } });
     drv.position.set(-1.9, 4.45, -4.5);
     I.add(drv);
-    const me = People.figure({ seed: seed + 1, role: 'passenger', head: false, arms: 'none', cell: 0.08, number: inmate, looks: { suit: '#a8521e' } });
+    const me = People.figure({ seed: seed + 1, role: 'passenger', head: false, arms: 'none', cell: 0.08, number: inmate, looks: { suit: '#a8521e' }, leg: { knee: [3.79, 1.43], ankle: [4.45, -2.0] } });
     me.position.set(EYE.x - 0.95, 4.45, EYE.z);
     I.add(me);
     // The collar: a steel band round the neck with a box on the side and a red light.
@@ -757,6 +760,7 @@ class CockpitView {
   }
 
   // Your build, made physical: weapons on the door rack, trinkets hanging from the mirror or on the dash.
+  // (RACK_SPAN: the length of door the rack guns can use, between the seat's bolster and the steering wheel.)
   buildLoadout(I) {
     const b = this.combat.build;
     const hooks = [7.3, 6.1, 4.9];
@@ -766,9 +770,15 @@ class CockpitView {
       else if (w.id === 'flamer' || w.id === 'harpoon') m.scale.setScalar(0.85);
       else if (['carbine', 'liberty', 'lmg', 'pangun'].includes(w.id)) m.scale.setScalar(0.7);
       else if (w.id === 'typewriter') m.scale.setScalar(0.82);
-      m.position.set(-1.2, hooks[i] || 4.9, -6.9); // resting on the J hooks, clear of the door bars
+      m.position.set(-0.9, hooks[i] || 4.9, -7.15); // resting on the J hooks, clear of the door bars and the seat's bolster
       m.rotation.y = -Math.PI / 2;
       I.add(m);
+      // Fit it between the driver's seat back and the wheel's rim: long guns shrink a little, and sit centred.
+      const fit = () => { I.updateMatrixWorld(true); return new THREE.Box3().setFromObject(m).applyMatrix4(new THREE.Matrix4().copy(I.matrixWorld).invert()); };
+      let bb = fit();
+      const room = RACK_SPAN[1] - RACK_SPAN[0], len = bb.max.x - bb.min.x;
+      if (len > room) { m.scale.multiplyScalar(room / len); bb = fit(); }
+      m.position.x += (RACK_SPAN[0] + RACK_SPAN[1]) / 2 - (bb.min.x + bb.max.x) / 2;
       return m;
     });
     this.buildAmmoRack(I, b);
@@ -1100,7 +1110,7 @@ class CockpitView {
     fill.position.set(2.5, 10.2, 1.5); I.add(fill);
     const light = new THREE.PointLight('#ffc070', 0, 26, 2);
     I.add(light);
-    this.hatchFx = { pivot, plate, L, Wd, T, s0, s1, open: Math.atan2(0.05, -1), shut: Math.atan2(-v.y, -v.x), dents: 0, dentMat: rust, sparks, light, fill, bounce: 0, shudder: 0, jamT: 0, o, hinge, v }; // open lies back on the roof; shut runs straight down the glass
+    this.hatchFx = { pivot, plate, L, Wd, T, s0, s1, open: Math.atan2(0.24, -1), shut: Math.atan2(-v.y, -v.x), dents: 0, dentMat: rust, sparks, light, fill, bounce: 0, shudder: 0, jamT: 0, o, hinge, v }; // open lies back over the roof, resting on the roof hatch's frame; shut runs straight down the glass
     this.syncDents(true);
   }
 
@@ -1158,6 +1168,10 @@ class CockpitView {
       ang = F.open + (F.shut - F.open) * 0.86 + Math.sin(t * 13) * 0.012 * Math.min(1, this.race.player.speed / 300);
       F.plate.rotation.x = 0.09;
     }
+    // Open, the plate lies over your roof hatch: climbing up to the roof gun, you shove it down over the glass first
+    // (it stays down while you're up there, and lifts back once you're in and the lid's shut).
+    const roof = clamp((this.combat.up || 0) * 4, 0, 1);
+    if (roof > 0 && !H.jammed) ang += (F.shut - ang) * roof * roof * (3 - 2 * roof);
     F.pivot.rotation.z = ang;
     for (const s of F.sparks) {
       if (s.t >= s.life) { s.m.visible = false; continue; }
@@ -1451,7 +1465,10 @@ class CockpitView {
     // limits how far round you can swing it.
     const upK = this.combat.up * this.combat.up * (3 - 2 * this.combat.up);
     if (this.combat.exposed) { const arc = this.combat.shield.arc; this.look.yaw = clamp(this.look.yaw, -arc, arc); }
-    const eye = this.playerGroup.localToWorld(new THREE.Vector3(EYE.x + 0.4 * upK, EYE.y + 5.4 * upK, EYE.z));
+    // Your head turns on your neck: the eyes sit in front of it and swing round with the look, so turning to look
+    // behind you puts your eyes over your shoulder instead of inside your own neck.
+    const NECK = 0.85, hy = this.look.yaw;
+    const eye = this.playerGroup.localToWorld(new THREE.Vector3(EYE.x - NECK + NECK * Math.cos(hy) + 0.4 * upK, EYE.y + 5.4 * upK, EYE.z + NECK * Math.sin(hy)));
     if (this.roofHatch) this.roofHatch.rotation.z = 1.95 * clamp(this.combat.up * 2.5, 0, 1); // the lid flips up and over as you climb
     const sh = this.shake;
     eye.x += (Math.random() - 0.5) * sh * 1.2;

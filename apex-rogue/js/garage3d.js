@@ -8,6 +8,27 @@
 const GARAGE_LIFT = { x: 0, y: 6, z: 10 };
 
 // Camera poses per station: [position, look-at].
+// Where people can walk in the garage: open spots on the floor, and which are joined by a clear straight line
+// (worked out once from the furniture's footprints). look: what someone stopping at a spot turns to face.
+const GARAGE_WALK = (() => {
+  const pts = { door: [-100, -35], armory: [-62, -68], bench: [-20, -66], mid: [10, -40], tools: [52, -38], hole: [58, -58],
+    shop: [80, -40], east: [96, 18], liftE: [40, 12], liftW: [-38, 0], south: [10, 66], sw: [-62, 72], fans: [-98, 70], west: [-96, 10], se: [104, 92],
+    gap: [41, 50], southE: [40, 90], southW: [-20, 84], east2: [108, 58], front: [0, -30] };
+  const block = [[-30, -18, 30, 38], [28, -32, 52, -8], [-60, 28, -32, 62], [52, 42, 88, 78], [78, -78, 132, -48], [-6, -100, 8, -88]]; // car and lift, toolbox, tyres, barrels, counter, wall junk
+  const clear = (A, B) => {
+    for (let i = 0; i <= 20; i++) {
+      const x = A[0] + (B[0] - A[0]) * i / 20, z = A[1] + (B[1] - A[1]) * i / 20;
+      if (block.some(([x0, z0, x1, z1]) => x > x0 - 5 && x < x1 + 5 && z > z0 - 5 && z < z1 + 5)) return false;
+    }
+    return true;
+  };
+  const links = {};
+  for (const a in pts) links[a] = Object.keys(pts).filter((b) => b !== a && clear(pts[a], pts[b]) && Math.hypot(pts[a][0] - pts[b][0], pts[a][1] - pts[b][1]) < 110);
+  const car = [0, 10];
+  const look = { tools: [40, -20], liftE: car, liftW: car, mid: car, front: car, gap: car, armory: [-60, -100], bench: [-20, -100], hole: [58, -100], shop: [110, -66], fans: [-110, 95], south: car, door: [-130, -10] };
+  return { pts, links, look, all: Object.keys(pts), mech: ['tools', 'liftE', 'liftW', 'mid', 'front', 'gap', 'south', 'east', 'shop'] };
+})();
+
 const GARAGE_POSES = {
   car: [[54, 21, 40], [0, 11, 8]],
   weapons: [[-60, 36, -24], [-60, 36, -100]],
@@ -579,33 +600,89 @@ class Garage3D {
     });
   }
 
-  // The people in your garage: the crew (one old lifer mechanic, by the lift) and the drivers you've recruited who
-  // aren't driving tonight, sat on a bench waiting their turn. Figures are kept between syncs (they're costly to make).
+  // The people in your garage, up and about: the crew (one old lifer mechanic) potters between the car and his
+  // toolbox; the drivers you've recruited but aren't driving tonight, and a trustee with nothing better to do, wander
+  // the floor. They walk a graph of open spots that keeps them off the lift, the car and the furniture, stop a while
+  // at each, and look at the car or about them. Figures are kept between syncs (they're costly to make).
   syncPeople(D, b) {
     this.people = this.people || new Map();
-    const get = (key, make) => { if (!this.people.has(key)) this.people.set(key, make()); return this.people.get(key); };
-    const place = (fig, x, z, ry, s) => {
-      fig.position.set(0, 0, 0); fig.rotation.set(0, ry, 0); fig.scale.setScalar(s); fig.updateMatrixWorld(true);
-      const bb = new THREE.Box3().setFromObject(fig);
-      fig.position.set(x, -bb.min.y, z);
-      return -bb.min.y;
-    };
+    const want = [];
     const M = Crew.mechanic();
-    const mech = get('mech:' + M.seed, () => People.figure({ seed: M.seed, pose: 'stand', role: 'trader', cell: 0.1, suit: '#33404a', looks: { gear: 'cap', hat: '#2a2a2a', beard: 'full' } }));
-    place(mech, 26, -16, Math.PI * 0.85, 2.3);
-    mech.userData.dynamic = true;
-    this.hot(mech, 'tab', 'car', `${M.name}: the crew. ${M.years} years inside; keeps your car running`);
-    const bench = (b.stash && b.stash.chips) || [];
-    if (!bench.length) return;
-    const wood = LP.mat(this.luxury ? '#3a2a1e' : '#5a4632', { roughness: 0.9 });
-    bench.slice(0, 4).forEach((trait, i) => {
+    want.push({ key: 'mech:' + M.seed, make: () => People.figure({ seed: M.seed, pose: 'walk', arms: 'swing', role: 'trader', cell: 0.1, suit: '#33404a', looks: { gear: 'cap', hat: '#2a2a2a', beard: 'full', top: 'suit' } }),
+      label: `${M.name}: the crew. ${M.years} years inside; keeps your car running`, spots: GARAGE_WALK.mech, speed: 15 });
+    for (const trait of ((b.stash && b.stash.chips) || []).slice(0, 3)) {
       const who = Crew.id(trait);
-      const fig = get('bench:' + who.seed, () => People.figure({ seed: who.seed, pose: 'seated', role: 'driver', cell: 0.1, number: who.number }));
-      const z = 34 + i * 9, hipY = place(fig, -46, z, 0, 2.3);
-      fig.userData.dynamic = true;
-      this.hot(fig, 'tab', 'car', `${who.name}: on the bench (${Bond.info(b, trait + ':' + ((b.crewGen && b.crewGen[trait]) || 0)).name}). Swap them in at the Workshop`);
-      D.add(LP.box(6, hipY - 0.6, 7.5, wood, -46.5, (hipY - 0.6) / 2, z)); // an upturned crate to sit on
-    });
+      want.push({ key: 'bench:' + who.seed, make: () => People.figure({ seed: who.seed, pose: 'walk', arms: 'swing', role: 'driver', cell: 0.1, number: who.number }),
+        label: `${who.name}: waiting for a drive (${Bond.info(b, trait + ':' + ((b.crewGen && b.crewGen[trait]) || 0)).name}). Swap them in at the Workshop`, spots: GARAGE_WALK.all, speed: 18 });
+    }
+    const tr = ((Crew.runSeed >>> 0) % 9000) + 300;
+    want.push({ key: 'trustee:' + tr, make: () => People.figure({ seed: tr, pose: 'walk', arms: 'swing', role: 'driver', cell: 0.1, looks: { gear: 'buzz' } }), label: 'A trustee, killing time', spots: GARAGE_WALK.all, speed: 16 });
+    const keep = new Set(want.map((w) => w.key));
+    this.walkers = (this.walkers || []).filter((wk) => keep.has(wk.key));
+    for (const w of want) {
+      let wk = this.walkers.find((x) => x.key === w.key);
+      if (!wk) {
+        if (!this.people.has(w.key)) this.people.set(w.key, w.make());
+        const fig = this.people.get(w.key);
+        fig.scale.setScalar(2.3); fig.position.set(0, 0, 0); fig.rotation.set(0, 0, 0); fig.updateMatrixWorld(true);
+        const foot = -new THREE.Box3().setFromObject(fig).min.y; // feet on the floor
+        const taken = new Set(this.walkers.map((x) => x.at));
+        const free = w.spots.filter((k) => !taken.has(k));
+        const at = free[Math.floor(Math.random() * free.length)] ?? w.spots[0];
+        wk = { key: w.key, fig, foot, spots: w.spots, speed: w.speed, at, to: null, wait: 1 + Math.random() * 4, phase: 0, face: Math.random() * TAU };
+        const P = GARAGE_WALK.pts[at];
+        fig.position.set(P[0], foot, P[1]);
+        this.walkers.push(wk);
+      }
+      wk.fig.userData.dynamic = true;
+      this.hot(wk.fig, 'tab', 'car', w.label);
+    }
+  }
+
+  // Each frame: walk to the next spot (legs and arms swinging, a little bob), or stand there a while.
+  updateWalkers(dt) {
+    for (const wk of this.walkers || []) {
+      const f = wk.fig, U = f.userData, P = GARAGE_WALK.pts;
+      if (wk.to == null) {
+        wk.wait -= dt;
+        // Standing: turn to look at whatever they stopped for.
+        f.rotation.y += wrapAngle(wk.face - f.rotation.y) * Math.min(1, dt * 3);
+        f.position.y = wk.foot - (1 - Math.cos(this.stride(U, 0, dt))) * 7.4 * f.scale.y;
+        if (wk.wait > 0) continue;
+        // Somewhere new: a neighbouring spot this walker uses, that nobody else is at or heading to.
+        const busy = new Set(this.walkers.flatMap((x) => [x.at, x.to]));
+        const next = (GARAGE_WALK.links[wk.at] || []).filter((k) => wk.spots.includes(k) && !busy.has(k));
+        if (!next.length) { wk.wait = 1; continue; }
+        wk.to = next[Math.floor(Math.random() * next.length)];
+        continue;
+      }
+      const T = P[wk.to], dx = T[0] - f.position.x, dz = T[1] - f.position.z, d = Math.hypot(dx, dz);
+      // Someone in the way: wait for them.
+      // (Not for long: after a moment they step round.)
+      const block = this.walkers.some((x) => x !== wk && Math.hypot(x.fig.position.x - f.position.x - dx / d * 9, x.fig.position.z - f.position.z - dz / d * 9) < 7);
+      wk.blockT = block ? (wk.blockT || 0) + dt : 0;
+      const step = block && wk.blockT < 1.2 ? 0 : Math.min(d, wk.speed * dt);
+      f.position.x += (dx / d) * step; f.position.z += (dz / d) * step;
+      f.rotation.y += wrapAngle(Math.atan2(-dz, dx) - f.rotation.y) * Math.min(1, dt * 6);
+      wk.phase += step / 7; // a stride every few units
+      const a = this.stride(U, step > 0 ? 1 : 0, dt, wk.phase);
+      f.position.y = wk.foot - (1 - Math.cos(a)) * 7.4 * f.scale.y; // straight legs splayed: the hips drop so both feet stay down
+      if (d < 1) {
+        wk.at = wk.to; wk.to = null; wk.wait = 1.5 + Math.random() * 3.5;
+        const S = GARAGE_WALK.look[wk.at];
+        wk.face = S ? Math.atan2(-(S[1] - T[1]), S[0] - T[0]) : Math.random() * TAU;
+      }
+    }
+  }
+  // Legs and arms: swinging with the stride (k: 1 walking, 0 standing, eased between).
+  stride(U, k, dt, phase) {
+    U.walkK = (U.walkK || 0) + (k - (U.walkK || 0)) * Math.min(1, dt * 8);
+    if (phase != null) U.lastPhase = phase;
+    const a = Math.sin((U.lastPhase || 0) * Math.PI) * 0.38 * U.walkK;
+    // Figures face +x, so a stride swings about z (forward is -z rotation for the leg's foot to come forward).
+    if (U.legs && U.legs.length === 2) { U.legs[0].rotation.z = a; U.legs[1].rotation.z = -a; }
+    if (U.arms && U.arms.length === 2) { U.arms[0].rotation.z = -a * 0.8; U.arms[1].rotation.z = a * 0.8; }
+    return a;
   }
 
   sync(info) {
@@ -786,6 +863,7 @@ class Garage3D {
 
   render(W, H, dt, t, panelW) {
     W = Math.max(1, Math.round(W)); H = Math.max(1, Math.round(H));
+    this.updateWalkers(Math.min(dt || 0, 0.1));
     if (W !== this.size[0] || H !== this.size[1] || panelW !== this.size[2] || PSX.height !== this.size[3]) { // or the graphics setting changed
       this.size = [W, H, panelW, PSX.height];
       this.renderer.setSize(W, H, false);

@@ -3539,10 +3539,12 @@ const Models = {
     }
     // Front seats: a cushion with side bolsters and a rolled front; the empty driver's seat also has its back,
     // bolsters and a headrest moulded on. (Your back would fill the view when you turn round.)
+    // Each cushion is a thigh long and ends just behind the knee of whoever sits on it, so their shins hang clear of it.
     for (const z of [-4.5, 4.5]) {
-      sc.add(seat, SDF.box([6, 1.6, 5.6], 0.7, [-1.5, 3.6, z]), 0.4);
-      sc.add(seat, SDF.cyl(0.62, 5.2, 'z', 0.3, [1.15, 3.75, z]), 0.5); // rolled front edge
-      for (const b of [-1, 1]) sc.add(seat, SDF.ellipsoid([2.9, 0.5, 0.6], [-1.6, 4.1, z + b * 2.55]), 0.45); // bolsters
+      const front = z < 0 ? 0.6 : -0.85, back = -4.5, mid = (front + back) / 2 - 0.2, half = (front - back) / 2 + 0.15;
+      sc.add(seat, SDF.box([half * 2, 1.6, 5.6], 0.7, [mid, 3.6, z]), 0.4);
+      sc.add(seat, SDF.cyl(0.62, 5.2, 'z', 0.3, [front, 3.75, z]), 0.5); // rolled front edge
+      for (const b of [-1, 1]) sc.add(seat, SDF.ellipsoid([half - 0.1, 0.5, 0.6], [mid - 0.1, 4.1, z + b * 2.55]), 0.45); // bolsters
       if (z > 0) continue;
       sc.add(seat, SDF.box([1.6, 8, 5.6], 0.7, [-4.6, 8, z], [0, 0, 0.12]), 0.8);
       for (const b of [-1, 1]) sc.add(seat, SDF.ellipsoid([0.8, 3.4, 0.6], [-4.35, 7.6, z + b * 2.5], [0, 0, 0.12]), 0.5); // back bolsters
@@ -3661,7 +3663,7 @@ const Models = {
 
     // Grenade crate on the console: ammo you can count.
     const crate = Models.grenadeCrate();
-    crate.position.set(-1.4, 6.2, 0);
+    crate.position.set(-1.4, 6.45, 0); // sitting on the console, not sunk into it
     I.add(crate);
     refs.nades = crate.userData.nades;
 
@@ -3715,8 +3717,8 @@ const Models = {
       const t = k / (links - 1), p = [lerp(2.8, 1.2, t), 2.0 + Math.sin(t * Math.PI) * 0.25, lerp(6.4, 4.5, t)];
       shk.add(iron, SDF.torus(0.2, 0.06, p, [k % 2 ? Math.PI / 2 : 0, 0.6, 0]), 0.005);
     }
-    shk.add(iron, SDF.torus(0.7, 0.16, [0.9, 2.2, 4.2], [Math.PI / 2, 0, 0.3]), 0.02); // cuff
-    shk.add(iron, SDF.cyl(0.24, 0.5, 'y', 0.08, [1.55, 2.2, 4.5]), 0.08); // its hinge
+    shk.add(iron, SDF.torus(0.7, 0.16, [0.9, 2.45, 4.2], [Math.PI / 2, 0, 0.3]), 0.02); // cuff, round your ankle
+    shk.add(iron, SDF.cyl(0.24, 0.5, 'y', 0.08, [1.55, 2.45, 4.5]), 0.08); // its hinge
     shk.build(I);
 
     // Dash: crack taped over, scratched tally marks, inmate stencil on the glovebox.
@@ -3753,7 +3755,7 @@ const Models = {
       const t = 0.12, n = [Math.cos(t), Math.sin(t), 0], up = [-Math.sin(t), Math.cos(t)], c = [-4.6 + n[0] * 0.81, 8 + n[1] * 0.81], d = (6.4 - c[1]) / up[1];
       for (const r of [0.7, -0.7]) tapeOn(2.6, 0.45, [c[0] + up[0] * d, 6.4, -4.5], n, r);
     }
-    tapeOn(2.6, 0.5, [-1.4, 4.415, 4.5], [0, 1, 0], Math.PI / 2); // your cushion, taped
+    tapeOn(2.6, 0.5, [-1.9, 4.415, 4.5], [0, 1, 0], Math.PI / 2); // your cushion, taped
     tapeOn(2.4, 0.5, [-2.2, 4.415, 4.0], [0, 1, 0]);
 
     // Chain wrap: real links round the rim.
@@ -3790,7 +3792,7 @@ const Models = {
       cans.add(can, SDF.warp(SDF.lathe([[0.36, -0.6], [0.42, -0.5], [0.42, 0.5], [0.34, 0.6], [0, 0.6]], [x, 2.05, z], [0, r, 0.3]), (px, py, pz) => [px, 2.05 + (py - 2.05) / 0.55, pz], 0.3), 0.02);
     }
     cans.build(I);
-    for (const [x, z, s] of [[-6.6, 1.0, 0.9], [3.4, 7.2, 0.7], [-6.0, -6.4, 1.1]]) {
+    for (const [x, z, s] of [[-6.6, 1.0, 0.9], [3.4, 7.2, 0.7], [-5.3, -5.7, 1.1]]) {
       I.add(LP.mesh(LP.jitter(new THREE.IcosahedronGeometry(0.5 * s, 2), 0.1, Math.round(x * 10)), LP.mat('#ffffff', { map: DECALS.get('paper') }), x, 1.75 + 0.42 * s, z)); // sitting on the carpet
     }
     if (typeof TRINKET_BUILD !== 'undefined') { // a pack of smokes left on the console
