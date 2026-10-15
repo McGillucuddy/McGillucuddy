@@ -123,7 +123,7 @@ class Race {
     for (const car of this.cars) {
       let inp;
       if (car === this.player && !car.finished) inp = playerInput;
-      else if (car.ai) inp = car.ai.update(this, dt);
+      else if (car.ai && !car.wrecked) inp = car.ai.update(this, dt); // (a wreck's driver isn't driving: see below)
       else {
         // Player car after finishing: hand it to an autopilot.
         if (!car.autopilot) car.autopilot = new AIDriver(car, 0.85, this.rng);
@@ -131,7 +131,17 @@ class Race {
         inp = car.autopilot.update(this, dt);
         inp.throttle *= 0.6;
       }
-      if (car.driverDead) inp = { throttle: 0, brake: 0.2, steer: car.deadSteer, handbrake: false, nitro: false }; // nobody at the wheel
+      // Wrecked means out, for everyone: a rival at zero hull skids to a stop and burns where it stands, a hulk the
+      // others have to drive round (the player's own wreck is handled by the game: see Proto.updateRace).
+      if (car !== this.player && car.hp <= 0 && !car.finished) {
+        if (!car.wrecked) { car.wrecked = true; car.dnf = true; car.wreckT = 0; car.deadSteer = car.deadSteer ?? (this.rng() - 0.5) * 0.6; }
+        car.wreckT += dt;
+        const v = Math.hypot(car.vx, car.vy);
+        if (!car.hulk && v < 30) { car.hulk = true; car.stats.mass *= 4; }
+        const drag = Math.max(0, 1 - (car.hulk ? 6 : 1.2) * dt); // scraping along on its rims, then dead still
+        car.vx *= drag; car.vy *= drag;
+        inp = car.hulk ? { throttle: 0, brake: 0, steer: 0, handbrake: true, nitro: false } : { throttle: 0, brake: 0.55, steer: car.deadSteer, handbrake: car.wreckT > 0.6, nitro: false };
+      } else if (car.driverDead) inp = { throttle: 0, brake: 0.2, steer: car.deadSteer, handbrake: false, nitro: false }; // nobody at the wheel
       else if (car.flinchT > 0) { // the driver's been hit: a jerk of the wheel, a lift off the throttle
         car.flinchT -= dt;
         inp = Object.assign({}, inp, { steer: clamp(inp.steer + Math.sin(car.flinchT * 30) * 0.8, -1, 1), throttle: inp.throttle * 0.4 });

@@ -18,6 +18,8 @@ const TYRE_R = 4.2; // how close a shot's path must pass a wheel to hit the tyre
 // Standing up at the roof gun: steadier aim (braced on the mount) but exposed. A round that gets past the shield
 // hits you rather than the car a share of the time (exposure): more damage, a flinch, and enough of them in a few
 // seconds knock you back down. Climbing up or down takes a moment.
+// How hard an explosion throws a car at full strength (scaled by distance, blast size and the car's mass).
+const BLAST = { push: 160, lift: 210 };
 const ROOF = { cageDud: 0.35, cageRocket: 0.35, cageBlast: 0.7, steady: 0.6, climb: 0.6, drop: 0.45, exposure: 0.45, youDmg: 1.6, blastMul: 1.3, knockHits: 3, knockWindow: 2.5 };
 const RIVAL_TYRE = 0.15; // a stray rival round that happens to land by a wheel
 // A tyre hunter's aimed burst: a longer wind-up (you see it coming), eight rounds at one wheel. 'start' is how long
@@ -249,6 +251,19 @@ class Combat {
       this.race.message('It went off on the cage!', '#ffcf3a');
     }
     if (R.shieldHp <= 0) { this.race.message('Your cage turret is torn apart!', '#ff9f1c', true); this.events.push({ type: 'partBreak' }); }
+  }
+
+  // The blast throws the car: shoved away from it, lifted off its wheels (the jump physics bring it down), spun,
+  // and a wreck caught close may land on its roof. Heavier cars (and hulks) move less.
+  blastThrow(c, x, y, f, radius) {
+    const m = Math.max(0.6, c.stats.mass || 1), k = f * clamp(radius / 60, 0.5, 1.6) / m;
+    const dx = c.x - x, dy = c.y - y, dl = Math.hypot(dx, dy) || 1;
+    c.vx += (dx / dl) * BLAST.push * k; c.vy += (dy / dl) * BLAST.push * k;
+    if (!c.air && f > 0.35) { c.air = true; c.airT = 0; c.vz = BLAST.lift * k; c.z = Math.max(c.z || 0, 0.5); }
+    const side = Math.sign(Math.cos(c.heading) * dy - Math.sin(c.heading) * dx) || 1;
+    c.spinT = Math.max(c.spinT || 0, 0.35 * f); c.spinDir = -side;
+    if (c.hp <= 0 && f > 0.55 && !c.flipped && this.rng() < 0.6) c.flipped = true;
+    if (c === this.player) this.events.push({ type: 'thrown', f });
   }
 
   // A round arriving while you're up top: the shield may stop it; if not, it may hit you rather than the car.
@@ -626,6 +641,12 @@ class Combat {
     this.updateTilt(dt); // js/emotes.js
     if (this.updateCrowd) this.updateCrowd(dt); // js/infamy.js
     if (this.checkEjections) this.checkEjections(); // js/ragdoll.js
+    // Wrecks: about half of them go up a few seconds later when the fuel catches (anyone close gets the blast).
+    for (const c of this.race.cars) {
+      if (!c.wrecked) continue;
+      if (c.cookT == null) c.cookT = this.rng() < 0.5 ? 2 + this.rng() * 5 : -1;
+      if (c.cookT > 0 && (c.cookT -= dt) <= 0) { this.explode(c.x, c.y, 60, 14, null, 'wreck'); this.race.message(`${shortName(c)}'s tank goes up!`, '#ffb070'); }
+    }
     if (this.updateOrders) this.updateOrders(dt); // js/orders.js
     this.yellCd = Math.max(0, (this.yellCd || 0) - dt);
     this.driverHurtT = Math.max(0, (this.driverHurtT || 0) - dt);
@@ -1020,6 +1041,7 @@ class Combat {
       this.blastSrc = src; // a parried rocket that wrecks its own shooter is a big moment (js/infamy.js)
       this.hitCar(c, dmg * f, owner, ang, 0.75, 'blast');
       this.blastSrc = null;
+      this.blastThrow(c, x, y, f, radius);
       for (let i = 0; i < 4; i++) if (this.rng() < f) this.damageTyre(c, i, dmg * f * 0.5, owner); // the blast shreds rubber
       // Knockback + spin.
       c.vx -= Math.cos(ang) * 220 * f;

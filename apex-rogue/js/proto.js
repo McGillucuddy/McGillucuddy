@@ -1345,7 +1345,7 @@ const Proto = {
     const unlocked = allCosmeticOptions().filter((o) => o.rep > repBefore && o.rep <= this.cos.rep).map((o) => o.name);
     const gear = gearUnlockedBetween(repBefore, this.cos.rep);
     const parts = PART_SLOTS.map((slot) => `<span class="${b.parts[slot].dur <= 0 ? 'bad' : ''}">${SLOT_NAMES[slot]} ${b.parts[slot].dur <= 0 ? 'BROKEN' : Math.round((100 * b.parts[slot].dur) / partMaxDur(b, b.parts[slot].id)) + '%'}</span>`).join(' · ');
-    const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
+    const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : c.wrecked || (c.isPlayer && c.dnf) ? '<b class="bad">WRECKED</b>' : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
     this.setUI(`<div class="screen results">
       <h1 class="${ok ? 'good' : 'bad'}">${p.dnf ? 'Wrecked' : ordinal(p.place) + ' place'}: ${ok ? (boss ? (boss.mustWin ? 'you won the Crown' : boss.name + ' beaten') : 'you survived') : 'strike ' + b.strikes + ' of ' + STRIKES_TO_LOSE}</h1>
       <p class="muted">${boss ? (ok ? (boss.mustWin ? 'The upper city is on its feet.' : 'You qualify for the next act.') : `${boss.name} is still ahead of you. Patch up and face them again.`) : ok ? 'Top 3 keeps the warden happy.' : 'Finish outside the top 3 three times and the run is over.'}</p>

@@ -996,7 +996,7 @@ class CockpitView {
       harpoon: pool(6, () => Models.harpoonBolt()),
       cloud: pool(48, () => new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: '#8f8f8a', transparent: true, opacity: 0.8, depthWrite: false }))),
       boom: pool(24, () => new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffb13b', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))),
-      puff: pool(160, () => new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), new THREE.MeshBasicMaterial({ color: '#cccccc', transparent: true, opacity: 0.5, depthWrite: false }))),
+      puff: pool(260, () => new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), new THREE.MeshBasicMaterial({ color: '#cccccc', transparent: true, opacity: 0.5, depthWrite: false }))),
     };
     this.puffs = [];
     this.sparkPool = pool(90, () => new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 2.4), new THREE.MeshBasicMaterial({ color: '#ffd27a' })));
@@ -1167,6 +1167,7 @@ class CockpitView {
     if (ev.type === 'emote') this.emoteAnim = { id: ev.id, t: 0 };
     if (ev.type === 'deflect') this.sparkAt(ev.x, ev.y, 5);
     if (ev.type === 'gunnerHit') { this.shake = Math.max(this.shake, 1.0); this.hitRed = 0.5; }
+    if (ev.type === 'thrown') { this.shake = Math.max(this.shake, 0.6 + ev.f); if (this.cabinMo) { this.cabinMo.vroll += (Math.random() - 0.5) * 3 * ev.f; this.cabinMo.vpitch -= 1.5 * ev.f; } }
     if (ev.type === 'ownDriverHit') { this.shake = Math.max(this.shake, 0.5); this.hitRed = Math.max(this.hitRed || 0, 0.3); }
     if (ev.type === 'roofUp' || ev.type === 'roofDown') this.shake = Math.max(this.shake, ev.knocked ? 0.9 : 0.25);
     if (ev.type === 'tyrePop') { this.sparkAt(ev.x, ev.y, 10); if (ev.mine) { this.shake = Math.max(this.shake, 0.6); if (this.cabinMo) this.cabinMo.vroll += ev.side * 0.6; } }
@@ -1495,10 +1496,20 @@ class CockpitView {
       extraRoll = Math.sin(Math.PI * f) * 0.6;
     }
     if (car.hp <= 0) extraRoll += 0.05; // sagging on a broken spring
+    if (car.flipped) { // thrown onto its roof by a blast
+      mo.flipK = Math.min(1, (mo.flipK || 0) + dt * 2.2);
+      const e = 1 - Math.pow(1 - mo.flipK, 3);
+      extraRoll += e * Math.PI;
+      y += Math.sin(e * Math.PI) * 9 + e * 10.5; // up and over, coming to rest on the roof
+    }
     m.model.position.y = y;
     m.model.rotation.set(mo.roll + extraRoll, spinY * (mo.hop > 0 ? 1 : 0), mo.pitch);
     // Smoke from damaged engines, black when wrecked; exhaust puffs under hard throttle.
     const frac = car.hp / (car.stats.maxHp || 100), room = this.puffs.length < this.pools.puff.length;
+    if (car.wrecked && room) { // a burning wreck: flames in the shell and a column of black smoke you can see down the track
+      if (Math.random() < 0.35) this.puffs.push({ x: car.x + (Math.random() - 0.5) * 22, y: car.y + (Math.random() - 0.5) * 12, t: 0, fire: true });
+      if (Math.random() < 0.12) this.puffs.push({ x: car.x + (Math.random() - 0.5) * 8, y: car.y + (Math.random() - 0.5) * 8, t: 0, column: true, life: 3.2 });
+    }
     if (room && frac < 0.5 && Math.random() < (frac <= 0 ? 0.6 : frac < 0.25 ? 0.35 : 0.15)) {
       const c = Math.cos(car.heading), s = Math.sin(car.heading);
       this.puffs.push({ x: car.x + c * 14, y: car.y + s * 14, t: 0, smoke: frac <= 0 ? 'black' : frac < 0.25 ? 'dark' : 'grey' });
@@ -1963,8 +1974,16 @@ class CockpitView {
       o.material.opacity = 0.85 * bl.fade;
     });
     for (const pf of this.puffs) pf.t += dt;
-    this.puffs = this.puffs.filter((pf) => pf.t < 0.8);
+    this.puffs = this.puffs.filter((pf) => pf.t < (pf.life || 0.8));
     show(this.pools.puff, this.puffs, (o, pf) => {
+      if (pf.column) { // wreck smoke: rises high, spreads, drifts
+        const k = pf.t / pf.life;
+        o.position.set(pf.x + pf.t * 6, 10 + pf.t * 34, pf.y + pf.t * 3);
+        o.scale.setScalar(3 + pf.t * 9);
+        o.material.color.set(k < 0.15 ? '#3a2a1a' : '#121010');
+        o.material.opacity = 0.6 * (1 - k);
+        return;
+      }
       if (pf.smoke) {
         o.position.set(pf.x, 8 + pf.t * 22, pf.y);
         o.scale.setScalar(2 + pf.t * 9);
