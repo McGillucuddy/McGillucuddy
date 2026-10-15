@@ -1731,6 +1731,7 @@ const Proto = {
     }
     this.mouse.pressed = false;
     Sound.engine(clamp(p.speed / p.stats.top, 0, 1.4), p.input ? p.input.throttle : 0, p.nitroOn, true);
+    Sound.listener = { x: p.x, y: p.y }; // for distance on blasts and rival fire
 
     const lead = 0.3;
     this.cam.x = lerp(this.cam.x, p.x + p.vx * lead, Math.min(1, dt * 5));

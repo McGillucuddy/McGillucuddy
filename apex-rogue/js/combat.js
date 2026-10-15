@@ -811,12 +811,12 @@ class Combat {
               const a = Math.atan2(ty - c.y, tx - c.x) + randRange(this.rng, -TYRE_HUNT.spread, TYRE_HUNT.spread);
               this.spawn('bullet', c, a, 1500, 1, { dmg: 2.5, life: 0.45, tyre: TYRE_HUNT.rate });
               if (w.burst <= 0) w.wheel = null;
-              this.events.push({ type: 'enemyShot' });
+              this.events.push({ type: 'enemyShot', x: c.x, y: c.y });
               continue;
             }
             const a = Math.atan2(dy + p.vy * d / 1500, dx + p.vx * d / 1500) + randRange(this.rng, -0.07, 0.07);
             this.spawn('bullet', c, a, 1500, 1, { dmg: 2.5, life: 0.45 });
-            this.events.push({ type: 'enemyShot' });
+            this.events.push({ type: 'enemyShot', x: c.x, y: c.y });
           }
         } else if (w.lock > 0) {
           if (disabled || d > 520 || c.spinT > 0) { w.lock = 0; w.wheel = null; w.cd = 2; continue; }

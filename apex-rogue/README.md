@@ -255,6 +255,24 @@ below. A chalkboard shows the act, race, scrap, strikes and a tally of races
 survived. In the upper-city acts the sponsors have smartened the garage up, and the commissary becomes a
 concierge. See `js/garage3d.js`.
 
+### Sound (prototype)
+
+All sound is synthesized live in `js/audio.js`. There are no recorded files, which keeps the download tiny, but
+it also sets a ceiling on how real things can sound. Within that:
+
+- **Guns** (`GUN_SOUND`): each report is layered from a hard crack, the body of the shot, a thump under it,
+  the action cycling (automatics) and a slap back off the walls. Each shot is detuned a little so automatic
+  fire doesn't loop.
+- **Explosions** drop to sub-bass with a long roar, crackle, and debris pattering down afterwards.
+- **Distance:** blasts and rival fire are quieter and more muffled the further away they are
+  (`Sound.listener`).
+- **Reverb:** a generated concrete-slap impulse that the loud sounds feed into.
+- **Engine:** runs through a four-speed box, so the revs climb through each gear and drop at every shift,
+  with a moment off the throttle. Underneath are a detuned third voice and a noise rumble.
+
+Recorded samples (real gunshots, metal, engines) would be the next big step up. Dropping `.ogg` files in and
+playing them from `Sound.play` would slot straight into the same events.
+
 ### The world holds together (prototype)
 
 - **The crew** is one old lifer mechanic (`Crew.mechanic()`), named fresh each run. He stands by the lift,

@@ -1,5 +1,20 @@
 'use strict';
-// Tiny synthesized sound: engine drone + effects. No asset files needed.
+// Synthesized sound: engine, guns, blasts and the rest, built from oscillators and noise. No asset files needed.
+// Everything loud also feeds a short generated reverb (the slap off concrete), and things that happen away from you
+// (explosions, rival fire) are quieter and more muffled the further off they are (Sound.listener, set each frame).
+
+// Each gun's report: body filter frequency f and length d, the thump's pitch lo, levels, and the reverb send.
+const GUN_SOUND = {
+  pistol: { f: 1500, d: 0.11, lo: 140, crack: 0.35, body: 0.32, thump: 0.18, wet: 0.35, mech: 0.04 },
+  smg: { f: 2100, d: 0.07, lo: 170, crack: 0.25, body: 0.2, thump: 0.1, wet: 0.25, mech: 0.05 },
+  drum: { f: 1900, d: 0.08, lo: 150, crack: 0.25, body: 0.22, thump: 0.12, wet: 0.25, mech: 0.05 },
+  carbine: { f: 1900, d: 0.1, lo: 120, crack: 0.33, body: 0.26, thump: 0.15, wet: 0.35, mech: 0.04 },
+  liberty: { f: 1100, d: 0.28, lo: 80, crack: 0.45, body: 0.42, thump: 0.3, wet: 0.55 },
+  typewriter: { f: 1600, d: 0.07, lo: 160, crack: 0.22, body: 0.18, thump: 0.08, wet: 0.2, mech: 0.07 },
+  lmg: { f: 1200, d: 0.12, lo: 95, crack: 0.33, body: 0.3, thump: 0.18, wet: 0.35, mech: 0.05 },
+  pangun: { f: 1050, d: 0.13, lo: 85, crack: 0.33, body: 0.3, thump: 0.2, wet: 0.35, mech: 0.05 },
+  shotgun: { f: 850, d: 0.26, lo: 75, crack: 0.5, body: 0.5, thump: 0.35, wet: 0.5 },
+};
 
 const Sound = {
   ctx: null,
@@ -41,6 +56,85 @@ const Sound = {
     this.noise = c.createBuffer(1, len, c.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+
+    // The engine's grit: filtered noise riding the same filter as the oscillators, and a detuned third voice.
+    this.osc3 = c.createOscillator(); this.osc3.type = 'sawtooth';
+    const g3 = c.createGain(); g3.gain.value = 0.3; this.osc3.connect(g3); g3.connect(this.engFilter); this.osc3.start();
+    const rum = c.createBufferSource(); rum.buffer = this.noise; rum.loop = true;
+    const rf = c.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 220;
+    this.rumble = c.createGain(); this.rumble.gain.value = 0;
+    rum.connect(rf); rf.connect(this.rumble); this.rumble.connect(this.engGain); rum.start();
+
+    // The reverb: a stereo impulse of decaying noise with an early reflection, like a shot off a wall of concrete.
+    const rl = Math.floor(c.sampleRate * 1.3), ir = c.createBuffer(2, rl, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const x = ir.getChannelData(ch);
+      for (let i = 0; i < rl; i++) {
+        const tt = i / c.sampleRate;
+        x[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / rl, 3.2) * (tt < 0.012 ? 0 : 1);
+      }
+      const slap = Math.floor(c.sampleRate * (0.045 + ch * 0.013));
+      for (let i = 0; i < 300; i++) x[slap + i] += (Math.random() * 2 - 1) * 0.9 * (1 - i / 300);
+    }
+    this.verb = c.createConvolver(); this.verb.buffer = ir;
+    this.verbIn = c.createGain(); this.verbIn.gain.value = 1;
+    const wet = c.createGain(); wet.gain.value = 1.4;
+    this.verbIn.connect(this.verb); this.verb.connect(wet); wet.connect(this.master);
+    this.gear = 0;
+  },
+
+  // How loud and how muffled something at (x, y) is from where you are (1 and wide open when close).
+  far(ev) {
+    const L = this.listener;
+    if (!L || ev.x == null) return { vol: 1, cut: 18000 };
+    const d = Math.hypot(ev.x - L.x, ev.y - L.y);
+    return { vol: Math.max(0.08, 1 / (1 + d / 380)), cut: Math.max(500, 16000 / (1 + d / 120)) };
+  },
+
+  // A noise layer: band-passed (or low-passed), swept, with an envelope; optionally sent to the reverb.
+  layer(o) {
+    const c = this.ctx, t = c.currentTime + (o.at || 0);
+    const src = c.createBufferSource(); src.buffer = this.noise; src.loop = o.dur > 0.45;
+    src.playbackRate.value = o.rate || 1;
+    const f = c.createBiquadFilter(); f.type = o.type || 'bandpass'; f.Q.value = o.q || 0.9;
+    f.frequency.setValueAtTime(o.f, t);
+    if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t + o.dur);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(o.vol, t + (o.atk || 0.002)); g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+    let last = g;
+    if (o.cut && o.cut < 16000) { const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = o.cut; g.connect(lp); last = lp; }
+    src.connect(f); f.connect(g);
+    last.connect(this.master);
+    if (o.wet) { const s = c.createGain(); s.gain.value = o.wet; last.connect(s); s.connect(this.verbIn); }
+    src.start(t, Math.random() * 0.3); src.stop(t + o.dur + 0.05);
+  },
+  // A pitched thump: a sine dropping in pitch (the chest-punch under a shot or a blast).
+  thump(f0, f1, dur, vol, wet, at) {
+    const c = this.ctx, t = c.currentTime + (at || 0), o = c.createOscillator(), g = c.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(this.master);
+    if (wet) { const s = c.createGain(); s.gain.value = wet; g.connect(s); s.connect(this.verbIn); }
+    o.start(t); o.stop(t + dur + 0.05);
+  },
+
+  // A gun going off: the crack (a hard transient), the body of the report, the thump under it, the action cycling,
+  // and the slap back off the walls. Each shot is detuned a little so automatic fire doesn't sound like a loop.
+  gunshot(w) {
+    const G = GUN_SOUND[w] || GUN_SOUND.smg, k = 0.92 + Math.random() * 0.16;
+    this.layer({ f: 5200 * k, type: 'highpass', dur: 0.012, vol: G.crack, q: 0.5 });
+    this.layer({ f: G.f * k, to: G.f * 0.3, dur: G.d, vol: G.body, q: 0.7, wet: G.wet });
+    this.thump(G.lo * 2.2 * k, G.lo, Math.min(0.18, G.d * 1.2), G.thump, G.wet * 0.6);
+    if (G.mech) this.layer({ f: 2400, dur: 0.025, vol: G.mech, at: 0.035 + Math.random() * 0.01, q: 3 });
+  },
+  // An explosion: a sub-bass drop, a long roar, crackle, and debris pattering down after; muffled with distance.
+  boom(ev) {
+    const F = this.far(ev), big = !!ev.big, v = F.vol;
+    this.thump(big ? 90 : 120, 28, big ? 1.1 : 0.7, (big ? 0.9 : 0.6) * v, 0.5);
+    this.layer({ f: 900, to: 90, type: 'lowpass', dur: big ? 1.4 : 0.9, vol: (big ? 0.75 : 0.5) * v, q: 0.5, cut: F.cut, wet: 0.6, atk: 0.006 });
+    this.layer({ f: 3000, to: 600, dur: 0.15, vol: 0.4 * v, cut: F.cut, wet: 0.3 });
+    for (let i = 0; i < (big ? 14 : 8); i++) this.layer({ f: 1500 + Math.random() * 3000, dur: 0.02, vol: (0.05 + Math.random() * 0.1) * v, at: 0.08 + Math.random() * 0.8, q: 2, cut: F.cut });
+    for (let i = 0; i < (big ? 6 : 3); i++) this.layer({ f: 2600 + Math.random() * 2000, dur: 0.05, vol: 0.06 * v, at: 0.5 + Math.random() * 0.9, q: 6, cut: F.cut }); // bits landing
   },
 
   resume() {
@@ -54,14 +148,23 @@ const Sound = {
     return this.muted;
   },
 
+  // The engine through a four-speed box: revs climb through each gear and drop at the shift (with a moment off
+  // the throttle), so you hear the car working rather than one rising whine.
   engine(speedFrac, throttle, nitro, on) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime;
-    const f = 45 + speedFrac * 120 + throttle * 12 + (nitro ? 25 : 0);
-    this.osc1.frequency.setTargetAtTime(f, t, 0.05);
-    this.osc2.frequency.setTargetAtTime(f * 0.5, t, 0.05);
-    this.engFilter.frequency.setTargetAtTime(500 + speedFrac * 1400 + (nitro ? 800 : 0), t, 0.08);
-    this.engGain.gain.setTargetAtTime(on ? 0.09 + throttle * 0.05 : 0, t, 0.1);
+    const t = this.ctx.currentTime, gears = [0, 0.22, 0.45, 0.7, 1.45];
+    let g = 0;
+    while (g < 3 && speedFrac > gears[g + 1]) g++;
+    if (g !== this.gear) { if (g > this.gear && on) this.shiftT = t; this.gear = g; }
+    const rpm = Math.min(1.15, (speedFrac - gears[g]) / (gears[g + 1] - gears[g]) * (g === 3 ? 1.6 : 1));
+    const lift = this.shiftT && t - this.shiftT < 0.12 ? 0.4 : 1; // off the throttle for the shift
+    const f = (38 + rpm * 95 + g * 9 + (nitro ? 18 : 0)) * (0.85 + 0.15 * throttle * lift);
+    this.osc1.frequency.setTargetAtTime(f, t, 0.04);
+    this.osc2.frequency.setTargetAtTime(f * 0.5, t, 0.04);
+    this.osc3.frequency.setTargetAtTime(f * 1.007, t, 0.04);
+    this.engFilter.frequency.setTargetAtTime(380 + rpm * 1100 + throttle * lift * 500 + (nitro ? 800 : 0), t, 0.06);
+    this.engGain.gain.setTargetAtTime(on ? (0.08 + throttle * lift * 0.06) : 0, t, 0.08);
+    this.rumble.gain.setTargetAtTime(on ? 0.5 + throttle * 0.6 : 0, t, 0.1);
   },
 
   tone(freq, dur, type, vol) {
@@ -164,14 +267,7 @@ const Sound = {
       case 'hit': this.noiseBurst(0.18, 300, Math.min(0.5, ev.power / 600), 120); break;
       case 'boost': this.noiseBurst(0.5, 400, 0.25, 2400); break;
       case 'finish': [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.tone(f, 0.25, 'triangle', 0.18), i * 110)); break;
-      case 'shoot':
-        if (ev.w === 'pistol') { this.noiseBurst(0.1, 1600, 0.2, 420); this.tone(150, 0.05, 'square', 0.06); } // a sharper, heavier crack
-        else if (ev.w === 'carbine') { this.noiseBurst(0.08, 2000, 0.16, 600); this.tone(120, 0.04, 'square', 0.04); }
-        else if (ev.w === 'liberty') { this.noiseBurst(0.22, 1200, 0.32, 260); this.tone(90, 0.12, 'triangle', 0.1); } // a big rolling boom
-        else if (ev.w === 'typewriter') { this.noiseBurst(0.07, 1500, 0.14, 500); this.tone(180, 0.03, 'square', 0.035); } // the clatter
-        else if (ev.w === 'lmg' || ev.w === 'pangun') { this.noiseBurst(0.11, 1100, 0.2, 320); this.tone(ev.w === 'lmg' ? 95 : 80, 0.06, 'square', 0.05); }
-        else this.noiseBurst(0.06, 2200, 0.12, 900);
-        break;
+      case 'shoot': this.gunshot(ev.w); break;
       case 'crewHit': this.noiseBurst(0.07, 900, 0.22, 260); this.tone(220, 0.06, 'square', 0.04); break;
       case 'crewKill': this.noiseBurst(0.12, 700, 0.3, 200); this.tone(330, 0.09, 'triangle', 0.1); setTimeout(() => this.tone(220, 0.14, 'triangle', 0.1), 90); break;
       case 'jump': this.noiseBurst(0.35, 600, 0.12, 1800); break;
@@ -182,9 +278,9 @@ const Sound = {
       case 'flame': this.noiseBurst(0.09, 500, 0.05, 160); break;
       case 'harpoon': this.noiseBurst(0.25, 900, 0.2, 300); this.tone(180, 0.2, 'sawtooth', 0.05); break;
       case 'rocket': this.noiseBurst(0.4, 1200, 0.3, 200); break;
-      case 'enemyShot': this.noiseBurst(0.05, 1600, 0.07, 700); break;
-      case 'enemyRocket': this.noiseBurst(0.35, 900, 0.18, 200); break;
-      case 'explode': this.noiseBurst(ev.big ? 0.7 : 0.4, 160, ev.big ? 0.6 : 0.35, 50); break;
+      case 'enemyShot': { const F = this.far(ev); this.layer({ f: 1800, to: 500, dur: 0.07, vol: 0.12 * F.vol, cut: F.cut, wet: 0.5 }); this.thump(140, 70, 0.06, 0.05 * F.vol); break; } // their rounds: a duller crack the further off
+      case 'enemyRocket': { const F = this.far(ev); this.layer({ f: 900, to: 200, dur: 0.45, vol: 0.2 * F.vol, cut: F.cut, wet: 0.4, atk: 0.02 }); break; }
+      case 'explode': this.boom(ev); break;
       case 'lock': this.tone(1200, 0.08, 'square', 0.1); setTimeout(() => this.tone(1200, 0.08, 'square', 0.1), 140); break;
       // The blast hatch: a swing, a heavy clang, ricochets off the plate, a ratchet back up, a grinding jam.
       case 'hatch': this.noiseBurst(0.14, 500, 0.12, 1400); break;
@@ -227,7 +323,7 @@ const Sound = {
       case 'swerve': this.noiseBurst(0.3, 500, 0.15, 300); break;
       case 'mine': this.tone(180, 0.1, 'square', 0.08); break;
       case 'switch': this.tone(900, 0.04, 'square', 0.06); break;
-      case 'shotgun': this.noiseBurst(0.25, 900, 0.4, 150); break;
+      case 'shotgun': this.gunshot('shotgun'); break;
       case 'flare': this.noiseBurst(0.3, 1800, 0.18, 600); this.tone(300, 0.2, 'sine', 0.1); break;
       case 'reload': this.tone(320, 0.05, 'square', 0.08); setTimeout(() => this.tone(260, 0.05, 'square', 0.08), 120); break;
       case 'reloaded': this.tone(520, 0.05, 'square', 0.08); break;
