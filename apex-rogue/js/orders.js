@@ -97,7 +97,7 @@ Object.assign(Combat.prototype, {
     }
     return best;
   },
-  radio(lines) { this.race.message(`DRIVER: ${lines[Math.floor(this.rng() * lines.length)]}`, '#9fd0ff'); },
+  radio(lines) { this.race.message(`${((this.crew && this.crew.short) || 'Driver').toUpperCase()}: ${lines[Math.floor(this.rng() * lines.length)]}`, '#9fd0ff'); },
   // Each frame: count the order down, and report back when it's over.
   updateOrders(dt) {
     this.orderCd = Math.max(0, (this.orderCd || 0) - dt);

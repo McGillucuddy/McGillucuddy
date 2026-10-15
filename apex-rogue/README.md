@@ -23,7 +23,7 @@ for machines without WebGL, and the PS1-style retro look is always on.
 
 **Progression.** Every run starts with a **service pistol**, two grenades, a blast hatch and a clapped-out car.
 Everything else unlocks for good with reputation, the same rep that unlocks paint:
-- **What unlocks:** 13 weapons, 20 car parts, 4 abilities, 30 attachments, 22 trinkets and 7 driver chips. Each item has its own rep threshold.
+- **What unlocks:** 13 weapons, 20 car parts, 4 abilities, 30 attachments, 22 trinkets and 7 drivers. Each item has its own rep threshold.
 - **Where it turns up:** gear only appears in shops and rewards once it's unlocked.
 - **Earning rep:** finish races, win, wreck rivals, beat bosses (+40) and walk free (+150).
 - **Seeing progress:** the results and end screens name new unlocks and the next one to aim for. **Unlocks** on the menu lists everything, locked and unlocked.
@@ -70,7 +70,7 @@ Big guns punch the view. A brief ragged muzzle flame flickers light over your ha
   - **You:** look down and you see your own chest, lap and legs.
 - **Commissary:** a planked counter with a barred hatch, a cash box, ledger and ashtray, and shelves of contraband (smokes, tins, bottles, ammo, oil).
   It has crates, hand-lettered notices, a lit sign and a string of bulbs, all under a warm lamp. The trader is built from the same body, arms folded, cigarette going.
-  Goods on the counter are props: an engine block, a tyre, a plate, a bottle, a taped box for attachments, a canister, a chip board.
+  Goods on the counter are props: an engine block, a tyre, a plate, a bottle, a taped box for attachments, a canister.
 - **Physics:** cars have a height and a body on springs. The nose dips under braking and lifts under power, and the body leans out of turns.
   Braking loads the front tyres for a sharper turn-in.
 
@@ -126,7 +126,7 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
   the safe speed, nitro), **Ease off** (back off to about 70% pace: a steadier platform, your spread drops by a
   quarter). Tap C to repeat the last order. The driver answers on the radio (in the corner feed), takes a moment
   to act, and gives up after 6-8 seconds or when the target's wrecked or dropped well behind. The order in force
-  shows under your place, and its target is marked ▼ on its name tag. Driver chips change how orders are taken:
+  shows under your place, and its target is marked ▼ on its name tag. Your driver's habit changes how orders are taken:
   the **Hothead** rams at once and harder but only half-eases; the **Cautious** driver hesitates, rams and floors it
   timidly; the **Daredevil** floors it harder. A/D swerves stay instant.
 - Some rivals are armed: **rocket gunners** paint you with a red laser before firing homing rockets,
@@ -190,7 +190,7 @@ You pick your path through it (`js/runmap.js`), on a TV:
 |---|---|
 | 🏁 Race | Finish top 3 or take a strike. Make the cut to pick a reward. |
 | ☠ Elite race | Sharper drivers, an extra rocket gunner and gunner, 1.4x placing pay. A trinket is guaranteed among the rewards. |
-| 🛒 Commissary | Legal goods: three sections stocked at random each visit from everything you've unlocked. **Weapons** (two guns, two attachments), **Trinkets** (two) and **Vehicle** (two car parts, an ability or driver chip). Scrap is scarce, so you choose. Repairs, ammo and spares are always available in the garage. |
+| 🛒 Commissary | Legal goods: three sections stocked at random each visit from everything you've unlocked. **Weapons** (two guns, two attachments), **Trinkets** (two) and **Vehicle** (two car parts, an ability or a driver for hire). Scrap is scarce, so you choose. Repairs, ammo and spares are always available in the garage. |
 | ? Event | A cell-block scene with a choice: bribe a guard to wipe a strike, run contraband, bet on yourself, dig through the scrapyard, snitch on the gunners, visit the chapel, a yard fight, a cell-block trade, a sponsor deal, raid the armoury. |
 | 🔧 Mechanic | A free full repair. |
 | 💰 Bounty race | A regular race with a price on one rival's head: wreck them for 150+ scrap. |
@@ -410,12 +410,20 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   burnt rosary, pine air freshener, dog tags, bronzed baby shoes, four-leaf clover, bobblehead, troll
   doll, prison teddy, snow globe, magic 8-ball, dash compass, Zippo lighter, rusty horseshoe,
   St. Christopher medal, polaroid from home, pack of smokes, gold tooth, lucky spark plug and a mixtape.
-- **Driver chips** change how the AI drives your car, each with a downside: Hothead, Cautious,
-  Daredevil, Gun Nut.
+- **Your driver** (`js/crew.js`) is another inmate at the wheel, wearing the warden's collar like you (step off
+  the course and it goes off, which is why nobody just drives away). You start with whoever the block sends, with
+  no particular habits; better drivers are **recruited**: from rewards, the commissary, and after each boss
+  ("a driver wants in"). Each has a randomized prison name, fixed for the run ("Mad Dog" Whitlock, "Granny"
+  Moreno, "Ghost" Malone), an inmate number, a mugshot on their card, and a habit with a downside: **Hothead**,
+  **Cautious**, **Daredevil**, **Gun Nut**, and from bosses **Getaway Veteran**, **Ghost**, **Showboat**. Swap
+  drivers in the garage (Workshop). They sit at the wheel in the cockpit, hands on the rim, glancing at you when
+  you shoot or give an order, the collar's red light blinking; they answer your orders on the radio by name. Win
+  the Crown and you both walk free. (In the code these are still the "chips": `build.chip` is the trait of the
+  driver in the seat.)
 
 - **Loadout is swappable in the garage; only trinkets are permanent.** Everything you buy or win goes
   into your **stash** (or straight into a free slot), and in the garage you can refit parts, swap rack
-  weapons, change abilities and driver chips. Mid-race your only option is the spare part.
+  weapons, change abilities and drivers. Mid-race your only option is the spare part.
 - **Weapon mods** (2 slots per weapon, swappable, common/rare/epic):
   - SMG / shotgun: Extended Mag, Speed Loader, Laser Sight (with a visible beam), Full Choke, Hair
     Trigger, Sawn-Off, Incendiary Rounds (sets rivals on fire), Armour-Piercing Rounds, Suppressor
@@ -544,13 +552,14 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/intro.js` | The studio sting and the cold open: gate, radar logo, in-engine cinematic, captions, sound cues |
 | `js/people.js` | People: the sculpted body used for drivers, crews, your own body and the trader; live two-bone arms |
 | `js/weather.js` | Weather: per-stop forecasts, effects, cockpit particles and lightning, windshield drops, ambience |
-| `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
+| `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver traits, shop and rewards |
+| `js/crew.js` | Your driver: recruited inmates, their randomized prison names, numbers and looks |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
 | `js/ragdoll.js` | Ragdolls: who gets thrown out of a wrecked car, and the verlet bodies that tumble down the road |
 | `js/infamy.js` | Infamy (earning it, the live feed), the Fan Club's goods, The Crowd Turns, the run record and what the walls say about you |
 | `js/build.js` (`ROOF_SHIELDS`), `js/combat.js` (`toggleRoof`, `exposedHit`) | The roof gun: the mount, shielding, climbing up, exposure |
-| `js/thumbs.js` | Item pictures for every shop and reward card; models of the black market's goods, abilities and chips |
+| `js/thumbs.js` | Item pictures for every shop and reward card; models of the black market's goods, abilities, and drivers' mugshots |
 | `js/vendetta.js` | Vendettas (switched off): rivals you put out who come back later in the run, adapted to how you beat them |
 | `js/cockpit3d.js` | Gunner prototype: first-person Three.js cockpit view of the same simulation |
 | `js/proto.js`, `prototype.html` | Gunner prototype page: briefing, race loop, HUD, results |

@@ -518,6 +518,7 @@ const Proto = {
     this.run = d.run;
     this.run.node = d.run.node != null ? mapNode(this.run.map, d.run.node) : null;
     this.runSeed = d.runSeed;
+    Crew.runSeed = this.runSeed; // your driver's name this run (js/crew.js)
     this.runRng = mulberry32(d.rng);
     this.shop = d.shop || [];
     this.shopOpen = !!d.shopOpen;
@@ -602,6 +603,7 @@ const Proto = {
     if (this.locked) document.exitPointerLock();
     this.build = newBuild();
     this.runSeed = (Math.random() * 2 ** 31) | 0;
+    Crew.runSeed = this.runSeed;
     this.runRng = mulberry32(this.runSeed);
     this.race = null;
     this.shop = [];
@@ -911,7 +913,7 @@ const Proto = {
     const gear = gearUnlockedBetween(before, this.cos.rep);
     this.setUI(`<div class="screen end won">
       <h1>Free</h1>
-      <p>You won the Crown. The warden signs your release in front of the whole upper city, smiling for the cameras.</p>
+      <p>You won the Crown. The warden signs two releases in front of the whole upper city, smiling for the cameras: yours, and ${Crew.current(b).name}'s. The collars come off together.</p>
       <p class="muted">${b.race} races · ${b.wins} wins · trinkets: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
       <p class="unlock">+150 reputation for walking free${gear.length ? `. 🔓 Unlocked: ${gear.map((g) => `<b>${g.name}</b>`).join(', ')}` : ''}</p>
       ${this.nextUnlockLine()}
@@ -1014,6 +1016,7 @@ const Proto = {
     this.combat.pace = PACE;
     this.combat.tutorial = !!node.tutorial;
     this.combat.inmate = this.cos.inmate || '4471'; // for the broadcast's captions
+    this.combat.crew = Crew.current(b); // your driver, for the radio (js/crew.js)
     this.combat.crowdTurns = !node.tutorial && !!run.flags.crowd; // bought at the Fan Club (js/infamy.js)
     // Bounties on every rival (the bounty stop's most-wanted keeps its big one).
     if (!node.tutorial) for (const c of this.race.cars) if (c !== player && !c.isBoss) c.bounty = Math.max(c.bounty || 0, rivalBounty(c, run.act, node.type === 'elite'));
@@ -1413,7 +1416,7 @@ const Proto = {
     const done = run.map.nodes.filter((n) => n.done && n.type !== 'boss').length;
     this.preview.sync({
       build: b, shop: this.shopOpen ? this.shop : [], cos: this.cos, dealer: this.dealer ? this.dealer.stock : null,
-      fans: this.fans ? { stock: this.fans.stock, total: Infamy.rec(run).total } : null, wall: Infamy.wall(run, this.cos),
+      fans: this.fans ? { stock: this.fans.stock, total: Infamy.rec(run).total } : null, wall: Infamy.wall(run, this.cos, b),
       act: { luxury: ACT_LUXURY(run.act), boss: BOSSES[run.act], label: `Act ${ROMAN[run.act]}: ${act.title}`, progress: `Stop ${done + 1} of ${MAP_ROWS + 1} this act`, maxStrikes: STRIKES_TO_LOSE },
     });
     this.preview.setStation(this.tab);
@@ -1444,7 +1447,7 @@ const Proto = {
         ${alts ? `<div class="alts"><small class="muted">In your stash:</small> ${alts}</div>` : ''}
       </div>`;
     }).join('');
-    const chips = b.stash.chips.map((id, i) => `<button class="btn small" data-action="equip-chip" data-arg="${i}" title="${CHIPS[id].desc}">Install ${CHIPS[id].name}</button>`).join('');
+    const chips = b.stash.chips.map((id, i) => `<button class="btn small" data-action="equip-chip" data-arg="${i}" title="${CHIPS[id].name}: ${CHIPS[id].desc}">Swap in ${Crew.id(id).name} (${CHIPS[id].name})</button>`).join('');
     return `<div class="garage-grid one">
       <div class="panel">
         <div class="gp-row"><div class="gp-name"><small>Hull</small><b>${Math.ceil(b.hull)} / ${b.maxHull}</b></div>
@@ -1455,8 +1458,8 @@ const Proto = {
           <button class="btn small" data-action="repair-hatch" ${hatchCost <= 0 || b.scrap < hatchCost ? 'disabled' : ''}>${hatchCost <= 0 ? 'OK' : 'Beat out ' + hatchCost}</button></div>
         ${slots}
         <p class="small">Spare part: <b>${b.spare ? PARTS[b.spare.id].name : 'none'}</b> <span class="muted">(press <kbd>B</kbd> mid-race to fit it when that part breaks)</span></p>
-        <h3>Driver chip</h3>
-        <div class="gp-chip">${b.chip ? `<b>${CHIPS[b.chip].name}</b> <small class="muted">${CHIPS[b.chip].desc}</small>` : '<span class="muted small">Stock driver AI</span>'}</div>
+        <h3>Your driver</h3>
+        <div class="gp-chip">${(() => { const c = Crew.current(b); return `<b>${c.name}</b> <small class="muted">#${c.number} · ${b.chip ? `${CHIPS[b.chip].name}: ${CHIPS[b.chip].desc}` : 'whoever the block sent you: no particular habits'}</small>`; })()}</div>
         ${chips ? `<div class="alts">${chips}</div>` : ''}
       </div>
     </div>`;
@@ -1529,7 +1532,7 @@ const Proto = {
   garageMarket() {
     const b = this.build;
     if (!this.shopOpen) return `<div class="panel"><h2>Shuttered</h2><p>The hatch is padlocked. The ${ACT_LUXURY(this.run.act) ? 'concierge only sees drivers at a Concierge stop' : 'commissary only opens when you book the home shopping channel'} on the TV (🛒).</p><p class="muted small">Repairs, ammo, grenades and spare parts are always available in the Workshop and Armory.</p></div>`;
-    const label = { weapon: 'GUN', mod: 'ATTACHMENT', trinket: 'TRINKET', part: 'PART', ability: 'ABILITY', chip: 'DRIVER CHIP' };
+    const label = { weapon: 'GUN', mod: 'ATTACHMENT', trinket: 'TRINKET', part: 'PART', ability: 'ABILITY', chip: 'DRIVER FOR HIRE' };
     const card = (c, i) => {
       const fitsMine = c.type === 'mod' && MODS[c.id].fits.some((f) => b.rack.concat(b.stash.weapons).some((w) => w.id === f));
       return `<div class="shop-card ${c.sold ? 'sold' : ''}">
@@ -1633,15 +1636,15 @@ const Proto = {
   showReward() {
     this.saveRun();
     const cards = this.rewards.map((c, i) => `<button class="up-card rarity-${c.type === 'trinket' || c.type === 'chip' ? 'epic' : c.type === 'part' ? 'common' : 'rare'}" data-action="pick-reward" data-arg="${i}">
-      <div class="up-rarity">${c.type}</div>
+      <div class="up-rarity">${c.type === 'chip' ? 'driver' : c.type}</div>
       ${Thumbs.img(c, this.build)}
       <div class="up-name">${c.name}</div>
       <div class="up-desc">${c.desc}</div>
       ${c.type === 'part' ? `<div class="up-desc"><i>Replaces your ${PARTS[this.build.parts[PARTS[c.id].slot].id].name}</i></div>` : ''}
     </button>`).join('');
     this.setUI(`<div class="screen reward">
-      <h1>${this.rewardKind === 'boss' ? 'Driver trait' : this.rewardKind === 'elite' ? 'Elite spoils' : this.rewardKind === 'stash' ? 'Contraband stash' : 'Pick your cut'}</h1>
-      <p class="muted">${this.rewardKind === 'boss' ? `${BOSSES[this.run.act].name} is beaten. Your driver picked up a habit or two: choose one (it fills your chip slot, swappable in the garage).` : this.build.scrap + ' scrap · choose one'}</p>
+      <h1>${this.rewardKind === 'boss' ? 'A driver wants in' : this.rewardKind === 'elite' ? 'Elite spoils' : this.rewardKind === 'stash' ? 'Contraband stash' : 'Pick your cut'}</h1>
+      <p class="muted">${this.rewardKind === 'boss' ? `${BOSSES[this.run.act].name} is beaten, and the block noticed. Inmates who want to ride with you: take one on (they drive for you from the next race; whoever they replace waits in the garage).` : this.build.scrap + ' scrap · choose one'}</p>
       <div class="cards">${cards}</div>
       <button class="btn ghost" data-action="skip-reward">Skip (+${SKIP_SCRAP} scrap)</button>
     </div>`);

@@ -608,41 +608,63 @@ class CockpitView {
 
   // ---------- Interior ----------
 
-  // Your car drives itself: no one at the wheel, just the autopilot rig (a box strapped to the driver's seat with
-  // a blinking light, cables up to a motor clamped on the column, a clamp on the hub that turns with the wheel).
-  // And your own body in the passenger seat (no head: the camera is your head) for when you look down.
+  // People in your car: your driver at the wheel (a recruited inmate, js/crew.js; arms re-posed every frame so the
+  // hands stay on the rim as it turns, and the warden's collar round their neck, its light blinking), and your own
+  // body in the passenger seat (no head: the camera is your head) for when you look down.
   buildCrew(I) {
     const cab = this.look3d.cabin || {}, inmate = String(cab.inmate || '4471'), seed = (parseInt(inmate, 10) || 4471) * 3 + 11;
+    const who = this.combat.crew || Crew.current(this.combat.build);
+    const drv = People.figure({ seed: who.seed, role: 'driver', arms: 'none', cell: 0.08, number: who.number });
+    drv.position.set(-1.9, 4.45, -4.5);
+    I.add(drv);
     const me = People.figure({ seed: seed + 1, role: 'passenger', head: false, arms: 'none', cell: 0.08, number: inmate, looks: { suit: '#a8521e' } });
     me.position.set(EYE.x - 0.95, 4.45, EYE.z);
     I.add(me);
-    const black = LP.mat('#1c1c1e', { roughness: 0.6, metalness: 0.3 }), steel = LP.mat('#7a7c7e', { metalness: 0.6, roughness: 0.4 });
-    const strap = LP.mat('#3a3a2a', { roughness: 1 }), cable = LP.mat('#141414', { roughness: 0.8 }), red = LP.mat('#a8221a', { roughness: 0.6 });
-    const rig = new Sculpt('autopilot-rig', 0.06), g = new THREE.Group();
-    rig.add(black, SDF.box([3.0, 2.0, 2.6], 0.25, [-1.4, 5.5, -4.5]), 0.1); // the box on the seat
-    rig.add(steel, SDF.box([3.1, 0.25, 2.7], 0.08, [-1.4, 6.45, -4.5]), 0.05); // its lid
-    for (const x of [-2.2, -0.6]) rig.add(strap, SDF.box([0.5, 2.3, 2.9], 0.1, [x, 5.4, -4.5]), 0.05); // strapped down
-    rig.add(strap, SDF.box([0.5, 4.0, 2.2], 0.1, [-3.9, 7.5, -4.5], [0, 0, 0.12]), 0.1); // and round the seat back
-    rig.add(black, SDF.box([1.4, 1.2, 1.4], 0.2, [5.0, 6.7, -4.5]), 0.1); // the motor on the column
-    rig.add(cable, SDF.path([[0.1, 6.0, -4.0], [1.5, 7.2, -3.7], [3.4, 6.4, -3.9], [4.5, 6.6, -4.3]], 0.12), 0.05);
-    rig.add(red, SDF.path([[0.1, 5.6, -4.9], [1.8, 6.6, -5.2], [3.6, 6.0, -5.0], [4.5, 6.4, -4.7]], 0.12), 0.05);
-    rig.build(g);
-    I.add(g);
-    // The face: a little stencilled plate and a blinking light.
-    const led = LP.mesh(new THREE.SphereGeometry(0.18, 8, 6), LP.glow('#5aff6a', 2), 0.12, 5.9, -4.5);
-    I.add(led);
-    const clamp = new Sculpt('autopilot-clamp', 0.05), cg = new THREE.Group();
-    clamp.add(steel, SDF.box([3.4, 0.5, 0.35], 0.1, [0, 0, -0.3]), 0.05); // across the hub, so it turns with the wheel
-    for (const sd of [-1, 1]) clamp.add(black, SDF.box([0.5, 0.8, 0.6], 0.12, [sd * 1.7, 0, -0.3]), 0.05);
-    clamp.build(cg);
-    this.wheel.add(cg);
-    this.myCrew = { me, led };
+    // The collar: a steel band round the neck with a box on the side and a red light.
+    const d = drv.userData, steel = LP.mat('#6a6e72', { metalness: 0.7, roughness: 0.4 });
+    const collar = LP.mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 16).rotateX(Math.PI / 2), steel, 0.12, 5.0, 0);
+    d.torso.add(collar);
+    d.torso.add(LP.box(0.36, 0.32, 0.3, LP.mat('#1c1c1e', { metalness: 0.4 }), 0.1, 5.0, -0.58));
+    const led = LP.mesh(new THREE.SphereGeometry(0.07, 6, 5), LP.glow('#ff2a1a', 2.5), 0.1, 5.05, -0.75);
+    d.torso.add(led);
+    // Fists on the rim at ten to two (in the wheel's own frame its +x is the driver's left), riding the wheel.
+    const M = d.M, fists = [];
+    for (const [a, side] of [[0.55, -1], [Math.PI - 0.55, 1]]) {
+      const f = new THREE.Group(), sc = new Sculpt('person:fist:' + side, 0.05);
+      People.fist(sc, M, [0, 0, -0.15], [0, 0, 1], side);
+      sc.build(f);
+      f.position.set(Math.cos(a) * 2.6, Math.sin(a) * 2.6, 0);
+      this.wheel.add(f);
+      fists.push(f);
+    }
+    this.myCrew = { drv, me, I, fists, led, arms: People.liveArms(I, M.suit, 2), glance: 0, glanceT: 3 };
   }
 
   animateMyCrew(dt, t) {
     const C = this.myCrew;
     if (!C) return;
-    C.led.visible = Math.floor(t * 2.5) % 2 === 0 || this.combat.lastFire < 0.3; // blinks; stays lit while you shoot
+    const d = C.drv.userData, I = C.I, p = this.race.player;
+    C.led.visible = Math.floor(t * 1.5) % 2 === 0; // the collar's light
+    // Head: watching the road, a glance at the mirror now and then, a look over at you when you open fire or give
+    // an order.
+    C.glanceT -= dt;
+    if (C.glanceT <= 0) { C.glanceT = 2.5 + Math.random() * 5; C.glance = Math.random() < 0.5 ? 0.55 : -0.3; C.glanceDur = 0.6 + Math.random() * 0.6; }
+    if (this.combat.lastFire < 0.05 && Math.random() < 0.02) { C.glance = 0.7; C.glanceDur = 0.5; }
+    const O = this.combat.driver && this.combat.driver.order;
+    if (O && O !== C.lastOrder) { C.lastOrder = O; C.glance = 0.75; C.glanceDur = 0.45; }
+    C.glanceDur = (C.glanceDur || 0) - dt;
+    const want = C.glanceDur > 0 ? C.glance : 0;
+    C.yaw = lerp(C.yaw || 0, want, Math.min(1, dt * 8));
+    d.head.rotation.set(Math.sin(t * 7) * 0.02 * Math.min(1, p.speed / 300), C.yaw, Math.sin(t * 0.7) * 0.03);
+    d.torso.rotation.x = clamp(-(this.acc ? this.acc.lat : 0) * 0.00008, -0.12, 0.12); // leaning into the corners
+    // Arms: shoulder to the fist on the rim, elbows down and out.
+    C.drv.updateMatrixWorld(true);
+    this.wheel.updateMatrixWorld(true);
+    d.shoulders.forEach((sh, k) => {
+      const S = I.worldToLocal(d.torso.localToWorld(new THREE.Vector3(...sh)));
+      const W = I.worldToLocal(C.fists[k].localToWorld(new THREE.Vector3(-0.15, -0.1, -0.45)));
+      People.poseArm(C.arms[k], S, W, new THREE.Vector3(-0.2, -1, (k === 0 ? -1 : 1) * 0.6));
+    });
   }
 
   buildInterior() {

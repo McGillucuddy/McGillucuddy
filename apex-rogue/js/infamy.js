@@ -82,7 +82,7 @@ const Infamy = {
   // ---------- The walls ----------
   // What the inmates have written about you, from the record: a headline over the door, a few lines and replies,
   // a tally of your wrecks, and the drivers you killed on the memorial. Empty until you've done something.
-  wall(run, cos) {
+  wall(run, cos, b) {
     const R = run && run.flags.rec;
     const N = String((cos && cos.inmate) || '4471');
     const out = { n: N, headline: null, lines: [], tally: 0, memorial: [], next: null };
@@ -113,6 +113,7 @@ const Infamy = {
     if (R.wins >= 1 && !out.headline) L.push([`${N} CAN WIN`, 'ONCE']);
     if (!L.length && R.races >= 2) L.push([`${N} IS STILL HERE`, 'FOR NOW']);
     if (R.races >= 3 && (R.wins + R.podiums) >= 2) L.push(['WE <3 ' + N]);
+    if (b && R.races >= 2 && typeof Crew !== 'undefined') { const c = Crew.current(b); L.push([`${N} AND ${c.nick.toUpperCase()}`, R.wins ? 'RIDE OR DIE' : 'DEAD MEN DRIVING']); }
     out.tally = Math.min(R.wrecks, 30);
     out.memorial = R.clean.map((n) => n.toUpperCase() + ' XLI');
     // The old "4471 IS NEXT" (in your number) gets answered once you've lasted.

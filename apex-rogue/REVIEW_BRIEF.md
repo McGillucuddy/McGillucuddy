@@ -7,7 +7,7 @@ desktop browser; mouse and keyboard). Studio: Category 2 Games.
 ## The game in one paragraph
 
 A first-person roguelite. You are a death-row inmate in a dystopian city's televised derby: you sit in the
-passenger seat as the **gunner** while an AI drives your car. A run is four acts (the Undercity, the Stacks, the
+passenger seat as the **gunner** while a recruited inmate drives (you can order them about). A run is four acts (the Undercity, the Stacks, the
 Gilded Terraces, the Crown), each a branching route sheet of races and stops, ending in a boss race (The Turnkey,
 Smokestack Sal, Augustin Vale, Vex "The Apex" Marlowe). Finish outside the top 3 three times and the run is over;
 beat Marlowe and you walk free. Between races you're in a garage: repair, rearm, refit, buy. Retro PS1-style 3D
@@ -28,7 +28,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   (belt-fed), Widow MG (pan magazine). Ammo is bought; mags reload with full hand animations; two attachment slots
   per gun (scopes, suppressors, mags, chokes...), visible on the model.
 - **Car:** four part slots (engine, tyres, armour, nitro) with trade-offs, durability and tuning; parts wear by
-  which side is hit. Driver chips change how the AI drives.
+  which side is hit. Your driver is a recruited inmate with a randomized prison name and a habit (Hothead, Cautious...).
 - **Trinkets:** permanent run modifiers that hang or sit in the cabin (fuzzy dice, rosary, bobblehead...).
 - **Rivals:** six per race; some armed (gunners lock on with a visible laser, rocket gunners, mine layers). Their
   drivers and gunners can be shot through the glass.
@@ -58,7 +58,9 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
   at the edges. Wrecked cars can throw their crew out as tumbling ragdolls. Routine pop-ups are now a small corner
   feed.
 - **Driver orders:** middle mouse "Ram them!", and a C wheel for get alongside / tail / floor it / ease off (easing
-  off steadies your aim). The driver answers on the radio; chips change how keen they are.
+  off steadies your aim). The driver answers on the radio; their habit changes how keen they are.
+- **A human driver:** the autopilot box is gone; a collared inmate drives, recruited from rewards and after
+  bosses, with a randomized prison name; win the Crown and you both walk free.
 - **The wall of TVs:** you pick each stop from a wall of CRTs, tonight's channels on the big sets: races are named shows, the commissary is home
   shopping, the mechanic a test card, events the news, the boss a special presentation. The route sheet is now the
   TV guide.

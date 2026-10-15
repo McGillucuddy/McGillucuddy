@@ -271,7 +271,10 @@ const Thumbs = {
     if (type === 'shield') return { obj: Models.roofMount('lmg', id), view: [-0.75, 0.3], pad: 1.0 };
     if (type === 'mount') { const [gun, sh] = id.split('-'); return { obj: Models.roofMount(gun, sh), view: [-0.75, 0.3], pad: 1.0 }; }
     if (type === 'ability') return { obj: (KIT_BUILD[id] || (() => Models.shopProp({ type, id }, '#c9a443')))(), view: [0.6, 0.3] };
-    if (type === 'chip') return { obj: KIT_BUILD.chip(id), view: [0.4, 0.75] };
+    if (type === 'chip') { // a driver for hire: their mugshot, head and shoulders (js/crew.js)
+      const c = typeof Crew !== 'undefined' ? Crew.id(id) : { seed: 7, number: '0000' }, f = People.figure({ seed: +extra || c.seed, role: 'driver', arms: 'none', cell: 0.1, number: c.number });
+      return { obj: f, focus: f.userData.head, view: [Math.PI / 2 + 0.35, 0.1], pad: 2.4 };
+    }
     return { obj: Models.shopProp({ type, id }, '#c9a443'), view: [0.6, 0.35] };
   },
 
@@ -313,6 +316,7 @@ const Thumbs = {
       const mine = b && b.rack.concat(b.stash.weapons).find((w) => MODS[card.id].fits.includes(w.id));
       return `mod:${card.id}:${mine ? mine.id : MODS[card.id].fits[0]}`;
     }
+    if (card.type === 'chip' && typeof Crew !== 'undefined') return `chip:${card.id}:${Crew.id(card.id).seed}`; // this run's recruit
     return `${card.type}:${card.id}`;
   },
 

@@ -115,14 +115,14 @@ const TRINKETS = {
 };
 
 const CHIPS = {
-  hothead: { name: 'Hothead Chip', desc: 'Your driver rams anything nearby (+50% ram damage) but clips more walls.' },
-  cautious: { name: 'Cautious Chip', desc: 'Your driver barely scratches the walls (-70% wall damage) but brakes far too early.' },
-  daredevil: { name: 'Daredevil Chip', desc: 'Your driver cuts corners through the dirt (off-road -50%) but spins out on oil.' },
-  gun_nut: { name: 'Gun Nut Chip', desc: 'Weapons reload 40% faster, but your driver wobbles while you shoot.' },
+  hothead: { name: 'Hothead', desc: 'Your driver rams anything nearby (+50% ram damage) but clips more walls.' },
+  cautious: { name: 'Cautious', desc: 'Your driver barely scratches the walls (-70% wall damage) but brakes far too early.' },
+  daredevil: { name: 'Daredevil', desc: 'Your driver cuts corners through the dirt (off-road -50%) but spins out on oil.' },
+  gun_nut: { name: 'Gun Nut', desc: 'Weapons reload 40% faster, but your driver wobbles while you shoot.' },
   // Driver traits won from bosses.
   veteran: { name: 'Getaway Veteran', desc: 'Your driver takes corners 6% faster, but your car takes 25% more damage from rams.' },
-  ghost: { name: 'Ghost Chip', desc: 'Swerves recharge twice as fast, but nitro is 30% weaker.' },
-  showboat: { name: 'Showboat Chip', desc: '+50% scrap from placings and wrecks, but rival gunners lock on 25% faster.' },
+  ghost: { name: 'Ghost', desc: 'Swerves recharge twice as fast, but nitro is 30% weaker.' },
+  showboat: { name: 'Showboat', desc: '+50% scrap from placings and wrecks, but rival gunners lock on 25% faster.' },
 };
 
 // Weapon mods: two slots per weapon, swappable in the garage.
@@ -200,7 +200,7 @@ const UNLOCK_REP = {
   chip: { hothead: 0, cautious: 0, daredevil: 60, gun_nut: 140, veteran: 300, ghost: 500, showboat: 700 },
 };
 const UNLOCK_TYPES = { weapon: WEAPONS, part: PARTS, ability: ABILITIES, mod: MODS, trinket: TRINKETS, chip: CHIPS, tune: TUNE_EXTREME };
-const UNLOCK_LABEL = { weapon: 'Weapons', part: 'Car parts', ability: 'Abilities', mod: 'Attachments', trinket: 'Trinkets', chip: 'Driver chips', tune: 'Extreme tuning' };
+const UNLOCK_LABEL = { weapon: 'Weapons', part: 'Car parts', ability: 'Abilities', mod: 'Attachments', trinket: 'Trinkets', chip: 'Drivers', tune: 'Extreme tuning' };
 // The player's reputation, kept in step with the saved cosmetics by the game.
 const Meta = { rep: 0 };
 const unlockRep = (type, id) => (UNLOCK_REP[type] && UNLOCK_REP[type][id]) || 0;
@@ -478,6 +478,10 @@ function removeMod(b, rackIndex, slot) {
 function itemCard(type, id) {
   const src = { part: PARTS, weapon: WEAPONS, ability: ABILITIES, trinket: TRINKETS, chip: CHIPS, mod: MODS }[type][id];
   const rarity = src.rarity || { trinket: 'epic', chip: 'epic', part: 'common', weapon: 'rare', ability: 'rare' }[type];
+  if (type === 'chip' && typeof Crew !== 'undefined') { // a driver: an inmate with a name and a habit (js/crew.js)
+    const c = Crew.id(id);
+    return { type, id, name: c.name, desc: `<b>${src.name}.</b> ${src.desc}`, price: src.price || 0, rarity };
+  }
   return { type, id, name: src.name, desc: src.desc, price: src.price || 0, rarity };
 }
 
