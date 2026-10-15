@@ -790,7 +790,8 @@ const Proto = {
       CarHistory.repaired(b);
       for (const slot of PART_SLOTS) b.parts[slot].dur = partMaxDur(b, b.parts[slot].id);
       ensureHatch(b).hp = HATCH.max;
-      this.showEvent({ title: 'The mechanic', text: 'An old lifer with oil to his elbows waves you into his bay, hammers the dents out of your hatch and says, "On the house. Just win."', result: 'Hull, hatch and every part repaired to full.' });
+      const M = Crew.mechanic();
+      this.showEvent({ title: 'The test card: a night off camera', text: `No broadcast tonight, so the warden doesn't care what happens in the garage. ${M.name}, the lifer who keeps your car running (${M.years} years inside and counting), gets the whole night with it: he hammers the dents out of your hatch, wipes his hands and says, "On the house. Just win."`, result: 'Hull, hatch and every part repaired to full.' });
     } else {
       const seen = run.flags.seenEvents || (run.flags.seenEvents = []);
       const pool = EVENTS.filter((e) => !seen.includes(e.id));
@@ -882,6 +883,7 @@ const Proto = {
       <h1>Escape failed</h1>
       <p>Three strikes. The warden sends you back to your cell after ${b.race} race${b.race === 1 ? '' : 's'} and ${b.wins} win${b.wins === 1 ? '' : 's'}.</p>
       <p class="muted">Trinkets collected: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
+      ${SeasonTape.html(this.run, b, this.cos, false)}
       <button class="btn primary big" data-action="new-run">New run ▶</button>
       <button class="btn" data-action="feedback">Send feedback</button>
       <button class="btn" data-action="menu">Main menu</button>
@@ -897,6 +899,7 @@ const Proto = {
       <h1>Free</h1>
       <p>You won the Crown. The warden signs two releases in front of the whole upper city, smiling for the cameras: yours, and ${Crew.current(b).name}'s. The collars come off together.</p>
       <p class="muted">${b.race} races · ${b.wins} wins · trinkets: ${b.trinkets.map((t) => TRINKETS[t].name).join(', ') || 'none'}</p>
+      ${SeasonTape.html(this.run, b, this.cos, true)}
       <button class="btn primary big" data-action="new-run">New run ▶</button>
       <button class="btn" data-action="feedback">Send feedback</button>
       <button class="btn" data-action="menu">Main menu</button>
@@ -1301,6 +1304,7 @@ const Proto = {
     if (!this.tutorial && !this.combat.crewDone) Crew.gunnerAfterRace(b, !!this.combat.gunnerOut);
     if (lost) lost.by = this.combat.driverKilledBy;
     if (!this.tutorial && !this.combat.crewDone) CarHistory.afterRace(b, race, mulberry32((this.seed ^ 0x3a7) >>> 0), !!(boss && ok), run.act);
+    if (!this.tutorial && !this.combat.crewDone) SeasonTape.record(run, b, race, this.combat, ok);
     this.combat.crewDone = true;
     // A wreck breaks things: the crew bodges broken parts back to a quarter so you're not crippled next race.
     const bodged = p.dnf ? PART_SLOTS.filter((k) => b.parts[k].dur <= 0) : [];
@@ -1330,7 +1334,7 @@ const Proto = {
           <div><span>Rockets &amp; mines shot down</span><b>${s.shotDown}</b></div>
           <div><span>Parries</span><b>${s.parries}</b></div>
           <div><span>Damage taken</span><b>${Math.round(s.taken)}</b></div>
-          <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}${b.hull > Math.ceil(p.hp) ? ` <small class="muted">(crew patched to ${b.hull}${bodged.length ? ', and bodged the ' + bodged.map((k) => SLOT_NAMES[k].toLowerCase()).join(' and ') + ' back to running' : ''})</small>` : ''}</b></div>
+          <div><span>Hull left</span><b>${Math.ceil(p.hp)} / ${b.maxHull}${b.hull > Math.ceil(p.hp) ? ` <small class="muted">(${Crew.mechanic().nick} patched it to ${b.hull}${bodged.length ? ', and bodged the ' + bodged.map((k) => SLOT_NAMES[k].toLowerCase()).join(' and ') + ' back to running' : ''})</small>` : ''}</b></div>
           <div><span>Placing purse <small class="muted">${p.dnf ? 'did not finish' : `${range[0]}-${range[1]}`}</small></span><b>${placePay} scrap</b></div>
           <div><span>Bounties${claimed.length ? ` <small class="muted">${claimed.map((x) => `${shortName(x.c)} ${x.pay}${x.clean ? ' (clean kill)' : ''}`).join(', ')}</small>` : ''}</span><b>${wreckPay} scrap</b></div>
           ${bossPay ? `<div><span>Qualifier purse</span><b>${bossPay} scrap</b></div>` : ''}
@@ -1364,7 +1368,7 @@ const Proto = {
       if (gk !== this.gearKey) { this.gearKey = gk; this.preview.setLook(carLook(this.cos, b)); }
     }
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
-    const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(this.run.act) ? 'Concierge' : 'Commissary', this.shopOpen ? 'Open now' : 'Closed'], ['paint', 'Paint booth', 'Looks, kept between runs']];
+    const stations = [['car', 'Workshop', 'Parts, tuning & repairs'], ['weapons', 'Armory', 'Weapons, mods & ammo'], ['market', ACT_LUXURY(this.run.act) ? 'Concierge' : 'Commissary', this.shopOpen ? 'Open: the cameras are rolling' : 'Shut: opens on shopping nights'], ['paint', 'Paint booth', 'Looks, kept between runs']];
     if (this.dealer) stations.push(['wall', 'The wall', 'Someone\'s tapping']);
     if (this.fans) stations.push(['fans', 'Fan mail', `${b.infamy || 0} Infamy`]);
     const nav = stations.map(([id, label, sub]) => `<button class="g-station ${this.tab === id ? 'on' : ''}" data-action="tab" data-arg="${id}"><b>${label}</b><small>${sub}</small></button>`).join('');
@@ -1522,7 +1526,7 @@ const Proto = {
 
   garageMarket() {
     const b = this.build;
-    if (!this.shopOpen) return `<div class="panel"><h2>Shuttered</h2><p>The hatch is padlocked. The ${ACT_LUXURY(this.run.act) ? 'concierge only sees drivers at a Concierge stop' : 'commissary only opens when you book the home shopping channel'} on the TV (🛒).</p><p class="muted small">Repairs, ammo, grenades and spare parts are always available in the Workshop and Armory.</p></div>`;
+    if (!this.shopOpen) return `<div class="panel"><h2>Shuttered</h2><p>The hatch is padlocked. ${ACT_LUXURY(this.run.act) ? 'The concierge only sees drivers at a Concierge stop on the TV (🛒).' : 'The commissary is the sponsors\' shop window: it only opens on nights the home shopping channel films in your block, so book 🛒 on the TV. No cameras, no sales.'}</p><p class="muted small">Repairs, ammo, grenades and spare parts are always available in the Workshop and Armory.</p></div>`;
     const label = { weapon: 'GUN', mod: 'ATTACHMENT', trinket: 'TRINKET', part: 'PART', ability: 'ABILITY', chip: 'DRIVER FOR HIRE' };
     const card = (c, i) => {
       const fitsMine = c.type === 'mod' && MODS[c.id].fits.some((f) => b.rack.concat(b.stash.weapons).some((w) => w.id === f));

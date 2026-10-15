@@ -56,6 +56,13 @@ const Crew = {
     const last = CREW_LAST[TV.hash(h % 1000003, 577) % CREW_LAST.length];
     return { nick, last, name: `"${nick}" ${last}` };
   },
+  // The crew: one old lifer who keeps your car running between races (patches a wreck back to running, works the
+  // free repair nights). Same man all run; you can see him in the garage, by the lift.
+  mechanic() {
+    const h = TV.hash((Crew.runSeed >>> 0) % 1000003, 6151);
+    const nick = ['Pops', 'Grease', 'Old Man', 'Wrench', 'Uncle', 'Spanners', 'Doc', 'Lifer'][h % 8], last = CREW_LAST[TV.hash(h % 1000003, 313) % CREW_LAST.length];
+    return { nick, last, name: `"${nick}" ${last}`, seed: (h % 100000) + 5, years: 22 + (h % 19) };
+  },
   // A name without its quotes, for the walls and the record.
   plain(name) { return String(name).replace(/"/g, ''); },
   // The driver in your seat.

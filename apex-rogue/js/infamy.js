@@ -147,6 +147,7 @@ Object.assign(Combat.prototype, {
     if (!force && t - (this.lastBig ?? -99) < BIG.gap) return false;
     this.lastBig = t;
     this.big = { line, sub, t: 0 };
+    (this.tape || (this.tape = [])).push(line); // for the season tape at the end of the run (js/tape.js)
     this.events.push({ type: 'bigMoment' });
     if (Settings.data.slowmo !== false) this.slowT = BIG.slowT;
     return true;

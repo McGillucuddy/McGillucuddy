@@ -70,6 +70,16 @@ so treat it as fixed, and add to it here first when something new is introduced.
 - Sayings: "LAP 3 IS WHERE THEY GET YOU", "C9 NEVER FORGETS", "FREE C9", "NO GODS NO WARDENS", "GOLD BLEEDS TOO",
   "THE CROWN EATS ITS OWN", "BREATHE DEEP KID" (Sal's line), "SMILE FOR THE SPONSORS".
 
+## How the garage works
+
+- **The crew** is one old lifer mechanic per run, twenty-odd years inside, who keeps your car running. He patches a
+  wreck back to running after every race. On test card nights (no broadcast) the warden doesn't care what goes on in
+  the garage, and he fixes everything for free.
+- **The commissary** is the sponsors' shop window. It only opens on nights the home shopping channel films in your
+  block. No cameras, no sales.
+- **Everyone wears the collar**: you, your driver, the drivers waiting on the bench. Step off the course and it goes off.
+- **The season tape:** C9TV sells every inmate's season as a VHS recap. Yours is the last thing you see of a run.
+
 ## Threads worth pulling later
 
 - Dez: a hidden stash event, a rumour from a trader, or Dez themselves as a secret final opponent.

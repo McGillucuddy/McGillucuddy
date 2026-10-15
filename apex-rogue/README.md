@@ -255,6 +255,22 @@ below. A chalkboard shows the act, race, scrap, strikes and a tally of races
 survived. In the upper-city acts the sponsors have smartened the garage up, and the commissary becomes a
 concierge. See `js/garage3d.js`.
 
+### The world holds together (prototype)
+
+- **The crew** is one old lifer mechanic (`Crew.mechanic()`), named fresh each run. He stands by the lift,
+  patches a wreck back to running after a race ("Pops patched it to 40"), and has the test card nights to
+  himself, which is when the free repair happens: no broadcast, so the warden doesn't care what goes on in the
+  garage.
+- **The commissary** is the sponsors' shop window. It only opens on nights the home shopping channel films in
+  your block. No cameras, no sales.
+- **Bench drivers** you've recruited but aren't driving sit on upturned crates in the garage, waiting their
+  turn. Hover one to see their name and bond.
+- **Your collar:** you wear one too. You can't see it from your seat, but its light blinks red on your hands
+  and the dash, out of step with your driver's.
+- **The season tape** (`js/tape.js`): win or lose, the run ends on the broadcast's VHS recap. Every race is an
+  episode with its result and the big moments the broadcast cut to, followed by the car (name, kill marks,
+  trophies), the Infamy you earned, and everyone who drove for you with their bond. The dead are marked.
+
 ### Feel: grenades, hits and crashes (prototype)
 
 - **Grenades** (`GRENADE` in `js/combat.js`): pulling the pin lights a 1.7 s fuse. Thrown straight away, the
@@ -627,6 +643,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
 | `js/ragdoll.js` | Ragdolls: who gets thrown out of a wrecked car, and the verlet bodies that tumble down the road |
 | `js/bond.js` | Your driver's bond: XP from racing together, levels and their perks, the radio lines about your shared history |
+| `js/tape.js` | The season tape: the end-of-run VHS recap of every race, the car and your drivers |
 | `js/history.js` | The car's history: its name, kill marks, scars and boss trophies, and how they're drawn |
 | `js/infamy.js` | Infamy (earning it, the live feed), the Fan Club's goods, The Crowd Turns, the run record and what the walls say about you |
 | `js/build.js` (`ROOF_SHIELDS`), `js/combat.js` (`toggleRoof`, `exposedHit`) | The roof gun: the mount, shielding, climbing up, exposure |

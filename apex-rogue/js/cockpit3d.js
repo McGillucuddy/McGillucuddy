@@ -639,6 +639,17 @@ class CockpitView {
     d.torso.add(LP.box(0.36, 0.32, 0.3, LP.mat('#1c1c1e', { metalness: 0.4 }), 0.1, 5.0, -0.58));
     const led = LP.mesh(new THREE.SphereGeometry(0.07, 6, 5), LP.glow('#ff2a1a', 2.5), 0.1, 5.05, -0.75);
     d.torso.add(led);
+    // Yours too, under your chin: you can't see it, but its light blinks red on your hands and the dash, out of step
+    // with theirs.
+    const mt = me.userData.torso || me;
+    mt.add(LP.mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 16).rotateX(Math.PI / 2), steel, 0.12, 5.0, 0));
+    mt.add(LP.box(0.36, 0.32, 0.3, LP.mat('#1c1c1e', { metalness: 0.4 }), 0.55, 4.95, 0));
+    const myLed = LP.mesh(new THREE.SphereGeometry(0.08, 6, 5), LP.glow('#ff2a1a', 2.5), 0.74, 5.0, 0);
+    mt.add(myLed);
+    const glow = new THREE.PointLight('#ff2a1a', 0, 9, 2);
+    glow.position.set(1.4, 4.7, 0);
+    mt.add(glow);
+    myLed.userData.glow = glow;
     // Fists on the rim at ten to two (in the wheel's own frame its +x is the driver's left), riding the wheel.
     const M = d.M, fists = [];
     for (const [a, side] of [[0.55, -1], [Math.PI - 0.55, 1]]) {
@@ -649,7 +660,7 @@ class CockpitView {
       this.wheel.add(f);
       fists.push(f);
     }
-    this.myCrew = { drv, me, I, fists, led, arms: People.liveArms(I, d.armMat || M.suit, 2), glance: 0, glanceT: 3 };
+    this.myCrew = { drv, me, I, fists, led, myLed, arms: People.liveArms(I, d.armMat || M.suit, 2), glance: 0, glanceT: 3 };
     // Friendly fire (js/crew.js): is the crosshair on your driver right now? Head or body, and how squarely (the
     // share of a shot's pellets that go into them).
     const ray = new THREE.Ray(), v = new THREE.Vector3(), dir = new THREE.Vector3();
@@ -671,6 +682,7 @@ class CockpitView {
     if (!C) return;
     const d = C.drv.userData, I = C.I, p = this.race.player;
     C.led.visible = Math.floor(t * 1.5) % 2 === 0; // the collar's light
+    if (C.myLed) { C.myLed.visible = !C.led.visible; C.myLed.userData.glow.intensity = C.myLed.visible ? 6 : 0; }
     // Head: watching the road, a glance at the mirror now and then, a look over at you when you open fire or give
     // an order.
     C.glanceT -= dt;

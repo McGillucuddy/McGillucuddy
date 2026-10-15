@@ -651,3 +651,25 @@ body.proto #ui { z-index: 2; }
 .bond-bar > div { background: #5a9bd0 !important; }
 .bond-perks { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; color: #8a8576; }
 .bond-perks .on { color: #2d5f8a; }
+/* The season tape: the end-of-run VHS recap (js/tape.js) */
+.season-tape { max-width: 760px; margin: 18px auto; text-align: left; }
+.tape-label { display: flex; align-items: center; gap: 14px; background: #e9e2cc; color: #1a1a1a; border: 3px solid #111; border-bottom: none; border-radius: 6px 6px 0 0; padding: 8px 14px; font-family: "Permanent Marker", "Comic Sans MS", cursive; transform: rotate(-0.4deg); }
+.tape-brand { background: #c0261c; color: #fff; font: bold 13px monospace; padding: 2px 6px; }
+.tape-title { flex: 1; font-size: 18px; line-height: 1.05; }
+.tape-title small { font: bold 11px monospace; letter-spacing: 1px; color: #5a5040; }
+.tape-car { font-size: 16px; color: #3a2a1a; }
+.tape-screen { position: relative; background: #0b0f0c; color: #d8e8d0; border: 3px solid #111; border-radius: 0 0 6px 6px; padding: 14px 18px; font-family: monospace; overflow: hidden; }
+.tape-screen::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0,0,0,0.25) 0 1px, transparent 1px 3px); animation: tape-roll 6s linear infinite; }
+@keyframes tape-roll { from { background-position: 0 0; } to { background-position: 0 60px; } }
+.tape-osd { display: flex; justify-content: space-between; color: #fff; font-weight: bold; text-shadow: 2px 0 #c0261c, -2px 0 #2a6ad0; margin-bottom: 6px; }
+.tape-screen h3 { margin: 4px 0 8px; color: #f0e6b0; }
+.tape-screen h4 { margin: 8px 0 4px; color: #9fd0ff; }
+.tape-eps { list-style: none; padding: 0; margin: 0; max-height: 260px; overflow-y: auto; }
+.tape-eps li { padding: 4px 0; border-bottom: 1px dashed #2a3a2a; }
+.tape-ep { display: inline-block; width: 48px; color: #8fa08a; }
+.tape-act { display: inline-block; width: 30px; color: #c9a443; }
+.tape-moments { margin: 2px 0 0 78px; display: flex; flex-wrap: wrap; gap: 4px; }
+.tape-moments span { background: #f0e6d0; color: #111; font-size: 10px; font-weight: bold; padding: 1px 5px; }
+.tape-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.tape-crew { list-style: none; padding: 0; margin: 0; }
+@media (max-width: 640px) { .tape-cols { grid-template-columns: 1fr; } .tape-moments { margin-left: 0; } }

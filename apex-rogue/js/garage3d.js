@@ -579,6 +579,35 @@ class Garage3D {
     });
   }
 
+  // The people in your garage: the crew (one old lifer mechanic, by the lift) and the drivers you've recruited who
+  // aren't driving tonight, sat on a bench waiting their turn. Figures are kept between syncs (they're costly to make).
+  syncPeople(D, b) {
+    this.people = this.people || new Map();
+    const get = (key, make) => { if (!this.people.has(key)) this.people.set(key, make()); return this.people.get(key); };
+    const place = (fig, x, z, ry, s) => {
+      fig.position.set(0, 0, 0); fig.rotation.set(0, ry, 0); fig.scale.setScalar(s); fig.updateMatrixWorld(true);
+      const bb = new THREE.Box3().setFromObject(fig);
+      fig.position.set(x, -bb.min.y, z);
+      return -bb.min.y;
+    };
+    const M = Crew.mechanic();
+    const mech = get('mech:' + M.seed, () => People.figure({ seed: M.seed, pose: 'stand', role: 'trader', cell: 0.1, suit: '#33404a', looks: { gear: 'cap', hat: '#2a2a2a', beard: 'full' } }));
+    place(mech, 26, -16, Math.PI * 0.85, 2.3);
+    mech.userData.dynamic = true;
+    this.hot(mech, 'tab', 'car', `${M.name}: the crew. ${M.years} years inside; keeps your car running`);
+    const bench = (b.stash && b.stash.chips) || [];
+    if (!bench.length) return;
+    const wood = LP.mat(this.luxury ? '#3a2a1e' : '#5a4632', { roughness: 0.9 });
+    bench.slice(0, 4).forEach((trait, i) => {
+      const who = Crew.id(trait);
+      const fig = get('bench:' + who.seed, () => People.figure({ seed: who.seed, pose: 'seated', role: 'driver', cell: 0.1, number: who.number }));
+      const z = 34 + i * 9, hipY = place(fig, -46, z, 0, 2.3);
+      fig.userData.dynamic = true;
+      this.hot(fig, 'tab', 'car', `${who.name}: on the bench (${Bond.info(b, trait + ':' + ((b.crewGen && b.crewGen[trait]) || 0)).name}). Swap them in at the Workshop`);
+      D.add(LP.box(6, hipY - 0.6, 7.5, wood, -46.5, (hipY - 0.6) / 2, z)); // an upturned crate to sit on
+    });
+  }
+
   sync(info) {
     const { build: b, shop, cos, act } = info;
     this.setTheme(!!act.luxury);
@@ -586,6 +615,7 @@ class Garage3D {
     this.dyn.clear();
     this.hotRoot.children.filter((o) => o.userData.dynamic).forEach((o) => this.hotRoot.remove(o));
     const D = this.dyn;
+    this.syncPeople(D, b);
     // Pegboard: rack guns on the top row, stash weapons below.
     const hang = (w, x, y) => {
       const gun = Models.gunKit(Models.gunFinish(Models.modVisuals(Models.weapon(w.id), w.id, w.mods, false), (cos.gunFinish || {})[w.id]), w.id, (cos.gunKit || {})[w.id], (cos.patchSeed || {})[w.id]);
