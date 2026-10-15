@@ -575,3 +575,10 @@ body.proto #ui { z-index: 2; }
 /* Infamy (js/infamy.js): the second currency, in fan-club pink. */
 .g-top .infamy { color: #ff6ad5; font-weight: 700; }
 .results .payout .infamy-row b { color: #ff6ad5; }
+
+/* Race briefing: the controls fold away after your first couple of races. */
+.ctl-box summary { cursor: pointer; list-style: none; }
+.ctl-box summary::-webkit-details-marker { display: none; }
+.ctl-box summary h2 { display: inline; }
+.ctl-box summary::after { content: ' ▸ show'; color: var(--muted, #8a8a99); font-size: 13px; }
+.ctl-box[open] summary::after { content: ' ▾'; }

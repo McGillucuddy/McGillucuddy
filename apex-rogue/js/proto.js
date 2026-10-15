@@ -1053,10 +1053,10 @@ const Proto = {
           <h2>${bio.name}</h2><p class="muted">${bio.blurb}</p>
           <p>${race.laps} laps · ${Math.round((tr.length * 0.125) / 10) * 10}m lap · ${boosts} boost pads · ${oils} oil slicks</p>
           <p><b>${race.boss ? (race.boss.mustWin ? 'Win the race outright' : 'Finish ahead of ' + race.boss.name) : 'Finish top ' + race.qualify}</b></p>
-          <p class="small">Purse: win <b>${PLACE_PURSE[0][0]}-${PLACE_PURSE[0][1]}</b>${race.qualify > 1 && PLACE_PURSE[race.qualify - 1] ? ` · ${ordinal(race.qualify)} ${PLACE_PURSE[race.qualify - 1][0]}-${PLACE_PURSE[race.qualify - 1][1]}` : ''} · bounties on every rival (💰 below)${race.boss ? ` · beat ${race.boss.name} ${BOSS_PURSE[0]}-${BOSS_PURSE[1]}` : ''}${race.node.type === 'elite' ? ' · elite +40%' : ''}</p>
+          <p class="small">Purse: win <b>${PLACE_PURSE[0][0]}-${PLACE_PURSE[0][1]}</b>${race.qualify > 1 && PLACE_PURSE[race.qualify - 1] ? ` · ${ordinal(race.qualify)} ${PLACE_PURSE[race.qualify - 1][0]}-${PLACE_PURSE[race.qualify - 1][1]}` : ''} · a bounty (💰) on every rival${race.boss ? ` · beat ${race.boss.name} ${BOSS_PURSE[0]}-${BOSS_PURSE[1]}` : ''}${race.node.type === 'elite' ? ' · elite +40%' : ''}</p>
         </div>
         <div class="panel"><h2>Rivals</h2>${rivals}${this.pocketHTML()}
-          <h2>Controls</h2>
+          <details class="ctl-box" ${this.build.race < 2 ? 'open' : ''}><summary><h2>Controls</h2></summary>
           <div class="ctl"><kbd>Mouse</kbd> Aim / look around · <kbd>LMB</kbd> Fire</div>
           <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch · <kbd>R</kbd> Reload</div>
           <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further). Drop one down a rocket car's roof hatch or in a gunner's window.</div>
@@ -1066,6 +1066,7 @@ const Proto = {
           <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve</div>
           <div class="ctl"><kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
           <p class="muted small">Shoot rockets and mines out of the air with bullets. Red laser = a gunner is locking on to you.</p>
+          </details>
         </div>
       </div>
       <button class="btn primary big" data-action="start">Start race ▶</button>
@@ -1755,62 +1756,49 @@ function drawTrackPreview(canvas, race) {
   ctx.restore();
 }
 
+// The loadout, bottom right. Only what you need now: your guns (the one in your hands bright), grenades, and the
+// rest only when it matters (an ability you've fitted, the hatch once it's taken damage or is shut, swerve while
+// it recharges, a part that's failing, a spare to fit). The dashboard carries hull, place and lap.
 function drawWeaponPanel(ctx, P, W, H) {
-  const c = P.combat, b = c.build;
-  const rows = b.rack.length + 1 + 2 + 1;
-  const h = 26 + rows * 24 + 34;
-  const x = W - 262, y = H - h - 12;
-  hudPanel(ctx, x, y, 250, h);
-  ctx.textAlign = 'left';
-  let yy = y + 22;
-  const line = (active, label, right, frac, col) => {
-    ctx.fillStyle = active ? '#ffd23f' : 'rgba(255,255,255,0.65)';
-    ctx.font = `${active ? 'bold ' : ''}14px ${hudFont()}`;
-    ctx.fillText(label, x + 12, yy);
-    ctx.textAlign = 'right';
-    ctx.fillText(right, x + 238, yy);
-    ctx.textAlign = 'left';
-    if (frac != null) {
-      ctx.fillStyle = 'rgba(255,255,255,0.12)';
-      ctx.fillRect(x + 12, yy + 5, 226, 4);
-      ctx.fillStyle = col;
-      ctx.fillRect(x + 12, yy + 5, 226 * clamp(frac, 0, 1), 4);
-    }
-    yy += 24;
-  };
+  const c = P.combat, b = c.build, rows = [];
   b.rack.forEach((w, i) => {
-    const d = weaponStats(w), st = c.wstate[i];
-    const reloading = st.reloadT > 0;
-    line(i === c.wi, `${i + 1} ${d.name}`, reloading ? 'RELOADING' : `${w.mag} | ${w.reserve}`, reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag, reloading ? '#ff9f1c' : '#5ad8ff');
+    const d = weaponStats(w), st = c.wstate[i], reloading = st.reloadT > 0;
+    rows.push([i === c.wi, `${i + 1} ${d.name}`, reloading ? 'RELOADING' : `${w.mag} | ${w.reserve}`, i === c.wi ? (reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag) : null, reloading ? '#ff9f1c' : '#5ad8ff']);
   });
-  line(false, 'G Grenades', `${b.grenades}`, null);
   const hh = ensureHatch(b), hf = hh.hp / HATCH.max;
-  line(c.hatchDown, '␣ Blast hatch', c.hatch.jammed ? 'JAMMED' : c.guarded ? 'SHUT' : `${Math.ceil(hh.hp)}%`, hf, c.hatch.jammed ? '#ff3b1f' : hf < 0.3 ? '#ff7a1f' : '#c9a43a');
+  const hatch = c.hatch.jammed ? 'HATCH JAMMED' : c.guarded ? 'HATCH SHUT' : hf < 0.995 ? `HATCH ${Math.ceil(hh.hp)}%` : '';
+  rows.push([false, `G ×${b.grenades}`, hatch, hatch && !c.guarded ? hf : null, c.hatch.jammed ? '#ff3b1f' : hf < 0.3 ? '#ff7a1f' : '#c9a43a']);
   c.abil.forEach((a, i) => {
-    const key = i === 0 ? 'E' : 'F';
-    if (!a) { line(false, `${key} —`, '', null); return; }
+    if (!a) return;
     const def = ABILITIES[a.id];
-    line(false, `${key} ${def.name}`, a.cd > 0 ? `${a.cd.toFixed(1)}s` : 'READY', a.cd > 0 ? 1 - a.cd / def.cooldown : 1, '#7cfc00');
+    rows.push([false, `${i === 0 ? 'E' : 'F'} ${def.name}`, a.cd > 0 ? `${a.cd.toFixed(1)}s` : 'READY', a.cd > 0 ? 1 - a.cd / def.cooldown : null, '#7cfc00']);
   });
-  line(false, 'A/D Swerve', c.swerveCd > 0 ? `${c.swerveCd.toFixed(1)}s` : 'ready', null);
-  // Parts strip
-  PART_SLOTS.forEach((slot, i) => {
-    const part = b.parts[slot], f = clamp(part.dur / partMaxDur(b, part.id), 0, 1), broken = part.dur <= 0;
-    const px = x + 12 + i * 58;
-    ctx.fillStyle = broken ? '#ff3b1f' : 'rgba(255,255,255,0.65)';
-    ctx.font = `bold 11px ${hudFont()}`;
-    ctx.fillText(['ENG', 'TYR', 'ARM', 'NOS'][i], px, yy - 4);
-    ctx.fillStyle = 'rgba(255,255,255,0.12)';
-    ctx.fillRect(px, yy, 50, 5);
-    ctx.fillStyle = broken ? (Math.floor(P.time * 4) % 2 ? '#ff3b1f' : '#551008') : f < 0.3 ? '#ff7a1f' : '#ffd23f';
-    ctx.fillRect(px, yy, 50 * (broken ? 1 : f), 5);
-  });
-  if (b.spare) {
-    const canFit = partBroken(b, PARTS[b.spare.id].slot);
-    ctx.fillStyle = canFit ? (Math.floor(P.time * 3) % 2 ? '#ffd23f' : '#fff') : 'rgba(255,255,255,0.5)';
-    ctx.font = `bold 11px ${hudFont()}`;
-    ctx.fillText(canFit ? `B: FIT SPARE ${PARTS[b.spare.id].name.toUpperCase()}` : `Spare: ${PARTS[b.spare.id].name}`, x + 12, yy + 20);
+  if (c.swerveCd > 0) rows.push([false, 'Swerve', `${c.swerveCd.toFixed(1)}s`, null]);
+  const failing = PART_SLOTS.map((slot, i) => {
+    const part = b.parts[slot], f = clamp(part.dur / partMaxDur(b, part.id), 0, 1);
+    return part.dur <= 0 ? `${['ENG', 'TYR', 'ARM', 'NOS'][i]} BROKEN` : f < 0.3 ? `${['ENG', 'TYR', 'ARM', 'NOS'][i]} ${Math.round(f * 100)}%` : null;
+  }).filter(Boolean);
+  const spare = b.spare && partBroken(b, PARTS[b.spare.id].slot);
+  const extra = (failing.length ? 1 : 0) + (spare ? 1 : 0);
+  const h = 14 + rows.length * 22 + extra * 18;
+  const x = W - 236, y = H - h - 12;
+  hudPanel(ctx, x, y, 224, h);
+  let yy = y + 20;
+  for (const [active, label, right, frac, col] of rows) {
+    ctx.fillStyle = active ? '#ffd23f' : 'rgba(255,255,255,0.6)';
+    ctx.font = `${active ? 'bold ' : ''}13px ${hudFont()}`;
+    ctx.textAlign = 'left'; ctx.fillText(label, x + 10, yy);
+    ctx.textAlign = 'right'; ctx.fillText(right, x + 214, yy);
+    if (frac != null) {
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x + 10, yy + 4, 204, 3);
+      ctx.fillStyle = col; ctx.fillRect(x + 10, yy + 4, 204 * clamp(frac, 0, 1), 3);
+    }
+    yy += 22;
   }
+  ctx.textAlign = 'left';
+  ctx.font = `bold 11px ${hudFont()}`;
+  if (failing.length) { ctx.fillStyle = Math.floor(P.time * 3) % 2 ? '#ff7a1f' : '#ffb070'; ctx.fillText(failing.join('  '), x + 10, yy - 4); yy += 18; }
+  if (spare) { ctx.fillStyle = Math.floor(P.time * 3) % 2 ? '#ffd23f' : '#fff'; ctx.fillText(`B: FIT SPARE ${PARTS[b.spare.id].name.toUpperCase()}`, x + 10, yy - 4); }
 }
 
 // Fitting a spare: a progress bar in the middle of the screen.
@@ -1845,20 +1833,26 @@ function drawMessages(ctx, race, W, H, fame) {
     ctx.fillText(m.text, W / 2, y);
     y += 32;
   }
-  const feed = race.messages.filter((m) => !m.center).map((m) => ({ text: m.text, color: m.color, t: m.t, life: m.life }))
-    .concat((fame || []).map((f) => ({ text: f.text, color: '#ff6ad5', t: f.t, life: 3 })))
-    .sort((a, b) => a.t - b.t).slice(0, 8);
+  // Infamy earned in the same instant as an event rides on that event's line instead of taking its own.
+  const feed = race.messages.filter((m) => !m.center).map((m) => ({ text: m.text, color: m.color, t: m.t, life: m.life, fame: 0 }));
+  for (const f of fame || []) {
+    const n = +(/\+(\d+)/.exec(f.text) || [0, 0])[1], host = feed.find((m) => Math.abs(m.t - f.t) < 0.05);
+    if (host) host.fame += n; else feed.push({ text: f.text, color: '#ff6ad5', t: f.t, life: 3, fame: 0 });
+  }
+  feed.sort((a, b) => a.t - b.t).splice(5);
   ctx.textAlign = 'right';
   ctx.font = `bold 14px ${hudFont()}`;
   y = 28;
   for (const m of feed) {
-    const a = fade(m.t, m.life), w = ctx.measureText(m.text).width, dx = (1 - clamp(m.t * 8, 0, 1)) * 24;
+    const tail = m.fame ? `  +${m.fame} INFAMY` : '', tw = tail ? ctx.measureText(tail).width : 0;
+    const a = fade(m.t, m.life), w = ctx.measureText(m.text).width + tw, dx = (1 - clamp(m.t * 8, 0, 1)) * 24;
     ctx.globalAlpha = a * 0.6;
     ctx.fillStyle = '#000';
     ctx.fillRect(W - 24 - w - 8 + dx, y - 14, w + 16, 20);
     ctx.globalAlpha = a;
+    if (tail) { ctx.fillStyle = '#ff6ad5'; ctx.fillText(tail, W - 24 + dx, y); }
     ctx.fillStyle = m.color;
-    ctx.fillText(m.text, W - 24 + dx, y);
+    ctx.fillText(m.text, W - 24 - tw + dx, y);
     y += 23;
   }
   ctx.globalAlpha = 1;
@@ -1982,28 +1976,40 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(cx, cy, 34, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - wst.reloadT / wd.reload)); ctx.stroke();
   }
-  ctx.textAlign = 'center';
-  ctx.font = `bold 12px ${hudFont()}`;
-  ctx.fillStyle = c.weapon.mag === 0 ? '#ff6b6b' : 'rgba(255,255,255,0.8)';
-  ctx.fillText(wst.reloadT > 0 ? 'RELOADING' : c.weapon.mag === 0 ? (c.weapon.reserve > 0 ? 'R TO RELOAD' : 'NO AMMO') : `${c.weapon.mag}`, cx, cy + 48);
+  // Ammo by the crosshair only when it's running out (the full count is in the loadout panel).
+  const low = c.weapon.mag <= Math.max(1, Math.floor(wd.mag * 0.3));
+  if (wst.reloadT > 0 || low) {
+    ctx.textAlign = 'center';
+    ctx.font = `bold 12px ${hudFont()}`;
+    ctx.fillStyle = c.weapon.mag === 0 ? '#ff6b6b' : 'rgba(255,200,120,0.9)';
+    ctx.fillText(wst.reloadT > 0 ? 'RELOADING' : c.weapon.mag === 0 ? (c.weapon.reserve > 0 ? 'R TO RELOAD' : 'NO AMMO') : `${c.weapon.mag}`, cx, cy + 48);
+  }
 
   // Minimal race info (the rest lives on the dashboard).
-  hudPanel(ctx, 12, 12, 190, 56);
-  ctx.textAlign = 'left';
-  ctx.fillStyle = p.place <= race.qualify ? '#7CFC00' : '#ff6b6b';
-  ctx.font = `bold 30px ${hudFont()}`;
-  ctx.fillText(ordinal(p.place), 22, 50);
-  ctx.fillStyle = '#fff';
-  ctx.font = `14px ${hudFont()}`;
+  // Place and lap, small in the corner (green while you're making the cut).
   const lap = clamp(Math.floor(p.progress / race.track.N) + 1, 1, race.laps);
-  ctx.fillText(`Lap ${p.finished ? race.laps : lap}/${race.laps}  ${fmtTime(p.finished ? p.finishTime : race.time)}`, 84, 46);
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(12, 12, 132, 34);
+  ctx.fillStyle = p.place <= race.qualify ? '#7CFC00' : '#ff6b6b';
+  ctx.font = `bold 22px ${hudFont()}`;
+  ctx.fillText(ordinal(p.place), 20, 37);
+  ctx.fillStyle = 'rgba(255,255,255,0.8)';
+  ctx.font = `13px ${hudFont()}`;
+  ctx.fillText(`Lap ${p.finished ? race.laps : lap}/${race.laps}`, 74, 35);
 
   if (PSX.enabled) {
     // Chunky name tags drawn on the crisp HUD layer (3D text would be mush at 240p).
     ctx.textAlign = 'center';
     ctx.font = 'bold 13px "Courier New", monospace';
-    for (const tg of P.cockpit.tags(W, H)) {
-      const a = clamp(1.3 - tg.d / 900, 0.25, 1);
+    const shown = [];
+    for (const tg of P.cockpit.tags(W, H).sort((a, b2) => a.d - b2.d)) {
+      // Only the ones close by, or the one you're aiming at; never two on top of each other.
+      const aimed = Math.hypot(tg.x - W / 2, tg.y - H / 2) < 110;
+      if (tg.d > 520 && !aimed) continue;
+      if (shown.some((s) => Math.abs(s.x - tg.x) < 90 && Math.abs(s.y - tg.y) < 18)) continue;
+      shown.push(tg);
+      if (aimed && tg.bounty) tg.label += ' $' + tg.bounty;
+      const a = clamp(1.3 - tg.d / 700, 0.35, 1);
       const w = ctx.measureText(tg.label).width + 10;
       ctx.globalAlpha = a;
       ctx.fillStyle = 'rgba(0,0,0,0.6)';

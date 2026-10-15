@@ -1236,7 +1236,7 @@ class CockpitView {
       if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) continue;
       const d = Math.hypot(car.x - this.race.player.x, car.y - this.race.player.y);
       if (d > 1100) continue;
-      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${car.place}. ${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}${car.markT > 0 ? ' ◎' : ''}${car.bounty && car.hp > 0 ? ' $' + car.bounty : ''}`, armed: !!car.weapon, d });
+      out.push({ x: (v.x * 0.5 + 0.5) * W, y: (-v.y * 0.5 + 0.5) * H, label: `${shortName(car)}${car.hp <= 0 ? ' ✖' : ''}${car.markT > 0 ? ' ◎' : ''}`, bounty: car.hp > 0 ? car.bounty : 0, armed: !!car.weapon, d });
     }
     return out;
   }

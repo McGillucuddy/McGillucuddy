@@ -235,7 +235,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **Purses come in a range** (the briefing shows them): a win pays 100-160, 2nd 70-115, 3rd 50-85, down to 5-15 for
   last; beating a boss 120-180. Where you land in the range is half luck and half how you raced
   (wrecks, parries, how little damage you took). Elite races pay 40% more. Scrap is scarce on purpose.
-- **Bounties.** Every rival carries a price on their head, shown in the briefing (💰) and on their name tag ($):
+- **Bounties.** Every rival carries a price on their head, shown in the briefing (💰) and on the name tag of the rival you're aiming at ($):
   10 scrap, plus 5 for a mine layer, 10 for a gunner, 20 for a rocket car and 10 for armoured tyres; +30% per act
   and +40% in an elite race (rounded to 5). Wreck them and it's yours, paid with the purse. Shoot the driver dead
   (a **clean kill**) and it pays half again. A bounty stop on the route adds one most-wanted rival worth 150+.
@@ -265,8 +265,13 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
     Crowd Turns** (30: next race the stands pelt the leader, 6 damage every 4 seconds), an **Encore** (90: wipe a
     strike, once an act), and one **fan-made trinket**: the Fan Club Scarf (+25% Infamy), Love Letters (bounties +25%)
     or the Signed Mugshot (double Infamy for taunts and humiliations, tilts last 50% longer).
+- **A quiet HUD.** Place and lap small in the top-left (the dash carries them too, with hull). The loadout panel
+  (bottom right) shows your guns and grenades, and the rest only when it matters: a fitted ability, the hatch once
+  it's damaged or shut, swerve while it recharges, a failing part, a spare to fit. The ammo count by the crosshair
+  appears only when the magazine runs low. Name tags show only for rivals close by or under your crosshair (the one
+  you aim at shows its bounty), never stacked. The briefing's controls fold away after your first two races.
 - **Pop-ups stay out of your sightline.** Wrecks, bounties, kills and Infamy share a small kill feed in the top-right
-  corner, newest first. Only race calls (GO, laps, the finish, WRECKED, a boss's warning) sit centred at the top.
+  corner, newest first, five at most, with any Infamy riding on the same line. Only race calls (GO, laps, the finish, WRECKED, a boss's warning) sit centred at the top.
 - **Big moments: the broadcast cuts to you** (`Combat.bigMoment`, `drawBigMoment`). A clean kill, a grenade in the
   cabin ("SPECIAL DELIVERY"), a parried rocket that wrecks its shooter ("RETURN TO SENDER"), two wrecks within four
   seconds ("TWO FOR ONE"), wrecking a rival you tilted, beating a boss, or winning by a nose. A C9TV caption slides in
