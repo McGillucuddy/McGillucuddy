@@ -266,6 +266,19 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   (wrecks, parries, how little damage you took). Elite races pay 40% more. Scrap is scarce on purpose.
 - **Rival names.** Every rival on the grid gets a random prison nickname and surname each race ("Pops" Moreno,
   "Razor" Vasquez), from the same pool as your drivers; the feed and name tags use the nickname. Bosses keep theirs.
+- **Wrecked means out, for everyone.** A rival at zero hull skids to a stop on its rims and stays where it is: a
+  heavy burning hulk (fire in the shell, a column of black smoke you can see down the track) the field has to steer
+  round, listed WRECKED at the bottom of the results. About half of them cook off a few seconds later.
+- **Explosions throw cars.** A blast shoves a car away from it, lifts it off its wheels (it comes down on the same
+  jump physics as a ramp), spins it, and can throw a wreck onto its roof. Heavier cars and hulks move less. Caught
+  in one yourself, the cabin lurches.
+- **Rounds come through your glass too.** A rival round that hits your car from the front can come through the
+  windscreen into you or your driver (about one in five); from the side, through that side's window into whoever
+  sits there (you on the left, your driver on the right); now and then through the back window. The blast hatch,
+  shut, stops it. Your driver: wounded as by friendly fire, and if they die the car crashes (DRIVER DOWN). You: 40
+  health, each hit a jolt and shakier aim until you're stitched up in the Workshop; at zero you black out and the
+  car's out of the race (you wake up on 40%). Both heal a little between races. Softened in Acts I and II like all
+  rival damage.
 - **Bounties.** Every rival carries a price on their head, shown in the briefing (💰) and on the name tag of the rival you're aiming at ($):
   10 scrap, plus 5 for a mine layer, 10 for a gunner, 20 for a rocket car and 10 for armoured tyres; +30% per act
   and +40% in an elite race (rounded to 5). Wreck them and it's yours, paid with the purse. Shoot the driver dead

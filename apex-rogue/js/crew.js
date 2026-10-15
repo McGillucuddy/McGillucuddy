@@ -28,6 +28,12 @@ const CREW_TRAIT = { stock: 'No particular habits', hothead: 'Hothead', cautious
 const DRIVER = { hp: 40, head: 2, heal: 0.3, patchCost: 2, yellCd: 1.2, wobble: 0.25 };
 const DRIVER_YELLS = ['"WATCH IT!"', '"ARE YOU SHOOTING ME?!"', '"I\'M HIT! I\'M HIT!"', '"WRONG WAY, GENIUS!"', '"Whose side are you on?!"', '"Not the DRIVER!"', '"Point it OUT the window!"'];
 
+const DRIVER_HIT = ['"I\'m hit!"', '"Ah! They got me!"', '"Glass in my eye! Keep shooting!"', '"I\'m bleeding here!"', '"Still driving. Still driving."'];
+// You can be hit too (rival rounds through the glass): wounds shake your aim until you're patched up.
+const GUNNER = { hp: 40, shake: 0.6, patchCost: 2, heal: 0.3 };
+// The chance a rival round that hits your car comes through the glass into someone (the blast hatch, shut, stops it).
+const CABIN = { front: 0.2, side: 0.16, back: 0.08 };
+
 const Crew = {
   runSeed: 7, // set when a run starts or loads (Proto)
   gens: {}, // per trait: how many of that kind of driver have died this run (the next one gets a new name)
@@ -71,16 +77,27 @@ const Crew = {
     b.driverHp = Math.min(DRIVER.hp, Crew.hp(b) + DRIVER.hp * DRIVER.heal);
     return null;
   },
+  // You heal a little between races too (a gunner who blacked out wakes up on 40%).
+  gunnerAfterRace(b, out) {
+    b.gunnerHp = out ? GUNNER.hp * 0.4 : Math.min(GUNNER.hp, Crew.gunnerHp(b) + GUNNER.hp * GUNNER.heal);
+  },
   patchCost(b) { return Math.round((DRIVER.hp - Crew.hp(b)) * DRIVER.patchCost); },
+  gunnerHp(b) { return b.gunnerHp == null ? GUNNER.hp : b.gunnerHp; },
+  gunnerPatchCost(b) { return Math.round((GUNNER.hp - Crew.gunnerHp(b)) * GUNNER.patchCost); },
 };
 
 // Gameplay side, mixed into Combat: your own driver taking your rounds.
 Object.assign(Combat.prototype, {
   // n of the shot's pellets went into the driver (part: 'head' or 'body'), each doing dmg.
   hitOwnDriver(dmg, part, n) {
-    const b = this.build, p = this.player;
     if (this.tutorial || this.ownDriverDead || Settings.data.friendlyFire === false) return;
-    const hurt = dmg * (n || 1) * (part === 'head' ? DRIVER.head : 1);
+    this.hurtDriver(dmg * (n || 1) * (part === 'head' ? DRIVER.head : 1), 'you', part);
+  },
+
+  // Your driver takes a wound: from you (friendly fire) or from a rival's round through the glass.
+  hurtDriver(hurt, by, part) {
+    const b = this.build, p = this.player;
+    if (this.tutorial || this.ownDriverDead) return;
     b.driverHp = Math.max(0, Crew.hp(b) - hurt);
     this.events.push({ type: 'ownDriverHit', part });
     this.driverHurtT = 0.6;
@@ -88,14 +105,48 @@ Object.assign(Combat.prototype, {
       this.driver.swerve(this.rng() < 0.5 ? -1 : 1, 0.35); // they flinch, and the car with them
       this.driver.skill = 0.95 - DRIVER.wobble * (1 - b.driverHp / DRIVER.hp); // and drive worse for it
     }
+    const c = this.crew || Crew.current(b);
     if (b.driverHp <= 0) {
       this.ownDriverDead = true;
-      const c = this.crew || Crew.current(b);
-      this.race.message(`You shot ${c.name}.`, '#ff3b1f', true, true);
-      if (this.bigMoment) this.bigMoment('FRIENDLY FIRE', `${this.inmate || '4471'} SHOOTS THEIR OWN DRIVER · ${c.name.toUpperCase()}`, true);
+      this.driverKilledBy = by;
+      if (by === 'you') {
+        this.race.message(`You shot ${c.name}.`, '#ff3b1f', true, true);
+        if (this.bigMoment) this.bigMoment('FRIENDLY FIRE', `${this.inmate || '4471'} SHOOTS THEIR OWN DRIVER · ${c.name.toUpperCase()}`, true);
+      } else {
+        this.race.message(`They got ${c.name}.`, '#ff3b1f', true, true);
+        if (this.bigMoment) this.bigMoment('DRIVER DOWN', `${c.name.toUpperCase()} SHOT THROUGH THE GLASS`, true);
+      }
       this.race.damage(p, p.hp + 1, { kind: 'crash' }); p.hp = 0; // nobody at the wheel: into the wall
       return;
     }
-    if ((this.yellCd || 0) <= 0) { this.radio(DRIVER_YELLS); this.yellCd = DRIVER.yellCd; }
+    if ((this.yellCd || 0) <= 0) { this.radio(by === 'you' ? DRIVER_YELLS : DRIVER_HIT); this.yellCd = DRIVER.yellCd; }
+  },
+
+  // You, the gunner, take a round through the glass: a jolt, worse aim until you're patched up, and if it's too
+  // much you black out and the race is over for your car.
+  woundGunner(dmg) {
+    const b = this.build, p = this.player;
+    if (this.tutorial || this.gunnerOut) return;
+    b.gunnerHp = Math.max(0, (b.gunnerHp ?? GUNNER.hp) - dmg);
+    this.flinchT = 0.7;
+    this.events.push({ type: 'gunnerHit' });
+    if (b.gunnerHp <= 0) {
+      this.gunnerOut = true;
+      this.race.message('You black out.', '#ff3b1f', true, true);
+      if (this.bigMoment) this.bigMoment('GUNNER DOWN', `${this.inmate || '4471'} TAKES ONE THROUGH THE GLASS`, true);
+      this.race.damage(p, p.hp + 1, { kind: 'crash' }); p.hp = 0; // your driver pulls off: your night is over
+      return;
+    }
+    this.race.message(`You're hit! (${Math.round((100 * b.gunnerHp) / GUNNER.hp)}%)`, '#ff6a4a');
+  },
+
+  // Did that round come through your glass into someone? Windscreen: either of you; a side window: whoever sits
+  // on that side (you on the left, your driver on the right); the back window, now and then.
+  cabinHit(pr) {
+    const p = this.player, rel = wrapAngle(Math.atan2(-pr.vy, -pr.vx) - p.heading); // 0: from dead ahead, +: from the left
+    const a = Math.abs(rel);
+    if (a < 0.9) return this.rng() < CABIN.front ? (this.rng() < 0.5 ? 'driver' : 'you') : null;
+    if (a < 2.2) return this.rng() < CABIN.side ? (rel > 0 ? 'you' : 'driver') : null;
+    return this.rng() < CABIN.back ? (this.rng() < 0.5 ? 'driver' : 'you') : null;
   },
 });

@@ -266,6 +266,7 @@ const Proto = {
       case 'after-results': this.afterResults(); break;
       // Garage & shop
       case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
+      case 'patch-gunner': { const c = Crew.gunnerPatchCost(b); if (c > 0 && buy(c)) b.gunnerHp = GUNNER.hp; this.showGarage(); break; }
       case 'patch-driver': { const c = Crew.patchCost(b); if (c > 0 && buy(c)) b.driverHp = DRIVER.hp; this.showGarage(); break; }
       case 'repair-hull': { const c = repairHullCost(b); if (c > 0 && buy(c)) b.hull = b.maxHull; this.showGarage(); break; }
       case 'repair-hatch': { const c = repairHatchCost(b); if (c > 0 && buy(c)) b.hatch.hp = HATCH.max; this.showGarage(); break; }
@@ -1320,6 +1321,8 @@ const Proto = {
     b.scrap += placePay + wreckPay + bossPay + betPay + bountyPay + vendPay - sponsorCut;
     b.hull = Math.max(Math.round(b.maxHull * CREW_PATCH), Math.round(p.hp)); // the crew patches a wreck back to running; the rest is yours to pay for
     const lost = this.tutorial || this.combat.crewDone ? null : Crew.afterRace(b, run, !!this.combat.ownDriverDead); // your driver: heals, or is replaced
+    if (!this.tutorial && !this.combat.crewDone) Crew.gunnerAfterRace(b, !!this.combat.gunnerOut);
+    if (lost) lost.by = this.combat.driverKilledBy;
     this.combat.crewDone = true;
     // A wreck breaks things: the crew bodges broken parts back to a quarter so you're not crippled next race.
     const bodged = p.dnf ? PART_SLOTS.filter((k) => b.parts[k].dur <= 0) : [];
@@ -1366,7 +1369,7 @@ const Proto = {
           ${betPay ? `<div><span>Bet winnings</span><b>${betPay} scrap</b></div>` : ''}
           ${vres && vres.settled.length ? `<div><span>☠ Vendetta settled: ${vres.settled.map((v) => v.name + (v.over === 'dead' ? ' (for good)' : '')).join(', ')}</span><b>${vendPay} scrap</b></div>` : ''}
           ${vres && vres.escaped.length ? `<div class="unlock small">☠ ${vres.escaped.map((v) => v.name).join(', ')} got away. They're still out there.</div>` : ''}
-          ${lost ? `<div class="unlock" style="color:#ff6b5a">☠ You shot ${lost.was.name}. They're dead. The block sends ${lost.now.name} to drive for you.</div>` : ''}
+          ${lost ? `<div class="unlock" style="color:#ff6b5a">☠ ${lost.by === 'rival' ? `They shot ${lost.was.name} through the glass.` : `You shot ${lost.was.name}.`} They're dead. The block sends ${lost.now.name} to drive for you.</div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
           ${this.tutorial ? '' : `<div class="infamy-row"><span>Infamy${fameGot ? ` <small class="muted">${Object.entries(fameWhy).map(([w, n]) => `${w.toLowerCase()} ${n}`).join(', ')}</small>` : ' <small class="muted">nobody noticed you</small>'}</span><b>+${fameGot} (${b.infamy})</b></div>`}
           <div><span>Reputation</span><b>+${repGain} (${this.cos.rep})</b></div>
@@ -1474,6 +1477,7 @@ const Proto = {
         <p class="small">Spare part: <b>${b.spare ? PARTS[b.spare.id].name : 'none'}</b> <span class="muted">(press <kbd>B</kbd> mid-race to fit it when that part breaks)</span></p>
         <h3>Your driver</h3>
         <div class="gp-chip">${(() => { const c = Crew.current(b); return `<b>${c.name}</b> <small class="muted">#${c.number} · ${b.chip ? `${CHIPS[b.chip].name}: ${CHIPS[b.chip].desc}` : 'whoever the block sent you: no particular habits'}</small>${Crew.hp(b) < DRIVER.hp ? `<br><span class="bad small">Wounded: ${Math.round((100 * Crew.hp(b)) / DRIVER.hp)}%. Drives worse until patched up.</span> <button class="btn tiny" data-action="patch-driver" ${b.scrap < Crew.patchCost(b) ? 'disabled' : ''}>Patch up: ${Crew.patchCost(b)} scrap</button>` : ''}`; })()}</div>
+        ${Crew.gunnerHp(b) < GUNNER.hp ? `<div class="gp-chip"><b>You</b> <span class="bad small">Wounded: ${Math.round((100 * Crew.gunnerHp(b)) / GUNNER.hp)}%. Your aim shakes until you're stitched up.</span> <button class="btn tiny" data-action="patch-gunner" ${b.scrap < Crew.gunnerPatchCost(b) ? 'disabled' : ''}>Stitch up: ${Crew.gunnerPatchCost(b)} scrap</button></div>` : ''}
         ${chips ? `<div class="alts">${chips}</div>` : ''}
       </div>
     </div>`;
@@ -1909,6 +1913,7 @@ function drawWeaponPanel(ctx, P, W, H) {
     rows.push([false, `${i === 0 ? 'E' : 'F'} ${def.name}`, a.cd > 0 ? `${a.cd.toFixed(1)}s` : 'READY', a.cd > 0 ? 1 - a.cd / def.cooldown : null, '#7cfc00']);
   });
   if (c.swerveCd > 0) rows.push([false, 'Swerve', `${c.swerveCd.toFixed(1)}s`, null]);
+  if (Crew.gunnerHp(b) < GUNNER.hp) rows.push([false, 'You', c.gunnerOut ? 'OUT' : `${Math.round((100 * Crew.gunnerHp(b)) / GUNNER.hp)}%`, Crew.gunnerHp(b) / GUNNER.hp, '#ff8a5a']);
   if (Crew.hp(b) < DRIVER.hp) rows.push([false, `Driver: ${(c.crew || Crew.current(b)).short}`, c.ownDriverDead ? 'DEAD' : `${Math.round((100 * Crew.hp(b)) / DRIVER.hp)}%`, Crew.hp(b) / DRIVER.hp, '#ff5a3a']);
   const failing = PART_SLOTS.map((slot, i) => {
     const part = b.parts[slot], f = clamp(part.dur / partMaxDur(b, part.id), 0, 1);

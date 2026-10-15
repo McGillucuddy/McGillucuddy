@@ -198,6 +198,7 @@ class Combat {
     const d = BlackMarket.apply(weaponStats(this.weapon), this.buffs);
     if (this.exposed) { d.spread *= ROOF.steady; d.bloom = (d.bloom || 0) * ROOF.steady; } // braced on the mount
     if (this.flinchT > 0) d.spread *= 2.2; // just hit: your aim's all over the place
+    if (this.build.gunnerHp != null && this.build.gunnerHp < GUNNER.hp) d.spread *= 1 + GUNNER.shake * (1 - this.build.gunnerHp / GUNNER.hp); // wounded: shaky hands
     if (this.orderAiming) d.spread *= ORDER.easeAim; // you told the driver to ease off: a steadier platform
     return d;
   }
@@ -879,6 +880,11 @@ class Combat {
         if (c === p && this.exposed && pr.type !== 'rocket') { // stood up in the roof: the shield, or you
           you = this.exposedHit(pr.dmg, Math.atan2(-pr.vy, -pr.vx));
           if (you === 'blocked') { pr.dead = true; break; }
+        } else if (c === p && pr.owner !== p && (pr.type === 'bullet' || pr.type === 'harpoon') && this.cabinHit) {
+          const seat = this.cabinHit(pr); // through your glass, into you or your driver (js/crew.js)
+          const hurt = pr.dmg * (pr.type === 'harpoon' ? 2.5 : 1) * (this.rivalMul || 1); // softened in the early acts, like all rival damage
+          if (seat === 'driver') this.hurtDriver(hurt, 'rival');
+          else if (seat === 'you') this.woundGunner(hurt);
         }
         pr.dead = true;
         if (pr.type === 'rocket') this.explode(pr.x, pr.y, pr.radius, pr.dmg, pr.owner, pr);
@@ -1043,11 +1049,6 @@ class Combat {
       this.blastSrc = null;
       this.blastThrow(c, x, y, f, radius);
       for (let i = 0; i < 4; i++) if (this.rng() < f) this.damageTyre(c, i, dmg * f * 0.5, owner); // the blast shreds rubber
-      // Knockback + spin.
-      c.vx -= Math.cos(ang) * 220 * f;
-      c.vy -= Math.sin(ang) * 220 * f;
-      c.spinT = Math.max(c.spinT, 0.35 * f);
-      c.spinDir = this.rng() < 0.5 ? -1 : 1;
       if (c.wpn) { c.wpn.lock = 0; c.wpn.cd = Math.max(c.wpn.cd, 2); }
     }
     // Chain reactions: blasts destroy nearby mines and rockets.
