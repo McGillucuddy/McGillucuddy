@@ -1216,6 +1216,7 @@ const Models = {
       }
     }
     Models.livery(g, st, opts, W, bev);
+    if (opts.history && Models.carHistory) Models.carHistory(g, st, opts, W, bev); // name, kill marks, scars, trophies (js/history.js)
     if (opts.gear) Models.gear(g, st, opts, W, bev);
     // The roof hatch over the passenger seat (your car only): a square opening in a steel frame, its lid hinged at
     // the back. With a roof gun mounted the lid stands open and the gun sits on its pintle just in front of it.

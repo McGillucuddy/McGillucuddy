@@ -170,6 +170,7 @@ const Proto = {
     this.ui.addEventListener('change', (e) => {
       if (e.target.id === 'plateInput') this.action('cosmetic', 'plate:' + e.target.value);
       if (e.target.id === 'inmateInput') this.action('cosmetic', 'inmate:' + e.target.value);
+      if (e.target.id === 'carNameInput' && this.build) { CarHistory.rename(this.build, e.target.value); this.saveRun(); this.showGarage(); }
     });
 
     // Browsers hold sound back until the first click or key; wake it then so the menu theme can start.
@@ -266,7 +267,8 @@ const Proto = {
       case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
       case 'patch-gunner': { const c = Crew.gunnerPatchCost(b); if (c > 0 && buy(c)) b.gunnerHp = GUNNER.hp; this.showGarage(); break; }
       case 'patch-driver': { const c = Crew.patchCost(b); if (c > 0 && buy(c)) b.driverHp = DRIVER.hp; this.showGarage(); break; }
-      case 'repair-hull': { const c = repairHullCost(b); if (c > 0 && buy(c)) b.hull = b.maxHull; this.showGarage(); break; }
+      case 'car-reroll': CarHistory.reroll(b); this.showGarage(); break;
+      case 'repair-hull': { const c = repairHullCost(b); if (c > 0 && buy(c)) { b.hull = b.maxHull; CarHistory.repaired(b); } this.showGarage(); break; }
       case 'repair-hatch': { const c = repairHatchCost(b); if (c > 0 && buy(c)) b.hatch.hp = HATCH.max; this.showGarage(); break; }
       case 'repair-part': { const c = repairPartCost(b, arg); if (c > 0 && buy(c)) b.parts[arg].dur = partMaxDur(b, b.parts[arg].id); this.showGarage(); break; }
       case 'buy-spare': if (!b.spare && buy(spareCost(b, arg))) b.spare = { id: b.parts[arg].id }; this.showGarage(); break;
@@ -681,7 +683,8 @@ const Proto = {
     if (!S || !cap) return;
     const wx = S.wx && S.wx !== WEATHER.clear ? ` · ${S.wx.icon} ${S.wx.name}` : '';
     cap.innerHTML = `<div class="tv-cap-top"><span class="tv-tag">CH ${String(S.ch).padStart(2, '0')}</span><b>${S.name}${S.sub ? ': ' + S.sub : ''}</b></div>
-      <div class="tv-cap-line">${S.line}${wx}</div><div class="tv-cap-line2">${S.line2}</div>`;
+      <div class="tv-cap-line">${S.line}${wx}</div><div class="tv-cap-line2">${S.line2}</div>
+      ${this.build && !this.tutorial ? `<div class="tv-cap-line2">Featuring ${this.cos.inmate || '4471'} in <b>${CarHistory.name(this.build)}</b>${CarHistory.of(this.build).kills.length ? ` · ${CarHistory.of(this.build).kills.length} kills` : ''}</div>` : ''}`;
   },
 
   tvBook() {
@@ -781,6 +784,7 @@ const Proto = {
     } else if (node.type === 'repair') {
       const b = this.build;
       b.hull = b.maxHull;
+      CarHistory.repaired(b);
       for (const slot of PART_SLOTS) b.parts[slot].dur = partMaxDur(b, b.parts[slot].id);
       ensureHatch(b).hp = HATCH.max;
       this.showEvent({ title: 'The mechanic', text: 'An old lifer with oil to his elbows waves you into his bay, hammers the dents out of your hatch and says, "On the house. Just win."', result: 'Hull, hatch and every part repaired to full.' });
@@ -1009,6 +1013,7 @@ const Proto = {
     if (!this.tutorial && this.race) Playtest.raceStart({ act: this.run.act, type: this.race.node && this.race.node.type, boss: this.race.boss && this.race.boss.name, weather: this.race.weather });
     this.setUI('');
     if (this.view === 'cockpit') this.lock();
+    if (!this.tutorial && this.race && this.combat && this.combat.crew) this.race.message(`On air: ${this.combat.inmate} and ${this.combat.crew.short} in ${CarHistory.name(this.build)}`, '#c9c2a8');
   },
 
   // Whatever you picked from your pocket goes in now, plus the comedown from last race's.
@@ -1284,6 +1289,7 @@ const Proto = {
     const lost = this.tutorial || this.combat.crewDone ? null : Crew.afterRace(b, run, !!this.combat.ownDriverDead); // your driver: heals, or is replaced
     if (!this.tutorial && !this.combat.crewDone) Crew.gunnerAfterRace(b, !!this.combat.gunnerOut);
     if (lost) lost.by = this.combat.driverKilledBy;
+    if (!this.tutorial && !this.combat.crewDone) CarHistory.afterRace(b, race, mulberry32((this.seed ^ 0x3a7) >>> 0), !!(boss && ok), run.act);
     this.combat.crewDone = true;
     // A wreck breaks things: the crew bodges broken parts back to a quarter so you're not crippled next race.
     const bodged = p.dnf ? PART_SLOTS.filter((k) => b.parts[k].dur <= 0) : [];
@@ -1322,6 +1328,7 @@ const Proto = {
           ${betPay ? `<div><span>Bet winnings</span><b>${betPay} scrap</b></div>` : ''}
           ${vres && vres.settled.length ? `<div><span>☠ Vendetta settled: ${vres.settled.map((v) => v.name + (v.over === 'dead' ? ' (for good)' : '')).join(', ')}</span><b>${vendPay} scrap</b></div>` : ''}
           ${vres && vres.escaped.length ? `<div class="unlock small">☠ ${vres.escaped.map((v) => v.name).join(', ')} got away. They're still out there.</div>` : ''}
+          ${(() => { if (this.tutorial) return ''; const h = CarHistory.of(b), k = race.cars.filter((c) => c !== p && c.downed && c.downed.how !== 'crowd').length, tr = boss && ok ? BOSSES[run.act] : null; return k || tr ? `<div class="unlock small">${k ? `${k} more kill mark${k === 1 ? '' : 's'} stencilled on <b>${h.name}</b> (${h.kills.length} in all).` : ''}${tr ? ` ${tr.name}'s trophy gets bolted on.` : ''}</div>` : ''; })()}
           ${lost ? `<div class="unlock" style="color:#ff6b5a">☠ ${lost.by === 'rival' ? `They shot ${lost.was.name} through the glass.` : `You shot ${lost.was.name}.`} They're dead. The block sends ${lost.now.name} to drive for you.</div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
           ${this.tutorial ? '' : `<div class="infamy-row"><span>Infamy${fameGot ? ` <small class="muted">${Object.entries(fameWhy).map(([w, n]) => `${w.toLowerCase()} ${n}`).join(', ')}</small>` : ' <small class="muted">nobody noticed you</small>'}</span><b>+${fameGot} (${b.infamy})</b></div>`}
@@ -1341,7 +1348,7 @@ const Proto = {
     this.state = 'garage';
     const b = this.build, act = this.act;
     if (this.preview) { // parts or tuning changed: rebuild the car on the lift so it shows them
-      const gk = JSON.stringify([gearLook(b), b.roof && b.roof.gun ? [b.roof.gun.id, b.roof.shield] : 0]);
+      const gk = JSON.stringify([gearLook(b), b.roof && b.roof.gun ? [b.roof.gun.id, b.roof.shield] : 0, CarHistory.key(b)]);
       if (gk !== this.gearKey) { this.gearKey = gk; this.preview.setLook(carLook(this.cos, b)); }
     }
     const bar = (f, broken) => `<div class="bar"><div style="width:${Math.round(clamp(f, 0, 1) * 100)}%" class="${broken || f < 0.3 ? 'low' : ''}"></div></div>`;
@@ -1413,8 +1420,11 @@ const Proto = {
       </div>`;
     }).join('');
     const chips = b.stash.chips.map((id, i) => `<button class="btn small" data-action="equip-chip" data-arg="${i}" title="${CHIPS[id].name}: ${CHIPS[id].desc}">Swap in ${Crew.id(id).name} (${CHIPS[id].name})</button>`).join('');
+    const hist = CarHistory.of(b), scars = CarHistory.shown(b).length;
     return `<div class="garage-grid one">
       <div class="panel">
+        <div class="car-name-row"><small class="muted">The car</small><input id="carNameInput" class="plate-input car-name" maxlength="${HISTORY.nameLen}" value="${hist.name}"><button class="btn tiny" data-action="car-reroll" title="Paint a different name on">↻</button>
+          <small class="muted">${hist.kills.length ? `${hist.kills.length} kill mark${hist.kills.length === 1 ? '' : 's'}` : 'No kill marks yet'}${hist.trophies.length ? ` · ${hist.trophies.map((a) => BOSSES[a] ? BOSSES[a].name : '?').join(', ')} on the bodywork` : ''}${scars ? ` · ${scars} scar${scars === 1 ? '' : 's'} until the hull's repaired` : ''}</small></div>
         <div class="gp-row"><div class="gp-name"><small>Hull</small><b>${Math.ceil(b.hull)} / ${b.maxHull}</b></div>
           <div class="gp-bar">${bar(b.hull / b.maxHull)}</div>
           <button class="btn small" data-action="repair-hull" ${hullCost <= 0 || b.scrap < hullCost ? 'disabled' : ''}>${hullCost <= 0 ? 'OK' : 'Repair ' + hullCost}</button></div>

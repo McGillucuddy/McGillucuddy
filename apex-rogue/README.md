@@ -255,6 +255,22 @@ below. A chalkboard shows the act, race, scrap, strikes and a tally of races
 survived. In the upper-city acts the sponsors have smartened the garage up, and the commissary becomes a
 concierge. See `js/garage3d.js`.
 
+### Your car's history (prototype)
+
+The car remembers the run (`js/history.js`). All of it lives on the build, so it ends with the run:
+
+- **A name:** rolled when the run starts and painted across the bonnet. Change it or re-roll it at the top
+  of the Workshop. The TV guide says "Featuring 4471 in …", and the race opens with "On air: …".
+- **Kill marks:** a stencil for every rival you put out, on a black panel under your window and on the
+  bonnet in front of your seat. A skull is a clean kill, a crossed-out car is a wreck, and a gold crowned
+  skull is a boss. The broadcast counts them in its captions ("SISTER MERCY · KILL No. 7").
+- **Scars:** heavy hits leave a mark where they landed. Rounds leave bullet holes, walls and rams leave
+  dents scraped to primer, and blasts and fire leave scorch. They stay until the hull is repaired. How
+  many show follows how much damage the hull still carries.
+- **Trophies:** every boss you beat leaves something bolted on. The Turnkey's padlock and chain hang off
+  the bumper, one of Sal's smokestacks is welded behind the cabin, and Augustin Vale's gold mascot sits on
+  the nose.
+
 ### Build system (prototype)
 
 A run is a string of races with **the garage** in between. Finish outside the top 3 and you get a
@@ -577,6 +593,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
 | `js/ragdoll.js` | Ragdolls: who gets thrown out of a wrecked car, and the verlet bodies that tumble down the road |
+| `js/history.js` | The car's history: its name, kill marks, scars and boss trophies, and how they're drawn |
 | `js/infamy.js` | Infamy (earning it, the live feed), the Fan Club's goods, The Crowd Turns, the run record and what the walls say about you |
 | `js/build.js` (`ROOF_SHIELDS`), `js/combat.js` (`toggleRoof`, `exposedHit`) | The roof gun: the mount, shielding, climbing up, exposure |
 | `js/thumbs.js` | Item pictures for every shop and reward card; models of the black market's goods, abilities, and drivers' mugshots |

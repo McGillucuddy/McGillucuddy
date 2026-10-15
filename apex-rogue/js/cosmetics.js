@@ -163,6 +163,7 @@ function carLook(c, b) {
       bulb: (cosOption('bulb', c.bulb) || COSMETICS.bulb[0]).color, ornament: c.ornament, inmate: c.inmate,
     },
     gunFinish: c.gunFinish, gunKit: c.gunKit, patchSeed: c.patchSeed,
+    history: b && typeof CarHistory !== 'undefined' ? CarHistory.look(b) : null, // what the run has done to the car (js/history.js)
   };
 }
 

@@ -154,7 +154,7 @@ Object.assign(Combat.prototype, {
   // Which wrecks get the cut, and what the caption says.
   wreckMoment(c, how, n) {
     const N = this.inmate || '4471', name = shortName(c).toUpperCase(), now = this.race.time;
-    const sub = `${name}${c.bounty ? ' · BOUNTY ' + Math.round(c.bounty * (how === 'driver' ? BOUNTY.cleanKill : 1)) : ''} · +${n} INFAMY`;
+    const sub = `${name} · ${this.carTag ? this.carTag() : ''} · +${n} INFAMY`; // the bounty is in the feed; the broadcast counts the car's kills
     const prev = this.lastWreckT ?? -99;
     this.lastWreckT = now;
     if (this.inCabinBlast) return;

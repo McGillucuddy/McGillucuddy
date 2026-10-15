@@ -641,3 +641,6 @@ body.proto #ui { z-index: 2; }
 .tv-detail .tv-cap-top b { font-size: 18px; }
 @media (max-width: 700px) { .tv-row.fill .tv-unit { width: 84px; } .tv-row.fill .tv-unit:nth-child(n+4) { display: none; } .tv-row.mainrow .tv-unit { min-width: 140px; width: 44%; } }
 @media (max-width: 600px) { .tv-wrap { top: 104px; } }
+/* The car's name and record, top of the garage (js/history.js) */
+.car-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.car-name-row .car-name { width: 190px; font-size: 15px; background: #1b1a17; color: #e8e0c8; border-color: #4a463c; }

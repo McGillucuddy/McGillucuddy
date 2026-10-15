@@ -365,6 +365,8 @@ class Race {
     if (info && info.ang != null) {
       if (!car.hits) car.hits = [];
       if (car.hits.length < 12) car.hits.push({ ang: info.ang, amt: amount, kind: info.kind });
+      // Your own car keeps its scars (js/history.js): a heavy hit leaves one where it landed.
+      if (car === this.player && amount >= 4 && (car.scarLog || (car.scarLog = [])).length < 24) car.scarLog.push({ rel: wrapAngle(info.ang - car.heading), kind: info.kind });
     }
     if (wasAlive && car.hp <= 0 && car === this.player && !this.wreckOut) this.message('Engine wrecked! Limp mode', '#ff4040', true, true);
   }
