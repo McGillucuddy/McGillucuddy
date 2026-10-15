@@ -68,7 +68,8 @@ their guns:
 - **Keeping it:** finish a season with a sponsor still signed and their livery and gun finish unlock for good in the
   paint booth.
 
-**Open:** whether you can refuse to wear the colours (a smaller stipend) or it's part of every contract.
+**Decided: the colours are part of every contract.** You can't sign and refuse to wear them: you're a walking
+billboard.
 
 ### Urgency: the schedule doesn't wait
 
