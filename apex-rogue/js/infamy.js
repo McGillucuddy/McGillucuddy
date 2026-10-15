@@ -25,6 +25,9 @@ const FAN_TRINKET_PRICE = [55, 75];
 // What it costs to get the fans' attention: the Fan Club only opens to you once you've earned this much in the run.
 const FAN_CLUB_OPEN = 10;
 
+// Big moments (Combat.bigMoment): seconds between captions, how long one holds, the slow motion, two wrecks this close.
+const BIG = { gap: 6, hold: 2.4, slowT: 0.3, slow: 0.35, double: 4 };
+
 const Infamy = {
   // The record the walls are written from. Kept in run.flags so it saves with the run.
   rec(run) {
@@ -131,6 +134,34 @@ Object.assign(Combat.prototype, {
     (this.fameFeed = this.fameFeed || []).push({ text: `+${n} INFAMY  ${why}`, t: 0 });
     if (this.fameFeed.length > 5) this.fameFeed.shift();
     return n;
+  },
+
+  // Big moments: the broadcast cuts to you. A caption over the dash, the crowd, a beat of slow motion and the screen
+  // edges flickering to the TV feed (the last two can be turned off in Settings). Rare on purpose: one every few
+  // seconds at most, unless forced (a grenade in the cabin, a boss).
+  bigMoment(line, sub, force) {
+    if (this.tutorial) return false;
+    const t = this.race.time;
+    if (!force && t - (this.lastBig ?? -99) < BIG.gap) return false;
+    this.lastBig = t;
+    this.big = { line, sub, t: 0 };
+    this.events.push({ type: 'bigMoment' });
+    if (Settings.data.slowmo !== false) this.slowT = BIG.slowT;
+    return true;
+  },
+  // Which wrecks get the cut, and what the caption says.
+  wreckMoment(c, how, n) {
+    const N = this.inmate || '4471', name = shortName(c).toUpperCase(), now = this.race.time;
+    const sub = `${name}${c.bounty ? ' · BOUNTY ' + Math.round(c.bounty * (how === 'driver' ? BOUNTY.cleanKill : 1)) : ''} · +${n} INFAMY`;
+    const prev = this.lastWreckT ?? -99;
+    this.lastWreckT = now;
+    if (this.inCabinBlast) return;
+    if (c.isBoss) return this.bigMoment(`${N} PUTS ${name} IN THE GROUND`, sub, true);
+    if (this.blastSrc && this.blastSrc.parried) return this.bigMoment('RETURN TO SENDER', sub);
+    if (now - prev < BIG.double) return this.bigMoment('TWO FOR ONE', sub);
+    if (c.tiltT > 0) return this.bigMoment('TILTED. WRECKED. GOODNIGHT.', sub);
+    if (how === 'driver') return this.bigMoment(`${N} SHOOTS THE DRIVER`, sub);
+    return false;
   },
 
   // The Crowd Turns (bought at the Fan Club): the stands pelt the leader every few seconds.

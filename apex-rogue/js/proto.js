@@ -923,6 +923,7 @@ const Proto = {
     if (vend) { const vc = this.race.vendetta.car; if (!vc.weapon || vend.how === 'tyres') vc.weapon = 'gun'; vc.wpn = vc.wpn || { cd: randRange(rng, 2, 4), lock: 0 }; } // they come armed
     this.combat.pace = PACE;
     this.combat.tutorial = !!node.tutorial;
+    this.combat.inmate = this.cos.inmate || '4471'; // for the broadcast's captions
     this.combat.crowdTurns = !node.tutorial && !!run.flags.crowd; // bought at the Fan Club (js/infamy.js)
     // Bounties on every rival (the bounty stop's most-wanted keeps its big one).
     if (!node.tutorial) for (const c of this.race.cars) if (c !== player && !c.isBoss) c.bounty = Math.max(c.bounty || 0, rivalBounty(c, run.act, node.type === 'elite'));
@@ -941,6 +942,7 @@ const Proto = {
   startRace() {
     this.state = 'race';
     this.wreckT = 0;
+    this.finishMoment = false;
     this.useContraband();
     if (!this.tutorial && this.race) Playtest.raceStart({ act: this.run.act, type: this.race.node && this.race.node.type, boss: this.race.boss && this.race.boss.name, weather: this.race.weather });
     this.setUI('');
@@ -1113,6 +1115,8 @@ const Proto = {
         if (k === 'sway') Settings.data.cabinSway = v;
         if (k === 'quality') { Settings.data.quality = v; Settings.save(); this.resize(); } // the render size changes now; tower counts from the next race
         if (k === 'fps') Settings.data.showFps = !Settings.data.showFps;
+        if (k === 'slowmo') Settings.data.slowmo = !Settings.data.slowmo;
+        if (k === 'flicker') Settings.data.flicker = !Settings.data.flicker;
         if (k === 'mute') Sound.toggleMute();
         Settings.save();
         Sound.play({ type: 'click' });
@@ -1139,6 +1143,10 @@ const Proto = {
       <p class="muted small">If the game feels choppy, go down a step. Low draws fewer pixels and fewer buildings.</p>
       <div class="opts">${['low', 'medium', 'high'].map((q) => `<button class="opt ${d.quality === q ? 'on' : ''}" data-set="quality:${q}">${q[0].toUpperCase() + q.slice(1)}</button>`).join('')}
         <button class="opt ${d.showFps ? 'on' : ''}" data-set="fps:1">${d.showFps ? 'FPS shown' : 'Show FPS'}</button></div>
+      <h3>Big moments</h3>
+      <p class="muted small">A clean kill, a grenade in the cabin, a boss beaten: the broadcast cuts to you. The caption always shows; these are extra.</p>
+      <div class="opts"><button class="opt ${d.slowmo !== false ? 'on' : ''}" data-set="slowmo:1">Slow motion ${d.slowmo !== false ? 'on' : 'off'}</button>
+        <button class="opt ${d.flicker !== false ? 'on' : ''}" data-set="flicker:1">TV flicker ${d.flicker !== false ? 'on' : 'off'}</button></div>
       <h3>Mouse sensitivity <small data-val="setSens">${d.sens.toFixed(2)}x</small></h3>
       <input type="range" id="setSens" min="0.3" max="2.5" step="0.05" value="${d.sens}">
       <h3>Volume <small data-val="setVol">${Math.round(d.volume * 100)}%</small></h3>
@@ -1541,7 +1549,12 @@ const Proto = {
     if (this.state === 'race') {
       if (Input.consume('KeyP') || Input.consume('Escape')) this.pause();
       else if (this.view === 'cockpit' && !this.locked && !this.noLock) Sound.engine(0, 0, false, false); // wait for a click
-      else this.updateRace(dt);
+      else {
+        // A big moment (js/infamy.js) slows the race for a beat; real time keeps running out the slow motion.
+        const C = this.combat, slow = C && C.slowT > 0;
+        if (slow) C.slowT -= dt;
+        this.updateRace(slow ? dt * BIG.slow : dt);
+      }
     }
     if (this.tutorial) this.tutorial.update(dt);
     if (this.state === 'intro' && this.intro) this.intro.update(dt);
@@ -1591,6 +1604,13 @@ const Proto = {
         if (ev.type === 'crewHit' || ev.type === 'crewKill') this.hitMark = { t: ev.type === 'crewKill' ? 0.7 : 0.3, kill: ev.type === 'crewKill' };
       }
       combat.events.length = 0;
+    }
+    // Crossing the line can be a big moment too: beating a boss, or winning by a nose.
+    if (p.finished && !this.finishMoment && !this.tutorial) {
+      this.finishMoment = true;
+      const N = combat.inmate, boss = race.boss, bc = race.bossCar, second = race.cars.filter((c) => c !== p && !c.finished).sort((a, b) => b.progress - a.progress)[0];
+      if (boss && (boss.mustWin ? p.place === 1 : !bc.finished || p.place < bc.place)) combat.bigMoment(`${N} BEATS ${boss.name.toUpperCase()}`, boss.mustWin ? 'THE CROWN · THE CITY IS ON ITS FEET' : 'QUALIFIED FOR THE NEXT ACT', true);
+      else if (p.place === 1 && second && Math.hypot(second.x - p.x, second.y - p.y) < 90) combat.bigMoment('BY A NOSE', `${N} TAKES IT FROM ${shortName(second).toUpperCase()}`, true);
     }
     this.mouse.pressed = false;
     Sound.engine(clamp(p.speed / p.stats.top, 0, 1.4), p.input ? p.input.throttle : 0, p.nitroOn, true);
@@ -2005,6 +2025,46 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     }
   }
   drawMessages(ctx, race, W, H, P.combat && P.combat.fameFeed);
+  drawBigMoment(ctx, P, W, H);
+}
+
+// The broadcast cuts to you (js/infamy.js): a TV caption slides in low over the dash (never over the road you're
+// aiming at), and for half a second the screen edges flicker to the C9TV feed.
+function drawBigMoment(ctx, P, W, H) {
+  const B = P.combat && P.combat.big;
+  if (!B || B.t > BIG.hold + 0.4) return;
+  const t = B.t, slideIn = clamp(t / 0.22, 0, 1), out = clamp((t - BIG.hold) / 0.3, 0, 1);
+  const ease = (x) => 1 - Math.pow(1 - x, 3);
+  // Edge flicker: scanlines and a cold TV tint creeping in from the borders, gone in half a second.
+  if (Settings.data.flicker !== false && t < 0.55) {
+    const a = (1 - t / 0.55) * (0.6 + 0.4 * Math.sin(t * 70));
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    g.addColorStop(0, 'rgba(120,200,255,0)'); g.addColorStop(1, `rgba(120,200,255,${0.32 * a})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = `rgba(0,0,0,${0.22 * a})`;
+    const band = (t * 900) % H;
+    for (let y = 0; y < H; y += 4) if (y < H * 0.12 || y > H * 0.88 || Math.abs(y - band) < 18) ctx.fillRect(0, y, W, 2);
+    ctx.fillStyle = `rgba(255,40,40,${0.9 * a})`; ctx.font = `bold 16px ${hudFont()}`; ctx.textAlign = 'left';
+    ctx.fillText('● REC  C9TV  CAM 4', 26, H - 26);
+  }
+  // The caption: a red LIVE tag, the line in black on white, the details in a strip under it.
+  ctx.save();
+  ctx.font = `bold 26px ${hudFont()}`;
+  const lw = Math.max(ctx.measureText(B.line).width + 36, 280), tagW = 104, w = tagW + lw;
+  const x = W * 0.5 - w / 2 + (1 - ease(slideIn)) * -W * 0.6 + ease(out) * W * 0.8, y = H * 0.8;
+  ctx.globalAlpha = 1 - out;
+  ctx.fillStyle = '#c8141a'; ctx.fillRect(x, y, tagW, 44);
+  ctx.fillStyle = '#fff'; ctx.font = `bold 15px ${hudFont()}`; ctx.textAlign = 'left';
+  ctx.fillText((Math.floor(t * 3) % 2 ? '●' : '○') + ' LIVE', x + 12, y + 19); ctx.fillText('C9TV', x + 12, y + 36);
+  ctx.fillStyle = '#f4f0e6'; ctx.fillRect(x + tagW, y, lw, 44);
+  ctx.fillStyle = '#111'; ctx.font = `bold 26px ${hudFont()}`; ctx.fillText(B.line, x + tagW + 18, y + 31);
+  if (B.sub) {
+    ctx.font = `bold 14px ${hudFont()}`;
+    const sw = ctx.measureText(B.sub).width + 30;
+    ctx.fillStyle = 'rgba(10,10,12,0.85)'; ctx.fillRect(x + tagW, y + 44, sw, 24);
+    ctx.fillStyle = '#ff6ad5'; ctx.fillText(B.sub, x + tagW + 15, y + 61);
+  }
+  ctx.restore();
 }
 
 function drawTopdownCombatHUD(ctx, P, W, H, t) {

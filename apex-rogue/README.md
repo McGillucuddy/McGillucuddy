@@ -265,6 +265,21 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
     Crowd Turns** (30: next race the stands pelt the leader, 6 damage every 4 seconds), an **Encore** (90: wipe a
     strike, once an act), and one **fan-made trinket**: the Fan Club Scarf (+25% Infamy), Love Letters (bounties +25%)
     or the Signed Mugshot (double Infamy for taunts and humiliations, tilts last 50% longer).
+- **Pop-ups stay out of your sightline.** Wrecks, bounties, kills and Infamy share a small kill feed in the top-right
+  corner, newest first. Only race calls (GO, laps, the finish, WRECKED, a boss's warning) sit centred at the top.
+- **Big moments: the broadcast cuts to you** (`Combat.bigMoment`, `drawBigMoment`). A clean kill, a grenade in the
+  cabin ("SPECIAL DELIVERY"), a parried rocket that wrecks its shooter ("RETURN TO SENDER"), two wrecks within four
+  seconds ("TWO FOR ONE"), wrecking a rival you tilted, beating a boss, or winning by a nose. A C9TV caption slides in
+  low over the dash with a red LIVE tag, the line in the commentator's voice and the name, bounty and Infamy under it;
+  the crowd roars with a broadcast sting; the race drops to slow motion for a third of a second; and the screen
+  edges flicker to the TV feed. At most one every six seconds (a grenade or a boss always gets one). Slow motion and
+  the flicker can be turned off in Settings ("Big moments").
+- **Ragdolls and ejections** (`js/ragdoll.js`). When a rival car is wrecked its crew can be thrown out: always for a
+  grenade in the cabin, usually for a rocket or a blast, sometimes for a crash or a fire, and more often at speed.
+  The figure you saw through the glass becomes a 16-point verlet ragdoll in the same jumpsuit, skin and hat: thrown
+  up and out (sideways through the glass for a blast, forwards through the windscreen for a crash) with the car's
+  speed and a twist, tumbling, landing, skidding and coming to rest crumpled on the road. Cars that run into a body
+  shove and fling it. Bodies stay about 18 seconds, then sink away (at most eight at once).
 - **The walls talk about you** (`Infamy.wall`, `Graffiti.mine`). The run keeps a record (wrecks, clean kills, who
   you flipped off, bosses beaten, grenades, parries, what you took from the dealer) and the inmates write it on the
   garage walls in fresh paint, in your inmate number: a headline over the track door ("4471 HAS THE KEYS NOW",
@@ -498,6 +513,7 @@ Tracks also have boost pads and oil slicks (more of them later in a run and on C
 | `js/build.js` | Build system data: parts, weapons, abilities, trinkets, driver chips, shop and rewards |
 | `js/combat.js` | Gunner prototype: ammo weapons, abilities, damage pipeline, armed rivals, projectiles |
 | `js/blackmarket.js` | The dealer behind the garage wall: contraband, its effects and comedowns, shady trinkets |
+| `js/ragdoll.js` | Ragdolls: who gets thrown out of a wrecked car, and the verlet bodies that tumble down the road |
 | `js/infamy.js` | Infamy (earning it, the live feed), the Fan Club's goods, The Crowd Turns, the run record and what the walls say about you |
 | `js/build.js` (`ROOF_SHIELDS`), `js/combat.js` (`toggleRoof`, `exposedHit`) | The roof gun: the mount, shielding, climbing up, exposure |
 | `js/thumbs.js` | Item pictures for every shop and reward card; models of the black market's goods, abilities and chips |

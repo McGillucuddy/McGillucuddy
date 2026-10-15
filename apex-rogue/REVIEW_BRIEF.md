@@ -52,6 +52,10 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 - **Infamy and the Fan Club:** a second currency for showmanship (clean kills, grenades through windows, parries,
   taunts and humiliations, wins, bosses), shown live in pink. Spent on fan mail: care packages, ammo, donations, The
   Crowd Turns (the stands pelt the leader), an Encore (wipe a strike) and fan-made trinkets.
+- **Big moments and ragdolls:** rare moments (clean kill, grenade in the cabin, return-to-sender parry, double wreck,
+  boss beaten, win by a nose) get a C9TV caption over the dash, a crowd roar, a beat of slow motion and a TV flicker
+  at the edges. Wrecked cars can throw their crew out as tumbling ragdolls. Routine pop-ups are now a small corner
+  feed.
 - **The walls react to you:** the garage graffiti picks up your run in your inmate number: a headline over the door,
   lines and replies about what you did, a wreck tally, your kills on the memorial.
 - **You see what you buy:** every shop and reward card shows a rendered picture of the actual item (guns from the
@@ -66,7 +70,7 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 
 ## What changed most recently
 
-Infamy and the Fan Club; graffiti that reacts to your run; bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
+Big-moment broadcast captions, slow motion and ragdoll ejections; the corner kill feed; Infamy and the Fan Club; graffiti that reacts to your run; bounties on every rival (vendettas and tyre hunters built, then switched off in favour of them); scrap ranges; wreck-out rule; shootable and armoured tyres; the black market with
 tolerance; item pictures on all cards; the Typewriter's drum turned square to the barrel; magazine wells on every
 mag-fed gun with straight-in reloads; the Grinder LMG's belt reload (feed cover up, belt laid in the tray, cover
 slammed); the roof-mounted machine guns with shielding tiers; a shorter race briefing.

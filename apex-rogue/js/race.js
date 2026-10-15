@@ -350,6 +350,7 @@ class Race {
     const wasAlive = car.hp > 0;
     car.hp = Math.max(0, car.hp - amount);
     car.hitFlash = 0.25;
+    car.lastHit = { kind: (info && info.kind) || 'ram', t: this.time }; // what finished it, for ejections (js/ragdoll.js)
     // Where it was hit, for the 3D view to dent the bodywork (kept short; nothing reads it headless).
     if (info && info.ang != null) {
       if (!car.hits) car.hits = [];

@@ -964,6 +964,7 @@ class CockpitView {
     this.ringPool = pool(8, () => new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffd9a0', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide })));
     this.sparks = [];
     this.debris = [];
+    this.ragdolls = new Ragdolls(scene); // crews thrown out of wrecked cars (js/ragdoll.js)
     this.rings = [];
     this.lockLines = new Map();
     for (const car of this.race.cars) {
@@ -1122,6 +1123,7 @@ class CockpitView {
   }
 
   onEvent(ev) {
+    if (ev.type === 'eject') this.eject(ev);
     if (ev.type === 'emote') this.emoteAnim = { id: ev.id, t: 0 };
     if (ev.type === 'deflect') this.sparkAt(ev.x, ev.y, 5);
     if (ev.type === 'gunnerHit') { this.shake = Math.max(this.shake, 1.0); this.hitRed = 0.5; }
@@ -1491,7 +1493,21 @@ class CockpitView {
     this.casings.push({ x: x + 0.6, y: y + 0.4, z: z + 0.3, vx: 3 + Math.random() * 2, vy: 4 + Math.random() * 2, vz: 1 + Math.random(), r: 0, vr: 10 + Math.random() * 10, t: 0, shell });
   }
 
+  // A wrecked car throws its crew: each figure seen through the glass is swapped for a ragdoll at the same spot.
+  eject(ev) {
+    const m = this.carMeshes && this.carMeshes.get(ev.car), crew = m && m.model && m.model.userData.crew;
+    if (!crew) return;
+    m.g.updateMatrixWorld(true);
+    for (const role of ev.roles) {
+      const f = crew[role];
+      if (!f || !f.visible) continue;
+      this.ragdolls.spawn(f, { x: ev.car.vx, y: ev.car.vy }, ev.car.heading, { power: ev.power * (role === 'gunner' ? 1.1 : 1), kind: ev.kind, role });
+      f.visible = false;
+    }
+  }
+
   updateParticles(dt) {
+    if (this.ragdolls) this.ragdolls.update(dt, this.race.cars);
     const g = 160;
     for (const s of this.sparks) { s.t += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.vz -= g * dt; s.z = Math.max(0.3, s.z + s.vz * dt); }
     this.sparks = this.sparks.filter((s) => s.t < s.life);

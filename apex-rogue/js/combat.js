@@ -413,6 +413,8 @@ class Combat {
   // The grenade goes off inside the cabin: the crew don't survive it and the car's done for.
   cabinBlast(c) {
     const p = this.player;
+    this.inCabinBlast = true; // the grenade's caption, not the clean kill's
+    c.ejectBlast = true; // the crew go out through the glass (js/ragdoll.js)
     this.explosions.push({ x: c.x, y: c.y, r: 50, t: 0, kind: 'blast' });
     this.events.push({ type: 'explode', x: c.x, y: c.y, big: true });
     if (c.weapon && !c.gunnerDead) this.woundCrew(c, 'gunner', 999, p);
@@ -420,7 +422,9 @@ class Combat {
     this.hitCar(c, GRENADE_IN.dmg, p, 0, 0.6, 'blast');
     this.race.message(`${shortName(c)}'s cabin goes up!`, '#ffd23f', true);
     this.stats.grenadeIn = (this.stats.grenadeIn || 0) + 1;
-    if (this.fame) this.fame(INFAMY.grenadeIn, 'GRENADE IN THE CABIN');
+    this.inCabinBlast = false;
+    const n = this.fame ? this.fame(INFAMY.grenadeIn, 'GRENADE IN THE CABIN') : 0;
+    if (this.bigMoment) this.bigMoment('SPECIAL DELIVERY: GRENADE IN THE CABIN', `${shortName(c).toUpperCase()}${c.bounty ? ' · BOUNTY ' + Math.round(c.bounty * BOUNTY.cleanKill) : ''} · +${n + INFAMY.clean} INFAMY`, true);
   }
 
   // Rebuild the player's stats after a part breaks or is replaced.
@@ -611,6 +615,8 @@ class Combat {
     this.updateBoss(dt); // js/bosses.js
     this.updateTilt(dt); // js/emotes.js
     if (this.updateCrowd) this.updateCrowd(dt); // js/infamy.js
+    if (this.checkEjections) this.checkEjections(); // js/ragdoll.js
+    if (this.big) this.big.t += dt;
     for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1) * ((this.buffs && this.buffs.cdRate) || 1);
     this.swerveCd -= dt;
     this.invulnT -= dt;
@@ -905,6 +911,7 @@ class Combat {
       pr.life = 3;
       pr.vx = -pr.vx * 1.2;
       pr.vy = -pr.vy * 1.2;
+      pr.parried = true;
       this.stats.parries++;
       this.race.message('PARRY!', '#5ad8ff', true);
       if (this.fame) this.fame(INFAMY.parry, 'PARRY');
@@ -997,7 +1004,9 @@ class Combat {
         if (this.shield.rocketCage && this.build.roof.shieldHp > 0) f *= ROOF.cageBlast; // the cage keeps the worst of it off you
         else { f *= ROOF.blastMul; this.flinchT = 0.6; } // a blast with your head out
       }
+      this.blastSrc = src; // a parried rocket that wrecks its own shooter is a big moment (js/infamy.js)
       this.hitCar(c, dmg * f, owner, ang, 0.75, 'blast');
+      this.blastSrc = null;
       for (let i = 0; i < 4; i++) if (this.rng() < f) this.damageTyre(c, i, dmg * f * 0.5, owner); // the blast shreds rubber
       // Knockback + spin.
       c.vx -= Math.cos(ang) * 220 * f;
@@ -1059,8 +1068,9 @@ class Combat {
     this.cloverRefill();
     if (!c.downed) c.downed = { how };
     if (how !== 'crowd' && this.fame) { // Infamy (js/infamy.js): a clean kill is the better show, and more so from up on the roof
-      this.fame(how === 'driver' ? INFAMY.clean : INFAMY.wreck, how === 'driver' ? 'CLEAN KILL' : 'WRECK');
-      if (this.exposed) this.fame(INFAMY.roofWreck, 'FROM THE ROOF');
+      let n = this.fame(how === 'driver' ? INFAMY.clean : INFAMY.wreck, how === 'driver' ? 'CLEAN KILL' : 'WRECK');
+      if (this.exposed) n += this.fame(INFAMY.roofWreck, 'FROM THE ROOF');
+      this.wreckMoment(c, how, n); // the broadcast cuts to you, if it was one to remember
     }
   }
 

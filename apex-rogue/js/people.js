@@ -133,7 +133,7 @@ const People = {
     const patch = LP.mesh(new THREE.PlaneGeometry(1.3, 0.55), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, transparent: true }), 1.07, 3.05, -0.55);
     patch.rotation.y = Math.PI / 2;
     torso.add(patch);
-    g.userData = { torso, head, looks: L, M, shoulders: [[0.05, 4.3, -1.75], [0.05, 4.3, 1.75]] };
+    g.userData = { torso, head, looks: L, M, helmet: !!o.helmet, shoulders: [[0.05, 4.3, -1.75], [0.05, 4.3, 1.75]] };
     return g;
   },
 
