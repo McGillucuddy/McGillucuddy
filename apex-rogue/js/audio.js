@@ -169,6 +169,7 @@ const Sound = {
       case 'emote': this.noiseBurst(0.18, 700, 0.08, 1800); break;
       case 'crowd': this.cheer(); break;
       case 'static': this.noiseBurst(0.2, 3200, 0.1); break; // changing channel
+      case 'ownDriverHit': this.tone(180, 0.08, 'square', 0.12); this.noiseBurst(0.06, 900, 0.1); break; // a thud and a yelp
       case 'order': this.noiseBurst(0.08, 2400, 0.06); this.tone(1320, 0.05, 'square', 0.04); break; // the radio clicks
       case 'bigMoment': this.cheer(); [784, 988, 1175].forEach((f, i) => setTimeout(() => { this.tone(f, 0.16, 'square', 0.06); this.tone(f / 2, 0.16, 'triangle', 0.08); }, i * 90)); break; // the roar and the broadcast's sting
       case 'deflect': this.spang(); break;

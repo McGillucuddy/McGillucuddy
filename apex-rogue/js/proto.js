@@ -266,6 +266,7 @@ const Proto = {
       case 'after-results': this.afterResults(); break;
       // Garage & shop
       case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
+      case 'patch-driver': { const c = Crew.patchCost(b); if (c > 0 && buy(c)) b.driverHp = DRIVER.hp; this.showGarage(); break; }
       case 'repair-hull': { const c = repairHullCost(b); if (c > 0 && buy(c)) b.hull = b.maxHull; this.showGarage(); break; }
       case 'repair-hatch': { const c = repairHatchCost(b); if (c > 0 && buy(c)) b.hatch.hp = HATCH.max; this.showGarage(); break; }
       case 'repair-part': { const c = repairPartCost(b, arg); if (c > 0 && buy(c)) b.parts[arg].dur = partMaxDur(b, b.parts[arg].id); this.showGarage(); break; }
@@ -519,6 +520,7 @@ const Proto = {
     this.run.node = d.run.node != null ? mapNode(this.run.map, d.run.node) : null;
     this.runSeed = d.runSeed;
     Crew.runSeed = this.runSeed; // your driver's name this run (js/crew.js)
+    Crew.gens = this.build.crewGen = this.build.crewGen || {};
     this.runRng = mulberry32(d.rng);
     this.shop = d.shop || [];
     this.shopOpen = !!d.shopOpen;
@@ -604,6 +606,7 @@ const Proto = {
     this.build = newBuild();
     this.runSeed = (Math.random() * 2 ** 31) | 0;
     Crew.runSeed = this.runSeed;
+    Crew.gens = this.build.crewGen = {};
     this.runRng = mulberry32(this.runSeed);
     this.race = null;
     this.shop = [];
@@ -1017,6 +1020,7 @@ const Proto = {
     this.combat.tutorial = !!node.tutorial;
     this.combat.inmate = this.cos.inmate || '4471'; // for the broadcast's captions
     this.combat.crew = Crew.current(b); // your driver, for the radio (js/crew.js)
+    driver.skill = 0.95 - DRIVER.wobble * (1 - Crew.hp(b) / DRIVER.hp); // still nursing a wound from last time
     this.combat.crowdTurns = !node.tutorial && !!run.flags.crowd; // bought at the Fan Club (js/infamy.js)
     // Bounties on every rival (the bounty stop's most-wanted keeps its big one).
     if (!node.tutorial) for (const c of this.race.cars) if (c !== player && !c.isBoss) c.bounty = Math.max(c.bounty || 0, rivalBounty(c, run.act, node.type === 'elite'));
@@ -1233,6 +1237,7 @@ const Proto = {
         if (k === 'fps') Settings.data.showFps = !Settings.data.showFps;
         if (k === 'slowmo') Settings.data.slowmo = !Settings.data.slowmo;
         if (k === 'flicker') Settings.data.flicker = !Settings.data.flicker;
+        if (k === 'ff') Settings.data.friendlyFire = !Settings.data.friendlyFire;
         if (k === 'mute') Sound.toggleMute();
         Settings.save();
         Sound.play({ type: 'click' });
@@ -1263,6 +1268,9 @@ const Proto = {
       <p class="muted small">A clean kill, a grenade in the cabin, a boss beaten: the broadcast cuts to you. The caption always shows; these are extra.</p>
       <div class="opts"><button class="opt ${d.slowmo !== false ? 'on' : ''}" data-set="slowmo:1">Slow motion ${d.slowmo !== false ? 'on' : 'off'}</button>
         <button class="opt ${d.flicker !== false ? 'on' : ''}" data-set="flicker:1">TV flicker ${d.flicker !== false ? 'on' : 'off'}</button></div>
+      <h3>Friendly fire</h3>
+      <p class="muted small">Your driver sits right beside you. With this on, rounds you fire into them hit them.</p>
+      <div class="opts"><button class="opt ${d.friendlyFire !== false ? 'on' : ''}" data-set="ff:1">Friendly fire ${d.friendlyFire !== false ? 'on' : 'off'}</button></div>
       <h3>Mouse sensitivity <small data-val="setSens">${d.sens.toFixed(2)}x</small></h3>
       <input type="range" id="setSens" min="0.3" max="2.5" step="0.05" value="${d.sens}">
       <h3>Volume <small data-val="setVol">${Math.round(d.volume * 100)}%</small></h3>
@@ -1308,6 +1316,8 @@ const Proto = {
     if (run.flags.bet) { if (p.place <= 2) betPay = run.flags.bet; run.flags.bet = 0; }
     b.scrap += placePay + wreckPay + bossPay + betPay + bountyPay + vendPay - sponsorCut;
     b.hull = Math.max(Math.round(b.maxHull * CREW_PATCH), Math.round(p.hp)); // the crew patches a wreck back to running; the rest is yours to pay for
+    const lost = this.tutorial || this.combat.crewDone ? null : Crew.afterRace(b, run, !!this.combat.ownDriverDead); // your driver: heals, or is replaced
+    this.combat.crewDone = true;
     // A wreck breaks things: the crew bodges broken parts back to a quarter so you're not crippled next race.
     const bodged = p.dnf ? PART_SLOTS.filter((k) => b.parts[k].dur <= 0) : [];
     for (const k of bodged) b.parts[k].dur = Math.round(partMaxDur(b, b.parts[k].id) * 0.25);
@@ -1353,6 +1363,7 @@ const Proto = {
           ${betPay ? `<div><span>Bet winnings</span><b>${betPay} scrap</b></div>` : ''}
           ${vres && vres.settled.length ? `<div><span>☠ Vendetta settled: ${vres.settled.map((v) => v.name + (v.over === 'dead' ? ' (for good)' : '')).join(', ')}</span><b>${vendPay} scrap</b></div>` : ''}
           ${vres && vres.escaped.length ? `<div class="unlock small">☠ ${vres.escaped.map((v) => v.name).join(', ')} got away. They're still out there.</div>` : ''}
+          ${lost ? `<div class="unlock" style="color:#ff6b5a">☠ You shot ${lost.was.name}. They're dead. The block sends ${lost.now.name} to drive for you.</div>` : ''}
           <div class="total"><span>Scrap</span><b>${b.scrap}</b></div>
           ${this.tutorial ? '' : `<div class="infamy-row"><span>Infamy${fameGot ? ` <small class="muted">${Object.entries(fameWhy).map(([w, n]) => `${w.toLowerCase()} ${n}`).join(', ')}</small>` : ' <small class="muted">nobody noticed you</small>'}</span><b>+${fameGot} (${b.infamy})</b></div>`}
           <div><span>Reputation</span><b>+${repGain} (${this.cos.rep})</b></div>
@@ -1459,7 +1470,7 @@ const Proto = {
         ${slots}
         <p class="small">Spare part: <b>${b.spare ? PARTS[b.spare.id].name : 'none'}</b> <span class="muted">(press <kbd>B</kbd> mid-race to fit it when that part breaks)</span></p>
         <h3>Your driver</h3>
-        <div class="gp-chip">${(() => { const c = Crew.current(b); return `<b>${c.name}</b> <small class="muted">#${c.number} · ${b.chip ? `${CHIPS[b.chip].name}: ${CHIPS[b.chip].desc}` : 'whoever the block sent you: no particular habits'}</small>`; })()}</div>
+        <div class="gp-chip">${(() => { const c = Crew.current(b); return `<b>${c.name}</b> <small class="muted">#${c.number} · ${b.chip ? `${CHIPS[b.chip].name}: ${CHIPS[b.chip].desc}` : 'whoever the block sent you: no particular habits'}</small>${Crew.hp(b) < DRIVER.hp ? `<br><span class="bad small">Wounded: ${Math.round((100 * Crew.hp(b)) / DRIVER.hp)}%. Drives worse until patched up.</span> <button class="btn tiny" data-action="patch-driver" ${b.scrap < Crew.patchCost(b) ? 'disabled' : ''}>Patch up: ${Crew.patchCost(b)} scrap</button>` : ''}`; })()}</div>
         ${chips ? `<div class="alts">${chips}</div>` : ''}
       </div>
     </div>`;
@@ -1895,6 +1906,7 @@ function drawWeaponPanel(ctx, P, W, H) {
     rows.push([false, `${i === 0 ? 'E' : 'F'} ${def.name}`, a.cd > 0 ? `${a.cd.toFixed(1)}s` : 'READY', a.cd > 0 ? 1 - a.cd / def.cooldown : null, '#7cfc00']);
   });
   if (c.swerveCd > 0) rows.push([false, 'Swerve', `${c.swerveCd.toFixed(1)}s`, null]);
+  if (Crew.hp(b) < DRIVER.hp) rows.push([false, `Driver: ${(c.crew || Crew.current(b)).short}`, c.ownDriverDead ? 'DEAD' : `${Math.round((100 * Crew.hp(b)) / DRIVER.hp)}%`, Crew.hp(b) / DRIVER.hp, '#ff5a3a']);
   const failing = PART_SLOTS.map((slot, i) => {
     const part = b.parts[slot], f = clamp(part.dur / partMaxDur(b, part.id), 0, 1);
     return part.dur <= 0 ? `${['ENG', 'TYR', 'ARM', 'NOS'][i]} BROKEN` : f < 0.3 ? `${['ENG', 'TYR', 'ARM', 'NOS'][i]} ${Math.round(f * 100)}%` : null;

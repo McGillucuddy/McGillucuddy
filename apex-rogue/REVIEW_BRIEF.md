@@ -60,7 +60,8 @@ them: they drive worse and come for you); `B` fits a spare part; `Esc` pauses.
 - **Driver orders:** middle mouse "Ram them!", and a C wheel for get alongside / tail / floor it / ease off (easing
   off steadies your aim). The driver answers on the radio; their habit changes how keen they are.
 - **A human driver:** the autopilot box is gone; a collared inmate drives, recruited from rewards and after
-  bosses, with a randomized prison name; win the Crown and you both walk free.
+  bosses, with a randomized prison name; win the Crown and you both walk free. Friendly fire: you can shoot your own driver (they flinch,
+  yell, drive worse; kill them and you crash out and get a replacement).
 - **The wall of TVs:** you pick each stop from a wall of CRTs, tonight's channels on the big sets: races are named shows, the commissary is home
   shopping, the mechanic a test card, events the news, the boss a special presentation. The route sheet is now the
   TV guide.

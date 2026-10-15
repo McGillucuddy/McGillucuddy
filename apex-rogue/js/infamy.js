@@ -115,7 +115,8 @@ const Infamy = {
     if (R.races >= 3 && (R.wins + R.podiums) >= 2) L.push(['WE <3 ' + N]);
     if (b && R.races >= 2 && typeof Crew !== 'undefined') { const c = Crew.current(b); L.push([`${N} AND ${c.nick.toUpperCase()}`, R.wins ? 'RIDE OR DIE' : 'DEAD MEN DRIVING']); }
     out.tally = Math.min(R.wrecks, 30);
-    out.memorial = R.clean.map((n) => n.toUpperCase() + ' XLI');
+    out.memorial = R.clean.map((n) => n.toUpperCase() + ' XLI').concat((run.flags.lostDrivers || []).map((n) => n + ' XLI'));
+    if ((run.flags.lostDrivers || []).length) L.unshift([`${N} SHOT THEIR OWN DRIVER`, 'ON PURPOSE?']);
     // The old "4471 IS NEXT" (in your number) gets answered once you've lasted.
     if (R.races >= 2) out.next = [`${N} IS NEXT`, R.bosses.length ? 'NEXT TO WALK' : 'NOT YET'];
     return out;

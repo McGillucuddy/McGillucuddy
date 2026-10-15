@@ -638,6 +638,20 @@ class CockpitView {
       fists.push(f);
     }
     this.myCrew = { drv, me, I, fists, led, arms: People.liveArms(I, M.suit, 2), glance: 0, glanceT: 3 };
+    // Friendly fire (js/crew.js): is the crosshair on your driver right now? Head or body, and how squarely (the
+    // share of a shot's pellets that go into them).
+    const ray = new THREE.Ray(), v = new THREE.Vector3(), dir = new THREE.Vector3();
+    this.combat.friendlyFire = () => {
+      if (!this.camera) return null;
+      this.camera.getWorldPosition(ray.origin); this.camera.getWorldDirection(dir); ray.direction.copy(dir);
+      const parts = [['head', d.head.localToWorld(v.set(0.3, 0.95, 0)).clone(), 1.05], ['body', d.torso.localToWorld(v.set(0.05, 3.45, 0)).clone(), 1.7], ['body', d.torso.localToWorld(v.set(0.12, 2.0, 0)).clone(), 1.5]];
+      for (const [part, c, r] of parts) {
+        if (c.clone().sub(ray.origin).dot(dir) < 0) continue;
+        const miss = ray.distanceToPoint(c);
+        if (miss < r) return { part, cover: clamp(1.15 - miss / r, 0.35, 1) };
+      }
+      return null;
+    };
   }
 
   animateMyCrew(dt, t) {
@@ -655,8 +669,12 @@ class CockpitView {
     C.glanceDur = (C.glanceDur || 0) - dt;
     const want = C.glanceDur > 0 ? C.glance : 0;
     C.yaw = lerp(C.yaw || 0, want, Math.min(1, dt * 8));
-    d.head.rotation.set(Math.sin(t * 7) * 0.02 * Math.min(1, p.speed / 300), C.yaw, Math.sin(t * 0.7) * 0.03);
-    d.torso.rotation.x = clamp(-(this.acc ? this.acc.lat : 0) * 0.00008, -0.12, 0.12); // leaning into the corners
+    const hurt = this.combat.driverHurtT || 0, dead = this.combat.ownDriverDead;
+    C.slump = dead ? Math.min(1, (C.slump || 0) + dt * 2.5) : 0;
+    const k = C.slump * C.slump, jolt = hurt > 0 ? Math.sin(hurt * 40) * 0.25 * hurt : 0;
+    d.head.rotation.set(Math.sin(t * 7) * 0.02 * Math.min(1, p.speed / 300) + jolt, C.yaw * (1 - k), Math.sin(t * 0.7) * 0.03 - k * 0.7);
+    d.torso.rotation.x = clamp(-(this.acc ? this.acc.lat : 0) * 0.00008, -0.12, 0.12) + jolt * 0.5; // leaning into the corners (and flinching)
+    d.torso.rotation.z = -k * 0.55; // slumped over the wheel
     // Arms: shoulder to the fist on the rim, elbows down and out.
     C.drv.updateMatrixWorld(true);
     this.wheel.updateMatrixWorld(true);
@@ -1149,6 +1167,7 @@ class CockpitView {
     if (ev.type === 'emote') this.emoteAnim = { id: ev.id, t: 0 };
     if (ev.type === 'deflect') this.sparkAt(ev.x, ev.y, 5);
     if (ev.type === 'gunnerHit') { this.shake = Math.max(this.shake, 1.0); this.hitRed = 0.5; }
+    if (ev.type === 'ownDriverHit') { this.shake = Math.max(this.shake, 0.5); this.hitRed = Math.max(this.hitRed || 0, 0.3); }
     if (ev.type === 'roofUp' || ev.type === 'roofDown') this.shake = Math.max(this.shake, ev.knocked ? 0.9 : 0.25);
     if (ev.type === 'tyrePop') { this.sparkAt(ev.x, ev.y, 10); if (ev.mine) { this.shake = Math.max(this.shake, 0.6); if (this.cabinMo) this.cabinMo.vroll += ev.side * 0.6; } }
     if (ev.type === 'hatchShut') { if (this.hatchFx) this.hatchFx.bounce = 1; this.shake = Math.max(this.shake, 0.35); }

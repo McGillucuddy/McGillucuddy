@@ -418,7 +418,13 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
   **Cautious**, **Daredevil**, **Gun Nut**, and from bosses **Getaway Veteran**, **Ghost**, **Showboat**. Swap
   drivers in the garage (Workshop). They sit at the wheel in the cockpit, hands on the rim, glancing at you when
   you shoot or give an order, the collar's red light blinking; they answer your orders on the radio by name. Win
-  the Crown and you both walk free. (In the code these are still the "chips": `build.chip` is the trait of the
+  the Crown and you both walk free. **Friendly fire** (on by default, Settings): your driver sits right beside
+  you, and rounds you fire while your crosshair is on them go into them, not out of the window (a shotgun puts
+  part of its spread in them; a rocket goes off in the cabin). 40 health, head shots double. Each hit makes them
+  flinch the car and yell at you on the radio ("ARE YOU SHOOTING ME?!"); a wounded driver wobbles and corners
+  worse (shown on the loadout panel); a dead one crashes the car (wrecked, a strike, a FRIENDLY FIRE caption), is
+  gone for good and goes on the memorial wall, and the block sends a new driver with a new name. Drivers heal 30%
+  between races, or patch them up in the Workshop (2 scrap a point). (In the code these are still the "chips": `build.chip` is the trait of the
   driver in the seat.)
 
 - **Loadout is swappable in the garage; only trinkets are permanent.** Everything you buy or win goes

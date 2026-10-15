@@ -534,13 +534,22 @@ class Combat {
     st.cd = def.rate;
     w.mag--;
     this.lastFire = 0;
+    // Aiming into your own cabin (js/crew.js): what's pointed at your driver goes into your driver.
+    const ff = !this.exposed && this.friendlyFire ? this.friendlyFire() : null;
+    if (ff && def.kind !== 'bullet') {
+      this.hitOwnDriver(def.kind === 'rocket' ? 999 : def.dmg * (def.pellets || 1) * 0.5, ff.part, 1);
+      if (def.kind === 'rocket') this.race.damage(p, def.dmg, { kind: 'blast' }); // and the rocket goes off in the cabin
+    }
     if (def.kind === 'bullet') {
       const spread = def.spread * (1 + (st.bloom || 0));
       if (def.bloom) st.bloom = Math.min(1.5, (st.bloom || 0) + def.bloom);
+      let into = 0;
       for (let k = 0; k < def.pellets; k++) {
+        if (ff && this.rng() < ff.cover) { into++; continue; } // this one hit them
         const a = ctl.aim + randRange(this.rng, -spread, spread);
         this.spawn('bullet', p, a, def.speed * randRange(this.rng, 0.92, 1.05), 1, { dmg: def.dmg, life: def.life, knock: def.knock || 0, burn: def.burn || 0, tracer: !!def.tracer, puncture: def.puncture || 0, shock: def.shock || 0, tyre: def.tyre });
       }
+      if (into) this.hitOwnDriver(def.dmg, ff.part, into);
       this.events.push({ type: def.pellets > 1 ? 'shotgun' : def.puncture ? 'nail' : 'shoot', w: this.weapon.id });
       if (def.ping && w.mag === 0) this.events.push({ type: 'ping' }); // the empty clip flies out with a ping
     } else if (def.kind === 'flame') {
@@ -618,6 +627,8 @@ class Combat {
     if (this.updateCrowd) this.updateCrowd(dt); // js/infamy.js
     if (this.checkEjections) this.checkEjections(); // js/ragdoll.js
     if (this.updateOrders) this.updateOrders(dt); // js/orders.js
+    this.yellCd = Math.max(0, (this.yellCd || 0) - dt);
+    this.driverHurtT = Math.max(0, (this.driverHurtT || 0) - dt);
     if (this.big) this.big.t += dt;
     for (const a of this.abil) if (a) a.cd -= dt * (this.weather.cd || 1) * ((this.buffs && this.buffs.cdRate) || 1);
     this.swerveCd -= dt;

@@ -54,7 +54,7 @@ goals should ask for them ("ram three cars tonight").
 
 **Built** (`js/crew.js`). A recruited inmate drives, not an autopilot: chips became drivers with randomized prison
 names, a mugshot and a habit. Collared like you (the leash that keeps the car on course). Win the Crown and you both
-walk free; **planned:** take the deal and your driver stays on as the champion's driver. **Next:** rival fire
+walk free; **planned:** take the deal and your driver stays on as the champion's driver. **Built:** friendly fire (you can shoot your own driver: wounds, death, replacement). **Next:** rival fire
 through your windscreen can wound your driver (worse driving until patched), the blast hatch protecting them;
 drivers who die are replaced from the block; the walls and the fan mail talk about your driver too.
 
