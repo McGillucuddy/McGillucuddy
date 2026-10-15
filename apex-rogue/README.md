@@ -154,7 +154,7 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
 | Fire | Left click |
 | Weapons | `1` / `2` / `3`, `Q` or mouse wheel to switch |
 | Reload | `R` |
-| Grenade | Right click or `G` |
+| Grenade | Hold right click or `G` to pull the pin (it cooks while held), let go to throw |
 | Abilities | `Space` / `E` |
 | Fit spare part | `B` |
 | Swerve left / right | `A` / `D` |
@@ -254,6 +254,19 @@ Trinkets sit on the shelves: hanging ones on nails, flat ones leaned against the
 below. A chalkboard shows the act, race, scrap, strikes and a tally of races
 survived. In the upper-city acts the sponsors have smartened the garage up, and the commissary becomes a
 concierge. See `js/garage3d.js`.
+
+### Feel: grenades, hits and crashes (prototype)
+
+- **Grenades** (`GRENADE` in `js/combat.js`): pulling the pin lights a 1.7 s fuse. Thrown straight away, the
+  grenade lands after 0.8 s, bounces (off the road and off cars), rolls and then goes off. Hold the button
+  to cook it and it bursts as it lands. A ring round the crosshair burns down and ticks faster near the end.
+  Hold it too long and it goes off in your cabin: hull damage and wounds to you and your driver. The grenade
+  tumbles in flight with a fizzing fuse spark.
+- **Hits:** every round that lands on a rival makes a tink, quieter with distance. A rival's glass cracks as
+  it weakens, then shatters into a spray of shards when its driver is shot or the car is all but done.
+- **Crashes** (`Race.crash`): hard hits on walls, obstacles and other cars throw sparks. The worst ones tear
+  off panels that cartwheel away. You hear a crunch of thud, folding metal and clatter: loudest for your own
+  car, quieter for crashes further away.
 
 ### Your driver's bond (prototype)
 

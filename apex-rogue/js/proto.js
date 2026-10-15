@@ -150,10 +150,13 @@ const Proto = {
       if (this.state !== 'race') return;
       if (this.view === 'cockpit' && !this.locked) { this.lock(); return; }
       if (e.button === 0) { this.mouse.down = true; this.mouse.pressed = true; }
-      if (e.button === 2) this.throwGrenade();
+      if (e.button === 2) { this.mouse.rdown = true; this.combat.cookGrenade(); } // pull the pin; let go to throw
       if (e.button === 1) { e.preventDefault(); this.combat.order('ram', this.aimAngle()); } // "Ram them!" (js/orders.js)
     });
-    window.addEventListener('mouseup', (e) => { if (e.button === 0) this.mouse.down = false; });
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 0) this.mouse.down = false;
+      if (e.button === 2) { this.mouse.rdown = false; if (this.state === 'race' && this.combat && this.combat.cook) this.throwGrenade(); }
+    });
     this.c2d.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('wheel', (e) => { if (this.combat && this.state === 'race') this.combat.cycle(Math.sign(e.deltaY)); }, { passive: true });
     document.addEventListener('pointerlockchange', () => {
@@ -1693,7 +1696,8 @@ const Proto = {
     if (Input.consume('KeyV') || Input.consume('Digit4')) combat.toggleRoof(); // up into the roof hatch to the mounted gun, or back down
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
     if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
-    if (Input.consume('KeyG')) this.throwGrenade();
+    if (Input.consume('KeyG')) combat.cookGrenade(); // hold G (or the right button) to cook it, let go to throw
+    if (combat.cook && !Input.keys.has('KeyG') && !this.mouse.rdown) this.throwGrenade();
 
     const aim = this.aimAngle();
     const sub = 2;
@@ -1704,7 +1708,7 @@ const Proto = {
         : { throttle: race.countdown < 0.2 ? 1 : 0, brake: 0, steer: 0, handbrake: false, nitro: false };
       race.update(sdt, inp);
       combat.update(sdt, { aim, firing: this.mouse.down, pressed: this.mouse.pressed && k === 0 });
-      for (const ev of race.events) Sound.play(ev);
+      for (const ev of race.events) { Sound.play(ev); if (ev.type === 'crash' && this.cockpit) this.cockpit.crash(ev); }
       for (const ev of combat.events) {
         Sound.play(ev);
         Playtest.event(ev, combat.weapon.id);
@@ -2086,6 +2090,15 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     ctx.strokeStyle = '#ff9f1c';
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(cx, cy, 34, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - wst.reloadT / wd.reload)); ctx.stroke();
+  }
+  // A live grenade in your hand: the fuse burning down round the crosshair, red when it's nearly gone.
+  if (c.cook) {
+    const left = Math.max(0, GRENADE.fuse - c.cook.t), f = left / GRENADE.fuse, hot = left < 0.6;
+    ctx.strokeStyle = hot ? (Math.floor(c.cook.t * 12) % 2 ? '#ff3b1f' : '#ffd23f') : '#9be36a';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(cx, cy, 26, -Math.PI / 2, -Math.PI / 2 + TAU * f); ctx.stroke();
+    ctx.textAlign = 'center'; ctx.font = `bold 12px ${hudFont()}`; ctx.fillStyle = ctx.strokeStyle;
+    ctx.fillText(left < GRENADE.fuse - GRENADE.air ? 'COOKED: THROW!' : `PIN OUT ${left.toFixed(1)}`, cx, cy - 36);
   }
   // Ammo by the crosshair only when it's running out (the full count is in the loadout panel).
   const low = c.weapon.mag <= Math.max(1, Math.floor(wd.mag * 0.3));

@@ -134,6 +134,29 @@ const Sound = {
     this.noiseBurst(0.03, 3200, 0.22, 1500);
   },
 
+  // A car hitting something hard: a low thud, the crunch of panels folding, and loose metal clattering after.
+  crunch(vol, power) {
+    if (!this.ctx || vol <= 0.02) return;
+    const k = Math.min(1, power / 500);
+    this.tone(55 + 20 * Math.random(), 0.25, 'sine', 0.35 * vol);
+    this.noiseBurst(0.22 + 0.2 * k, 900, 0.45 * vol, 140);
+    this.noiseBurst(0.08, 2600, 0.25 * vol, 900);
+    for (let i = 0; i < 2 + Math.round(3 * k); i++) setTimeout(() => this.clang(0.12 * vol * (0.5 + Math.random())), 70 + Math.random() * 380);
+  },
+  // A round striking a rival's bodywork: a bright tink. Glass going: a burst of tiny bright ticks.
+  tink(vol) {
+    if (!this.ctx) return;
+    const f = 3200 + Math.random() * 2200;
+    this.tone(f, 0.06, 'triangle', 0.05 * vol);
+    this.tone(f * 1.47, 0.04, 'sine', 0.03 * vol);
+    this.noiseBurst(0.02, 5000, 0.12 * vol, 3000);
+  },
+  shatter(vol) {
+    if (!this.ctx) return;
+    this.noiseBurst(0.35, 4200, 0.3 * vol, 2000);
+    for (let i = 0; i < 10; i++) setTimeout(() => this.tone(2500 + Math.random() * 4000, 0.05, 'sine', 0.03 * vol), Math.random() * 450);
+  },
+
   play(ev) {
     if (!this.ctx) return;
     switch (ev.type) {
@@ -194,6 +217,13 @@ const Sound = {
       case 'empty': this.tone(220, 0.05, 'square', 0.08); break;
       case 'overheat': this.noiseBurst(0.5, 4000, 0.1, 1500); break;
       case 'throw': this.noiseBurst(0.15, 600, 0.12, 1200); break;
+      case 'crash': this.crunch(ev.vol ?? 1, ev.power || 200); break;
+      case 'tink': this.tink(ev.vol ?? 1); break;
+      case 'shatter': this.shatter(ev.vol ?? 1); break;
+      case 'pin': this.tone(1500, 0.03, 'square', 0.06); setTimeout(() => this.tone(2900, 0.15, 'triangle', 0.05), 60); break; // the pin, then the spoon flying off
+      case 'cookTick': this.tone(ev.late ? 1300 : 1000, 0.03, 'square', 0.04); break;
+      case 'nadeBounce': this.clang(0.08 * (ev.vol ?? 1)); break;
+      case 'nadeHand': this.noiseBurst(0.6, 400, 0.6, 60); this.tone(50, 0.6, 'sine', 0.4); break;
       case 'swerve': this.noiseBurst(0.3, 500, 0.15, 300); break;
       case 'mine': this.tone(180, 0.1, 'square', 0.08); break;
       case 'switch': this.tone(900, 0.04, 'square', 0.06); break;

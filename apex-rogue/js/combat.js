@@ -7,6 +7,10 @@ const ROCKET_SPEED = 820;
 const LOCK_TIME = 1.35;
 const PARRY_WINDOW = 0.3;
 const GRENADE_G = 700;
+// A real grenade: pull the pin and the fuse is lit whether you throw it or not. Thrown straight away it lands, bounces
+// and rolls before it goes; hold it a moment ("cooking") and it bursts as it lands. Hold it too long and it goes off
+// in your hand. It bounces off cars as well as the road. (air: the flight time to the aim point.)
+const GRENADE = { fuse: 1.7, air: 0.8, bounce: 0.38, roll: 1.8, carBounce: 0.45, r: 1.2, hand: { car: 30, you: 14, driver: 12 } };
 // Where a grenade can get into a rival (in the car's frame: forward f, left s, height): the open roof hatch on the
 // rocket cars, the window their gunner leans out of on the gun cars (both on the left). See Combat.grenadeIn.
 const GRENADE_IN = { roof: 10.6, hatch: [-3.2, 4.2], hatchR: 2.8, window: [6.6, 10.8], winF: 0.2, winHalf: 4.5, throwBack: 0.25, dmg: 60 };
@@ -386,20 +390,53 @@ class Combat {
     return true;
   }
 
-  throwGrenade(aim, dist) {
+  // Pull the pin (hold the throw button): the fuse is burning from now.
+  cookGrenade() {
     const b = this.build, p = this.player;
+    if (this.cook) return true;
     if (this.hatchDown) return false; // the window's shut
     if (b.grenades <= 0 || p.finished || this.busy) { this.events.push({ type: 'empty' }); return false; }
     b.grenades--;
-    const d = clamp(dist, 80, 380);
-    const fuse = 0.8;
+    this.cook = { t: 0, tick: 0 };
+    this.events.push({ type: 'pin' });
+    return true;
+  }
+
+  // Let it go (released, or thrown in one go): whatever's left of the fuse goes with it.
+  throwGrenade(aim, dist) {
+    const p = this.player;
+    if (!this.cook && !this.cookGrenade()) return false;
+    const left = GRENADE.fuse - this.cook.t;
+    this.cook = null;
+    const d = clamp(dist, 80, 380), T = GRENADE.air;
     this.grenades.push({
       x: p.x, y: p.y,
-      vx: p.vx + (Math.cos(aim) * d) / fuse, vy: p.vy + (Math.sin(aim) * d) / fuse,
-      t: 0, fuse, z: 6, vz0: 0.5 * GRENADE_G * fuse,
+      vx: p.vx + (Math.cos(aim) * d) / T, vy: p.vy + (Math.sin(aim) * d) / T,
+      t: 0, fuse: left, z: 6, vz: 0.5 * GRENADE_G * T, spin: 8 + Math.random() * 6, cooked: left < GRENADE.fuse - 0.25,
     });
     this.events.push({ type: 'throw' });
     return true;
+  }
+
+  // While you're holding a live one: the fuse ticks, faster near the end, and if it runs out it's in your lap.
+  updateCook(dt) {
+    const C = this.cook;
+    if (!C) return;
+    if (this.player.finished) { this.cook = null; this.build.grenades++; return; } // the race is over: pin back in
+    C.t += dt;
+    const left = GRENADE.fuse - C.t;
+    C.tick -= dt;
+    if (C.tick <= 0) { this.events.push({ type: 'cookTick', late: left < 0.6 }); C.tick = left < 0.6 ? 0.12 : 0.3; }
+    if (left > 0) return;
+    this.cook = null;
+    const p = this.player, H = GRENADE.hand;
+    this.explosions.push({ x: p.x, y: p.y, r: 40, t: 0 });
+    this.events.push({ type: 'explode', x: p.x, y: p.y, big: false }, { type: 'nadeHand' });
+    this.race.message('It went off in your hand!', '#ff3b1f', true, true);
+    this.race.damage(p, H.car, { kind: 'blast', ang: p.heading });
+    if (this.woundGunner) this.woundGunner(H.you);
+    if (this.hurtDriver && !this.ownDriverDead) this.hurtDriver(H.driver, 'you', 'body');
+    if (this.bigMoment) this.bigMoment('COOKED IT TOO LONG', `${this.inmate || '4471'} BLOWS UP THEIR OWN CABIN`, true);
   }
 
   // A grenade coming down onto a rival: through an open roof hatch (the rocket cars, whose gunner stands in one) or in
@@ -724,6 +761,7 @@ class Combat {
     if (race.state === 'racing') this.updateRivals(dt);
     this.updateProjectiles(dt);
     this.updateMines(dt);
+    this.updateCook(dt);
     this.updateGrenades(dt);
     for (const e of this.explosions) e.t += dt;
     this.explosions = this.explosions.filter((e) => e.t < 0.5);
@@ -1001,7 +1039,7 @@ class Combat {
         if (g.willThrow && !c.gunnerDead && c.hp > 0 && g.t > g.fuse - 0.3) { // the gunner grabs it and gets rid of it
           g.thrownBack = true; g.inCar = null;
           const a = Math.atan2(this.player.y - c.y, this.player.x - c.x);
-          g.x = c.x + Math.cos(a) * 30; g.y = c.y + Math.sin(a) * 30; g.vx = c.vx; g.vy = c.vy; g.vz0 = 0; g.z = 6;
+          g.x = c.x + Math.cos(a) * 30; g.y = c.y + Math.sin(a) * 30; g.vx = c.vx; g.vy = c.vy; g.vz = 0; g.z = 6;
           this.race.message(`${shortName(c)}'s gunner throws it back out!`, '#ff9f1c');
           continue;
         }
@@ -1011,8 +1049,34 @@ class Combat {
       const z0 = g.z, x0 = g.x, y0 = g.y;
       g.x += g.vx * dt;
       g.y += g.vy * dt;
-      g.z = 6 + g.vz0 * g.t - 0.5 * GRENADE_G * g.t * g.t;
+      g.vz -= GRENADE_G * dt;
+      g.z += g.vz * dt;
       if (!g.thrownBack && this.grenadeIn(g, z0, x0, y0)) continue;
+      // The road: it bounces (losing most of its speed), then rolls to a stop.
+      if (g.z <= GRENADE.r) {
+        g.z = GRENADE.r;
+        if (g.vz < -60) {
+          g.vz = -g.vz * GRENADE.bounce; g.vx *= 0.62; g.vy *= 0.62; g.spin *= 0.6;
+          this.events.push({ type: 'nadeBounce', vol: this.nearVol(g) });
+        } else {
+          g.vz = 0;
+          const k = Math.exp(-GRENADE.roll * dt);
+          g.vx *= k; g.vy *= k; g.rolling = true;
+        }
+      }
+      // Cars: it bounces off the bodywork (and picks up some of the car's speed).
+      if (g.z < 11) for (const c of this.race.cars) {
+        if (c === this.player && g.t < 0.4) continue; // not off your own door as it leaves
+        const dx = g.x - c.x, dy = g.y - c.y, d = Math.hypot(dx, dy);
+        if (d >= CAR_RADIUS || d === 0) continue;
+        const nx = dx / d, ny = dy / d, rvx = g.vx - c.vx, rvy = g.vy - c.vy, vn = rvx * nx + rvy * ny;
+        g.x = c.x + nx * CAR_RADIUS; g.y = c.y + ny * CAR_RADIUS;
+        if (vn < 0) {
+          g.vx -= (1 + GRENADE.carBounce) * vn * nx; g.vy -= (1 + GRENADE.carBounce) * vn * ny;
+          g.vz = Math.max(g.vz, 40);
+          this.events.push({ type: 'nadeBounce', vol: this.nearVol(g) });
+        }
+      }
       if (g.t >= g.fuse) {
         g.dead = true;
         this.explode(g.x, g.y, 90, 24, this.player);
@@ -1020,6 +1084,8 @@ class Combat {
     }
     this.grenades = this.grenades.filter((g) => !g.dead);
   }
+
+  nearVol(o) { return clamp(1 - Math.hypot(o.x - this.player.x, o.y - this.player.y) / 700, 0.15, 1); }
 
   explode(x, y, radius, dmg, owner, src) {
     const p = this.player;
@@ -1130,6 +1196,7 @@ class Combat {
       }
     } else if (owner === p) {
       this.stats.dealt += Math.min(dmg, before);
+      if ((!kind || kind === 'bullet' || kind === 'nail') && this.race.time - (this.lastTink ?? -1) > 0.05) { this.lastTink = this.race.time; this.events.push({ type: 'tink', vol: this.nearVol(c) }); } // you hear your rounds land
       if (before > 0 && c.hp <= 0) {
         this.creditWreck(c, kind || 'bullet');
         this.race.message(`${shortName(c)} wrecked!${c.bounty ? ` +${c.bounty} bounty` : ''}`, '#ffd23f');

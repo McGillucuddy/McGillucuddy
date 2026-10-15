@@ -479,6 +479,18 @@ class CockpitView {
       glass.map = DECALS.get(stage === 2 ? 'glassshot' : 'glasscrack');
       glass.needsUpdate = true;
     }
+    // The glass goes altogether when the driver's shot through it, or the car's all but finished: a spray of
+    // bright shards and the cabin open to the air.
+    if (glass && !D.shattered && ((car.downed && car.downed.how === 'driver') || frac <= 0.08 || car.ejectBlast)) {
+      D.shattered = true;
+      glass.transparent = true; glass.opacity = 0.1; glass.depthWrite = false; glass.needsUpdate = true;
+      for (let k = 0; k < 14 && this.sparks.length < this.sparkPool.length; k++) {
+        const a = car.heading + (Math.random() - 0.5) * 3, sp = 30 + Math.random() * 70;
+        this.sparks.push({ x: car.x + (Math.random() - 0.5) * 12, y: car.y + (Math.random() - 0.5) * 12, z: 8 + Math.random() * 3, vx: car.vx + Math.cos(a) * sp, vy: car.vy + Math.sin(a) * sp, vz: 20 + Math.random() * 50, t: 0, life: 0.5 + Math.random() * 0.4, col: '#d8f0ff' });
+      }
+      const d = Math.hypot(car.x - this.race.player.x, car.y - this.race.player.y);
+      Sound.play({ type: 'shatter', vol: clamp(1 - d / 700, 0.15, 1) });
+    }
     if (!D.shed && frac <= 0.3) { // nearly done: the bolt-ons tear off
       D.shed = true;
       const loose = [];
@@ -990,7 +1002,13 @@ class CockpitView {
       bullet: pool(80, () => new THREE.Mesh(new THREE.BoxGeometry(16, 0.5, 0.5), new THREE.MeshBasicMaterial({ color: '#ffe680' }))),
       rocket: pool(24, () => Models.rocket()),
       mine: pool(40, () => Models.mine()),
-      nade: pool(10, () => { const g = Models.grenade(); g.scale.setScalar(2.4); return g; }),
+      nade: pool(10, () => {
+        const g = Models.grenade(); g.scale.setScalar(2.4);
+        // The fuse fizzing out of the top: a hot spark that flickers (you can see a live one in flight).
+        const fz = new THREE.Sprite(new THREE.SpriteMaterial({ color: '#ffd27a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+        fz.scale.setScalar(0.9); fz.position.y = 1.4; g.add(fz); g.userData.fuse = fz;
+        return g;
+      }),
       flare: pool(8, () => new THREE.Mesh(new THREE.OctahedronGeometry(1.4, 0), new THREE.MeshBasicMaterial({ color: '#ff7a2a' }))),
       flame: pool(110, () => new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff9a2a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))),
       harpoon: pool(6, () => Models.harpoonBolt()),
@@ -1527,6 +1545,17 @@ class CockpitView {
     }
   }
 
+  // A hard crash: sparks off the scrape, and on the worst of them a torn panel or two cartwheeling away.
+  crash(ev) {
+    this.sparkAt(ev.x, ev.y, Math.min(16, 4 + ev.power / 35));
+    const n = ev.power > 380 ? 3 : ev.power > 240 ? 1 : 0;
+    for (let k = 0; k < n && this.debris.length < this.debrisPool.length; k++) {
+      const c = ev.car, a = Math.atan2(ev.y - c.y, ev.x - c.x) + (Math.random() - 0.5) * 1.4, sp = 40 + Math.random() * 60;
+      this.debris.push({ x: ev.x, y: ev.y, z: 4, vx: c.vx * 0.6 + Math.cos(a) * sp, vy: c.vy * 0.6 + Math.sin(a) * sp, vz: 50 + Math.random() * 70, rx: 0, ry: 0, sx: (Math.random() - 0.5) * 18, sy: (Math.random() - 0.5) * 18, t: 0, s: 0.8 + Math.random() * 0.8 });
+    }
+    if (ev.car === this.race.player) this.shake = Math.max(this.shake, Math.min(1.4, ev.power / 300));
+  }
+
   // Explosion: flying debris, sparks and a shockwave ring on the ground.
   burst(x, y, big, wreck) {
     const n = big ? 12 : wreck ? 10 : 6;
@@ -1569,7 +1598,7 @@ class CockpitView {
       if (!s) return;
       o.position.set(s.x, s.z, s.y);
       o.lookAt(s.x + s.vx, s.z + s.vz, s.y + s.vy);
-      o.material.color.set(s.t < s.life * 0.4 ? '#fff2b0' : '#ff9a3a');
+      o.material.color.set(s.col || (s.t < s.life * 0.4 ? '#fff2b0' : '#ff9a3a'));
     });
     for (const d of this.debris) {
       d.t += dt;
@@ -1918,7 +1947,14 @@ class CockpitView {
       o.position.set(m.x, 0, m.y);
       o.userData.led.visible = m.t < m.arm || Math.floor(t * 4) % 2 === 0;
     });
-    show(this.pools.nade, c.grenades, (o, g) => o.position.set(g.x, Math.max(2, g.z), g.y));
+    show(this.pools.nade, c.grenades, (o, g) => {
+      o.position.set(g.x, Math.max(2, g.z + 1), g.y);
+      // Tumbling in the air, rolling along the road.
+      const sp = Math.hypot(g.vx || 0, g.vy || 0);
+      if (g.rolling) { o.rotation.set(Math.PI / 2, -Math.atan2(g.vy, g.vx), (o.rotation.z || 0) - sp * 0.02); } else o.rotation.set(g.t * (g.spin || 8), g.t * 3, 0);
+      const f = o.userData.fuse;
+      if (f) { const left = g.fuse - g.t; f.visible = !g.inCar; f.material.color.set(left < 0.5 && Math.floor(t * 20) % 2 ? '#ff5a2a' : '#ffd27a'); f.scale.setScalar(0.6 + Math.random() * 0.7); }
+    });
     show(this.pools.boom, c.explosions, (o, e) => {
       const k = e.t / 0.5;
       o.position.set(e.x, 8, e.y);

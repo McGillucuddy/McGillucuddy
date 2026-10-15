@@ -268,6 +268,7 @@ class Race {
           car.wallHits++;
           this.spark(car.x + nx * CAR_RADIUS, car.y + ny * CAR_RADIUS, vn);
           if (car === this.player) this.events.push({ type: 'hit', power: vn });
+          if (vn > 150) this.crash(car, car.x + nx * CAR_RADIUS, car.y + ny * CAR_RADIUS, vn);
         }
       }
     }
@@ -290,6 +291,7 @@ class Race {
         this.damage(car, (imp - 50) * 0.06 * def.dmg, { kind: 'wall', ang: Math.atan2(-ny, -nx) });
         this.spark(o.x + nx * o.r, o.y + ny * o.r, imp);
         if (car === this.player) this.events.push({ type: 'hit', power: imp });
+        if (imp > 150) this.crash(car, o.x + nx * o.r, o.y + ny * o.r, imp);
       }
       if (o.kind === 'barrels' && imp > 70) this.blowBarrel(o, null);
       else if (o.kind === 'tyres' && imp > 160) { o.alive = false; this.events.push({ type: 'scatter', x: o.x, y: o.y }); } // a hard hit scatters the stack
@@ -408,12 +410,22 @@ class Race {
           this.damage(B, dmgB * (ramB ? 0.5 : 1) * (ramA ? 3 : 1) * (A.ramMul || 1) * (B.ramTakenMul || 1), { kind: 'ram', ang: toB + Math.PI });
           this.spark((A.x + B.x) / 2, (A.y + B.y) / 2, rel);
           if (A.isPlayer || B.isPlayer) this.events.push({ type: 'hit', power: rel * 0.8 });
+          if (rel > 160) this.crash(A.isPlayer ? A : B.isPlayer ? B : A, (A.x + B.x) / 2, (A.y + B.y) / 2, rel);
         }
       }
     }
   }
 
   // ---------- Effects ----------
+
+  // A hard crash anywhere on the track: the 3D view throws sparks and torn panels, and you hear the crunch (louder
+  // the closer it is; your own the loudest).
+  crash(car, x, y, power) {
+    if (this.cfg.headless) return;
+    const d = Math.hypot(x - this.player.x, y - this.player.y);
+    const vol = car === this.player ? 1 : clamp(1 - d / 800, 0, 1) * 0.6;
+    this.events.push({ type: 'crash', car, x, y, power, vol });
+  }
 
   spark(x, y, power) {
     if (this.cfg.headless) return;
