@@ -62,6 +62,23 @@ const MAG_RELOAD = {
   lmg: { off: [0, 0.6, 0], drop: [-1.2, -6, 0], dir: [0, -1, 0], depth: 0.9 },
   pangun: { off: [1.3, 0, 0], drop: [-3, 3, 0], dir: [0, 1, 0], depth: 1.1 },
 };
+// How each gun is held to reload it (on top of its hold, eased in and out): rx muzzle up (+) or down, ry turned in,
+// rz canted (+ rolls the top away to the left, showing the underside), and ox/oy/oz pulled left, up and in towards
+// you. The way you'd really do it: the muzzle stays out in front, and the gun is tipped so its loading point faces
+// the hand doing the work: the mag well canted down towards your left hand, the shotgun's port rolled up, the
+// break-open flare gun tipped muzzle-down so the breech lifts towards you, the rocket tube muzzle-up for its warhead.
+const RELOAD_POSE = {
+  pistol: { rx: 0.32, ry: 0.18, rz: -0.55, ox: -1.0, oy: 1.0, oz: 0.9 },
+  mag: { rx: 0.22, ry: 0.22, rz: -0.6, ox: -1.2, oy: 1.3, oz: 0.8 }, // SMG, carbine, Typewriter: mag or drum underneath
+  pangun: { rx: 0.4, ry: 0.12, rz: 0.25, ox: -0.8, oy: 0.6, oz: 0.6 }, // the pan on top: tipped so its top faces you
+  lmg: { rx: 0.15, ry: 0.15, rz: 0.4, ox: -0.6, oy: 0.4, oz: 0.5 }, // the box on its left side: rolled to face up
+  shotgun: { rx: 0.18, ry: 0.15, rz: -0.95, ox: -0.6, oy: 1.0, oz: 0.6 }, // loading port, underneath, rolled up
+  rocket: { rx: 0.5, ry: 0.12, rz: 0.1, ox: -0.9, oy: 0.4, oz: 1.0 }, // muzzle up: the warhead goes in the front
+  flare: { rx: -0.12, ry: 0.1, rz: -0.12, ox: -0.7, oy: 0.5, oz: 0.3 }, // broken open, the breech lifting to you
+  other: { rx: 0.15, ry: 0.18, rz: -0.4, ox: -1.0, oy: 1.0, oz: 0.6 }, // nail gun, flamethrower, harpoon
+};
+const reloadPose = (id) => RELOAD_POSE[id] || (MAG_RELOAD[id] ? RELOAD_POSE.mag : RELOAD_POSE.other);
+
 // The roof gun's hold: [x, y, z, scale, yaw, roll, pitch], dead ahead and low, braced on its pintle.
 const ROOF_HOLD = [0.4, -2.0, -5.2, 0.78, 0.02, 0, 0.02];
 const FIRE_EVENTS = ['shoot', 'shotgun', 'nail', 'flame', 'harpoon', 'rocket', 'flare'];
@@ -1735,12 +1752,12 @@ class CockpitView {
       let ox = 0, oy = 0, oz = 0, rx = 0, ry = 0, rz = 0;
       if (rp >= 0) {
         const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp));
+        const scaled = (P, k) => ({ rx: P.rx * k, ry: P.ry * k, rz: P.rz * k, ox: P.ox * k, oy: P.oy * k, oz: P.oz * k });
         if (MAG_RELOAD[id] && u.mag) {
           // Side-on: the empty mag (drum, box, pan) drops out tumbling, the support hand (on a one-handed pistol, the
           // spare one) drops down to the rack, comes back up with a fresh one, lines it up under the well, pushes it
           // home and the bolt (or the pistol's slide) goes forward.
-          if (id === 'pistol') { ry = 0.7 * tilt; rz = 0.3 * tilt; rx = 0.15 * tilt; ox = -1.0 * tilt; oy = 1.6 * tilt; }
-          else { ry = 0.95 * tilt; rz = 0.25 * tilt; rx = 0.1 * tilt; ox = -1.4 * tilt; oy = 2.6 * tilt; oz = 0.2 * tilt; }
+          ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
           if (u.slide && id === 'pistol') u.slide.position.z = 0.45 * (1 - ss(0.82, 0.86, rp)); // locked back until the new mag is in
           const MR = MAG_RELOAD[id], off = new THREE.Vector3(...MR.off), rest0 = new THREE.Vector3(...(u.magRest || [0, -2.7, 0.2]));
           const hand = hands[1], R = this.rackPoint(g, i), well = rest0.clone().sub(off);
@@ -1775,7 +1792,7 @@ class CockpitView {
           rx -= bump(0.86, 0.94, rp) * 0.12; // bolt (or slide) forward
         } else if (id === 'shotgun') {
           // Roll it over; four trips to the rack, each shell thumbed into the loading port; rack the pump.
-          rz = -0.7 * tilt; ry = 0.25 * tilt; oy = 0.9 * tilt; ox = -0.5 * tilt;
+          ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
           const hand = hands[1], port = new THREE.Vector3(0, -0.9, -0.3), R = this.rackPoint(g, i);
           const load = ss(0.12, 0.2, rp) * (1 - ss(0.78, 0.85, rp));
           if (hand) {
@@ -1797,7 +1814,7 @@ class CockpitView {
           if (hand && rp > 0.85) hand.position.z += rack * 1.2;
         } else if (id === 'rocket') {
           // The front hand reaches to the rack, lifts a warhead off it and slides it into the muzzle.
-          ry = 0.55 * tilt; rx = -0.1 * tilt; ox = -1.2 * tilt; oy = 0.3 * tilt; oz = 1.5 * tilt; rz = 0.15 * tilt;
+          ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
           const hand = hands[1], R = this.rackPoint(g, i), front = new THREE.Vector3(0, -0.6, -6.5);
           if (hand && R) {
             const rest = hand.userData.rest.pos;
@@ -1815,7 +1832,7 @@ class CockpitView {
           }
         } else if (id === 'flare') {
           // Break the barrel open, the spent case flips out, a fresh one goes in, snap it shut.
-          ry = 1.0 * tilt; rx = 0.1 * tilt; rz = 0.15 * tilt; ox = -1.0 * tilt; oy = 1.2 * tilt; oz = 1.3 * tilt;
+          ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
           const open = ss(0.08, 0.25, rp) * (1 - ss(0.78, 0.9, rp));
           u.barrelGrp.rotation.x = -0.75 * open;
           if (u.shell) {
@@ -1841,7 +1858,7 @@ class CockpitView {
         } else {
           // Nail gun, flamethrower, harpoon: tip it over, the other hand fetches a strip, a can or a bolt from the
           // rack and feeds it in; the one-handed nail gun just gets turned over and slapped.
-          ry = 0.6 * tilt; rx = 0.12 * tilt; rz = 0.2 * tilt; ox = -1.0 * tilt; oy = 0.9 * tilt; oz = 0.5 * tilt;
+          ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
           const hand = hands[1], R = this.rackPoint(g, i);
           if (hand && R) {
             const rest = hand.userData.rest.pos;

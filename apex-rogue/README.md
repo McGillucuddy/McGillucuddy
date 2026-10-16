@@ -336,6 +336,13 @@ volume and looks for overlaps.
   - **One-handed guns:** the pistol, flare gun and nail gun get a spare left hand that only appears to reload.
     It brings the pistol's magazine and the flare's shell.
   - **Harpoon:** the new bolt rides in from the rack in the support hand and slides home along the rail.
+  - **How each gun is held to reload** (`RELOAD_POSE`): the way you'd really do it, not turned side-on. The
+    muzzle stays out in front, and the gun tips so its loading point faces the working hand:
+    - mag guns are canted with the well down towards your left hand
+    - the shotgun's port is rolled up
+    - the flare gun is broken open pointing away, so you look into the breech
+    - the rocket tube goes muzzle-up for its warhead
+    - the Widow MG's pan tips towards you
 
 ### Feel: grenades, hits and crashes (prototype)
 
