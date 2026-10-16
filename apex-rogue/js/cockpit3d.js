@@ -926,7 +926,13 @@ class CockpitView {
     const row = this.ammoRack && this.ammoRack.find((r) => r.wi === wi);
     if (!row) return null;
     const it = row.items[clamp((row.shown > 0 ? row.shown : 1) - 1, 0, row.items.length - 1)];
-    const v = it.getWorldPosition(new THREE.Vector3()).applyMatrix4(this.camera.matrixWorldInverse);
+    // Measured in the car's own frame, both of them: the round on the board this frame, and the camera where it sat
+    // in the car last frame. (Mixing this frame's world position with last frame's camera put the target metres
+    // down the road at speed, and the arm stretched after it.)
+    const pg = this.playerGroup;
+    pg.updateWorldMatrix(true, true);
+    const inCar = it.getWorldPosition(new THREE.Vector3()).applyMatrix4(pg.matrixWorld.clone().invert());
+    const v = this.camInCar ? inCar.applyMatrix4(this.camInCar.clone().invert()) : it.getWorldPosition(new THREE.Vector3()).applyMatrix4(this.camera.matrixWorldInverse);
     v.z = Math.min(v.z, -2.5); // never behind you (the board is on the dash ahead of you: the hand goes right to it)
     g.updateMatrixWorld(true);
     return g.worldToLocal(this.vmCamera.localToWorld(v));
@@ -1486,19 +1492,26 @@ class CockpitView {
     // Your head turns on your neck: the eyes sit in front of it and swing round with the look, so turning to look
     // behind you puts your eyes over your shoulder instead of inside your own neck.
     const NECK = 0.85, hy = this.look.yaw;
-    const eye = this.playerGroup.localToWorld(new THREE.Vector3(EYE.x - NECK + NECK * Math.cos(hy) + 0.4 * upK, EYE.y + 5.4 * upK, EYE.z + NECK * Math.sin(hy)));
+    // Reaching for the ammo board on the dash: you lean in towards it and glance down, so it's within arm's length.
+    this.lean = lerp(this.lean || 0, this.combat.exposed ? 0 : (this.reachNow || 0), Math.min(1, dt * 7));
+    this.reachNow = 0;
+    const ln = this.lean;
+    const eye = this.playerGroup.localToWorld(new THREE.Vector3(EYE.x - NECK + NECK * Math.cos(hy) + 0.4 * upK + 1.3 * ln, EYE.y + 5.4 * upK - 0.8 * ln, EYE.z + NECK * Math.sin(hy)));
     if (this.roofHatch) this.roofHatch.rotation.z = 1.95 * clamp(this.combat.up * 2.5, 0, 1); // the lid flips up and over as you climb
     const sh = this.shake;
     eye.x += (Math.random() - 0.5) * sh * 1.2;
     eye.y += (Math.random() - 0.5) * sh * 1.2;
     eye.z += (Math.random() - 0.5) * sh * 1.2;
-    const wy = this.aimAngle(), pt = this.look.pitch;
+    const wy = this.aimAngle(), pt = this.look.pitch - 0.15 * (this.lean || 0); // (the glance down while reaching)
     // Look direction in the car's frame, so the view rolls and pitches with the cabin.
     const yw = this.look.yaw;
     const dir = new THREE.Vector3(Math.cos(yw) * Math.cos(pt), Math.sin(pt), Math.sin(yw) * Math.cos(pt)).applyQuaternion(this.playerGroup.quaternion);
     this.camera.position.copy(eye);
     this.camera.up.set(0, 1, 0).applyQuaternion(this.playerGroup.quaternion);
     this.camera.lookAt(eye.clone().add(dir));
+    // Where the camera sits in the car (for reaching to things in the cabin next frame; see rackPoint).
+    this.camera.updateMatrixWorld(); this.playerGroup.updateWorldMatrix(true, false);
+    this.camInCar = this.playerGroup.matrixWorld.clone().invert().multiply(this.camera.matrixWorld);
     if (this.kick) this.camera.rotateX(this.kick.cp); // the punch of a big gun going off
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(yw) * sway);
     // Drunk (pruno, whiskey): the cabin swims. Only the view moves, not where the gun points, so your aim drifts off
@@ -1930,14 +1943,14 @@ class CockpitView {
       const S0 = g.userData.shoulderCam[k], R = h.userData.rest, SL = h.userData.sleeve, U = h.userData;
       if (!S0 || !U.armDir || !SL) return;
       if (!U.upper) { // the upper arm and an elbow joint, made once, in the gun's space
-        U.upper = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.62, 1, 12, 1, true).translate(0, 0.5, 0), SL.mat);
-        U.elbow = new THREE.Mesh(new THREE.SphereGeometry(0.62, 12, 8), SL.mat);
+        U.upper = new THREE.Mesh(new THREE.CylinderGeometry(0.86, 0.78, 1, 12, 1, true).translate(0, 0.5, 0), SL.mat);
+        U.elbow = new THREE.Mesh(new THREE.SphereGeometry(0.78, 12, 8), SL.mat);
         g.add(U.upper, U.elbow);
         if (typeof PSX !== 'undefined') { PSX.apply(U.upper); PSX.apply(U.elbow); }
         // Arm lengths from the reach at rest (a spare hand rests out of sight, so it gets a typical reach): a little
         // longer than that reach, so the elbow is bent when you hold the gun.
         const rest = new THREE.Matrix4().compose(R.pos, new THREE.Quaternion().setFromEuler(new THREE.Euler(R.rot, 0, 0)), h.scale.clone());
-        const reach = U.spare ? 7.5 : U.shoulder.distanceTo(SL.wrist.clone().applyMatrix4(rest));
+        const reach = U.spare ? 8.0 : U.shoulder.distanceTo(SL.wrist.clone().applyMatrix4(rest));
         U.armLen = reach * 1.14 / 2; // upper arm and forearm the same length
       }
       U.upper.visible = U.elbow.visible = h.visible;
@@ -1964,11 +1977,12 @@ class CockpitView {
       // Forearm: the sleeve turned about the wrist to point at the elbow and sized to reach it (the cuff turns with it).
       const Ml = E.clone().applyMatrix4(h.matrix.clone().invert()).sub(SL.wrist), len = Ml.length();
       const q = new THREE.Quaternion().setFromUnitVectors(SL.dir, Ml.divideScalar(len || 1));
-      const k2 = clamp(len / SL.L, 0.3, 2), D = SL.dir, e = k2 - 1, Wl = SL.wrist;
+      // Sized to reach the elbow, and filled out round (a forearm is thicker than the glove's cuff suggests).
+      const k2 = clamp(len / SL.L, 0.3, 1.4), D = SL.dir, r = 1.3, e = k2 - r, Wl = SL.wrist;
       const stretch = new THREE.Matrix4().set(
-        1 + e * D.x * D.x, e * D.x * D.y, e * D.x * D.z, 0,
-        e * D.y * D.x, 1 + e * D.y * D.y, e * D.y * D.z, 0,
-        e * D.z * D.x, e * D.z * D.y, 1 + e * D.z * D.z, 0,
+        r + e * D.x * D.x, e * D.x * D.y, e * D.x * D.z, 0,
+        e * D.y * D.x, r + e * D.y * D.y, e * D.y * D.z, 0,
+        e * D.z * D.x, e * D.z * D.y, r + e * D.z * D.z, 0,
         0, 0, 0, 1);
       const turn = new THREE.Matrix4().makeTranslation(Wl.x, Wl.y, Wl.z).multiply(new THREE.Matrix4().makeRotationFromQuaternion(q));
       SL.mesh.matrixAutoUpdate = false;
@@ -1977,6 +1991,8 @@ class CockpitView {
       // Upper arm: from the elbow to the shoulder.
       const up = S.clone().sub(E), ul = up.length();
       U.upper.position.copy(E);
+      // How far this hand has gone for the board (it drops well below its grip): the body leans in to match.
+      if (h.visible && (off > 0.3 || U.spare)) { const yc = W.clone().applyMatrix4(g.matrix).y, y0 = SL.wrist.clone().applyMatrix4(new THREE.Matrix4().compose(R.pos, new THREE.Quaternion().setFromEuler(new THREE.Euler(R.rot, 0, 0)), h.scale)).applyMatrix4(g.matrix).y; this.reachNow = Math.max(this.reachNow || 0, clamp(((U.spare ? -2.5 : y0) - yc) / 3, 0, 1)); }
       U.upper.quaternion.setFromUnitVectors(V(0, 1, 0), up.divideScalar(ul || 1));
       U.upper.scale.set(1, ul, 1);
       U.elbow.position.copy(E);

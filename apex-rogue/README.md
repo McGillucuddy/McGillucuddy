@@ -332,6 +332,7 @@ volume and looks for overlaps.
     upper arm runs on to the shoulder. A hand that leaves its grip turns to follow its arm.
   - **The ammo board is on the dashboard:** strapped over the glovebox lid in front of your seat, facing you.
     A glance down shows what's left, and for each reload your hand reaches forward to the next round on it.
+    As the hand goes for it you lean in and glance down a little, so the board is within a bent arm's reach.
   - **Magazines:** the empty one tumbles away. The hand drops below the view, comes back up with a fresh one,
     lines it up under the well and pushes it home, and the bolt or slide goes forward. The pistol's slide stays
     locked back until the new mag is in.
