@@ -1882,6 +1882,10 @@ function drawWeaponPanel(ctx, P, W, H) {
     const d = weaponStats(w), st = c.wstate[i], reloading = st.reloadT > 0;
     rows.push([i === c.wi, `${i + 1} ${d.name}`, reloading ? 'RELOADING' : `${w.mag} | ${w.reserve}`, i === c.wi ? (reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag) : null, reloading ? '#ff9f1c' : '#5ad8ff']);
   });
+  if (c.roofIdx >= 0 && b.roof.gun) { // the mounted gun up top (V), lit while you're stood up at it
+    const w = b.roof.gun, d = weaponStats(w), st = c.wstate[c.roofIdx], on = c.wi === c.roofIdx, reloading = st && st.reloadT > 0;
+    rows.push([on, `V ${d.name}`, reloading ? 'RELOADING' : `${w.mag} | ${w.reserve}`, on ? (reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag) : null, reloading ? '#ff9f1c' : '#5ad8ff']);
+  }
   const hh = ensureHatch(b), hf = hh.hp / HATCH.max;
   const hatch = c.hatch.jammed ? 'HATCH JAMMED' : c.guarded ? 'HATCH SHUT' : hf < 0.995 ? `HATCH ${Math.ceil(hh.hp)}%` : '';
   rows.push([false, `G ×${b.grenades}`, hatch, hatch && !c.guarded ? hf : null, c.hatch.jammed ? '#ff3b1f' : hf < 0.3 ? '#ff7a1f' : '#c9a43a']);
