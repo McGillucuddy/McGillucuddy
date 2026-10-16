@@ -154,7 +154,8 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
 | Fire | Left click |
 | Weapons | `1` / `2` / `3`, `Q` or mouse wheel to switch |
 | Reload | `R` |
-| Grenade | Hold right click or `G` to pull the pin (it cooks while held), let go to throw |
+| Aim down the sights | Hold right click |
+| Grenade | Hold `G` to pull the pin (it cooks while held), let go to throw |
 | Abilities | `Space` / `E` |
 | Fit spare part | `B` |
 | Swerve left / right | `A` / `D` |

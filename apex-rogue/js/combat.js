@@ -7,6 +7,9 @@ const ROCKET_SPEED = 820;
 const LOCK_TIME = 1.35;
 const PARRY_WINDOW = 0.3;
 const GRENADE_G = 700;
+// Aiming down the sights (hold the right button): tighter shots, less climb, and the recoil kicks less (see
+// RECOIL in js/cockpit3d.js).
+const ADS = { spread: 0.5, bloom: 0.6, recoil: 0.6, fov: 0.76, time: 0.16 };
 // A real grenade: pull the pin and the fuse is lit whether you throw it or not. Thrown straight away it lands, bounces
 // and rolls before it goes; hold it a moment ("cooking") and it bursts as it lands. Hold it too long and it goes off
 // in your hand. It bounces off cars as well as the road. (air: the flight time to the aim point.)
@@ -205,6 +208,7 @@ class Combat {
     if (this.flinchT > 0) d.spread *= 2.2; // just hit: your aim's all over the place
     if (this.build.gunnerHp != null && this.build.gunnerHp < GUNNER.hp) d.spread *= 1 + GUNNER.shake * (1 - this.build.gunnerHp / GUNNER.hp); // wounded: shaky hands
     if (this.orderAiming) d.spread *= ORDER.easeAim; // you told the driver to ease off: a steadier platform
+    if (this.ads) { d.spread *= ADS.spread; d.bloom = (d.bloom || 0) * ADS.bloom; } // down the sights: tighter
     return d;
   }
   get busy() { return this.fitT > 0 || this.climbT > 0; }

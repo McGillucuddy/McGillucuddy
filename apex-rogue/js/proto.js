@@ -140,7 +140,7 @@ const Proto = {
         E.x = clamp(E.x + e.movementX, -120, 120); E.y = clamp(E.y + e.movementY, -120, 120);
       } else if (this.locked && this.cockpit) {
         const l = this.cockpit.look;
-        const sens = LOOK_SENS * Settings.data.sens;
+        const sens = LOOK_SENS * Settings.data.sens * (1 - 0.3 * ((this.cockpit && this.cockpit.adsK) || 0)); // slower down the sights, with the zoom
         l.yaw = wrapAngle(l.yaw + e.movementX * sens);
         l.pitch = clamp(l.pitch - e.movementY * sens, -0.75, 0.6);
       }
@@ -150,12 +150,12 @@ const Proto = {
       if (this.state !== 'race') return;
       if (this.view === 'cockpit' && !this.locked) { this.lock(); return; }
       if (e.button === 0) { this.mouse.down = true; this.mouse.pressed = true; }
-      if (e.button === 2) { this.mouse.rdown = true; this.combat.cookGrenade(); } // pull the pin; let go to throw
+      if (e.button === 2) this.mouse.ads = true; // hold to aim down the sights
       if (e.button === 1) { e.preventDefault(); this.combat.order('ram', this.aimAngle()); } // "Ram them!" (js/orders.js)
     });
     window.addEventListener('mouseup', (e) => {
       if (e.button === 0) this.mouse.down = false;
-      if (e.button === 2) { this.mouse.rdown = false; if (this.state === 'race' && this.combat && this.combat.cook) this.throwGrenade(); }
+      if (e.button === 2) this.mouse.ads = false;
     });
     this.c2d.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('wheel', (e) => { if (this.combat && this.state === 'race') this.combat.cycle(Math.sign(e.deltaY)); }, { passive: true });
@@ -391,7 +391,7 @@ const Proto = {
         <h3>In the car</h3>
         <div class="ctl"><kbd>Mouse</kbd> Aim · <kbd>LMB</kbd> Fire · <kbd>R</kbd> Reload</div>
         <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
-        <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (land one in a rival's open hatch or window) · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
+        <div class="ctl"><kbd>RMB</kbd> Aim down the sights · <kbd>G</kbd> Grenade (land one in a rival's open hatch or window) · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
         <div class="ctl"><kbd>Space</kbd> (hold) Slam the blast hatch: it stops bullets and most of a blast, but you can't shoot. Slam it as a rocket hits to bat it back.</div>
         <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
         <div class="ctl"><kbd>V</kbd> (or <kbd>4</kbd>) Climb up to the roof gun, if you've mounted one, and back down. Steadier and all the way round, but you're exposed and the blast hatch can't cover you.</div>
@@ -1159,7 +1159,7 @@ const Proto = {
           <details class="ctl-box" ${this.build.race < 2 ? 'open' : ''}><summary><h2>Controls</h2></summary>
           <div class="ctl"><kbd>Mouse</kbd> Aim / look around · <kbd>LMB</kbd> Fire</div>
           <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch · <kbd>R</kbd> Reload</div>
-          <div class="ctl"><kbd>RMB</kbd>/<kbd>G</kbd> Grenade (look higher to throw further). Drop one down a rocket car's roof hatch or in a gunner's window.</div>
+          <div class="ctl"><kbd>RMB</kbd> Aim down the sights: tighter shots, less kick. <kbd>G</kbd> Grenade (look higher to throw further). Drop one down a rocket car's roof hatch or in a gunner's window.</div>
           <div class="ctl"><kbd>T</kbd> Flip off a rival (hold for the emote wheel)</div>
           <div class="ctl"><kbd>Space</kbd> (hold) Blast hatch · <kbd>E</kbd> / <kbd>F</kbd> Abilities · <kbd>B</kbd> Fit your spare part</div>
           ${this.build.roof && this.build.roof.gun ? `<div class="ctl"><kbd>V</kbd> Up to the ${WEAPONS[this.build.roof.gun.id].name} on the roof, and back down</div>` : ''}
@@ -1708,8 +1708,10 @@ const Proto = {
     if (Input.consume('KeyV') || Input.consume('Digit4')) combat.toggleRoof(); // up into the roof hatch to the mounted gun, or back down
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
     if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
-    if (Input.consume('KeyG')) combat.cookGrenade(); // hold G (or the right button) to cook it, let go to throw
-    if (combat.cook && !Input.keys.has('KeyG') && !this.mouse.rdown) this.throwGrenade();
+    if (Input.consume('KeyG')) combat.cookGrenade(); // hold G to cook it, let go to throw
+    if (combat.cook && !Input.keys.has('KeyG')) this.throwGrenade();
+    // Aiming down the sights (hold the right button): not while your hands are busy or the hatch is shut.
+    combat.ads = !!this.mouse.ads && this.view === 'cockpit' && !combat.busy && !combat.cook && !combat.hatchDown && !(combat.wstate[combat.wi] && combat.wstate[combat.wi].reloadT > 0);
 
     const aim = this.aimAngle();
     const sub = 2;
@@ -2095,8 +2097,11 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     }
   }
 
-  // Crosshair: shape depends on the weapon; a ring fills while reloading.
-  const cx = W / 2, cy = H / 2, wd = c.weaponDef, wst = c.wstate[c.wi];
+  // Crosshair: shape depends on the weapon; a ring fills while reloading. Aiming down the sights it fades out (the
+  // sights do the job) to a faint dot.
+  const cx = W / 2, cy = H / 2, wd = c.weaponDef, wst = c.wstate[c.wi], adsK = (P.cockpit && P.cockpit.adsK) || 0;
+  ctx.save();
+  ctx.globalAlpha = 1 - adsK;
   ctx.strokeStyle = c.weapon.mag <= 0 && c.weapon.reserve <= 0 ? '#ff3b1f' : 'rgba(255,255,255,0.9)';
   ctx.lineWidth = 2;
   if (c.weapon.id === 'pistol') { // a plain dot in a gap ring
@@ -2130,6 +2135,9 @@ function drawCockpitHUD(ctx, P, W, H, t) {
     ctx.beginPath(); ctx.arc(cx, cy, 14, 0, TAU); ctx.stroke();
     ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
   }
+  ctx.globalAlpha = adsK * 0.6;
+  ctx.fillStyle = '#fff'; ctx.fillRect(cx - 1, cy - 1, 2, 2);
+  ctx.restore();
   if (wst.reloadT > 0) {
     ctx.strokeStyle = '#ff9f1c';
     ctx.lineWidth = 3;

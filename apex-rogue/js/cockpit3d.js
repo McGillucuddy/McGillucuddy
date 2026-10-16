@@ -51,6 +51,17 @@ const FIRE_KICK = {
   lmg: { back: 0.5, climb: 0.09, yaw: 0.05, roll: 0.04, cam: 0.012, flash: 1.3, smoke: 0.45, light: 1.1 },
   pangun: { back: 0.55, climb: 0.1, yaw: 0.045, roll: 0.04, cam: 0.013, flash: 1.3, smoke: 0.5, light: 1.1 },
 };
+// Recoil you have to fight: each shot throws your view up (v, radians) and kicks it sideways at random (h, which
+// does move your aim); once you stop firing, most of the climb settles back (rec, the share that comes back). Aiming
+// down the sights and the braced roof mount both cut it.
+const RECOIL = {
+  pistol: { v: 0.022, h: 0.006, rec: 0.8 }, smg: { v: 0.011, h: 0.009, rec: 0.75 }, nailgun: { v: 0.005, h: 0.004, rec: 0.9 },
+  shotgun: { v: 0.075, h: 0.012, rec: 0.8 }, rocket: { v: 0.055, h: 0.006, rec: 0.85 }, flare: { v: 0.04, h: 0.008, rec: 0.85 },
+  harpoon: { v: 0.045, h: 0.006, rec: 0.85 }, flamer: { v: 0.001, h: 0.002, rec: 1 }, carbine: { v: 0.014, h: 0.006, rec: 0.75 },
+  liberty: { v: 0.06, h: 0.01, rec: 0.8 }, typewriter: { v: 0.016, h: 0.013, rec: 0.6 }, lmg: { v: 0.013, h: 0.01, rec: 0.7 },
+  pangun: { v: 0.016, h: 0.011, rec: 0.7 },
+};
+
 // Magazine-fed guns: where the support hand holds a fresh magazine (offset from where it sits in the gun) and which
 // way the empty one falls. The pan comes off the top and is tossed aside.
 // dir: the way into the well, from outside (the fresh one is lined up that far out, then pushed straight in).
@@ -1246,7 +1257,9 @@ class CockpitView {
     if (ev.type === 'shoot' || ev.type === 'shotgun') this.ejectCasing(ev.type === 'shotgun');
     if (FIRE_EVENTS.includes(ev.type)) {
       const k = FIRE_KICK[this.combat.weapon.id] || FIRE_KICK.smg, soft = this.combat.buffs && this.combat.buffs.kick; // whiskey: a steadier hand
-      this.fireKick(soft ? Object.assign({}, k, { back: k.back * soft, climb: k.climb * soft, yaw: k.yaw * soft, roll: k.roll * soft, cam: k.cam * soft }) : k);
+      const ads = 1 - (1 - ADS.recoil) * (this.adsK || 0); // down the sights, the gun kicks less in your hands too
+      this.fireKick(Object.assign({}, k, { back: k.back * (soft || 1) * ads, climb: k.climb * (soft || 1) * ads, yaw: k.yaw * (soft || 1) * ads, roll: k.roll * (soft || 1) * ads, cam: k.cam * (soft || 1) * ads }));
+      this.recoil2(this.combat.weapon.id, soft || 1);
     }
     if (ev.type === 'explode') this.burst(ev.x, ev.y, ev.big);
     if (ev.type === 'switch') this.anim.switchT = 0.38;
@@ -1506,6 +1519,10 @@ class CockpitView {
     // Look direction in the car's frame, so the view rolls and pitches with the cabin.
     const yw = this.look.yaw;
     const dir = new THREE.Vector3(Math.cos(yw) * Math.cos(pt), Math.sin(pt), Math.sin(yw) * Math.cos(pt)).applyQuaternion(this.playerGroup.quaternion);
+    // Down the sights the view narrows a little (and the held gun's with it, less).
+    const ak = this.adsK || 0, fov = 74 * (1 - (1 - ADS.fov) * ak), vfov = 74 * (1 - 0.12 * ak);
+    if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
+    if (Math.abs(this.vmCamera.fov - vfov) > 0.01) { this.vmCamera.fov = vfov; this.vmCamera.updateProjectionMatrix(); }
     this.camera.position.copy(eye);
     this.camera.up.set(0, 1, 0).applyQuaternion(this.playerGroup.quaternion);
     this.camera.lookAt(eye.clone().add(dir));
@@ -1707,6 +1724,10 @@ class CockpitView {
     const bump = (a, c, x) => Math.sin(Math.PI * clamp((x - a) / (c - a), 0, 1)); // 0 -> 1 -> 0 over a..c
     this.recoil = Math.max(0, this.recoil - dt * 6);
     this.flash -= dt;
+    // Recoil settling: a beat after you stop shooting, your view eases back down most of the way.
+    if (this.recDebt > 0 && combat.lastFire > 0.1) { const back = Math.min(this.recDebt, this.recDebt * Math.min(1, dt * 7) + dt * 0.01); this.look.pitch -= back; this.recDebt -= back; }
+    // Aiming down the sights, eased in and out.
+    this.adsK = clamp((this.adsK || 0) + (combat.ads ? 1 : -1) * dt / ADS.time, 0, 1);
     this.updateKick(dt);
     A.switchT = Math.max(0, A.switchT - dt);
     A.pumpT = Math.max(0, A.pumpT - dt);
@@ -1900,9 +1921,14 @@ class CockpitView {
       }
       const dry = A.dry > 0 ? Math.sin((A.dry / 0.14) * Math.PI) * 0.05 : 0;
       const K = this.kick; // the firing kick, on springs
-      g.position.set(x + sw.x * 0.5 + ox + K.y * 2, y + bob + sw.y * 0.4 - this.dip - raise + oy + K.p * 1.6, z + K.z + oz);
       const [hp, hy, hr] = u.holdRot || [0, 0, 0];
-      g.rotation.set(hp + K.p - this.dip * 0.15 + sw.y * 0.06 + rx + dry, hy + sw.r * 0.3 + ry + K.y, hr - sw.x * 0.1 + rz + K.r);
+      // Down the sights: brought up to the middle with its top sight line under your eye, square to the view; the
+      // sway and bob calm right down.
+      const a = this.adsK * this.adsK * (3 - 2 * this.adsK), calm = 1 - 0.7 * a;
+      if (u.sightY == null) u.sightY = this.sightHeight(g);
+      const bx = lerp(x, 0, a), by = lerp(y, -u.sightY * g.scale.y - 0.12, a), bz = lerp(z, z * 0.92, a);
+      g.position.set(bx + (sw.x * 0.5) * calm + ox + K.y * 2, by + (bob + sw.y * 0.4) * calm - this.dip - raise + oy + K.p * 1.6, bz + K.z + oz);
+      g.rotation.set(lerp(hp, 0, a) + K.p - this.dip * 0.15 + sw.y * 0.06 * calm + rx + dry, lerp(hy, 0, a) + sw.r * 0.3 * calm + ry + K.y, lerp(hr, 0, a) - sw.x * 0.1 * calm + rz + K.r);
       this.aimArms(g, hands);
     });
     const held = vm.guns[combat.wi];
@@ -1925,6 +1951,24 @@ class CockpitView {
   }
 
   // A shot: kick the gun on its springs, punch the view, light the flash, start a smoke puff.
+  // The height of a gun's sight line in its own space: the top of the gun along its middle (the shield and mount
+  // on a roof gun, the hands and arms don't count).
+  sightHeight(g) {
+    const skip = new Set();
+    for (const h of g.userData.hands || []) h.traverse((o) => skip.add(o));
+    for (const k of ['shieldKit']) if (g.userData[k]) g.userData[k].traverse((o) => skip.add(o));
+    g.updateMatrixWorld(true);
+    const inv = g.matrixWorld.clone().invert(), bb = new THREE.Box3(), top = { y: -Infinity };
+    g.traverse((o) => {
+      if (!o.isMesh || skip.has(o) || !o.geometry) return;
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      bb.copy(o.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
+      if (bb.max.x - bb.min.x > 2.4 || Math.abs((bb.max.x + bb.min.x) / 2) > 0.6) return; // off to the side, or a wide plate
+      top.y = Math.max(top.y, bb.max.y);
+    });
+    return isFinite(top.y) ? top.y : 0.6;
+  }
+
   // Your arms, shoulder to elbow to wrist. The shoulders stay put by the camera (where they sit with the gun at
   // rest) while the gun tips about and the hands move; each arm bends at an elbow solved between the two, pointing
   // down and out, as arms do. The forearm (the glove's sleeve) runs from the wrist to the elbow and an upper arm
@@ -2036,6 +2080,16 @@ class CockpitView {
     this.muzzleLight.color.set(k.color || '#ffc070');
     this.cabinFlash.color.set(k.color || '#ffc070');
     if (k.smoke) this.puff(k.smoke);
+  }
+
+  // The recoil that moves your view: up (and kept up while you hold the trigger) and a random kick sideways.
+  recoil2(id, soft) {
+    const R = RECOIL[id] || RECOIL.smg, c = this.combat, L = this.look;
+    const k = soft * (1 - (1 - ADS.recoil) * (this.adsK || 0)) * (c.exposed ? ROOF.steady : 1);
+    const up = R.v * k * (0.85 + Math.random() * 0.3);
+    L.pitch = clamp(L.pitch + up, -0.75, 0.6);
+    L.yaw += (Math.random() * 2 - 1) * R.h * k;
+    this.recDebt = (this.recDebt || 0) + up * R.rec; // what settles back once you let go
   }
 
   // Springs back to rest with a little overshoot (two substeps keep it stable at low frame rates).
