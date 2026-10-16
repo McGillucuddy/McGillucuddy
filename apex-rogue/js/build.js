@@ -1,0 +1,605 @@
+'use strict';
+// Build system: parts (with durability, plus one spare), ammo-based weapons, abilities,
+// trinkets (rule-changers that hang in the cabin) and driver chips (change how the AI drives).
+
+const PART_SLOTS = ['engine', 'tyres', 'armour', 'nitro'];
+const SLOT_NAMES = { engine: 'Engine', tyres: 'Tyres', armour: 'Armour', nitro: 'Nitro' };
+
+const PARTS = {
+  stock_engine: { slot: 'engine', name: 'Stock Engine', desc: 'Tired but honest.', price: 0, dur: 100, mods: {} },
+  turbo_v6: { slot: 'engine', name: 'Turbo V6', desc: '+8% top speed, +15% acceleration. Fragile.', price: 260, dur: 70, mods: { top: 1.08, accel: 1.15 } },
+  diesel: { slot: 'engine', name: 'Diesel Block', desc: '+12% acceleration and very tough, but -4% top speed.', price: 200, dur: 170, mods: { top: 0.96, accel: 1.12 } },
+  racing_v8: { slot: 'engine', name: 'Racing V8', desc: '+15% top speed. Breaks easily.', price: 340, dur: 55, mods: { top: 1.15, accel: 1.05 } },
+  supercharger: { slot: 'engine', name: 'Supercharged V8', desc: '+12% top speed and acceleration, but wears 50% faster.', price: 320, dur: 90, mods: { top: 1.12, accel: 1.12, wear: 1.5 } },
+  electric: { slot: 'engine', name: 'Salvaged Electric', desc: '+25% acceleration (instant torque), -8% top speed. Tough.', price: 280, dur: 140, mods: { top: 0.92, accel: 1.25 } },
+
+  stock_tyres: { slot: 'tyres', name: 'Bald Tyres', desc: 'Round, mostly.', price: 0, dur: 100, mods: {} },
+  slicks: { slot: 'tyres', name: 'Racing Slicks', desc: '+20% grip on tarmac. Terrible off-road.', price: 220, dur: 70, mods: { grip: 1.2, offroad: 1.6 } },
+  all_terrain: { slot: 'tyres', name: 'All-Terrain Tyres', desc: 'Off-road slowdown -60%, but -5% grip.', price: 180, dur: 130, mods: { grip: 0.95, offroad: 0.4 } },
+  studded: { slot: 'tyres', name: 'Studded Tyres', desc: '+40% grip on ice and snow. -4% top speed.', price: 180, dur: 110, mods: { iceGrip: 1.4, top: 0.96 } },
+  run_flats: { slot: 'tyres', name: 'Run-Flats', desc: '-5% grip. When worn out you keep 85% grip; they take 50% more to shoot flat, and you barely feel a flat.', price: 200, dur: 90, mods: { grip: 0.95, runFlat: true } },
+  chains: { slot: 'tyres', name: 'Snow Chains', desc: '+60% grip on ice, rams deal +30% damage, -8% top speed.', price: 170, dur: 120, mods: { iceGrip: 1.6, ram: 1.3, top: 0.92 } },
+
+  scrap_plating: { slot: 'armour', name: 'Scrap Plating', desc: 'Absorbs 20% of incoming damage.', price: 0, dur: 60, mods: { absorb: 0.2 } },
+  riot_plates: { slot: 'armour', name: 'Riot Plates', desc: 'Absorbs 40% of damage. Heavy: -5% speed and acceleration.', price: 260, dur: 130, mods: { absorb: 0.4, top: 0.95, accel: 0.95, mass: 1.3 } },
+  reactive: { slot: 'armour', name: 'Reactive Armour', desc: 'Absorbs 70% of explosion damage, 15% of everything else.', price: 240, dur: 80, mods: { absorb: 0.15, blastAbsorb: 0.7 } },
+  spiked_cage: { slot: 'armour', name: 'Spiked Cage', desc: 'Absorbs 15%. Your rams deal double damage.', price: 220, dur: 100, mods: { absorb: 0.15, ram: 2 } },
+  ablative: { slot: 'armour', name: 'Ablative Plates', desc: 'Absorbs 50% of damage, but the plates wear away twice as fast.', price: 240, dur: 90, mods: { absorb: 0.5, armourWear: 2 } },
+  window_cage: { slot: 'armour', name: 'Window Cage', desc: 'Stops 60% of gunfire, but nothing against blasts or rams.', price: 200, dur: 110, mods: { absorb: 0, bulletAbsorb: 0.6 } },
+
+  stock_nitro: { slot: 'nitro', name: 'Rusty Bottle', desc: 'A standard nitrous bottle.', price: 0, dur: 100, mods: {} },
+  big_bottle: { slot: 'nitro', name: 'Big Bottle', desc: '+80% nitro capacity, -10% power.', price: 180, dur: 100, mods: { nitroCap: 1.8, nitroPower: 0.9 } },
+  hot_mix: { slot: 'nitro', name: 'Hot Mix', desc: '+50% nitro power. Wears out fast.', price: 220, dur: 60, mods: { nitroPower: 1.5 } },
+  recycler: { slot: 'nitro', name: 'Recycler', desc: 'Nitro refills 3x faster, -20% capacity.', price: 240, dur: 90, mods: { nitroCap: 0.8, nitroRegen: 3 } },
+  twin_bottles: { slot: 'nitro', name: 'Twin Bottles', desc: '+40% capacity and +40% refill speed.', price: 260, dur: 110, mods: { nitroCap: 1.4, nitroRegen: 1.4 } },
+  methanol: { slot: 'nitro', name: 'Methanol Mix', desc: '+25% nitro power and refill speed. Wears faster.', price: 200, dur: 70, mods: { nitroPower: 1.25, nitroRegen: 1.25 } },
+};
+const BROKEN_TEXT = {
+  engine: 'Engine broken: top speed and acceleration crippled',
+  tyres: 'Tyres shredded: grip halved',
+  armour: 'Armour torn off: no damage absorption',
+  nitro: 'Nitro bottle cracked: no nitro',
+};
+
+// Ammo-based weapons. mag = rounds per magazine, reserve = spare rounds carried.
+const WEAPONS = {
+  pistol: { name: 'Service Pistol', desc: 'Every inmate starts with one. Accurate and quick to reload, but light. Can pick rockets out of the air.', kind: 'bullet', auto: true, mag: 12, reload: 1.2, rate: 0.19, pellets: 1, spread: 0.022, speed: 1550, dmg: 5.2, life: 0.6, pack: 36, packPrice: 25, start: 60, tyre: 0.25, price: 0 },
+  smg: { name: 'SMG', desc: 'Fast, accurate, low damage. Shoots rockets and mines out of the air.', kind: 'bullet', auto: true, mag: 30, reload: 1.6, rate: 0.085, pellets: 1, spread: 0.035, speed: 1500, dmg: 3.2, life: 0.6, pack: 60, packPrice: 40, start: 90, tyre: 0.35, price: 160 },
+  shotgun: { name: 'Pump Shotgun', desc: 'Close range. Big knockback; one blast clears incoming rockets.', kind: 'bullet', auto: false, mag: 6, reload: 2.2, rate: 0.7, pellets: 7, spread: 0.2, speed: 1250, dmg: 3.4, life: 0.3, knock: 70, pack: 12, packPrice: 40, start: 18, tyre: 0.6, price: 220 },
+  rocket: { name: 'Rocket Launcher', desc: 'Slow, explosive and devastating.', kind: 'rocket', auto: false, mag: 1, reload: 1.8, rate: 0.6, speed: 950, dmg: 26, radius: 62, life: 2.2, pack: 3, packPrice: 90, start: 3, tyre: 0.5, price: 300 },
+  flare: { name: 'Flare Gun', desc: 'Blinds the driver you hit: they swerve and brake for 3 seconds.', kind: 'flare', auto: false, mag: 1, reload: 1.4, rate: 0.5, speed: 1100, dmg: 4, life: 1.2, blind: 3, pack: 4, packPrice: 50, start: 4, tyre: 0.3, price: 180 },
+  nailgun: { name: 'Nail Gun', desc: 'Pneumatic and fully automatic. Nails puncture tyres: every hit drags the rival back a little.', kind: 'bullet', auto: true, mag: 40, reload: 1.9, rate: 0.075, pellets: 1, spread: 0.05, speed: 1250, dmg: 2.4, life: 0.55, puncture: 0.6, pack: 80, packPrice: 40, start: 120, tyre: 2.5, price: 200 },
+  flamer: { name: 'Flamethrower', desc: 'Short range. Sets everything it touches on fire. Fuel goes fast.', kind: 'flame', auto: true, mag: 60, reload: 2.4, rate: 0.06, pellets: 2, spread: 0.14, speed: 560, dmg: 0.9, life: 0.38, burn: 4, burnTime: 3, pack: 120, packPrice: 45, start: 180, tyre: 0.2, price: 260 },
+  // Rifles and machine guns. Warden Corp issue, liberated, and pre-war surplus from the sealed arsenals under the Plate.
+  carbine: { name: 'WC-9 Carbine', desc: 'Warden Corp guard issue, liberated. Accurate full-auto that carries a long way: the all-rounder.', kind: 'bullet', auto: true, mag: 30, reload: 1.8, rate: 0.1, pellets: 1, spread: 0.026, speed: 1750, dmg: 4.4, life: 0.72, pack: 60, packPrice: 45, start: 90, tyre: 0.8, price: 280 },
+  liberty: { name: 'Liberty Rifle', desc: 'Pre-war army surplus, older than the Plate. Eight heavy, dead-accurate rounds a clip, then the empty clip pings out.', kind: 'bullet', auto: false, mag: 8, reload: 1.5, rate: 0.24, pellets: 1, spread: 0.008, speed: 2100, dmg: 11, life: 0.85, knock: 25, ping: true, pack: 24, packPrice: 45, start: 32, tyre: 1, price: 260 },
+  typewriter: { name: 'Typewriter', desc: 'A pre-war drum gun in walnut and blued steel. Fifty rounds as fast as you can hold on, but the longer you hold, the more it climbs.', kind: 'bullet', auto: true, mag: 50, reload: 2.6, rate: 0.065, pellets: 1, spread: 0.04, speed: 1350, dmg: 3.1, life: 0.55, bloom: 0.09, pack: 100, packPrice: 50, start: 150, tyre: 0.5, price: 240 },
+  lmg: { name: 'Grinder LMG', roof: true, desc: 'Roof-mounted. Belt-fed, a hundred rounds to the box. It wanders as the barrel heats and takes an age to reload: make the belt count.', kind: 'bullet', auto: true, mag: 100, reload: 3.8, rate: 0.08, pellets: 1, spread: 0.034, speed: 1650, dmg: 4.0, life: 0.7, bloom: 0.025, pack: 100, packPrice: 60, start: 200, tyre: 0.7, price: 380 },
+  pangun: { name: 'Widow MG', roof: true, desc: 'Roof-mounted. Pre-war, with a cooling jacket and a pan magazine that turns as it fires. Heavy rounds; changing the pan is slow.', kind: 'bullet', auto: true, mag: 47, reload: 3.0, rate: 0.1, pellets: 1, spread: 0.03, speed: 1700, dmg: 5.4, life: 0.75, bloom: 0.03, pack: 94, packPrice: 60, start: 141, tyre: 0.8, price: 340 },
+  harpoon: { name: 'Harpoon Gun', desc: 'A heavy barbed bolt on a line. Hooks a rival and drags them back hard.', kind: 'harpoon', auto: false, mag: 1, reload: 1.6, rate: 0.5, speed: 1150, dmg: 16, life: 1.1, hook: 1.6, pack: 4, packPrice: 60, start: 5, tyre: 0.3, price: 280 },
+};
+const GRENADE_PRICE = 30;
+const MAX_GRENADES = 5;
+
+// The blast hatch: a welded steel plate on a hinge over the windscreen. Hold Space to slam it down. While it's shut
+// it stops gunfire and most of a blast, but you can't shoot or throw. Slam it just as a rocket arrives and it
+// bats the rocket back. Every hit dents it; dented through, it jams open until it's fixed in the garage.
+const HATCH = {
+  max: 100,
+  slam: 0.13, // seconds to slam shut
+  lift: 0.32, // seconds to haul it back up
+  minDown: 0.35, // a tap still holds it shut this long
+  guard: 0.8, // how far down it has to be to stop anything
+  blastPass: 0.3, // share of a blast that still gets through
+};
+const ensureHatch = (b) => { if (!b.hatch) b.hatch = { hp: HATCH.max }; return b.hatch; };
+const repairHatchCost = (b) => Math.ceil((HATCH.max - Math.max(0, ensureHatch(b).hp)) * 0.7 * repairMul(b) + (b.hatch.hp <= 0 ? 25 : 0));
+
+const ABILITIES = {
+  nitro_burst: { name: 'Nitro Burst', desc: 'Two seconds of free, double-strength boost.', cooldown: 10, price: 160 },
+  smoke: { name: 'Smoke Screen', desc: 'Drops a smoke cloud. Rivals inside lose their lock and slow down.', cooldown: 12, price: 180 },
+  emp: { name: 'EMP Pulse', desc: 'Destroys nearby rockets and mines and jams rival weapons for 4s.', cooldown: 15, price: 240 },
+};
+
+const TRINKETS = {
+  dice: { name: 'Fuzzy Dice', desc: 'A parry instantly reloads the weapon in your hands.' },
+  rabbit_foot: { name: "Rabbit's Foot", desc: 'Once per race, a hit that would wreck your hull leaves it at 1.' },
+  horseshoe: { name: 'Rusty Horseshoe', desc: 'Your rams deal triple damage, but you take +50% ram damage.' },
+  keys: { name: "Warden's Keys", desc: '+1 weapon on the rack. Rival gunners lock on 25% faster.' },
+  rosary: { name: 'Burnt Rosary', desc: 'Explosions near you knock 2s off your ability cooldowns.' },
+  bobblehead: { name: 'Bobblehead', desc: '+40 scrap for every rival you wreck.' },
+  freshener: { name: 'Pine Air Freshener', desc: 'Your parts are 25% more durable.' },
+  medal: { name: 'St. Christopher Medal', desc: 'Swerve cooldown halved; swerving makes you untouchable for 0.4s.' },
+  lighter: { name: 'Zippo Lighter', desc: 'Your bullets have a 12% chance to set the car they hit alight.' },
+  photo: { name: 'Polaroid from Home', desc: 'Repairs in the workshop cost 30% less.' },
+  smokes: { name: 'Pack of Smokes', desc: 'Prison currency: everything in the commissary costs 15% less.' },
+  eightball: { name: 'Magic 8-Ball', desc: 'One extra card to choose from after every race.' },
+  troll: { name: 'Troll Doll', desc: 'Wall hits do 40% less damage to your hull.' },
+  sparkplug: { name: 'Lucky Spark Plug', desc: 'Nitro refills 35% faster.' },
+  tooth: { name: 'Gold Tooth', desc: '+30% scrap from placings.' },
+  dogtags: { name: 'Dog Tags', desc: '+20 maximum hull.' },
+  // Shady trinkets: only the dealer behind the wall sells these (js/blackmarket.js), and each one costs you something.
+  deadrosary: { name: "Dead Man's Rosary", shady: true, desc: 'Bone beads off a driver who died in your seat. Once per run, a wreck doesn\'t put you out: you come back on 30 hull. Rival gunners lock on 15% faster.' },
+  loaded: { name: 'Loaded Dice', shady: true, desc: 'Purses always roll at the top of their range. -20 maximum hull.' },
+  spikes: { name: 'Spiked Hubcap', shady: true, desc: 'Fits spikes to your hubs: side by side with a rival, they shred that rival\'s tyres. You take 25% more ram damage.' },
+  // Fan-made trinkets: only the Fan Club has these (js/infamy.js), paid for in Infamy.
+  scarf: { name: 'Fan Club Scarf', fan: true, desc: 'Knitted in prison orange with your number on it. +25% Infamy from everything.' },
+  letters: { name: 'Love Letters', fan: true, desc: 'A bundle of them, tied with a bootlace, in the glovebox. Bounties pay 25% more.' },
+  mugshot: { name: 'Signed Mugshot', fan: true, desc: 'Your own mugshot, sent in for you to sign. You kept it. Taunts and humiliations earn double Infamy; rivals stay tilted 50% longer.' },
+  shoes: { name: 'Bronzed Baby Shoes', desc: 'Once per race, when your hull drops below 30%, patch 25 of it back.' },
+  compass: { name: 'Dash Compass', desc: 'Your rockets turn 40% harder towards their target.' },
+  cassette: { name: 'Mixtape', desc: 'Reloads 20% faster.' },
+  teddy: { name: 'Prison Teddy', desc: 'Stuffed in the hatch hinge: it slams and lifts twice as fast and takes 25% less wear.' },
+  clover: { name: 'Four-Leaf Clover', desc: 'Wrecking a rival refills the magazine of the gun in your hands.' },
+  snowglobe: { name: 'Snow Globe', desc: 'Pick up a spare grenade after every race.' },
+};
+
+const CHIPS = {
+  hothead: { name: 'Hothead', desc: 'Your driver rams anything nearby (+50% ram damage) but clips more walls.' },
+  cautious: { name: 'Cautious', desc: 'Your driver barely scratches the walls (-70% wall damage) but brakes far too early.' },
+  daredevil: { name: 'Daredevil', desc: 'Your driver cuts corners through the dirt (off-road -50%) but spins out on oil.' },
+  gun_nut: { name: 'Gun Nut', desc: 'Weapons reload 40% faster, but your driver wobbles while you shoot.' },
+  // Driver traits won from bosses.
+  veteran: { name: 'Getaway Veteran', desc: 'Your driver takes corners 6% faster, but your car takes 25% more damage from rams.' },
+  ghost: { name: 'Ghost', desc: 'Swerves recharge twice as fast, but nitro is 30% weaker.' },
+  showboat: { name: 'Showboat', desc: '+50% scrap from placings and wrecks, but rival gunners lock on 25% faster.' },
+};
+
+// Weapon mods: two slots per weapon, swappable in the garage.
+const MODS = {
+  // Common
+  ext_mag: { name: 'Extended Mag', rarity: 'common', desc: '+50% magazine size, but reloads 25% slower.', fits: ['pistol', 'smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'], price: 120 },
+  quick_mag: { name: 'Speed Loader', rarity: 'common', desc: 'Reloads 40% faster, but -25% magazine size.', fits: ['pistol', 'smg', 'shotgun', 'rocket', 'flare', 'nailgun', 'flamer', 'harpoon', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'], price: 120 },
+  // Bolt-on attachments you can see on the gun.
+  drum_mag: { name: 'Drum Mag', rarity: 'common', desc: 'Double magazine, but reloads 50% slower.', fits: ['smg', 'shotgun', 'nailgun', 'flamer', 'carbine'], price: 130 },
+  scope: { name: 'Scrap Scope', rarity: 'common', desc: 'A pipe and a bottle lens: -45% spread, +25% range.', fits: ['smg', 'shotgun', 'nailgun', 'harpoon', 'flare', 'carbine', 'liberty', 'lmg'], price: 120 },
+  compensator: { name: 'Muzzle Brake', rarity: 'common', desc: '-35% spread and 8% faster firing.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'carbine', 'typewriter', 'lmg'], price: 120 },
+  red_dot: { name: 'Red Dot Sight', rarity: 'common', desc: '-30% spread.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'harpoon', 'flare', 'carbine', 'lmg', 'typewriter'], price: 100 },
+  flashlight: { name: 'Flashlight', rarity: 'common', desc: 'Rivals you keep in its beam lose their lock on you.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'harpoon', 'flare', 'carbine', 'liberty', 'lmg'], price: 110 },
+  bayonet: { name: 'Rebar Bayonet', rarity: 'common', desc: 'Your rams deal +35% damage while this gun is in your hands.', fits: ['shotgun', 'harpoon', 'liberty'], price: 100 },
+  // Built from whatever was lying around the yard.
+  shock_coil: { name: 'Shock Coil', rarity: 'rare', desc: 'A car battery wired to a coil round the barrel: hits have a 15% chance to short out a rival (EMP, 1.5s).', fits: ['smg', 'nailgun', 'harpoon', 'carbine'], price: 170 },
+  hubcap: { name: 'Hubcap Shield', rarity: 'rare', desc: 'A hubcap welded on as a gun shield: -20% gunfire damage while it\'s in your hands.', fits: ['smg', 'shotgun', 'nailgun', 'flamer', 'lmg', 'pangun'], price: 160 },
+  pressure_tank: { name: 'Pressure Tank', rarity: 'rare', desc: '+35% projectile speed and range.', fits: ['nailgun', 'flamer', 'harpoon'], price: 150 },
+  napalm: { name: 'Napalm Mix', rarity: 'rare', desc: 'Fires burn 60% hotter and last 5 seconds.', fits: ['flamer'], price: 170 },
+  framing_nails: { name: 'Framing Nails', rarity: 'rare', desc: '+30% damage and each nail drags 60% harder.', fits: ['nailgun'], price: 150 },
+  barbed_head: { name: 'Barbed Head', rarity: 'epic', desc: 'Hooked rivals bleed (3 dmg/s for 4s) and stay hooked 40% longer.', fits: ['harpoon'], price: 200 },
+  laser: { name: 'Laser Sight', rarity: 'common', desc: '-60% spread. Paints a red line to your target.', fits: ['pistol', 'smg', 'shotgun', 'carbine'], price: 100 },
+  choke: { name: 'Full Choke', rarity: 'common', desc: 'Shotgun spread halved and range +50%.', fits: ['shotgun'], price: 110 },
+  hair_trigger: { name: 'Hair Trigger', rarity: 'common', desc: '+30% fire rate, but +40% spread.', fits: ['smg', 'shotgun', 'flare', 'nailgun', 'carbine', 'liberty', 'typewriter'], price: 110 },
+  sawn_off: { name: 'Sawn-Off Barrel', rarity: 'common', desc: '+3 pellets and 30% faster reload, but much wider spread and shorter range.', fits: ['shotgun'], price: 100 },
+  // Rare
+  incendiary: { name: 'Incendiary Rounds', rarity: 'rare', desc: 'Hits set rivals on fire (3 dmg/s for 3s). Ammo costs 50% more.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'], price: 160 },
+  ap_rounds: { name: 'Armour-Piercing Rounds', rarity: 'rare', desc: '+35% damage, but -15% fire rate.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'], price: 150 },
+  suppressor: { name: 'Suppressor', rarity: 'rare', desc: '-15% damage, but rival gunners take 40% longer to lock on to you.', fits: ['pistol', 'smg', 'shotgun', 'nailgun', 'carbine', 'liberty', 'typewriter'], price: 150 },
+  tracer: { name: 'Tracer Rounds', rarity: 'rare', desc: 'Hits mark a rival for 3s: they take +20% damage from everything.', fits: ['smg', 'carbine', 'lmg', 'pangun'], price: 160 },
+  slugs: { name: 'Slug Rounds', rarity: 'rare', desc: 'One heavy, accurate slug instead of buckshot. Long range, big knockback.', fits: ['shotgun'], price: 150 },
+  bunker_buster: { name: 'Bunker Buster', rarity: 'rare', desc: '+60% blast radius and +20% damage, but slower rockets.', fits: ['rocket'], price: 190 },
+  long_burn: { name: 'Long-Burn Flares', rarity: 'rare', desc: 'Blinded drivers stay blind 70% longer.', fits: ['flare'], price: 140 },
+  // Epic
+  homing: { name: 'Homing Fins', rarity: 'epic', desc: 'Rockets curve toward the rival nearest your aim.', fits: ['rocket'], price: 200 },
+  twin_tube: { name: 'Twin Tube', rarity: 'epic', desc: 'Fires two rockets per shot (uses two rounds). Double magazine.', fits: ['rocket'], price: 240 },
+  remote_det: { name: 'Remote Detonator', rarity: 'epic', desc: 'Fire again while your rocket is in the air to detonate it.', fits: ['rocket'], price: 220 },
+  cluster: { name: 'Cluster Flare', rarity: 'epic', desc: 'Flares burst on impact, blinding every driver within 120.', fits: ['flare'], price: 170 },
+  phosphor: { name: 'White Phosphor', rarity: 'epic', desc: 'Flares also set the driver on fire (4 dmg/s).', fits: ['flare'], price: 190 },
+};
+const modFits = (modId, weaponId) => MODS[modId].fits.includes(weaponId);
+
+// The extreme (third) tuning notch for each part.
+const TUNE_EXTREME = {
+  engine: { name: 'Extreme engine tune', desc: 'A third tuning notch on the engine, both ways: bored out, or detuned to last.' },
+  tyres: { name: 'Extreme tyre tune', desc: 'A third tuning notch on the tyres: rock hard, or soft as chewing gum.' },
+  armour: { name: 'Extreme armour tune', desc: 'A third tuning notch on the armour: stripped to the frame, or a rolling bunker.' },
+  nitro: { name: 'Extreme nitro tune', desc: 'A third tuning notch on the nitro: a huge bottle, or a ferocious one.' },
+};
+
+// ---------- Unlocks ----------
+// Runs are self-contained: there's no reputation and nothing to unlock, so every item below is in the pool from the
+// first race. (The table is kept as a rough guide to how strong each item is.) You start each run with a pistol;
+// everything else has to turn up in a shop or a reward, and only unlocked gear ever does.
+// Each number is the rep needed (0 = available from the first run).
+const UNLOCK_REP = {
+  weapon: { pistol: 0, smg: 20, shotgun: 60, flare: 110, typewriter: 140, nailgun: 170, liberty: 200, rocket: 240, carbine: 280, flamer: 330, pangun: 380, harpoon: 440, lmg: 500 },
+  part: {
+    diesel: 0, all_terrain: 0, big_bottle: 0, window_cage: 0, studded: 30, chains: 50, methanol: 70, run_flats: 90, reactive: 120,
+    slicks: 150, turbo_v6: 180, electric: 210, hot_mix: 240, spiked_cage: 280, recycler: 320, riot_plates: 370, twin_bottles: 430,
+    ablative: 500, supercharger: 580, racing_v8: 680,
+  },
+  ability: { nitro_burst: 80, smoke: 200, emp: 400 },
+  mod: {
+    ext_mag: 0, quick_mag: 0, red_dot: 0, laser: 25, compensator: 45, hair_trigger: 65, flashlight: 85, choke: 100, sawn_off: 120,
+    scope: 140, drum_mag: 160, bayonet: 180, incendiary: 210, ap_rounds: 240, suppressor: 270, tracer: 300, slugs: 330, hubcap: 360,
+    shock_coil: 390, pressure_tank: 420, framing_nails: 450, long_burn: 480, napalm: 510, bunker_buster: 540,
+    homing: 600, remote_det: 660, cluster: 720, phosphor: 780, twin_tube: 850, barbed_head: 920,
+  },
+  trinket: {
+    dice: 0, rabbit_foot: 0, bobblehead: 0, freshener: 0, cassette: 0, troll: 0, tooth: 40, dogtags: 80, sparkplug: 120, smokes: 160,
+    photo: 200, medal: 250, lighter: 300, compass: 350, teddy: 400, shoes: 460, horseshoe: 520, snowglobe: 580, rosary: 640,
+    clover: 700, keys: 780, eightball: 860,
+  },
+  tune: { engine: 140, tyres: 180, armour: 220, nitro: 260 },
+  chip: { hothead: 0, cautious: 0, daredevil: 60, gun_nut: 140, veteran: 300, ghost: 500, showboat: 700 },
+};
+const UNLOCK_TYPES = { weapon: WEAPONS, part: PARTS, ability: ABILITIES, mod: MODS, trinket: TRINKETS, chip: CHIPS, tune: TUNE_EXTREME };
+const UNLOCK_LABEL = { weapon: 'Weapons', part: 'Car parts', ability: 'Abilities', mod: 'Attachments', trinket: 'Trinkets', chip: 'Drivers', tune: 'Extreme tuning' };
+const Meta = { rep: 0 }; // (unused: there's no reputation between runs any more)
+const unlockRep = (type, id) => (UNLOCK_REP[type] && UNLOCK_REP[type][id]) || 0;
+const isUnlocked = () => true; // every run is self-contained: all the gear is in the pool from the first race
+// Everything that unlocks in (before, after], for the results screen.
+const gearUnlockedBetween = (before, after) => Object.entries(UNLOCK_REP).flatMap(([type, list]) => Object.entries(list)
+  .filter(([, r]) => r > before && r <= after).map(([id]) => ({ type, id, name: UNLOCK_TYPES[type][id].name })));
+
+// Part tuning: one trade-off slider per part, -1..1 in steps of 0.5. Free to change in the garage.
+const TUNING = {
+  engine: { left: 'Reliable', right: 'Boosted', desc: 'More power, but the engine wears faster.' },
+  tyres: { left: 'Hard', right: 'Soft', desc: 'More grip, but the tyres wear faster.' },
+  armour: { left: 'Light', right: 'Heavy', desc: 'Absorbs more, but adds weight (slower).' },
+  nitro: { left: 'Capacity', right: 'Power', desc: 'Stronger boost from a smaller bottle.' },
+};
+// Tuning in notches of 0.5. Every car starts with one notch each way. A second is welded on in the workshop
+// (scrap, per direction, kept on the car whatever part is fitted). A third, extreme notch per part.
+const TUNE_STEPS = [-1.5, -1, -0.5, 0, 0.5, 1, 1.5];
+const WELD_COST = [0, 0, 90, 160]; // to open notch 2, notch 3
+const tuneRange = (b, slot) => (b.tuneRange && b.tuneRange[slot]) || { lo: -1, hi: 1 }; // in notches
+// The next notch you could weld on in a direction (+1 / -1), or null; and what stands in the way.
+function nextWeld(b, slot, dir) {
+  const r = tuneRange(b, slot), cur = dir > 0 ? r.hi : -r.lo, next = cur + 1;
+  if (next > 3) return null;
+  return { notch: next, cost: WELD_COST[next], locked: next === 3 && !isUnlocked('tune', slot) };
+}
+function weldNotch(b, slot, dir) {
+  const w = nextWeld(b, slot, dir);
+  if (!w || w.locked || b.scrap < w.cost) return false;
+  b.scrap -= w.cost;
+  b.tuneRange = b.tuneRange || {};
+  const r = Object.assign({}, tuneRange(b, slot));
+  if (dir > 0) r.hi = w.notch; else r.lo = -w.notch;
+  b.tuneRange[slot] = r;
+  return true;
+}
+
+// Scrap is scarce on purpose: a good race pays for the repairs and a little over, not for everything in the shop.
+// Purses are ranges: where you land is half luck, half how you raced (wrecks, parries, finishing unscathed).
+const PLACE_PURSE = [[100, 160], [70, 115], [50, 85], [30, 55], [20, 40], [10, 25], [5, 15]];
+const WRECK_PURSE = [10, 20]; // old per-wreck purse (bounties replaced it); kept for older references
+const BOSS_PURSE = [120, 180];
+const SKIP_SCRAP = 30;
+// Bounties: a price on every rival's head, by how dangerous they are: their gun, armoured tyres, the act, an elite
+// grid. Wreck them and it's yours; kill the driver through the glass for a clean kill and half as much again.
+const BOUNTY = { base: 10, weapon: { mine: 5, gun: 10, rocket: 20 }, armour: 10, act: 0.3, elite: 1.4, cleanKill: 1.5 };
+const rivalBounty = (c, act, elite) => Math.round(((BOUNTY.base + (BOUNTY.weapon[c.weapon] || 0) + (c.armorTyres ? BOUNTY.armour : 0)) * (1 + BOUNTY.act * act) * (elite ? BOUNTY.elite : 1)) / 5) * 5;
+const purseRange = (place) => PLACE_PURSE[Math.min(PLACE_PURSE.length, Math.max(1, place)) - 1];
+// A style score 0..1 for the race: wrecks, parries and coming through untouched push you up the range.
+const raceStyle = (s) => clamp(s.wrecked * 0.12 + (s.parries || 0) * 0.15 + (s.taken < 25 ? 0.25 : s.taken < 60 ? 0.1 : 0), 0, 1);
+const rollPurse = (range, rng, style) => Math.round(range[0] + (range[1] - range[0]) * clamp(0.5 * rng() + 0.5 * style, 0, 1));
+const purseRoll = rollPurse;
+const STRIKES_TO_LOSE = 3;
+
+function newBuild() {
+  const b = {
+    scrap: 120, hull: 100, maxHull: 100, race: 0, strikes: 0, wins: 0, wrecks: 0, pocket: [], roof: { gun: null, shield: 'none', shieldHp: 0 }, // pocket: contraband to use at a briefing; roof: the machine-gun mount
+    parts: {}, spare: null,
+    rack: [], rackBase: 2,
+    tuneRange: { engine: { lo: -1, hi: 1 }, tyres: { lo: -1, hi: 1 }, armour: { lo: -1, hi: 1 }, nitro: { lo: -1, hi: 1 } },
+    grenades: 2,
+    abilities: [null, null], // E and F; Space is the blast hatch
+    hatch: { hp: HATCH.max },
+    trinkets: [], // the only permanent things in a run
+    chip: null,
+    stash: { parts: [], weapons: [], abilities: [], mods: [], chips: [] },
+  };
+  for (const id of ['stock_engine', 'stock_tyres', 'scrap_plating', 'stock_nitro']) installPart(b, id);
+  addWeapon(b, 'pistol'); // everything else is found, bought, and unlocked over runs
+  return b;
+}
+
+const has = (b, trinket) => b.trinkets.includes(trinket);
+const rackSlots = (b) => b.rackBase + (has(b, 'keys') ? 1 : 0);
+const partMaxDur = (b, id) => Math.round(PARTS[id].dur * (has(b, 'freshener') ? 1.25 : 1));
+const newPart = (b, id) => ({ id, dur: partMaxDur(b, id), tune: 0 });
+
+function installPart(b, id) {
+  b.parts[PARTS[id].slot] = newPart(b, id);
+}
+
+const newWeapon = (id) => ({ id, mag: WEAPONS[id].mag, reserve: Math.max(0, WEAPONS[id].start - WEAPONS[id].mag), mods: [null, null] });
+
+// The roof mount. The machine guns (WEAPONS with roof: true) don't go in your hands: they sit on a pintle over a
+// hatch in the roof, and you climb up into it (see Combat.toggleRoof). Up there you're exposed, and what you can buy
+// to cover you is shielding round the gun, each tier a trade:
+//   cover: the half-angle (from where the gun points) that it stops gunfire from; block: the share it stops there
+//   arc:   how far either side of dead ahead the gun can swing inside it; weight: a little off your top speed
+const ROOF_SHIELDS = {
+  none: { name: 'Bare mount', price: 0, cover: 0, block: 0, arc: Math.PI, hp: 0, weight: 0, desc: 'Nothing between you and every gunner on the track. You can swing all the way round.' },
+  plate: { name: 'Gun Shield', price: 140, cover: 0.75, block: 1, arc: Math.PI, hp: 60, weight: 0.01, desc: 'A welded plate in front of the gun with a sighting slot. Stops what comes at you from where you\'re aiming; your sides and back are open.' },
+  wrap: { name: 'Wraparound', price: 260, cover: 2.0, block: 1, arc: 2.2, hp: 90, weight: 0.03, desc: 'Plates on three sides. Stops most gunfire, but it\'s heavy (3% off your top speed) and you can\'t swing round to the back.' },
+  // The cage is what slat armour really does: its plates stop bullets like the wraparound's (rounds over the top or
+  // from behind go between the bars), but a rocket that would hit you goes off on the bars, a safe distance out, or
+  // has its fuse crushed and fails; and blasts don't catch you nearly as badly up there.
+  cage: { name: 'Cage Turret', price: 420, cover: 2.0, block: 0.9, arc: 1.3, hp: 130, weight: 0.05, rocketCage: true, desc: 'Plates round you and a welded tube cage over the top. Bullets: the plates stop most of what comes from ahead and the sides; over the top and from behind, rounds go between the bars. Rockets: they go off on the cage instead of on you, or have their fuse crushed and fail. The heaviest, and you see out through a slit.' },
+};
+const SHIELD_ORDER = ['none', 'plate', 'wrap', 'cage'];
+const ensureRoof = (b) => { if (!b.roof) b.roof = { gun: null, shield: 'none', shieldHp: 0 }; return b.roof; };
+const shieldRepairCost = (b) => { const R = ensureRoof(b), S = ROOF_SHIELDS[R.shield]; return S.hp ? Math.ceil((S.hp - Math.max(0, R.shieldHp)) * 0.8 * repairMul(b)) : 0; };
+// Swap a roof gun from the stash onto the mount (the one that was there goes to the stash).
+function mountRoofGun(b, stashIndex) {
+  const R = ensureRoof(b), w = b.stash.weapons[stashIndex];
+  if (!w || !WEAPONS[w.id].roof) return;
+  b.stash.weapons.splice(stashIndex, 1);
+  if (R.gun) b.stash.weapons.push(R.gun);
+  R.gun = w;
+}
+
+function addWeapon(b, id, replaceIndex) {
+  if (replaceIndex != null) b.rack[replaceIndex] = newWeapon(id);
+  else b.rack.push(newWeapon(id));
+}
+
+const partBroken = (b, slot) => b.parts[slot].dur <= 0;
+
+// A weapon's stats with its mods applied.
+function weaponStats(w) {
+  const d = Object.assign({}, WEAPONS[w.id]);
+  const m = new Set(w.mods.filter(Boolean));
+  if (m.has('ext_mag')) { d.mag = Math.ceil(d.mag * 1.5); d.reload *= 1.25; }
+  if (m.has('quick_mag')) { d.mag = Math.max(1, Math.floor(d.mag * 0.75)); d.reload *= 0.6; }
+  if (m.has('incendiary')) { d.burn = 3; d.packPrice = Math.round(d.packPrice * 1.5); }
+  if (m.has('ap_rounds')) { d.dmg *= 1.35; d.rate *= 1.15; }
+  if (m.has('laser')) { d.spread *= 0.4; d.laser = true; }
+  if (m.has('choke')) { d.spread *= 0.5; d.life *= 1.5; }
+  if (m.has('hair_trigger')) { d.rate *= 0.77; d.spread *= 1.4; }
+  if (m.has('sawn_off')) { d.pellets += 3; d.spread *= 1.6; d.reload *= 0.7; d.life *= 0.6; }
+  if (m.has('slugs')) { d.pellets = 1; d.dmg *= 4.5; d.spread = 0.012; d.life *= 2.2; d.knock = (d.knock || 0) * 1.5; }
+  if (m.has('suppressor')) { d.dmg *= 0.85; d.quiet = true; }
+  if (m.has('tracer')) d.tracer = true;
+  if (m.has('bunker_buster')) { d.radius *= 1.6; d.dmg *= 1.2; d.speed *= 0.75; }
+  if (m.has('twin_tube')) { d.mag *= 2; d.twin = true; }
+  if (m.has('remote_det')) d.remote = true;
+  if (m.has('long_burn')) d.blind *= 1.7;
+  if (m.has('phosphor')) d.burn = 4;
+  if (m.has('homing')) d.homing = true;
+  if (m.has('cluster')) d.cluster = true;
+  if (m.has('drum_mag')) { d.mag *= 2; d.reload *= 1.5; }
+  if (m.has('scope')) { d.spread = (d.spread || 0) * 0.55; d.life *= 1.25; }
+  if (m.has('compensator')) { d.spread = (d.spread || 0) * 0.65; d.rate *= 0.92; }
+  if (m.has('bayonet')) d.bayonet = true;
+  if (m.has('red_dot')) d.spread = (d.spread || 0) * 0.7;
+  if (m.has('flashlight')) d.dazzle = true;
+  if (m.has('shock_coil')) d.shock = 0.15;
+  if (m.has('hubcap')) d.hubcap = true;
+  if (m.has('pressure_tank')) { d.speed *= 1.35; d.life *= 1.35; }
+  if (m.has('napalm')) { d.burn *= 1.6; d.burnTime = 5; }
+  if (m.has('framing_nails')) { d.dmg *= 1.3; d.puncture *= 1.6; }
+  if (m.has('barbed_head')) { d.bleed = 3; d.hook *= 1.4; }
+  return d;
+}
+
+// Keep the loaded magazine within capacity after mods change.
+function fitMag(w) {
+  const cap = weaponStats(w).mag;
+  if (w.mag > cap) { w.reserve += w.mag - cap; w.mag = cap; }
+}
+
+// How fast each fitted part wears, from its tuning.
+function wearMul(b, slot) {
+  const t = b.parts[slot].tune || 0, m = PARTS[b.parts[slot].id].mods;
+  return ({ engine: 1 + 0.6 * t, tyres: 1 + 0.7 * t, armour: 1, nitro: 1 }[slot]) * (m.wear || 1);
+}
+
+// Car stats from the base car + installed parts and their tuning (broken parts cripple their stat).
+function buildStats(b) {
+  const s = computeStats(newRun('comet', 1));
+  s.maxHp = b.maxHull;
+  s.absorb = 0; s.blastAbsorb = 0; s.bulletAbsorb = 0; s.armourWear = 1; s.ram = 1; s.iceGrip = 1;
+  for (const slot of PART_SLOTS) {
+    const part = b.parts[slot], m = PARTS[part.id].mods;
+    if (part.dur <= 0) continue;
+    if (m.top) s.top *= m.top;
+    if (m.accel) s.accel *= m.accel;
+    if (m.grip) s.grip *= m.grip;
+    if (m.offroad) s.offroadMul *= m.offroad;
+    if (m.iceGrip) s.iceGrip *= m.iceGrip;
+    if (m.mass) s.mass *= m.mass;
+    if (m.absorb) s.absorb = m.absorb;
+    if (m.blastAbsorb) s.blastAbsorb = m.blastAbsorb;
+    if (m.bulletAbsorb) s.bulletAbsorb = m.bulletAbsorb;
+    if (m.armourWear) s.armourWear = m.armourWear;
+    if (m.ram) s.ram *= m.ram;
+    if (m.nitroCap) s.nitroCap *= m.nitroCap;
+    if (m.nitroPower) s.nitroPower *= m.nitroPower;
+    if (m.nitroRegen) s.nitroRegen *= m.nitroRegen;
+    const t = part.tune || 0;
+    if (slot === 'engine') { s.top *= 1 + 0.05 * t; s.accel *= 1 + 0.08 * t; }
+    if (slot === 'tyres') s.grip *= 1 + 0.12 * t;
+    if (slot === 'armour') { s.absorb *= 1 + 0.4 * t; s.blastAbsorb *= 1 + 0.4 * t; s.top *= 1 - 0.03 * t; s.accel *= 1 - 0.04 * t; }
+    if (slot === 'nitro') { s.nitroPower *= 1 + 0.3 * t; s.nitroCap *= 1 - 0.25 * t; }
+  }
+  s.absorb = Math.min(0.75, s.absorb);
+  if (b.chip === 'ghost') s.nitroPower *= 0.7;
+  if (partBroken(b, 'engine')) { s.top *= 0.55; s.accel *= 0.5; }
+  if (partBroken(b, 'tyres')) {
+    const runFlat = PARTS[b.parts.tyres.id].mods.runFlat;
+    s.grip *= runFlat ? 0.85 : 0.5;
+    s.handling *= runFlat ? 0.95 : 0.8;
+  }
+  if (partBroken(b, 'nitro')) { s.nitroCap = 0.001; s.nitroRegen = 0; }
+  if (b.chip === 'daredevil') s.offroadMul *= 0.5;
+  if (has(b, 'sparkplug')) s.nitroRegen *= 1.35;
+  const R = b.roof, S = R && R.gun && ROOF_SHIELDS[R.shield]; // shielding round the roof gun is heavy
+  if (S && S.weight) { s.top *= 1 - S.weight; s.accel *= 1 - S.weight; }
+  return s;
+}
+
+// ---------- Garage loadout (everything except trinkets can be swapped here) ----------
+
+function equipPart(b, stashIndex) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.parts.length)) return;
+  const inst = b.stash.parts[stashIndex], slot = PARTS[inst.id].slot;
+  b.stash.parts[stashIndex] = b.parts[slot];
+  b.parts[slot] = inst;
+}
+
+function equipWeapon(b, stashIndex, rackIndex) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.weapons.length)) return;
+  const w = b.stash.weapons[stashIndex];
+  if (WEAPONS[w.id].roof) return mountRoofGun(b, stashIndex); // never in your hands
+  if (rackIndex == null || rackIndex >= b.rack.length) {
+    if (b.rack.length >= rackSlots(b)) return;
+    b.stash.weapons.splice(stashIndex, 1);
+    b.rack.push(w);
+  } else {
+    b.stash.weapons[stashIndex] = b.rack[rackIndex];
+    b.rack[rackIndex] = w;
+  }
+}
+
+function unequipWeapon(b, rackIndex) {
+  if (b.rack.length <= 1) return;
+  b.stash.weapons.push(b.rack.splice(rackIndex, 1)[0]);
+}
+
+function equipAbility(b, stashIndex, slot) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.abilities.length)) return;
+  const id = b.stash.abilities[stashIndex];
+  const old = b.abilities[slot];
+  b.stash.abilities.splice(stashIndex, 1);
+  if (old) b.stash.abilities.push(old);
+  b.abilities[slot] = id;
+}
+
+function equipChip(b, stashIndex) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.chips.length)) return;
+  const id = b.stash.chips[stashIndex];
+  b.stash.chips.splice(stashIndex, 1);
+  if (b.chip) b.stash.chips.push(b.chip);
+  b.chip = id;
+}
+
+function fitMod(b, stashIndex, rackIndex, slot) {
+  if (!(stashIndex >= 0 && stashIndex < b.stash.mods.length)) return;
+  const w = b.rack[rackIndex], id = b.stash.mods[stashIndex];
+  if (!modFits(id, w.id) || w.mods.includes(id)) return;
+  b.stash.mods.splice(stashIndex, 1);
+  if (w.mods[slot]) b.stash.mods.push(w.mods[slot]);
+  w.mods[slot] = id;
+  fitMag(w);
+}
+
+function removeMod(b, rackIndex, slot) {
+  const w = b.rack[rackIndex];
+  if (!w.mods[slot]) return;
+  b.stash.mods.push(w.mods[slot]);
+  w.mods[slot] = null;
+  fitMag(w);
+}
+
+// ---------- Rewards & shop ----------
+
+function itemCard(type, id) {
+  const src = { part: PARTS, weapon: WEAPONS, ability: ABILITIES, trinket: TRINKETS, chip: CHIPS, mod: MODS }[type][id];
+  const rarity = src.rarity || { trinket: 'epic', chip: 'epic', part: 'common', weapon: 'rare', ability: 'rare' }[type];
+  if (type === 'chip' && typeof Crew !== 'undefined') { // a driver: an inmate with a name and a habit (js/crew.js)
+    const c = Crew.id(id);
+    return { type, id, name: c.name, desc: `<b>${src.name}.</b> ${src.desc}`, price: src.price || 0, rarity };
+  }
+  return { type, id, name: src.name, desc: src.desc, price: src.price || 0, rarity };
+}
+
+const ownsPart = (b, id) => b.parts[PARTS[id].slot].id === id || b.stash.parts.some((p) => p.id === id);
+const ownsWeapon = (b, id) => b.rack.some((w) => w.id === id) || b.stash.weapons.some((w) => w.id === id) || !!(b.roof && b.roof.gun && b.roof.gun.id === id);
+const ownsAbility = (b, id) => b.abilities.includes(id) || b.stash.abilities.includes(id);
+const ownsChip = (b, id) => b.chip === id || b.stash.chips.includes(id);
+
+function rollRewards(b, rng, count) {
+  if (has(b, 'eightball')) count += 1; // one more card to choose from
+  const pool = [];
+  for (const id in PARTS) if (PARTS[id].price > 0 && !ownsPart(b, id)) pool.push(['part', id, 3]);
+  for (const id in WEAPONS) if (!ownsWeapon(b, id)) pool.push(['weapon', id, 3]);
+  for (const id in ABILITIES) if (!ownsAbility(b, id)) pool.push(['ability', id, 2]);
+  for (const id in MODS) pool.push(['mod', id, { common: 2, rare: 1.2, epic: 0.6 }[MODS[id].rarity]]);
+  for (const id in TRINKETS) if (!has(b, id) && !TRINKETS[id].shady && !TRINKETS[id].fan) pool.push(['trinket', id, 2]);
+  for (const id in CHIPS) if (!ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)) pool.push(['chip', id, 1]);
+  for (let i = pool.length - 1; i >= 0; i--) if (!isUnlocked(pool[i][0], pool[i][1])) pool.splice(i, 1); // only gear you've unlocked
+  const out = [];
+  while (out.length < count && pool.length) {
+    const pickd = weightedPick(rng, pool, (p) => p[2]);
+    pool.splice(pool.indexOf(pickd), 1);
+    out.push(itemCard(pickd[0], pickd[1]));
+  }
+  return out;
+}
+
+// Elite races guarantee a trinket among the cards (while there are trinkets left to find).
+function rollEliteRewards(b, rng) {
+  const out = rollRewards(b, rng, 3).filter((c) => c.type !== 'trinket').slice(0, 2);
+  const left = Object.keys(TRINKETS).filter((id) => !has(b, id) && !TRINKETS[id].shady && !TRINKETS[id].fan && isUnlocked('trinket', id));
+  if (left.length) out.push(itemCard('trinket', left[Math.floor(rng() * left.length)]));
+  while (out.length < 3) { const extra = rollRewards(b, rng, 1)[0]; if (!extra || out.some((c) => c.id === extra.id)) break; out.push(extra); }
+  return shuffle(rng, out);
+}
+
+// Beating a boss: choose a driver trait (the boss-only chips first), padded with epic mods.
+function rollBossRewards(b, rng) {
+  const traits = shuffle(rng, ['veteran', 'ghost', 'showboat'].filter((id) => !ownsChip(b, id) && isUnlocked('chip', id)));
+  const others = shuffle(rng, Object.keys(CHIPS).filter((id) => !ownsChip(b, id) && !traits.includes(id) && isUnlocked('chip', id)));
+  const out = [...traits, ...others].slice(0, 3).map((id) => itemCard('chip', id));
+  const epics = shuffle(rng, Object.keys(MODS).filter((id) => MODS[id].rarity === 'epic' && isUnlocked('mod', id)));
+  while (out.length < 3 && epics.length) out.push(itemCard('mod', epics.pop()));
+  while (out.length < 3) { const extra = rollRewards(b, rng, 1)[0]; if (!extra || out.some((c) => c.id === extra.id)) break; out.push(extra); }
+  return out;
+}
+
+// The commissary: three sections, each stocked at random every visit from everything you've unlocked, so anything
+// can turn up. Weapons: two guns and two attachments (ones that fit a gun you own are twice as likely). Trinkets: two.
+// Vehicle: two car parts and an ability or driver chip. Scrap is scarce: you won't afford it all, and what you buy
+// here is scrap you don't spend on repairs and ammo.
+const SHOP_SECTIONS = [
+  { id: 'weapons', name: 'Weapons', stock: [['weapon', 2], ['mod', 2]] },
+  { id: 'trinkets', name: 'Trinkets', stock: [['trinket', 2]] },
+  { id: 'vehicle', name: 'Vehicle', stock: [['part', 2], ['ability|chip', 1]] },
+];
+const SHOP_PRICE = { trinket: 240, chip: 200 }; // the ones with no list price
+function rollShop(b, rng, act) {
+  const owned = b.rack.concat(b.stash.weapons).map((w) => w.id);
+  const pools = {
+    weapon: Object.keys(WEAPONS).filter((id) => WEAPONS[id].price > 0 && !ownsWeapon(b, id)),
+    mod: Object.keys(MODS),
+    trinket: Object.keys(TRINKETS).filter((id) => !has(b, id) && !TRINKETS[id].shady && !TRINKETS[id].fan),
+    part: Object.keys(PARTS).filter((id) => PARTS[id].price > 0 && !ownsPart(b, id)),
+    ability: Object.keys(ABILITIES).filter((id) => ABILITIES[id].price > 0 && !ownsAbility(b, id)),
+    chip: Object.keys(CHIPS).filter((id) => !ownsChip(b, id) && !['veteran', 'ghost', 'showboat'].includes(id)),
+  };
+  for (const t in pools) pools[t] = pools[t].filter((id) => isUnlocked(t, id)); // only gear you've unlocked
+  const weight = (t, id) => (t === 'mod' && MODS[id].fits.some((w) => owned.includes(w)) ? 2 : 1);
+  const out = [];
+  for (const sec of SHOP_SECTIONS) for (const [types, n] of sec.stock) {
+    const pool = types.split('|').flatMap((t) => pools[t].map((id) => [t, id]));
+    for (let k = 0; k < n && pool.length; k++) {
+      const p = weightedPick(rng, pool, (q) => weight(q[0], q[1]));
+      pool.splice(pool.indexOf(p), 1);
+      pools[p[0]].splice(pools[p[0]].indexOf(p[1]), 1);
+      out.push(Object.assign(itemCard(p[0], p[1]), { section: sec.id }));
+    }
+  }
+  // Prices: list price (or the trinket and chip rate), creeping up as the run climbs the city.
+  const mul = (1 + 0.12 * (act || 0)) * (has(b, 'smokes') ? 0.85 : 1);
+  for (const c of out) c.price = Math.round(((c.price || SHOP_PRICE[c.type] || 150) * mul) / 5) * 5;
+  return out;
+}
+
+const repairMul = (b) => (has(b, 'photo') ? 0.7 : 1);
+const repairHullCost = (b) => Math.ceil((b.maxHull - b.hull) * 1.0 * repairMul(b));
+// After every race the crew patches the hull back up to this share for free, so one disaster can't bankrupt a run;
+// anything above it costs scrap.
+const CREW_PATCH = 0.4;
+const repairPartCost = (b, slot) => Math.ceil(((partMaxDur(b, b.parts[slot].id) - Math.max(0, b.parts[slot].dur)) * 0.8 + (partBroken(b, slot) ? 30 : 0)) * repairMul(b));
+const spareCost = (b, slot) => Math.max(60, Math.round(PARTS[b.parts[slot].id].price * 0.6));
+
+// New items go into the stash, or straight into a free slot. Only trinkets are permanent.
+function applyItem(b, card) {
+  if (card.type === 'part') {
+    b.stash.parts.push(b.parts[PARTS[card.id].slot]); // fit the new part; the old one goes to the stash
+    installPart(b, card.id);
+  } else if (card.type === 'weapon') {
+    const R = ensureRoof(b), owned = b.rack.concat(b.stash.weapons, R.gun ? [R.gun] : []).find((w) => w.id === card.id);
+    if (owned) owned.reserve += WEAPONS[card.id].pack * 2; // a duplicate becomes ammo
+    else if (WEAPONS[card.id].roof) { if (!R.gun) R.gun = newWeapon(card.id); else b.stash.weapons.push(newWeapon(card.id)); } // machine guns go on the roof
+    else if (b.rack.length < rackSlots(b)) addWeapon(b, card.id);
+    else b.stash.weapons.push(newWeapon(card.id));
+  } else if (card.type === 'ability') {
+    const free = b.abilities.indexOf(null);
+    if (free >= 0) b.abilities[free] = card.id;
+    else b.stash.abilities.push(card.id);
+  } else if (card.type === 'mod') {
+    b.stash.mods.push(card.id);
+  } else if (card.type === 'trinket') {
+    b.trinkets.push(card.id);
+    if (card.id === 'freshener') for (const inst of [...Object.values(b.parts), ...b.stash.parts]) inst.dur = Math.round(inst.dur * 1.25);
+    if (card.id === 'dogtags') { b.maxHull += 20; b.hull += 20; }
+    if (card.id === 'loaded') { b.maxHull -= 20; b.hull = Math.min(b.hull, b.maxHull); }
+  } else if (card.type === 'chip') {
+    if (!b.chip) b.chip = card.id;
+    else b.stash.chips.push(card.id);
+  }
+  return true;
+}
