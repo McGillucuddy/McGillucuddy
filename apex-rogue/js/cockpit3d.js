@@ -88,6 +88,13 @@ const RELOAD_POSE = {
   flare: { rx: -0.12, ry: 0.1, rz: -0.12, ox: -0.7, oy: 0.5, oz: 0.3 }, // broken open, the breech lifting to you
   other: { rx: 0.15, ry: 0.18, rz: -0.4, ox: -1.0, oy: 1.0, oz: 0.6 }, // nail gun, flamethrower, harpoon
 };
+// Down the sights, per gun: [x, y, z] nudges from dead centre. Guns with no real sight line (the rocket tube on
+// your shoulder, the nail gun's motor, the flamer's tank) sit off to the right so you look past them; the long
+// shoulder guns sit a touch lower so the stock doesn't fill the bottom of the view.
+const ADS_POSE = {
+  shotgun: [0.12, -0.3, -0.5], liberty: [0.12, -0.3, -0.5], rocket: [1.5, -0.75, 0.3], nailgun: [1.05, -0.55, 0],
+  flamer: [0.9, -0.45, 0], harpoon: [0, -0.1, 0.9], flare: [0.15, -0.1, 0],
+};
 const reloadPose = (id) => RELOAD_POSE[id] || (MAG_RELOAD[id] ? RELOAD_POSE.mag : RELOAD_POSE.other);
 
 // The roof gun's hold: [x, y, z, scale, yaw, roll, pitch], dead ahead and low, braced on its pintle.
@@ -1926,7 +1933,8 @@ class CockpitView {
       // sway and bob calm right down.
       const a = this.adsK * this.adsK * (3 - 2 * this.adsK), calm = 1 - 0.7 * a;
       if (u.sightY == null) u.sightY = this.sightHeight(g);
-      const bx = lerp(x, 0, a), by = lerp(y, -u.sightY * g.scale.y - 0.12, a), bz = lerp(z, z * 0.92, a);
+      const [ax, ay, az] = ADS_POSE[id] || [0, 0, 0];
+      const bx = lerp(x, ax, a), by = lerp(y, -u.sightY * g.scale.y - 0.12 + ay, a), bz = lerp(z, z * 0.92 + az, a);
       g.position.set(bx + (sw.x * 0.5) * calm + ox + K.y * 2, by + (bob + sw.y * 0.4) * calm - this.dip - raise + oy + K.p * 1.6, bz + K.z + oz);
       g.rotation.set(lerp(hp, 0, a) + K.p - this.dip * 0.15 + sw.y * 0.06 * calm + rx + dry, lerp(hy, 0, a) + sw.r * 0.3 * calm + ry + K.y, lerp(hr, 0, a) - sw.x * 0.1 * calm + rz + K.r);
       this.aimArms(g, hands);
