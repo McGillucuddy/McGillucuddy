@@ -874,11 +874,10 @@ class CockpitView {
     }
   }
 
-  // Webbing rack on the passenger door: your spare ammo as real objects, one row per rack weapon.
+  // The ammo board on the dash (over the glovebox): your spare ammo as real objects, one row per rack weapon.
   // Items vanish as the reserve drops and come back when you buy more.
   buildAmmoRack(I, b) {
-    // A board in the front footwell on the passenger door, between the seat and the dash, tipped up and turned
-    // a little towards your seat. Kept clear of the door card, window sill, dash and seat cushion.
+    // A board on the dash in front of you (see the end of this function).
     const R = new THREE.Group(), rows = b.rack.length, W = 1.95, rowH = 1.1;
     const webbing = LP.mat('#3a3a2a', { roughness: 1 }), board = LP.mat('#6a6448', { roughness: 0.95 }), steel = LP.mat('#8a8f94', { metalness: 0.8 }); // olive canvas so dark mags stand out
     const H = rows * rowH + 0.3;
@@ -910,11 +909,13 @@ class CockpitView {
       }
       return { items, wi: r, per: ['pistol', 'smg', 'nailgun', 'flamer', 'carbine', 'liberty', 'typewriter', 'lmg', 'pangun'].includes(w.id) ? weaponStats(w).mag : 1, shown: -1, hide: 0 };
     });
-    const tilt = 0.45, yaw = 0.2, h2 = H / 2;
-    const cy = 5.85 - h2 * Math.cos(tilt), cz = 7.85 - h2 * Math.sin(tilt) * Math.cos(yaw) - 0.28;
+    // Strapped over the glovebox lid, right in front of your seat and facing you: a glance down shows what's left,
+    // and your hand goes forward to it for each reload. A tall board (three guns) is scaled to fit the lid.
+    const fit = Math.min(1, 2.6 / H);
+    R.scale.setScalar(fit);
     R.rotation.order = 'YXZ';
-    R.rotation.set(-tilt, Math.PI + yaw, 0); // face into the cabin, turned towards your seat, tipped up
-    R.position.set(2.74, Math.max(cy, 2.0 + h2 * Math.cos(tilt)), cz);
+    R.rotation.set(-0.12, -Math.PI / 2, 0); // its face towards you, the top leaning back against the dash a touch
+    R.position.set(3.76, 4.95, 4.6);
     I.add(R);
     this.ammoRackGroup = R;
   }
@@ -926,10 +927,7 @@ class CockpitView {
     if (!row) return null;
     const it = row.items[clamp((row.shown > 0 ? row.shown : 1) - 1, 0, row.items.length - 1)];
     const v = it.getWorldPosition(new THREE.Vector3()).applyMatrix4(this.camera.matrixWorldInverse);
-    v.z = Math.min(v.z, -2.5); // never behind you
-    // The hand drops low and to the left, under the bottom of the view, whatever the rack's real position: the
-    // whole arm (wrist to shoulder) stays out of sight while it's down there, with no sleeve end poking into view.
-    v.x = clamp(v.x, -6, -2.8); v.y = Math.min(clamp(v.y, -9, 2), -7.2);
+    v.z = Math.min(v.z, -2.5); // never behind you (the board is on the dash ahead of you: the hand goes right to it)
     g.updateMatrixWorld(true);
     return g.worldToLocal(this.vmCamera.localToWorld(v));
   }
@@ -1914,49 +1912,75 @@ class CockpitView {
   }
 
   // A shot: kick the gun on its springs, punch the view, light the flash, start a smoke puff.
-  // A hand that's left its grip (reloading, pumping) turns so its forearm runs back towards your shoulder, which
-  // stays put by the camera while the gun tips about: the arm goes with the hand instead of jutting out of it like a
-  // pole. The shoulder is fixed in camera space where it sits with the gun at rest.
+  // Your arms, shoulder to elbow to wrist. The shoulders stay put by the camera (where they sit with the gun at
+  // rest) while the gun tips about and the hands move; each arm bends at an elbow solved between the two, pointing
+  // down and out, as arms do. The forearm (the glove's sleeve) runs from the wrist to the elbow and an upper arm
+  // from the elbow to the shoulder. A hand that's left its grip (reloading, pumping) also turns to follow its arm.
   aimArms(g, hands) {
     if (!hands.length) return;
-    const X = new THREE.Vector3(1, 0, 0);
     if (!g.userData.shoulderCam) { // once: each hand's shoulder in camera space, from the gun's hold pose
       const [x, y, z] = g.userData.hold, [hp, hy, hr] = g.userData.holdRot || [0, 0, 0];
       const M = new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(hp, hy, hr)), g.scale.clone());
       g.userData.shoulderCam = hands.map((h) => (h.userData.shoulder ? h.userData.shoulder.clone().applyMatrix4(M) : null));
     }
     g.updateMatrix();
-    const inv = g.matrix.clone().invert();
+    const inv = g.matrix.clone().invert(), toGun = g.quaternion.clone().invert();
+    const V = (x, y, z) => new THREE.Vector3(x, y, z);
     hands.forEach((h, k) => {
-      const S = g.userData.shoulderCam[k], R = h.userData.rest;
-      if (!S || !h.userData.armDir || !h.visible) return;
-      const off = h.position.distanceTo(R.pos);
-      if (off < 0.05 && !h.userData.spare) return; // on its grip: as posed
-      const d1 = S.clone().applyMatrix4(inv).sub(h.position).normalize();
-      const cur = h.quaternion.clone(), d0 = h.userData.armDir.clone();
-      d0.x *= h.scale.x;
-      d0.applyQuaternion(cur);
-      const q = new THREE.Quaternion().setFromUnitVectors(d0.normalize(), d1).multiply(cur);
-      h.quaternion.slerpQuaternions(cur, q, h.userData.spare ? 1 : clamp(off / 1.2, 0, 1));
-      // And the sleeve runs exactly to the shoulder: stretched or shortened along its own length about the wrist, so
-      // its end never stops short in mid-air or overshoots back into view.
-      const SL = h.userData.sleeve;
-      if (SL) {
-        const k = clamp(S.clone().applyMatrix4(inv).distanceTo(h.position) / SL.L, 0.35, 1.6);
-        SL.mesh.matrixAutoUpdate = false;
-        const D = SL.dir, W = SL.wrist, e = k - 1;
-        // I + (k - 1) d d^T, about the wrist
-        const M = new THREE.Matrix4().set(
-          1 + e * D.x * D.x, e * D.x * D.y, e * D.x * D.z, 0,
-          e * D.y * D.x, 1 + e * D.y * D.y, e * D.y * D.z, 0,
-          e * D.z * D.x, e * D.z * D.y, 1 + e * D.z * D.z, 0,
-          0, 0, 0, 1);
-        SL.mesh.matrix.makeTranslation(W.x, W.y, W.z).multiply(M).multiply(new THREE.Matrix4().makeTranslation(-W.x, -W.y, -W.z));
-        SL.stretched = true;
+      const S0 = g.userData.shoulderCam[k], R = h.userData.rest, SL = h.userData.sleeve, U = h.userData;
+      if (!S0 || !U.armDir || !SL) return;
+      if (!U.upper) { // the upper arm and an elbow joint, made once, in the gun's space
+        U.upper = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.62, 1, 12, 1, true).translate(0, 0.5, 0), SL.mat);
+        U.elbow = new THREE.Mesh(new THREE.SphereGeometry(0.62, 12, 8), SL.mat);
+        g.add(U.upper, U.elbow);
+        if (typeof PSX !== 'undefined') { PSX.apply(U.upper); PSX.apply(U.elbow); }
+        // Arm lengths from the reach at rest (a spare hand rests out of sight, so it gets a typical reach): a little
+        // longer than that reach, so the elbow is bent when you hold the gun.
+        const rest = new THREE.Matrix4().compose(R.pos, new THREE.Quaternion().setFromEuler(new THREE.Euler(R.rot, 0, 0)), h.scale.clone());
+        const reach = U.spare ? 7.5 : U.shoulder.distanceTo(SL.wrist.clone().applyMatrix4(rest));
+        U.armLen = reach * 1.14 / 2; // upper arm and forearm the same length
       }
+      U.upper.visible = U.elbow.visible = h.visible;
+      if (!h.visible) return;
+      const S = S0.clone().applyMatrix4(inv);
+      // A hand off its grip turns to follow its arm (towards the shoulder, which is near enough for the wrist).
+      const off = h.position.distanceTo(R.pos);
+      if (off >= 0.05 || U.spare) {
+        const cur = h.quaternion.clone(), d0 = U.armDir.clone();
+        d0.x *= h.scale.x;
+        d0.applyQuaternion(cur);
+        const q = new THREE.Quaternion().setFromUnitVectors(d0.normalize(), S.clone().sub(h.position).normalize()).multiply(cur);
+        h.quaternion.slerpQuaternions(cur, q, U.spare ? 1 : clamp(off / 1.2, 0, 1));
+      }
+      h.updateMatrix();
+      // The elbow: two equal bones from the shoulder to the wrist, bent towards a pole down and out to that side.
+      const W = SL.wrist.clone().applyMatrix4(h.matrix), L = U.armLen, sw = W.clone().sub(S), d = sw.length(), dir = sw.clone().divideScalar(d || 1);
+      const side = h.scale.x < 0 ? -1 : 1; // the left hand's elbow goes out to the left
+      const pole = V(side * 0.6, -1, 0.35).applyQuaternion(toGun);
+      pole.addScaledVector(dir, -pole.dot(dir)).normalize();
+      let E;
+      if (d >= 2 * L - 0.01) E = S.clone().addScaledVector(dir, d / 2); // at full stretch: straight
+      else { const a = d / 2, hh = Math.sqrt(Math.max(0, L * L - a * a)); E = S.clone().addScaledVector(dir, a).addScaledVector(pole, hh); }
+      // Forearm: the sleeve turned about the wrist to point at the elbow and sized to reach it (the cuff turns with it).
+      const Ml = E.clone().applyMatrix4(h.matrix.clone().invert()).sub(SL.wrist), len = Ml.length();
+      const q = new THREE.Quaternion().setFromUnitVectors(SL.dir, Ml.divideScalar(len || 1));
+      const k2 = clamp(len / SL.L, 0.3, 2), D = SL.dir, e = k2 - 1, Wl = SL.wrist;
+      const stretch = new THREE.Matrix4().set(
+        1 + e * D.x * D.x, e * D.x * D.y, e * D.x * D.z, 0,
+        e * D.y * D.x, 1 + e * D.y * D.y, e * D.y * D.z, 0,
+        e * D.z * D.x, e * D.z * D.y, 1 + e * D.z * D.z, 0,
+        0, 0, 0, 1);
+      const turn = new THREE.Matrix4().makeTranslation(Wl.x, Wl.y, Wl.z).multiply(new THREE.Matrix4().makeRotationFromQuaternion(q));
+      SL.mesh.matrixAutoUpdate = false;
+      SL.mesh.matrix.copy(turn).multiply(stretch).multiply(new THREE.Matrix4().makeTranslation(-Wl.x, -Wl.y, -Wl.z));
+      if (SL.cuff) { SL.cuff.matrixAutoUpdate = false; SL.cuff.matrix.copy(turn).multiply(new THREE.Matrix4().makeTranslation(-Wl.x, -Wl.y, -Wl.z)); }
+      // Upper arm: from the elbow to the shoulder.
+      const up = S.clone().sub(E), ul = up.length();
+      U.upper.position.copy(E);
+      U.upper.quaternion.setFromUnitVectors(V(0, 1, 0), up.divideScalar(ul || 1));
+      U.upper.scale.set(1, ul, 1);
+      U.elbow.position.copy(E);
     });
-    // Hands back on their grips: sleeves as modelled.
-    for (const h of hands) { const SL = h.userData.sleeve; if (SL && SL.stretched && h.position.distanceTo(h.userData.rest.pos) < 0.05 && !h.userData.spare) { SL.mesh.matrix.identity(); SL.stretched = false; } }
   }
 
   // A belt-fed reload, once the new box is on: flip up the feed cover, take the belt's free end (hanging off the

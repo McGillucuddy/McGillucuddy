@@ -2692,11 +2692,12 @@ const Models = {
     bk.position.set(...along(0.11)).addScaledVector(up, 0.41);
     bk.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
     g.add(bk);
-    g.add(LP.limb([along(0.6), along(0.85), along(1.1)], [0.45, 0.5, 0.48], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1))); // rolled cuff
+    const cuffM = LP.limb([along(0.6), along(0.85), along(1.1)], [0.45, 0.5, 0.48], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1)); // rolled cuff
+    g.add(cuffM);
     const sleeve = LP.limb([along(0.95), along(L * 0.45), along(L)], [0.46, 0.55, 0.62], suit,
       (t, a) => 1 + 0.045 * Math.sin(a * 3 + t * 9) + 0.03 * Math.sin(a * 7 - t * 14)); // sleeve with cloth folds
     g.add(sleeve);
-    g.userData.sleeve = { mesh: sleeve, dir, L, wrist: glove.wrist.clone() }; // so the cockpit can run it to the shoulder
+    g.userData.sleeve = { mesh: sleeve, cuff: cuffM, mat: suit, dir, L, wrist: glove.wrist.clone() }; // so the cockpit can bend the arm at the elbow
     g.traverse((o) => { if (o.isMesh) o.userData.modVis = true; });
     return g;
   },
@@ -3745,7 +3746,7 @@ const Models = {
     tally.rotation.z = Math.PI / 2;
     I.add(tally);
     refs.tally = tally;
-    const sten = LP.mesh(new THREE.PlaneGeometry(3.0, 1.2), LP.mat('#ffffff', { map: DECALS.get('stencil', cab.inmate) }), 3.9, 4.6, 4.6);
+    const sten = LP.mesh(new THREE.PlaneGeometry(2.0, 0.8), LP.mat('#ffffff', { map: DECALS.get('stencil', cab.inmate) }), 3.9, 4.4, 6.85); // beside the ammo board strapped over the lid
     sten.rotation.y = -Math.PI / 2;
     I.add(sten);
 

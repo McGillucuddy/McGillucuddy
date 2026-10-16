@@ -327,9 +327,11 @@ volume and looks for overlaps.
 
   A bigger marker isn't covered by a lesser one while it shows, and a run of hits keeps it lit and pulses it.
 - **Reloads** (`Cockpit3D.animateViewmodel`, `aimArms`):
-  - **Arms that follow the hand:** a hand that leaves its grip turns so the forearm runs back to your
-    shoulder, and the sleeve is stretched or shortened to end there. Reaching down for ammo, the arm dips out of
-    view instead of jutting out of the glove like a pole.
+  - **Arms with elbows:** each arm runs shoulder to elbow to wrist. The shoulders stay put by the camera and the
+    elbow is solved between them, bending down and out. The glove's sleeve is the forearm to the elbow, and an
+    upper arm runs on to the shoulder. A hand that leaves its grip turns to follow its arm.
+  - **The ammo board is on the dashboard:** strapped over the glovebox lid in front of your seat, facing you.
+    A glance down shows what's left, and for each reload your hand reaches forward to the next round on it.
   - **Magazines:** the empty one tumbles away. The hand drops below the view, comes back up with a fresh one,
     lines it up under the well and pushes it home, and the bolt or slide goes forward. The pistol's slide stays
     locked back until the new mag is in.
