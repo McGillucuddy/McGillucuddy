@@ -681,6 +681,7 @@ class CockpitView {
     // Yours too, under your chin: you can't see it, but its light blinks red on your hands and the dash, out of step
     // with theirs.
     const mt = me.userData.torso || me;
+    this.meTorso = mt;
     mt.add(LP.mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 16).rotateX(Math.PI / 2), steel, 0.12, 5.0, 0));
     mt.add(LP.box(0.36, 0.32, 0.3, LP.mat('#1c1c1e', { metalness: 0.4 }), 0.55, 4.95, 0));
     const myLed = LP.mesh(new THREE.SphereGeometry(0.08, 6, 5), LP.glow('#ff2a1a', 2.5), 0.74, 5.0, 0);
@@ -756,6 +757,7 @@ class CockpitView {
     this.nadeMeshes = refs.nades;
     this.buildLoadout(I);
     this.buildCrew(I);
+    this.buildBodyAmmo(this.combat.build); // (on your torso, so after the crew)
     // Live textures: mirror feed, dashboard screens, windshield cracks.
     const mirTex = this.mirrorRT.texture;
     mirTex.wrapS = THREE.RepeatWrapping;
@@ -938,10 +940,52 @@ class CockpitView {
     this.ammoRackGroup = R;
   }
 
-  // Where the next round on the rack is, in the held gun's own coordinates (for the reloading hand).
-  rackPoint(g, wi) {
+  // The ammo you wear (WORN in js/combat.js): a canvas chest rig over your jumpsuit, one strap of loops or pouches
+  // per rack gun, top to bottom. Look down and you see what's left on you.
+  buildBodyAmmo(b) {
+    this.bodyAmmo = [];
+    if (!this.meTorso) return;
+    const R = new THREE.Group(), canvas = LP.mat('#4a4632', { roughness: 1 }), buckle = LP.mat('#8a8f94', { metalness: 0.8, roughness: 0.4 });
+    // Per gun: spacing and scale of what's tucked in the loops.
+    const PER = { pistol: [0.34, 0.5], smg: [0.4, 0.46], shotgun: [0.15, 0.55], rocket: [0.62, 0.32], flare: [0.3, 0.6], nailgun: [0.36, 0.5], flamer: [0.6, 0.42], harpoon: [0.42, 0.4],
+      carbine: [0.4, 0.44], liberty: [0.3, 0.55], typewriter: [0.62, 0.26], lmg: [0.6, 0.3], pangun: [0.6, 0.26] };
+    const rows = b.rack.length, top = 3.45, step = Math.min(0.62, 2.1 / Math.max(1, rows - 1 || 1));
+    const rs = new Sculpt('bodyrig:' + rows, 0.03);
+    rs.add(canvas, SDF.box([0.16, 3.6, 0.08], 0.02, [-0.95, 2.6, -0.2], [0, 0, 0.35]), 0.02); // the shoulder straps, crossing down
+    rs.add(canvas, SDF.box([0.16, 3.6, 0.08], 0.02, [0.95, 2.6, -0.2], [0, 0, -0.35]), 0.02);
+    for (let r = 0; r < rows; r++) {
+      const y = top - r * step;
+      rs.add(canvas, SDF.box([2.3, 0.34, 0.3], 0.06, [0, y - 0.14, -0.08]), 0.03); // the padded strap the loops are sewn on
+      rs.add(buckle, SDF.box([0.14, 0.2, 0.08], 0.02, [1.2, y - 0.14, 0.08]), 0.01);
+    }
+    rs.build(R);
+    b.rack.forEach((w, r) => {
+      const n = (WORN.loads[w.id] || 2), [gap0, sc] = PER[w.id] || [0.4, 0.45], y = top - r * step;
+      const gap = Math.min(gap0, 2.1 / Math.max(1, n - 1)), items = [];
+      for (let k = 0; k < n; k++) {
+        const it = Models.ammoItem(w.id, k);
+        it.position.set(-((n - 1) * gap) / 2 + k * gap, y + 0.05, 0.14);
+        it.scale.setScalar(sc);
+        R.add(it);
+        items.push(it);
+      }
+      this.bodyAmmo.push({ items, wi: r, per: wornPer(w), shown: -1, hide: 0 });
+    });
+    // On the front of your chest (the torso faces +x), a little proud of the jumpsuit.
+    R.rotation.y = Math.PI / 2;
+    R.position.set(1.32, 0, 0);
+    this.meTorso.add(R);
+  }
+
+  // Where the next round is, in the held gun's own coordinates (for the reloading hand): on the board on the dash, or
+  // (body) on your chest rig.
+  rackPoint(g, wi, body) {
     if (wi === this.combat.roofIdx) return new THREE.Vector3(-3.4, -2.6, 1.4); // up top: the ammo cans strapped to the roof beside the hatch
-    const row = this.ammoRack && this.ammoRack.find((r) => r.wi === wi);
+    if (body) { // your chest rig is right under your chin: the hand just drops below the view to it and comes back
+      g.updateMatrixWorld(true);
+      return g.worldToLocal(this.vmCamera.localToWorld(new THREE.Vector3(0.5, -4.4, -2.9)));
+    }
+    const rows = this.ammoRack, row = rows && rows.find((r) => r.wi === wi);
     if (!row) return null;
     const it = row.items[clamp((row.shown > 0 ? row.shown : 1) - 1, 0, row.items.length - 1)];
     // Measured in the car's own frame, both of them: the round on the board this frame, and the camera where it sat
@@ -1486,8 +1530,12 @@ class CockpitView {
     // Interior props reflect combat state.
     const b = combat.build;
     for (let k = 0; k < 3; k++) this.nadeMeshes[k].visible = k < b.grenades;
-    for (const row of this.ammoRack) {
-      const w = b.rack[row.wi], n = Math.max(0, Math.min(row.items.length, Math.ceil(w.reserve / row.per)) - (row.hide || 0));
+    for (const row of this.ammoRack) { // the board shows what's left once your pockets are full
+      const w = b.rack[row.wi], n = Math.max(0, Math.min(row.items.length, Math.ceil(Math.max(0, w.reserve - (w.worn || 0)) / row.per)) - (row.hide || 0));
+      if (n !== row.shown) { row.items.forEach((it, k) => { it.visible = k < n; }); row.shown = n; }
+    }
+    for (const row of this.bodyAmmo || []) {
+      const w = b.rack[row.wi], n = Math.max(0, Math.min(row.items.length, Math.ceil(Math.min(w.worn || 0, w.reserve) / row.per)) - (row.hide || 0));
       if (n !== row.shown) { row.items.forEach((it, k) => { it.visible = k < n; }); row.shown = n; }
     }
     this.rackGuns.forEach((m, i) => {
@@ -1745,7 +1793,11 @@ class CockpitView {
     if (st.reloadT > 0) {
       if (!A.rl || A.rl.wi !== combat.wi) A.rl = { wi: combat.wi, dur: st.reloadT };
       rp = 1 - st.reloadT / A.rl.dur;
-    } else { A.rl = null; if (this.ammoRack) for (const r of this.ammoRack) r.hide = 0; }
+    } else { A.rl = null; for (const r of (this.ammoRack || []).concat(this.bodyAmmo || [])) r.hide = 0; }
+    // Off your chest rig: a short dip of the hand, and the gun barely tipped. Off the dash: the full reach.
+    const fromBody = rp >= 0 && st.src === 'body' && combat.wi !== combat.roofIdx;
+    this.bodyReach = fromBody;
+    const stash = fromBody ? this.bodyAmmo || [] : this.ammoRack || [];
     // Inertia: the gun lags behind the car's lurches and your mouse movements, on springs.
     const dyaw = wrapAngle(this.look.yaw - A.lastYaw), dpitch = this.look.pitch - A.lastPitch;
     A.lastYaw = this.look.yaw; A.lastPitch = this.look.pitch;
@@ -1790,7 +1842,7 @@ class CockpitView {
       if (u.jet) { u.jet.visible = combat.lastFire < 0.09 && st.reloadT <= 0; u.jet.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.5, 0.8 + Math.random() * 0.4); } // the flamethrower's jet
       let ox = 0, oy = 0, oz = 0, rx = 0, ry = 0, rz = 0;
       if (rp >= 0) {
-        const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp));
+        const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp)) * (fromBody ? 0.6 : 1);
         const scaled = (P, k) => ({ rx: P.rx * k, ry: P.ry * k, rz: P.rz * k, ox: P.ox * k, oy: P.oy * k, oz: P.oz * k });
         if (MAG_RELOAD[id] && u.mag) {
           // Side-on: the empty mag (drum, box, pan) drops out tumbling, the support hand (on a one-handed pistol, the
@@ -1799,7 +1851,7 @@ class CockpitView {
           ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
           if (u.slide && id === 'pistol') u.slide.position.z = 0.45 * (1 - ss(0.82, 0.86, rp)); // locked back until the new mag is in
           const MR = MAG_RELOAD[id], off = new THREE.Vector3(...MR.off), rest0 = new THREE.Vector3(...(u.magRest || [0, -2.7, 0.2]));
-          const hand = hands[1], R = this.rackPoint(g, i), well = rest0.clone().sub(off);
+          const hand = hands[1], R = this.rackPoint(g, i, fromBody), well = rest0.clone().sub(off);
           const belted = !!(u.cover && u.belt); // a belt-fed gun: after the box, the belt goes into the tray
           const below = well.clone().addScaledVector(new THREE.Vector3(...(MR.dir || [0, -1, 0])).normalize(), MR.depth || 1.2); // lined up outside the well
           const drop = ss(0.15, 0.32, rp);
@@ -1814,7 +1866,7 @@ class CockpitView {
             else if (rp < 0.8) hand.position.copy(well).add(new THREE.Vector3(0, 0.3 * ss(0.72, 0.78, rp), 0));
             else hand.position.lerpVectors(well, rest, ss(0.8, 0.92, rp));
             hand.rotation.x = hand.userData.rest.rot + 0.6 * bump(0.12, 0.8, rp);
-            this.ammoRack[i] && (this.ammoRack[i].hide = rp > 0.38 && rp < 0.8 ? 1 : 0);
+            stash[i] && (stash[i].hide = rp > 0.38 && rp < 0.8 ? 1 : 0);
           }
           if (rp < 0.32) { // the empty one falls away, turning over as it goes
             u.mag.position.addScaledVector(new THREE.Vector3(...MR.drop), drop * drop);
@@ -1832,7 +1884,7 @@ class CockpitView {
         } else if (id === 'shotgun') {
           // Roll it over; four trips to the rack, each shell thumbed into the loading port; rack the pump.
           ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
-          const hand = hands[1], port = new THREE.Vector3(0, -0.9, -0.3), R = this.rackPoint(g, i);
+          const hand = hands[1], port = new THREE.Vector3(0, -0.9, -0.3), R = this.rackPoint(g, i, fromBody);
           const load = ss(0.12, 0.2, rp) * (1 - ss(0.78, 0.85, rp));
           if (hand) {
             hand.position.lerp(port, load);
@@ -1845,8 +1897,8 @@ class CockpitView {
               else if (f < 0.9) hand.position.lerpVectors(R, port, ss(0.5, 0.9, f));
               else hand.position.copy(port).add(new THREE.Vector3(0, 0.25 * bump(0.9, 1, f), 0));
               if (u.shell && f > 0.45) { u.shell.visible = true; u.shell.position.copy(hand.position).add(new THREE.Vector3(0, 0.55, 0)); }
-              if (this.ammoRack[i]) this.ammoRack[i].hide = f > 0.45 ? 1 : 0;
-            } else if (this.ammoRack[i]) this.ammoRack[i].hide = 0;
+              if (stash[i]) stash[i].hide = f > 0.45 ? 1 : 0;
+            } else if (stash[i]) stash[i].hide = 0;
           }
           const rack = bump(0.86, 0.98, rp);
           u.pump.position.z = rack * 1.2;
@@ -1854,7 +1906,7 @@ class CockpitView {
         } else if (id === 'rocket') {
           // The front hand reaches to the rack, lifts a warhead off it and slides it into the muzzle.
           ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
-          const hand = hands[1], R = this.rackPoint(g, i), front = new THREE.Vector3(0, -0.6, -6.5);
+          const hand = hands[1], R = this.rackPoint(g, i, fromBody), front = new THREE.Vector3(0, -0.6, -6.5);
           if (hand && R) {
             const rest = hand.userData.rest.pos;
             if (rp < 0.32) hand.position.lerpVectors(rest, R, ss(0.12, 0.32, rp));
@@ -1862,7 +1914,7 @@ class CockpitView {
             else if (rp < 0.6) hand.position.lerpVectors(R, front, ss(0.4, 0.6, rp));
             else if (rp < 0.82) hand.position.lerpVectors(front, new THREE.Vector3(0, -0.6, -5.3), ss(0.6, 0.82, rp));
             else hand.position.lerpVectors(new THREE.Vector3(0, -0.6, -5.3), rest, ss(0.82, 0.95, rp));
-            if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.36 && rp < 0.82 ? 1 : 0;
+            if (stash[i]) stash[i].hide = rp > 0.36 && rp < 0.82 ? 1 : 0;
             if (u.tip) {
               u.tip.visible = rp > 0.36;
               if (rp < 0.6) u.tip.position.copy(hand.position).add(new THREE.Vector3(0, 0.9, -1.0));
@@ -1877,13 +1929,13 @@ class CockpitView {
           if (u.shell) {
             if (rp > 0.25 && rp < 0.45) { const f = (rp - 0.25) / 0.2, B = u.breech || [0, 0.4, 0.6]; u.shell.visible = true; u.shell.position.set(B[0] + 0.3 * f, B[1] + 2.5 * f, B[2] + 2.5 * f); u.shell.rotation.set(Math.PI / 2 + f * 3, 0, f * 2); }
             else if (rp > 0.5 && rp < 0.75) {
-              const f = ss(0.5, 0.72, rp), R = this.rackPoint(g, i) || new THREE.Vector3(0, -2.5, 1.5);
+              const f = ss(0.5, 0.72, rp), R = this.rackPoint(g, i, fromBody) || new THREE.Vector3(0, -2.5, 1.5);
               u.shell.visible = true;
               u.shell.position.lerpVectors(R, new THREE.Vector3(...(u.breech || [0, 0.3, 0.2])), f);
               u.shell.rotation.set(Math.PI / 2, 0, 0);
             }
             // The other hand fetches it: down to the rack, back up with the shell, thumbs it in, away again.
-            const hand = hands[1], R = this.rackPoint(g, i);
+            const hand = hands[1], R = this.rackPoint(g, i, fromBody);
             if (hand && hand.userData.spare && R) {
               const rest = hand.userData.rest.pos, grip = new THREE.Vector3(0, -0.5, 0.35);
               hand.visible = true;
@@ -1891,14 +1943,14 @@ class CockpitView {
               else if (rp < 0.75) hand.position.copy(u.shell.position).sub(grip);
               else hand.position.lerpVectors(new THREE.Vector3(...(u.breech || [0, 0.3, 0.2])).sub(grip), rest, ss(0.76, 0.92, rp));
             }
-            if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.5 && rp < 0.75 ? 1 : 0;
+            if (stash[i]) stash[i].hide = rp > 0.5 && rp < 0.75 ? 1 : 0;
           }
           oz += bump(0.86, 0.92, rp) * 0.3; // snap shut
         } else {
           // Nail gun, flamethrower, harpoon: tip it over, the other hand fetches a strip, a can or a bolt from the
           // rack and feeds it in; the one-handed nail gun just gets turned over and slapped.
           ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
-          const hand = hands[1], R = this.rackPoint(g, i);
+          const hand = hands[1], R = this.rackPoint(g, i, fromBody);
           if (hand && R) {
             const rest = hand.userData.rest.pos;
             if (rp < 0.35) hand.position.lerpVectors(rest, R, ss(0.12, 0.35, rp));
@@ -1906,7 +1958,7 @@ class CockpitView {
             else hand.position.lerpVectors(R, rest, ss(0.45, 0.78, rp));
             hand.rotation.x = hand.userData.rest.rot + 0.5 * bump(0.12, 0.78, rp);
           }
-          if (this.ammoRack[i]) this.ammoRack[i].hide = rp > 0.38 && rp < 0.72 ? 1 : 0;
+          if (stash[i]) stash[i].hide = rp > 0.38 && rp < 0.72 ? 1 : 0;
           if (hand) hand.visible = true;
           if (u.bolt) { // the harpoon: the new bolt rides in the hand from the rack, then slides home down the rail
             u.bolt.visible = rp > 0.4;
@@ -2043,8 +2095,9 @@ class CockpitView {
       // Upper arm: from the elbow to the shoulder.
       const up = S.clone().sub(E), ul = up.length();
       U.upper.position.copy(E);
-      // How far this hand has gone for the board (it drops well below its grip): the body leans in to match.
-      if (h.visible && (off > 0.3 || U.spare)) { const yc = W.clone().applyMatrix4(g.matrix).y, y0 = SL.wrist.clone().applyMatrix4(new THREE.Matrix4().compose(R.pos, new THREE.Quaternion().setFromEuler(new THREE.Euler(R.rot, 0, 0)), h.scale)).applyMatrix4(g.matrix).y; this.reachNow = Math.max(this.reachNow || 0, clamp(((U.spare ? -2.5 : y0) - yc) / 3, 0, 1)); }
+      // How far this hand has gone for the board (it drops well below its grip): the body leans in to match. (Not
+      // for your own chest rig: that's right there.)
+      if (!this.bodyReach && h.visible && (off > 0.3 || U.spare)) { const yc = W.clone().applyMatrix4(g.matrix).y, y0 = SL.wrist.clone().applyMatrix4(new THREE.Matrix4().compose(R.pos, new THREE.Quaternion().setFromEuler(new THREE.Euler(R.rot, 0, 0)), h.scale)).applyMatrix4(g.matrix).y; this.reachNow = Math.max(this.reachNow || 0, clamp(((U.spare ? -2.5 : y0) - yc) / 3, 0, 1)); }
       U.upper.quaternion.setFromUnitVectors(V(0, 1, 0), up.divideScalar(ul || 1));
       U.upper.scale.set(1, ul, 1);
       U.elbow.position.copy(E);

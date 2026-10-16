@@ -9,6 +9,17 @@ const PARRY_WINDOW = 0.3;
 const GRENADE_G = 700;
 // Aiming down the sights (hold the right button): tighter shots, less climb, and the recoil kicks less (see
 // RECOIL in js/cockpit3d.js).
+// Ammo you wear: pouches and a bandolier across your chest, filled from the board before each race. Reloads come off
+// your body first (a quick dip of the hand); once the pouches are empty you're reaching to the board on the dash,
+// which is slower. loads: how many reloads' worth you carry (a mag, a drum, a box; or single shells, flares,
+// rockets and bolts).
+const WORN = {
+  fast: 0.8, slow: 1.3,
+  loads: { pistol: 3, smg: 3, carbine: 3, liberty: 4, typewriter: 2, lmg: 1, pangun: 1, nailgun: 2, flamer: 1, shotgun: 12, flare: 4, rocket: 2, harpoon: 3 },
+};
+// One load of a gun: a magazine's worth for the box-fed guns, a single round for the rest.
+const wornPer = (w) => (['shotgun', 'flare', 'rocket', 'harpoon'].includes(w.id) ? 1 : weaponStats(w).mag);
+const wornCap = (w) => (WORN.loads[w.id] || 2) * wornPer(w);
 const ADS = { spread: 0.5, bloom: 0.6, recoil: 0.6, fov: 0.76, time: 0.16 };
 // A real grenade: pull the pin and the fuse is lit whether you throw it or not. Thrown straight away it lands, bounces
 // and rolls before it goes; hold it a moment ("cooking") and it bursts as it lands. Hold it too long and it goes off
@@ -53,6 +64,7 @@ class Combat {
     const b = this.build;
     this.wi = 0;
     this.wstate = b.rack.map(() => ({ cd: 0, reloadT: 0 }));
+    for (const w of b.rack) w.worn = Math.min(w.reserve, wornCap(w)); // pockets filled from the board before the start
     // The roof gun, if one's mounted: it takes the slot after the rack (wi === roofIdx while you're up top).
     const R = ensureRoof(b);
     this.roofIdx = R.gun ? b.rack.length : -1;
@@ -353,8 +365,11 @@ class Combat {
   reload() {
     const w = this.weapon, def = this.weaponDef, st = this.wstate[this.wi];
     if (st.reloadT > 0 || w.mag >= def.mag || w.reserve <= 0 || this.busy) return;
-    st.reloadT = def.reload;
-    this.events.push({ type: 'reload' });
+    // Off your body if there's any left on it, otherwise off the dash.
+    w.worn = Math.min(w.worn || 0, w.reserve); // (a lucky charm's refill comes out of the same ammo)
+    st.src = this.exposed || !(w.worn > 0) ? 'dash' : 'body';
+    st.reloadT = def.reload * (this.exposed ? 1 : st.src === 'body' ? WORN.fast : WORN.slow);
+    this.events.push({ type: 'reload', src: st.src });
   }
 
   activateAbility(slot) {
@@ -561,6 +576,7 @@ class Combat {
         const take = Math.min(def.mag - w.mag, w.reserve);
         w.mag += take;
         w.reserve -= take;
+        if (st.src === 'body') w.worn = Math.max(0, (w.worn || 0) - take);
         this.events.push({ type: 'reloaded' });
       }
     }

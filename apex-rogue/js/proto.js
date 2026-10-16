@@ -142,7 +142,7 @@ const Proto = {
         const l = this.cockpit.look;
         const sens = LOOK_SENS * Settings.data.sens * (1 - 0.3 * ((this.cockpit && this.cockpit.adsK) || 0)); // slower down the sights, with the zoom
         l.yaw = wrapAngle(l.yaw + e.movementX * sens);
-        l.pitch = clamp(l.pitch - e.movementY * sens, -0.75, 0.6);
+        l.pitch = clamp(l.pitch - e.movementY * sens, -1.0, 0.6); // (far enough down to see what's on your chest)
       }
     });
     this.c2d.addEventListener('mousedown', (e) => {
@@ -1882,7 +1882,8 @@ function drawWeaponPanel(ctx, P, W, H) {
   const c = P.combat, b = c.build, rows = [];
   b.rack.forEach((w, i) => {
     const d = weaponStats(w), st = c.wstate[i], reloading = st.reloadT > 0;
-    rows.push([i === c.wi, `${i + 1} ${d.name}`, reloading ? 'RELOADING' : `${w.mag} | ${w.reserve}`, i === c.wi ? (reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag) : null, reloading ? '#ff9f1c' : '#5ad8ff']);
+    const worn = Math.min(w.worn || 0, w.reserve), ammo = `${w.mag} | ${worn}${w.reserve > worn ? ` +${w.reserve - worn}` : ''}`; // on you, then on the dash
+    rows.push([i === c.wi, `${i + 1} ${d.name}`, reloading ? (st.src === 'dash' ? 'RELOADING (DASH)' : 'RELOADING') : ammo, i === c.wi ? (reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag) : null, reloading ? '#ff9f1c' : '#5ad8ff']);
   });
   if (c.roofIdx >= 0 && b.roof.gun) { // the mounted gun up top (V), lit while you're stood up at it
     const w = b.roof.gun, d = weaponStats(w), st = c.wstate[c.roofIdx], on = c.wi === c.roofIdx, reloading = st && st.reloadT > 0;
@@ -1906,17 +1907,17 @@ function drawWeaponPanel(ctx, P, W, H) {
   const spare = b.spare && partBroken(b, PARTS[b.spare.id].slot);
   const extra = (failing.length ? 1 : 0) + (spare ? 1 : 0);
   const h = 14 + rows.length * 22 + extra * 18;
-  const x = W - 236, y = H - h - 12;
-  hudPanel(ctx, x, y, 224, h);
+  const x = W - 268, y = H - h - 12;
+  hudPanel(ctx, x, y, 256, h);
   let yy = y + 20;
   for (const [active, label, right, frac, col] of rows) {
     ctx.fillStyle = active ? '#ffd23f' : 'rgba(255,255,255,0.6)';
     ctx.font = `${active ? 'bold ' : ''}13px ${hudFont()}`;
     ctx.textAlign = 'left'; ctx.fillText(label, x + 10, yy);
-    ctx.textAlign = 'right'; ctx.fillText(right, x + 214, yy);
+    ctx.textAlign = 'right'; ctx.fillText(right, x + 246, yy);
     if (frac != null) {
-      ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x + 10, yy + 4, 204, 3);
-      ctx.fillStyle = col; ctx.fillRect(x + 10, yy + 4, 204 * clamp(frac, 0, 1), 3);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x + 10, yy + 4, 236, 3);
+      ctx.fillStyle = col; ctx.fillRect(x + 10, yy + 4, 236 * clamp(frac, 0, 1), 3);
     }
     yy += 22;
   }
