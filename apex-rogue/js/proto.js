@@ -1881,7 +1881,7 @@ function drawTrackPreview(canvas, race) {
 function drawWeaponPanel(ctx, P, W, H) {
   const c = P.combat, b = c.build, rows = [];
   b.rack.forEach((w, i) => {
-    const d = weaponStats(w), st = c.wstate[i], reloading = st.reloadT > 0;
+    const d = weaponStats(w), st = c.wstate[i] || { reloadT: 0 }, reloading = st.reloadT > 0;
     const worn = Math.min(w.worn || 0, w.reserve), ammo = `${w.mag} | ${worn}${w.reserve > worn ? ` +${w.reserve - worn}` : ''}`; // on you, then on the dash
     rows.push([i === c.wi, `${i + 1} ${d.name}`, reloading ? (st.src === 'dash' ? 'RELOADING (DASH)' : 'RELOADING') : ammo, i === c.wi ? (reloading ? 1 - st.reloadT / d.reload : w.mag / d.mag) : null, reloading ? '#ff9f1c' : '#5ad8ff']);
   });
