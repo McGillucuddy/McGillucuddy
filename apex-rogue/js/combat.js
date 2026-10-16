@@ -156,6 +156,7 @@ class Combat {
     }
     c.tyres[i] -= dmg;
     c.tyreBy = owner;
+    if (owner === p && c !== p && !quiet) this.events.push({ type: 'hitMarker', kind: c.tyres[i] > 0 ? (c.armorTyres ? 'armor' : 'body') : 'pop' });
     if (c.tyres[i] > 0) return true;
     c.flats++;
     const left = (k) => (c.tyres[k] <= 0 ? 1 : 0);
@@ -1168,6 +1169,7 @@ class Combat {
   // Proto.noteVendettas).
   creditWreck(c, how) {
     this.stats.wrecked++;
+    this.events.push({ type: 'hitMarker', kind: 'kill' });
     if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
     this.cloverRefill();
     if (!c.downed) c.downed = { how };
@@ -1197,6 +1199,7 @@ class Combat {
       }
     } else if (owner === p) {
       this.stats.dealt += Math.min(dmg, before);
+      if (before > c.hp) this.events.push({ type: 'hitMarker', kind: kind === 'blast' ? 'blast' : 'body' }); // a hit marker round the crosshair
       if ((!kind || kind === 'bullet' || kind === 'nail') && this.race.time - (this.lastTink ?? -1) > 0.05) { this.lastTink = this.race.time; this.events.push({ type: 'tink', vol: this.nearVol(c) }); } // you hear your rounds land
       if (before > 0 && c.hp <= 0) {
         this.creditWreck(c, kind || 'bullet');

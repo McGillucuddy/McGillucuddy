@@ -193,7 +193,7 @@ class Car {
     ctx.fillRect(-L * 0.38, W / 2 - 3, 9, 5);
 
     // Body
-    ctx.fillStyle = this.hitFlash > 0 && Math.floor(t * 30) % 2 ? '#fff' : this.color;
+    ctx.fillStyle = this.color;
     roundRect(ctx, -L / 2, -W / 2, L, W, 6);
     ctx.fill();
     // Stripe

@@ -2693,8 +2693,10 @@ const Models = {
     bk.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
     g.add(bk);
     g.add(LP.limb([along(0.6), along(0.85), along(1.1)], [0.45, 0.5, 0.48], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1))); // rolled cuff
-    g.add(LP.limb([along(0.95), along(L * 0.45), along(L)], [0.46, 0.55, 0.62], suit,
-      (t, a) => 1 + 0.045 * Math.sin(a * 3 + t * 9) + 0.03 * Math.sin(a * 7 - t * 14))); // sleeve with cloth folds
+    const sleeve = LP.limb([along(0.95), along(L * 0.45), along(L)], [0.46, 0.55, 0.62], suit,
+      (t, a) => 1 + 0.045 * Math.sin(a * 3 + t * 9) + 0.03 * Math.sin(a * 7 - t * 14)); // sleeve with cloth folds
+    g.add(sleeve);
+    g.userData.sleeve = { mesh: sleeve, dir, L, wrist: glove.wrist.clone() }; // so the cockpit can run it to the shoulder
     g.traverse((o) => { if (o.isMesh) o.userData.modVis = true; });
     return g;
   },
@@ -3059,12 +3061,17 @@ const Models = {
     ],
     flare: [
       { kind: 'pistol', pos: [0, -1.0, 0.6], tilt: -0.38, grip: [0.41, 0.5], trigger: [0, -0.62, -0.56], arm: [-0.5, -3.0, 5.0] },
+      { kind: 'pistol', pos: [-3.5, -7.0, 2.6], tilt: -0.3, grip: [0.2, 0.3], arm: [-6.6, -1.0, 0.5], shoulder: [-7.2, -3.6, 1.6], mirror: true, spare: true },
     ],
+    // (spare: a left hand that only appears to reload a one-handed gun, waiting below the view the rest of the time;
+    // its shoulder is given on its own, since its resting spot is just somewhere out of sight.)
     pistol: [
       { kind: 'pistol', pos: [0, -1.05, 1.15], tilt: -0.25, grip: [0.3, 0.44], trigger: [0, -0.55, -0.3], arm: [-0.5, -3.0, 5.0] },
+      { kind: 'pistol', pos: [-3.5, -7.0, 2.6], tilt: -0.3, grip: [0.22, 0.36], arm: [-6.6, -1.0, 0.5], shoulder: [-7.2, -3.6, 1.6], mirror: true, spare: true },
     ],
     nailgun: [
       { kind: 'pistol', pos: [0, -1.05, 0.95], tilt: -0.6, grip: [0.26, 0.42], trigger: [0, -0.55, 0.2], arm: [-0.5, -3.0, 5.0] },
+      { kind: 'pistol', pos: [-3.5, -7.0, 2.6], tilt: -0.3, grip: [0.22, 0.36], arm: [-6.6, -1.0, 0.5], shoulder: [-7.2, -3.6, 1.6], mirror: true, spare: true },
     ],
     flamer: [
       { kind: 'pistol', pos: [0, -0.75, 0.95], tilt: -0.2, grip: [0.25, 0.38], trigger: [0, -0.5, 0.36], arm: [-0.6, -2.8, 5.6] },
@@ -3117,6 +3124,11 @@ const Models = {
       h.position.copy(pos);
       h.rotation.x = G.tilt;
       h.userData.rest = { pos: h.position.clone(), rot: G.tilt };
+      // For the arm to follow the hand when it leaves the grip: where the shoulder is (gun space), and the forearm's
+      // direction in the hand's own frame.
+      h.userData.shoulder = G.shoulder ? new THREE.Vector3(...G.shoulder) : pos.clone().add(new THREE.Vector3(...G.arm));
+      h.userData.armDir = new THREE.Vector3(...local(G.arm, true)).normalize();
+      if (G.spare) { h.userData.spare = true; h.visible = false; }
       (gun.userData.hands = gun.userData.hands || []).push(h);
       gun.add(h);
     });
@@ -3149,6 +3161,7 @@ const Models = {
     });
     if (!meshes.length) return null; // still queued for meshing (the start-up warm-up): measured once it's built
     const res = (Models.GRIPS[id] || []).map((G) => {
+      if (G.spare) return null; // the reloading hand holds a magazine, not the gun: nothing to measure
       const s = G.mirror ? -1 : 1, pistol = G.kind === 'pistol';
       const ax = pistol ? 1 : 2, U = 0, Vc = pistol ? 2 : 1, dir = Models.gripDir[pistol ? 'pistol' : 'support'];
       const levels = Models.GLOVE_LEVELS[pistol ? 'pistol' : 'support'];

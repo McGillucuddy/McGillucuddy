@@ -1683,6 +1683,14 @@ const Proto = {
     requestAnimationFrame((t) => this.frame(t));
   },
 
+  // A hit marker round the crosshair (drawn by drawHitMarker). A bigger hit doesn't get covered by a lesser one
+  // while it's still showing; a run of hits keeps it lit and pulses it.
+  markHit(kind) {
+    const S = HIT_MARK[kind] || HIT_MARK.body, m = this.hitMark;
+    if (m && m.t > 0 && (HIT_MARK[m.kind] || HIT_MARK.body).rank > S.rank) { m.pulse = 1; return; }
+    this.hitMark = { kind, t: S.life, life: S.life, pulse: m && m.t > 0 ? 1 : 0 };
+  },
+
   updateRace(dt) {
     const race = this.race, combat = this.combat, p = race.player;
     Playtest.frame(race.state === 'racing');
@@ -1718,7 +1726,7 @@ const Proto = {
         Playtest.event(ev, combat.weapon.id);
         if (this.cockpit) this.cockpit.onEvent(ev);
         if (this.tutorial) this.tutorial.onEvent(ev);
-        if (ev.type === 'crewHit' || ev.type === 'crewKill') this.hitMark = { t: ev.type === 'crewKill' ? 0.7 : 0.3, kill: ev.type === 'crewKill' };
+        if (ev.type === 'hitMarker' || ev.type === 'crewHit' || ev.type === 'crewKill') this.markHit(ev.type === 'crewHit' ? 'crew' : ev.type === 'crewKill' ? 'kill' : ev.kind);
       }
       combat.events.length = 0;
     }
@@ -1807,15 +1815,7 @@ const Proto = {
       ctx.clearRect(0, 0, W, H);
       if (live) WeatherGlass.draw(ctx, this.cockpit.wx, W, H, this.state === 'race' ? dt : 0, race.player.speed / 500);
       if (live) drawCockpitHUD(ctx, this, W, H, this.time);
-      if (live && this.hitMark && this.hitMark.t > 0) { // a hit marker: you got someone through the glass
-        const hm = this.hitMark, a = Math.min(1, hm.t / 0.2), r0 = hm.kill ? 10 : 7, r1 = hm.kill ? 22 : 14;
-        hm.t -= this.state === 'race' ? dt : 0;
-        ctx.strokeStyle = hm.kill ? `rgba(255,210,63,${a})` : `rgba(255,90,70,${a})`;
-        ctx.lineWidth = hm.kill ? 3 : 2;
-        ctx.beginPath();
-        for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { ctx.moveTo(W / 2 + sx * r0, H / 2 + sy * r0); ctx.lineTo(W / 2 + sx * r1, H / 2 + sy * r1); }
-        ctx.stroke();
-      }
+      if (live) drawHitMarker(ctx, this, W, H, this.state === 'race' ? dt : 0);
       if (this.state === 'race' && !this.locked && !this.noLock) {
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(0, H / 2 - 40, W, 80);
@@ -1922,6 +1922,41 @@ function drawWeaponPanel(ctx, P, W, H) {
   ctx.font = `bold 11px ${hudFont()}`;
   if (failing.length) { ctx.fillStyle = Math.floor(P.time * 3) % 2 ? '#ff7a1f' : '#ffb070'; ctx.fillText(failing.join('  '), x + 10, yy - 4); yy += 18; }
   if (spare) { ctx.fillStyle = Math.floor(P.time * 3) % 2 ? '#ffd23f' : '#fff'; ctx.fillText(`B: FIT SPARE ${PARTS[b.spare.id].name.toUpperCase()}`, x + 10, yy - 4); }
+}
+
+// Hit markers: four ticks round the crosshair, by what you hit. Rounds into bodywork are short white ticks; armour
+// that turns them is grey; a blast is orange; a tyre popped is amber with a ring; a round through the glass into
+// someone is red; a kill is a bigger red cross that opens out.
+const HIT_MARK = {
+  armor: { rank: 0, life: 0.14, col: '200,200,200', r0: 9, r1: 13, w: 1.5 },
+  body: { rank: 1, life: 0.16, col: '255,255,255', r0: 7, r1: 13, w: 2 },
+  blast: { rank: 2, life: 0.3, col: '255,160,60', r0: 8, r1: 16, w: 2.5 },
+  pop: { rank: 3, life: 0.35, col: '255,200,60', r0: 8, r1: 15, w: 2.5, ring: true },
+  crew: { rank: 4, life: 0.32, col: '255,70,60', r0: 8, r1: 16, w: 2.5 },
+  kill: { rank: 5, life: 0.6, col: '255,50,40', r0: 10, r1: 24, w: 3.5, ring: true, grow: true },
+};
+function drawHitMarker(ctx, P, W, H, dt) {
+  const m = P.hitMark;
+  if (!m || m.t <= 0) return;
+  const S = HIT_MARK[m.kind] || HIT_MARK.body, f = 1 - m.t / m.life; // 0 at the hit, 1 gone
+  m.t -= dt; m.pulse = Math.max(0, (m.pulse || 0) - dt * 8);
+  const a = Math.min(1, (1 - f) * 2.2), grow = (S.grow ? f * 7 : f * 2) + m.pulse * 2, cx = W / 2, cy = H / 2;
+  ctx.save();
+  ctx.lineCap = 'round';
+  // A dark edge under the colour so it reads on a bright sky.
+  for (const [col, w] of [['0,0,0', S.w + 2], [S.col, S.w]]) {
+    ctx.strokeStyle = `rgba(${col},${(col === '0,0,0' ? 0.45 : 1) * a})`;
+    ctx.lineWidth = w;
+    ctx.beginPath();
+    for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const k = Math.SQRT1_2;
+      ctx.moveTo(cx + sx * (S.r0 + grow) * k, cy + sy * (S.r0 + grow) * k);
+      ctx.lineTo(cx + sx * (S.r1 + grow) * k, cy + sy * (S.r1 + grow) * k);
+    }
+    ctx.stroke();
+  }
+  if (S.ring) { ctx.strokeStyle = `rgba(${S.col},${0.6 * a})`; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(cx, cy, S.r1 + 4 + f * 10, 0, TAU); ctx.stroke(); }
+  ctx.restore();
 }
 
 // Fitting a spare: a progress bar in the middle of the screen.

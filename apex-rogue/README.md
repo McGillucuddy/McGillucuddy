@@ -309,6 +309,34 @@ volume and looks for overlaps.
 - **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
   turning in place inside your own neck.
 
+### Feel: hit markers and reloads (prototype)
+
+- **No white flash:** rivals don't light up white when hit. Dents, sparks, cracked glass and the hit marker
+  tell you that you landed it.
+- **Hit markers** (`HIT_MARK`, `drawHitMarker` in `js/proto.js`): four ticks round the crosshair, by what you
+  hit.
+
+  | You hit | Marker |
+  |---|---|
+  | Bodywork | short white ticks |
+  | Armour that turned the round | faint grey |
+  | A blast | orange |
+  | A tyre popped | amber with a ring |
+  | Someone through the glass | red |
+  | A kill | a bigger red cross that opens out, with a ring |
+
+  A bigger marker isn't covered by a lesser one while it shows, and a run of hits keeps it lit and pulses it.
+- **Reloads** (`Cockpit3D.animateViewmodel`, `aimArms`):
+  - **Arms that follow the hand:** a hand that leaves its grip turns so the forearm runs back to your
+    shoulder, and the sleeve is stretched or shortened to end there. Reaching down for ammo, the arm dips out of
+    view instead of jutting out of the glove like a pole.
+  - **Magazines:** the empty one tumbles away. The hand drops below the view, comes back up with a fresh one,
+    lines it up under the well and pushes it home, and the bolt or slide goes forward. The pistol's slide stays
+    locked back until the new mag is in.
+  - **One-handed guns:** the pistol, flare gun and nail gun get a spare left hand that only appears to reload.
+    It brings the pistol's magazine and the flare's shell.
+  - **Harpoon:** the new bolt rides in from the rack in the support hand and slides home along the rail.
+
 ### Feel: grenades, hits and crashes (prototype)
 
 - **Grenades** (`GRENADE` in `js/combat.js`): pulling the pin lights a 3 second fuse, and the game
@@ -468,7 +496,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
 - **One spare part:** carry a spare of one fitted part; if that part breaks mid-race press `B` to fit
   it (your hands are busy for 2.5s, so no shooting).
 - **Weapons use ammo** (magazines, `R` to reload, ammo bought with scrap): service pistol (the starter; its slide kicks
-  back on each shot and the mag drops out on reloads), SMG, pump shotgun, rocket
+  back on each shot, and on reloads the mag drops out and your other hand pushes a fresh one in), SMG, pump shotgun, rocket
   launcher, flare gun (an orange Orion-style 12-gauge flare pistol firing red and green cartridges; blinds
   the driver it hits). Two rack slots, three with the Warden's Keys.
   Scrap-built guns too: a pneumatic Nail Gun (nails puncture tyres and drag rivals back), a Flamethrower
