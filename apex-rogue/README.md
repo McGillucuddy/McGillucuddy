@@ -335,7 +335,9 @@ volume and looks for overlaps.
     ammo vest from the board, one padded strap of loops per rack gun across its front. The vest is a cosmetic
     (Paint booth, **Vest** tab, shown on you on the lift), made from whatever the prison throws away: Laundry
     Sack, Jumpsuit Patchwork, Mattress Ticking, Inner Tube, Duct Tape, Chain Gang Hi-Vis, Fence Wire or a
-    Lifted Riot Vest, each with its own stencil and your number. It holds three pistol, SMG or carbine mags,
+    Lifted Riot Vest, each with its own stencil and your number. It's cut from your torso's own shape let out a
+    little, so it fits: open at the neck and arms, ending above the hips, with the ammo straps belted round it
+    and their loops following the curve of your chest. It holds three pistol, SMG or carbine mags,
     four Liberty clips, two drums or nail strips, one LMG box, pan or fuel can, twelve shells, four flares, two
     rockets and three bolts. Look down (the view now goes further down) and you see what's left on you.
     Reloads come off your body first, and they're 20% quicker: the hand drops just below the view to your chest
@@ -344,6 +346,12 @@ volume and looks for overlaps.
     gun is brought in where you can see the swap. The pistol comes up in front of your chest canted over, its
     grip turned to the incoming mag. Shotgun shells come off the bandolier in short dips just below the
     loading port. The nail gun is rolled over and a fresh strip slid into its magazine from the back.
+  - **Shooting through your own windshield** (`GLASS` in js/cockpit3d.js): each round leaves a hole where your
+    line of fire crosses the glass (none if you're firing out of the side window): a bullet hole with a frosted
+    ring and cracks, a cluster from the shotgun, a punched-through starburst from a rocket, harpoon or flare,
+    soot from the flamethrower. Incoming rounds crack it too. Every hole and crack wears it down, and worn
+    through it gives way: the middle falls out, a crazed rim is left in the frame, and the rain stops landing
+    on it. It's new every race.
   - **The ammo board on the dashboard is the backup:** strapped over the glovebox lid in front of your seat,
     facing you, it holds everything else. Once your rig is empty, each reload reaches forward to the next round
     on it and takes 30% longer than usual. As the hand goes for it you lean in and glance down a little, so the

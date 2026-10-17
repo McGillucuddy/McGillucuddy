@@ -1817,7 +1817,7 @@ const Proto = {
     if (this.view === 'cockpit') {
       this.cockpit.render(this.state === 'race' ? dt : 0, this.time);
       ctx.clearRect(0, 0, W, H);
-      if (live) WeatherGlass.draw(ctx, this.cockpit.wx, W, H, this.state === 'race' ? dt : 0, race.player.speed / 500);
+      if (live && !(this.cockpit.glass && this.cockpit.glass.gone)) WeatherGlass.draw(ctx, this.cockpit.wx, W, H, this.state === 'race' ? dt : 0, race.player.speed / 500); // (no rain on glass that isn't there)
       if (live) drawCockpitHUD(ctx, this, W, H, this.time);
       if (live) drawHitMarker(ctx, this, W, H, this.state === 'race' ? dt : 0);
       if (this.state === 'race' && !this.locked && !this.noLock) {

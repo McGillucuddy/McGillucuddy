@@ -104,6 +104,9 @@ const reloadPose = (id) => RELOAD_POSE[id] || (MAG_RELOAD[id] ? RELOAD_POSE.mag 
 
 // The roof gun's hold: [x, y, z, scale, yaw, roll, pitch], dead ahead and low, braced on its pintle.
 const ROOF_HOLD = [0.4, -2.0, -5.2, 0.78, 0.02, 0, 0.02];
+// The windshield: your own rounds go through it and leave holes (where your aim crosses the glass), rounds coming
+// in crack it, and each wears it down; worn through, it shatters and falls out. hit: wear per shot or crack.
+const GLASS = { hp: 100, hit: { shoot: 2.5, nail: 1.5, shotgun: 9, flare: 20, rocket: 35, harpoon: 30, flame: 0.4, crack: 10 } };
 const FIRE_EVENTS = ['shoot', 'shotgun', 'nail', 'flame', 'harpoon', 'rocket', 'flare'];
 
 // Small canvas textures for the muzzle flash (a spiky star) and smoke puffs (a soft blob).
@@ -783,6 +786,8 @@ class CockpitView {
     this.cracks = canvasTex(512, 256);
     this.grimeWindshield();
     live(refs.windshield, this.cracks.tex, { opacity: 1 });
+    this.windshield = refs.windshield;
+    this.glass = { hp: GLASS.hp, gone: false }; // a new windshield every race
     this.buildHatch(I);
 
     // Dust drifting in the bulb light.
@@ -1287,6 +1292,7 @@ class CockpitView {
     if (ev.type === 'dent') this.syncDents(false);
     if (ev.type === 'jam') { this.shake = Math.max(this.shake, 0.5); if (this.hatchFx) this.hatchFx.shudder = 1.5; }
     if (ev.type === 'shoot' || ev.type === 'shotgun') this.ejectCasing(ev.type === 'shotgun');
+    if (FIRE_EVENTS.includes(ev.type) && !this.combat.exposed) this.shootGlass(ev.type);
     if (FIRE_EVENTS.includes(ev.type)) {
       const k = FIRE_KICK[this.combat.weapon.id] || FIRE_KICK.smg, soft = this.combat.buffs && this.combat.buffs.kick; // whiskey: a steadier hand
       const ads = 1 - (1 - ADS.recoil) * (this.adsK || 0); // down the sights, the gun kicks less in your hands too
@@ -1311,7 +1317,7 @@ class CockpitView {
       this.shake = Math.max(this.shake, Math.min(1.5, ev.dmg / 12));
       const p = this.race.player;
       const rel = wrapAngle(ev.ang - p.heading);
-      if (Math.abs(rel) < 1.1 && !this.combat.exposed) this.crack(rel); // (no windscreen to crack with your head out of the roof)
+      if (Math.abs(rel) < 1.1 && !this.combat.exposed && !this.glass.gone) { this.crack(rel); this.wearGlass(GLASS.hit.crack); } // (no windscreen to crack with your head out of the roof)
     } else if (ev.type === 'explode') {
       const p = this.race.player;
       const d = Math.hypot(ev.x - p.x, ev.y - p.y);
@@ -1379,6 +1385,74 @@ class CockpitView {
     c.fillStyle = 'rgba(255,255,255,0.35)';
     c.beginPath(); c.arc(cx, cy, 6, 0, TAU); c.fill();
     this.cracks.tex.needsUpdate = true;
+  }
+
+  // Your own shot through the windshield: a hole where your line of fire crosses the glass (none if you're
+  // shooting out of the side window).
+  shootGlass(type) {
+    if (!this.glass || this.glass.gone || !this.windshield) return;
+    const ray = new THREE.Raycaster(), dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    ray.set(this.camera.getWorldPosition(new THREE.Vector3()), dir);
+    const hit = ray.intersectObject(this.windshield, false)[0];
+    if (!hit || !hit.uv) return;
+    const c = this.cracks.ctx, x = hit.uv.x * 512, y = (1 - hit.uv.y) * 256, rnd = Math.random;
+    const spokes = (cx, cy, n, len) => {
+      c.strokeStyle = 'rgba(235,245,255,0.7)'; c.lineWidth = 1;
+      for (let k = 0; k < n; k++) {
+        let a = (k / n) * TAU + rnd() * 0.6, px = cx, py = cy;
+        c.beginPath(); c.moveTo(px, py);
+        for (let s = 0; s < 3; s++) { a += (rnd() - 0.5) * 0.5; px += Math.cos(a) * len * (0.3 + rnd() * 0.5); py += Math.sin(a) * len * (0.3 + rnd() * 0.5); c.lineTo(px, py); }
+        c.stroke();
+      }
+    };
+    const hole = (cx, cy, r) => { // a clean round hole, a frosted ring round it, short cracks running off
+      c.fillStyle = 'rgba(225,235,245,0.45)'; c.beginPath(); c.arc(cx, cy, r * 2.2, 0, TAU); c.fill();
+      c.fillStyle = 'rgba(15,15,18,0.9)'; c.beginPath(); c.arc(cx, cy, r, 0, TAU); c.fill();
+      spokes(cx, cy, 4 + Math.floor(rnd() * 3), r * 7);
+    };
+    if (type === 'shotgun') for (let k = 0; k < 7; k++) hole(x + (rnd() - 0.5) * 34, y + (rnd() - 0.5) * 24, 1.6);
+    else if (type === 'shoot' || type === 'nail') hole(x + (rnd() - 0.5) * 3, y + (rnd() - 0.5) * 3, type === 'nail' ? 1.6 : 2.3);
+    else if (type === 'flame') { // soot, and the glass blistering
+      const g = c.createRadialGradient(x, y, 2, x, y, 40); g.addColorStop(0, 'rgba(25,18,10,0.12)'); g.addColorStop(1, 'rgba(25,18,10,0)');
+      c.fillStyle = g; c.fillRect(x - 40, y - 40, 80, 80);
+    } else { // rocket, harpoon, flare: a big starburst, punched clean through in the middle
+      c.strokeStyle = 'rgba(235,245,255,0.6)'; c.lineWidth = 1;
+      for (const rr of [14, 24, 34]) { c.beginPath(); for (let a = 0; a <= TAU + 0.01; a += 0.5) c.lineTo(x + Math.cos(a) * rr * (0.85 + rnd() * 0.3), y + Math.sin(a) * rr * (0.85 + rnd() * 0.3)); c.stroke(); }
+      spokes(x, y, 12, 30);
+      c.save(); c.globalCompositeOperation = 'destination-out'; c.beginPath();
+      for (let a = 0; a < TAU; a += 0.45) c.lineTo(x + Math.cos(a) * (6 + rnd() * 6), y + Math.sin(a) * (6 + rnd() * 6));
+      c.fill(); c.restore();
+    }
+    this.cracks.tex.needsUpdate = true;
+    this.wearGlass(GLASS.hit[type] || 2);
+  }
+
+  // Wear on the windshield; worn through, it gives way.
+  wearGlass(n) {
+    const G = this.glass;
+    if (!G || G.gone) return;
+    G.hp -= n;
+    if (G.hp > 0) return;
+    // Shattered: the middle falls out, a jagged rim of crazed glass is left round the frame.
+    G.gone = true;
+    const c = this.cracks.ctx, W = 512, H = 256, rnd = Math.random;
+    c.save();
+    c.globalCompositeOperation = 'destination-over'; c.fillStyle = 'rgba(200,225,240,0.12)'; c.fillRect(0, 0, W, H); // the rim left behind, crazed white
+    c.globalCompositeOperation = 'destination-out';
+    c.fillStyle = '#000'; // (opaque: clears the glass right out)
+    c.beginPath();
+    const N = 40;
+    for (let k = 0; k < N; k++) {
+      const a = (k / N) * TAU, rx = W * (0.44 - rnd() * 0.07), ry = H * (0.42 - rnd() * 0.09);
+      c.lineTo(W / 2 + Math.cos(a) * rx, H / 2 + Math.sin(a) * ry);
+    }
+    c.closePath(); c.fill();
+    c.restore();
+    this.cracks.tex.needsUpdate = true;
+    this.shake = Math.max(this.shake, 0.6);
+    Sound.play({ type: 'shatter', vol: 1 });
+    this.race.message('The windshield gives way', '#9fd0ff');
   }
 
   aimAngle() { return this.race.player.heading + this.look.yaw; }

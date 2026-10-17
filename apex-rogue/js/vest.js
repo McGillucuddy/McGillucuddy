@@ -63,47 +63,69 @@ const Vest = {
 
   // The vest on a torso: style id, the rack (weapon objects, for what's in the loops), your inmate number and the
   // torso's width (People.BUILD). userData.rows: per rack gun, the items in its loops (for showing what's left).
+  // The shell is the torso's own shape (ribcage, chest, belly; see People.figure) let out a little, so it sits on
+  // the body like a real vest: open at the neck and arms, cut off above the hips. The ammo straps go round it like
+  // belts, and what's in their loops follows the curve of the chest.
   build(id, rack, inmate, w) {
     id = VESTS[id] ? id : 'canvas';
     w = w || 1;
-    const V = VESTS[id], G = new THREE.Group();
-    const cloth = LP.mat('#ffffff', { map: this.tex(id), roughness: V.rough || 0.95 }), strap = LP.mat(V.strap, { roughness: 0.95 });
+    const V = VESTS[id], G = new THREE.Group(), heavy = w > 1.1;
+    const cloth = LP.mat('#ffffff', { map: this.tex(id), roughness: V.rough || 0.95 });
+    const strapMat = () => LP.mat(V.strap, { roughness: 0.95 }), strap = strapMat();
     const trim = LP.mat(V.trim, { metalness: V.trim === '#8a8f94' || V.trim === '#9aa0a6' || V.trim === '#b8bcc0' ? 0.6 : 0, roughness: 0.6 });
-    const rows = rack.length, top = 3.3, step = Math.min(0.62, 2.1 / Math.max(1, rows - 1 || 1));
-    const s = new Sculpt(`vest:${id}:${rows}:${w}`, 0.06);
-    // The shell: over the chest and belly, open at the neck and arms, cut off above the hips.
-    // A padded slab, square at the hem and the shoulders, a V cut at the neck and holes for the arms.
-    s.add(cloth, SDF.box([2.5, 3.3, 3.62 * w], 0.5, [0.08, 2.88, 0]), 0.2);
-    s.cut(SDF.ellipsoid([1.3, 1.45, 0.95 * w], [1.25, 4.7, 0]), 0.12, [cloth]); // the V at the neck, deep enough to see your loops past
-    s.cut(SDF.ellipsoid([1.2, 0.5, 0.75 * w], [-0.1, 4.75, 0]), 0.12, [cloth]); // round the back of the neck
-    for (const z of [-1, 1]) s.cut(SDF.ellipsoid([0.85, 0.95, 0.5], [0.0, 4.15, z * 1.92 * w]), 0.15, [cloth]); // armholes
-    for (const z of [-1, 1]) s.add(strap, SDF.path([[1.05, 4.1, z * 1.0 * w], [0.75, 4.75, z * 1.02 * w], [0.1, 5.02, z * 1.05 * w], [-0.6, 4.8, z * 1.02 * w], [-0.95, 4.1, z * 1.0 * w]], 0.19), 0.08); // shoulder straps, over the top and down the back
+    const rows = rack.length, top = 3.3, step = Math.min(0.62, 2.1 / Math.max(1, rows - 1 || 1)), HEM = 1.35;
+    // The torso's shapes, let out by t: [radii, centre].
+    const body = (t) => [
+      [[1.02 + t, 1.3 + t, 1.62 * w + t], [0.06, 3.42, 0]], // ribcage
+      [[0.95 + (heavy ? 0.2 : 0) + t, 1.0 + t, 1.25 * w + t], [0.12 + (heavy ? 0.12 : 0), 2.0, 0]], // belly
+      [[0.45 + t, 0.42 + t, 0.62 * w + t], [0.55, 3.8, -0.6 * w]], [[0.45 + t, 0.42 + t, 0.62 * w + t], [0.55, 3.8, 0.6 * w]], // chest
+    ];
+    // How far out the front is at height y and side z (for putting things on it), and the angle it faces there.
+    const surf = (y, z, t) => {
+      let x = -9;
+      for (const [[a, b, c], [px, py, pz]] of body(t)) { const k = 1 - ((y - py) / b) ** 2 - ((z - pz) / c) ** 2; if (k > 0) x = Math.max(x, px + a * Math.sqrt(k)); }
+      return x;
+    };
+    const facing = (y, z, t) => Math.atan2(1, -(surf(y, z + 0.05, t) - surf(y, z - 0.05, t)) / 0.1); // rotation.y that turns +z out of the surface
+    const T = 0.16; // how far the vest stands off the jumpsuit (padding)
+    const s = new Sculpt(`vest2:${id}:${rows}:${w}`, 0.06);
+    for (const [r, c] of body(T)) s.add(cloth, SDF.ellipsoid(r, c), 0.45);
+    s.cut(SDF.box([4, 2, 5], 0.05, [0, HEM - 1, 0]), 0.1, [cloth]); // the hem
+    s.cut(SDF.box([4, 2, 5], 0.05, [0, 5.75, 0]), 0.1, [cloth]); // over the shoulders, only the straps
+    s.cut(SDF.ellipsoid([0.95, 1.25, 0.72 * w], [1.2, 4.75, 0]), 0.12, [cloth]); // the V at the neck, deep enough to see your loops past
+    s.cut(SDF.ellipsoid([1.0, 0.45, 0.72 * w], [-0.1, 4.75, 0]), 0.12, [cloth]); // round the back of the neck
+    for (const z of [-1, 1]) s.cut(SDF.ellipsoid([0.95, 1.05, 0.55], [0.0, 4.1, z * 1.9 * w]), 0.15, [cloth]); // armholes
+    for (const z of [-1, 1]) s.add(strap, SDF.path([[surf(4.2, z * 1.0 * w, T) - 0.05, 4.2, z * 1.0 * w], [0.75, 4.78, z * 1.02 * w], [0.1, 5.02, z * 1.05 * w], [-0.6, 4.8, z * 1.02 * w], [-0.95, 4.2, z * 1.0 * w]], 0.17), 0.08); // shoulder straps, over the top and down the back
     // Each style's own make.
-    if (V.patches) V.patches.forEach((col, k) => s.add(LP.mat(col, { roughness: 0.95 }), SDF.box([0.1, 0.5 + (k % 2) * 0.2, 0.55], 0.06, [1.33 + (k % 2) * 0.03, 1.7 + k * 0.5, (k % 2 ? -0.95 : 1.0) * w], [0, 0, 0.1 * (k - 1.5)]), 0.03));
-    if (id === 'tube') for (const z of [-0.9, 0.9]) for (const y of [2.0, 2.8, 3.6]) s.add(trim, SDF.cyl(0.07, 0.08, 'x', 0.02, [1.33, y, z * 1.3 * w]), 0.01); // bolts through the rubber
-    if (id === 'riot') s.add(strap, SDF.box([0.25, 2.0, 2.6 * w], 0.15, [1.3, 2.75, 0]), 0.1); // the plate pocket
-    if (id === 'canvas') for (const z of [-1, 1]) s.add(trim, SDF.path([[0.6, 2.2, z * 1.82 * w], [0.1, 2.0, z * 1.9 * w], [-0.4, 2.2, z * 1.82 * w]], 0.06), 0.02); // rope ties at the sides
-    if (id === 'mattress') for (const y of [2.0, 2.7, 3.4]) s.cut(SDF.box([2.7, 0.06, 3.8 * w], 0.02, [0.08, y, 0]), 0.03, [cloth]); // quilted
-    // The ammo straps across the front.
+    if (V.patches) V.patches.forEach((col, k) => { const y = 1.75 + k * 0.5, z = (k % 2 ? -0.75 : 0.8) * w; s.add(LP.mat(col, { roughness: 0.95 }), SDF.ellipsoid([0.08, 0.3 + (k % 2) * 0.1, 0.32], [surf(y, z, T) - 0.02, y, z], [0, facing(y, z, T) - Math.PI / 2, 0.1 * (k - 1.5)]), 0.03); });
+    if (id === 'tube') for (const z of [-0.9, 0.9]) for (const y of [2.0, 2.8, 3.6]) s.add(trim, SDF.ellipsoid([0.07, 0.07, 0.07], [surf(y, z * w, T), y, z * w]), 0.01); // bolts through the rubber
+    if (id === 'canvas') for (const z of [-1, 1]) s.add(trim, SDF.path([[0.55, 2.2, z * 1.4 * w], [0.1, 2.0, z * 1.5 * w], [-0.35, 2.2, z * 1.4 * w]], 0.06), 0.02); // rope ties at the sides
+    if (id === 'mattress') for (const y of [2.0, 2.7, 3.4]) s.cut(SDF.box([3, 0.06, 4.2 * w], 0.02, [0.08, y, 0]), 0.03, [cloth]); // quilted
+    // The ammo straps: belts round the vest, each its own piece so it can be trimmed to its own height.
+    const band = [];
     for (let r = 0; r < rows; r++) {
-      const y = top - r * step;
-      s.add(strap, SDF.box([0.3, 0.34, 2.5], 0.06, [1.38, y - 0.14, 0]), 0.03);
-      s.add(trim, SDF.box([0.08, 0.2, 0.14], 0.02, [1.55, y - 0.14, 1.3]), 0.01); // buckle
+      const y = top - r * step - 0.14, m = strapMat();
+      for (const [rr, c] of body(T + 0.1)) s.add(m, SDF.ellipsoid(rr, c), 0.3);
+      s.cut(SDF.box([5, 3, 5], 0.02, [0, y + 0.17 + 1.5, 0]), 0.02, [m]);
+      s.cut(SDF.box([5, 3, 5], 0.02, [0, y - 0.17 - 1.5, 0]), 0.02, [m]);
+      const bz = 1.15 * w; band.push(y);
+      s.add(trim, SDF.box([0.08, 0.22, 0.16], 0.02, [surf(y, bz, T + 0.1) + 0.02, y, bz], [0, facing(y, bz, T + 0.1) - Math.PI / 2, 0]), 0.01); // buckle
     }
     s.build(G);
     // The words on the chest, above the straps.
-    const m = LP.mesh(new THREE.PlaneGeometry(1.5, 0.56), LP.mat('#ffffff', { map: this.mark(id, inmate || '4471'), transparent: true, roughness: 0.9 }), 1.35, top + 0.62, 0.85 * w);
-    m.rotation.y = Math.PI / 2;
-    m.scale.setScalar(0.75);
+    const ym = top + 0.5, zm = 0.72 * w;
+    const m = LP.mesh(new THREE.PlaneGeometry(1.5, 0.56), LP.mat('#ffffff', { map: this.mark(id, inmate || '4471'), transparent: true, roughness: 0.9 }), surf(ym, zm, T) + 0.03, ym, zm);
+    m.rotation.y = facing(ym, zm, T);
+    m.scale.setScalar(0.7);
     G.add(m);
-    // What's in the loops.
+    // What's in the loops, round the curve of the chest.
     G.userData.rows = rack.map((wpn, r) => {
-      const n = (WORN.loads[wpn.id] || 2), [gap0, sc] = this.ITEM[wpn.id] || [0.4, 0.45], y = top - r * step;
-      const gap = Math.min(gap0, 2.1 / Math.max(1, n - 1)), items = [];
+      const n = (WORN.loads[wpn.id] || 2), [gap0, sc] = this.ITEM[wpn.id] || [0.4, 0.45], y = band[r] + 0.19;
+      const gap = Math.min(gap0, 2.1 * w / Math.max(1, n - 1)), items = [];
       for (let k = 0; k < n; k++) {
-        const it = Models.ammoItem(wpn.id, k);
-        it.position.set(1.55, y + 0.05, -((n - 1) * gap) / 2 + k * gap);
-        it.rotation.y = Math.PI / 2; // its face out from the chest
+        const it = Models.ammoItem(wpn.id, k), z = -((n - 1) * gap) / 2 + k * gap;
+        it.position.set(surf(y, z, T + 0.1) + 0.1, y, z);
+        it.rotation.y = facing(y, z, T + 0.1); // its face out from the chest
         it.scale.setScalar(sc * 1.2);
         G.add(it);
         items.push(it);
