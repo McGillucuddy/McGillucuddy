@@ -682,6 +682,7 @@ class CockpitView {
     // with theirs.
     const mt = me.userData.torso || me;
     this.meTorso = mt;
+    this.meBuild = People.BUILD[(me.userData.looks || {}).build] || 1;
     mt.add(LP.mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 16).rotateX(Math.PI / 2), steel, 0.12, 5.0, 0));
     mt.add(LP.box(0.36, 0.32, 0.3, LP.mat('#1c1c1e', { metalness: 0.4 }), 0.55, 4.95, 0));
     const myLed = LP.mesh(new THREE.SphereGeometry(0.08, 6, 5), LP.glow('#ff2a1a', 2.5), 0.74, 5.0, 0);
@@ -940,41 +941,16 @@ class CockpitView {
     this.ammoRackGroup = R;
   }
 
-  // The ammo you wear (WORN in js/combat.js): a canvas chest rig over your jumpsuit, one strap of loops or pouches
-  // per rack gun, top to bottom. Look down and you see what's left on you.
+  // The ammo you wear (WORN in js/combat.js): your vest (a cosmetic, js/vest.js) over the jumpsuit, one strap of
+  // loops per rack gun across its front. Look down and you see what's left on you.
   buildBodyAmmo(b) {
     this.bodyAmmo = [];
     if (!this.meTorso) return;
-    const R = new THREE.Group(), canvas = LP.mat('#4a4632', { roughness: 1 }), buckle = LP.mat('#8a8f94', { metalness: 0.8, roughness: 0.4 });
-    // Per gun: spacing and scale of what's tucked in the loops.
-    const PER = { pistol: [0.34, 0.5], smg: [0.4, 0.46], shotgun: [0.15, 0.55], rocket: [0.62, 0.32], flare: [0.3, 0.6], nailgun: [0.36, 0.5], flamer: [0.6, 0.42], harpoon: [0.42, 0.4],
-      carbine: [0.4, 0.44], liberty: [0.3, 0.55], typewriter: [0.62, 0.26], lmg: [0.6, 0.3], pangun: [0.6, 0.26] };
-    const rows = b.rack.length, top = 3.45, step = Math.min(0.62, 2.1 / Math.max(1, rows - 1 || 1));
-    const rs = new Sculpt('bodyrig:' + rows, 0.03);
-    rs.add(canvas, SDF.box([0.16, 3.6, 0.08], 0.02, [-0.95, 2.6, -0.2], [0, 0, 0.35]), 0.02); // the shoulder straps, crossing down
-    rs.add(canvas, SDF.box([0.16, 3.6, 0.08], 0.02, [0.95, 2.6, -0.2], [0, 0, -0.35]), 0.02);
-    for (let r = 0; r < rows; r++) {
-      const y = top - r * step;
-      rs.add(canvas, SDF.box([2.3, 0.34, 0.3], 0.06, [0, y - 0.14, -0.08]), 0.03); // the padded strap the loops are sewn on
-      rs.add(buckle, SDF.box([0.14, 0.2, 0.08], 0.02, [1.2, y - 0.14, 0.08]), 0.01);
-    }
-    rs.build(R);
-    b.rack.forEach((w, r) => {
-      const n = (WORN.loads[w.id] || 2), [gap0, sc] = PER[w.id] || [0.4, 0.45], y = top - r * step;
-      const gap = Math.min(gap0, 2.1 / Math.max(1, n - 1)), items = [];
-      for (let k = 0; k < n; k++) {
-        const it = Models.ammoItem(w.id, k);
-        it.position.set(-((n - 1) * gap) / 2 + k * gap, y + 0.05, 0.14);
-        it.scale.setScalar(sc);
-        R.add(it);
-        items.push(it);
-      }
-      this.bodyAmmo.push({ items, wi: r, per: wornPer(w), shown: -1, hide: 0 });
-    });
-    // On the front of your chest (the torso faces +x), a little proud of the jumpsuit.
-    R.rotation.y = Math.PI / 2;
-    R.position.set(1.32, 0, 0);
-    this.meTorso.add(R);
+    const cab = this.look3d.cabin || {};
+    const V = Vest.build(cab.vest, b.rack, String(cab.inmate || '4471'), this.meBuild || 1);
+    this.meTorso.add(V);
+    this.vestGroup = V;
+    this.bodyAmmo = V.userData.rows.map((items, r) => ({ items, wi: r, per: wornPer(b.rack[r]), shown: -1, hide: 0 }));
   }
 
   // Where the next round is, in the held gun's own coordinates (for the reloading hand): on the board on the dash, or

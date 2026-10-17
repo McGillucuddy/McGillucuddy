@@ -331,8 +331,11 @@ volume and looks for overlaps.
   - **Arms with elbows:** each arm runs shoulder to elbow to wrist. The shoulders stay put by the camera and the
     elbow is solved between them, bending down and out. The glove's sleeve is the forearm to the elbow, and an
     upper arm runs on to the shoulder. A hand that leaves its grip turns to follow its arm.
-  - **Ammo you wear, first** (`WORN` in js/combat.js, `Cockpit3D.buildBodyAmmo`): before each race you fill a
-    canvas chest rig from the board, one padded strap per rack gun. It holds three pistol, SMG or carbine mags,
+  - **Ammo you wear, first** (`WORN` in js/combat.js, `Vest` in js/vest.js): before each race you fill your
+    ammo vest from the board, one padded strap of loops per rack gun across its front. The vest is a cosmetic
+    (Paint booth, **Vest** tab, shown on you on the lift), made from whatever the prison throws away: Laundry
+    Sack, Jumpsuit Patchwork, Mattress Ticking, Inner Tube, Duct Tape, Chain Gang Hi-Vis, Fence Wire or a
+    Lifted Riot Vest, each with its own stencil and your number. It holds three pistol, SMG or carbine mags,
     four Liberty clips, two drums or nail strips, one LMG box, pan or fuel can, twelve shells, four flares, two
     rockets and three bolts. Look down (the view now goes further down) and you see what's left on you.
     Reloads come off your body first, and they're 20% quicker: the hand just drops below the view to your chest

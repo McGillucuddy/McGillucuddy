@@ -785,7 +785,19 @@ class Garage3D {
     if (this.carGroup) this.room.remove(this.carGroup);
     const g = (this.carGroup = new THREE.Group());
     g.position.set(GARAGE_LIFT.x, GARAGE_LIFT.y, GARAGE_LIFT.z);
-    if (this.mode === 'interior') {
+    if (this.mode === 'vest') {
+      // You, stood on the lift in your vest (the car's out of the way).
+      const cab = look.cabin || {}, inmate = String(cab.inmate || '4471'), seed = (parseInt(inmate, 10) || 4471) * 3 + 11;
+      const me = People.figure({ seed: seed + 1, role: 'passenger', pose: 'stand', arms: 'swing', cell: 0.08, number: inmate, looks: { suit: '#a8521e' } });
+      const w = People.BUILD[(me.userData.looks || {}).build] || 1;
+      (me.userData.torso || me).add(Vest.build(cab.vest, look.rack || [], inmate, w));
+      for (const a of me.userData.arms || []) a.rotation.x = -0.14 * Math.sign(a.position.z); // arms a little out from the vest
+      me.scale.setScalar(2.3); // as tall as the others in the garage
+      const bb = new THREE.Box3().setFromObject(me);
+      me.position.set(0, -GARAGE_LIFT.y - bb.min.y, 0); // stood on the floor
+      this.vestH = bb.max.y - bb.min.y;
+      g.add(me);
+    } else if (this.mode === 'interior') {
       g.add(Models.car(Object.assign({}, look, { shell: true })));
       g.add(Models.interior(look.color, { cabin: look.cabin }).group);
       this.cabinLight = new THREE.PointLight(look.cabin.bulb, 1.6, 40, 1.2);
@@ -849,6 +861,10 @@ class Garage3D {
     const st = this.station;
     if (st === 'paint' && this.mode === 'interior') return null;
     if (st === 'paint' && this.mode === 'guns') return GARAGE_POSES.weapons;
+    if (st === 'paint' && this.mode === 'vest') { // close in on you, chest height
+      const a = this.orbit, H = this.vestH || 25, r = H * 0.8, y = H * 0.72;
+      return [[GARAGE_LIFT.x + Math.cos(a) * r, y + H * 0.12, GARAGE_LIFT.z + Math.sin(a) * r], [GARAGE_LIFT.x, y, GARAGE_LIFT.z]];
+    }
     if (st === 'title') {
       // Start menu: a slow swing across the car's front quarter, clear of the lift posts at its sides.
       const a = 0.35 + Math.sin(this.orbit * 0.8) * 0.5;

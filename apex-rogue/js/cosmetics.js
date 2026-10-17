@@ -76,6 +76,12 @@ const COSMETICS = {
     { id: 'none', name: 'None', rep: 0 }, { id: 'hula', name: 'Hula Girl', rep: 15 },
     { id: 'dog', name: 'Nodding Dog', rep: 40 }, { id: 'saint', name: 'Saint Figurine', rep: 80 }, { id: 'skull', name: 'Skull', rep: 160 },
   ],
+  // Your ammo vest (see js/vest.js): made from whatever the prison throws away.
+  vest: [
+    { id: 'canvas', name: 'Laundry Sack', rep: 0 }, { id: 'jumpsuit', name: 'Jumpsuit Patchwork', rep: 0 }, { id: 'mattress', name: 'Mattress Ticking', rep: 0 },
+    { id: 'tube', name: 'Inner Tube', rep: 0 }, { id: 'tape', name: 'Duct Tape', rep: 0 }, { id: 'hivis', name: 'Chain Gang Hi-Vis', rep: 0 },
+    { id: 'fence', name: 'Fence Wire', rep: 0 }, { id: 'riot', name: 'Lifted Riot Vest', rep: 0 },
+  ],
   // Guns (one finish per weapon type)
   gunFinish: [
     { id: 'stock', name: 'Stock', rep: 0 }, { id: 'rust', name: 'Rusted', rep: 0 }, { id: 'tape', name: 'Duct-Taped', rep: 20 },
@@ -115,13 +121,13 @@ COSMETICS.gunKit = [
 ];
 
 const COSMETIC_KEY = 'apexrogue_cosmetics_v1';
-const LOOK_KEYS = ['style', 'paint', 'paint2', 'twoTone', 'finish', 'grime', 'livery', 'number', 'rims', 'bumper', 'roof', 'spoiler', 'exhaust', 'underglow', 'seats', 'wheelWrap', 'dash', 'bulb', 'ornament', 'gunFinish', 'gunKit', 'patchSeed', 'inmate', 'plate'];
+const LOOK_KEYS = ['style', 'paint', 'paint2', 'twoTone', 'finish', 'grime', 'livery', 'number', 'rims', 'bumper', 'roof', 'spoiler', 'exhaust', 'underglow', 'seats', 'wheelWrap', 'dash', 'bulb', 'ornament', 'vest', 'gunFinish', 'gunKit', 'patchSeed', 'inmate', 'plate'];
 
 function loadCosmetics() {
   const def = {
     style: 'comet', paint: 'red', paint2: 'black', twoTone: 'none', finish: 'gloss', grime: 'dirty', livery: 'stencil', number: 47,
     rims: 'spoke5', bumper: 'stock', roof: 'stock', spoiler: 'stock', exhaust: 'single', underglow: 'none',
-    seats: 'vinyl', wheelWrap: 'tape', dash: 'black', bulb: 'warm', ornament: 'none',
+    seats: 'vinyl', wheelWrap: 'tape', dash: 'black', bulb: 'warm', ornament: 'none', vest: 'canvas',
     gunFinish: {}, gunKit: {}, patchSeed: {},
     inmate: '4471', plate: 'INM 4471', rep: 0, presets: [null, null, null],
   };
@@ -152,6 +158,7 @@ const gearLook = (b) => (b && b.parts ? Object.fromEntries(Object.entries(b.part
 function carLook(c, b) {
   return {
     gear: gearLook(b),
+    rack: b && b.rack ? b.rack.map((w) => ({ id: w.id })) : [], // what's in your vest's loops
     roofGun: b && b.roof && b.roof.gun ? { id: b.roof.gun.id, shield: b.roof.shield } : null,
     roofHatch: true, // your car has a hatch in the roof, for the roof gun
     style: c.style, color: paintColor(c), accent: '#1d1d1d', finish: c.finish, livery: c.livery, number: c.number, plate: c.plate,
@@ -160,7 +167,7 @@ function carLook(c, b) {
     underglow: (cosOption('underglow', c.underglow) || {}).color || null,
     cabin: {
       seats: c.seats, wheelWrap: c.wheelWrap, dash: (cosOption('dash', c.dash) || COSMETICS.dash[0]).color,
-      bulb: (cosOption('bulb', c.bulb) || COSMETICS.bulb[0]).color, ornament: c.ornament, inmate: c.inmate,
+      bulb: (cosOption('bulb', c.bulb) || COSMETICS.bulb[0]).color, ornament: c.ornament, inmate: c.inmate, vest: c.vest,
     },
     gunFinish: c.gunFinish, gunKit: c.gunKit, patchSeed: c.patchSeed,
     history: b && typeof CarHistory !== 'undefined' ? CarHistory.look(b) : null, // what the run has done to the car (js/history.js)

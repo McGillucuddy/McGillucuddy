@@ -267,7 +267,7 @@ const Proto = {
       case 'abandon': this.gameOver(false); break;
       case 'after-results': this.afterResults(); break;
       // Garage & shop
-      case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
+      case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns', vest: 'vest' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
       case 'patch-gunner': { const c = Crew.gunnerPatchCost(b); if (c > 0 && buy(c)) b.gunnerHp = GUNNER.hp; this.showGarage(); break; }
       case 'patch-driver': { const c = Crew.patchCost(b); if (c > 0 && buy(c)) b.driverHp = DRIVER.hp; this.showGarage(); break; }
       case 'car-reroll': CarHistory.reroll(b); this.showGarage(); break;
@@ -335,7 +335,7 @@ const Proto = {
       case 'tune': { const [slot, v] = arg.split(':'), R = tuneRange(b, slot), n = Math.round(+v * 2); if (n >= R.lo && n <= R.hi) b.parts[slot].tune = +v; this.showGarage(); break; }
       case 'weld': { const [slot, dir] = arg.split(':'); if (weldNotch(b, slot, +dir)) Sound.play({ type: 'buy' }); this.showGarage(); break; }
       // Paint shop (saved between runs)
-      case 'paint-tab': this.paintTab = arg; if (this.preview) this.preview.setMode({ cabin: 'interior', guns: 'guns' }[arg] || 'car'); this.showGarage(); break;
+      case 'paint-tab': this.paintTab = arg; if (this.preview) this.preview.setMode({ cabin: 'interior', guns: 'guns', vest: 'vest' }[arg] || 'car'); this.showGarage(); break;
       case 'preset-save': savePreset(this.cos, +arg); saveCosmetics(this.cos); this.showGarage(); break;
       case 'preset-load': loadPreset(this.cos, +arg); saveCosmetics(this.cos); if (this.preview) this.preview.setLook(carLook(this.cos, this.build)); this.showGarage(); break;
       case 'cosmetic': {
@@ -1611,6 +1611,8 @@ const Proto = {
       cabin: () => row('Seat covers', opt('seats', L.seats)) + row('Wheel wrap', opt('wheelWrap', L.wheelWrap)) + row('Dash', opt('dash', L.dash, sw))
         + row('Cabin bulb', opt('bulb', L.bulb, sw)) + row('Dash ornament', opt('ornament', L.ornament))
         + `<h3>Inmate number</h3><input id="inmateInput" class="plate-input" maxlength="6" value="${c.inmate}"><p class="muted small">Stencilled on the glovebox.</p>`,
+      vest: () => row('Ammo vest', opt('vest', L.vest))
+        + `<p class="muted small">What you wear over the jumpsuit. The ammo you carry rides in the loops across its front, and reloads come off it first. You see it when you look down.</p>`,
       guns: () => Object.keys(SHORT_WEAPON).map((w) => row(SHORT_WEAPON[w] + ': finish', opt('gunFinish', L.gunFinish, (o) => (o.color ? sw(o) : ''), c.gunFinish[w], 'gun.' + w))
         + row(SHORT_WEAPON[w] + ': welded-on junk', opt('gunKit', L.gunKit, null, c.gunKit[w], 'kit.' + w)
           + (c.gunKit[w] === 'patched' ? `<button class="opt" data-action="cosmetic" data-arg="reweld.${w}:1">Re-weld patches</button>` : ''))).join(''),
@@ -1619,12 +1621,12 @@ const Proto = {
           <button class="opt" data-action="preset-save" data-arg="${i}">Save</button>
           <button class="opt" ${p ? '' : 'disabled'} data-action="preset-load" data-arg="${i}">Load</button></div>`).join(''),
     };
-    const tabs = [['body', 'Body'], ['kit', 'Kit'], ['cabin', 'Cabin'], ['guns', 'Guns'], ['presets', 'Presets']]
+    const tabs = [['body', 'Body'], ['kit', 'Kit'], ['cabin', 'Cabin'], ['vest', 'Vest'], ['guns', 'Guns'], ['presets', 'Presets']]
       .map(([id, n]) => `<button class="opt ${sub === id ? 'on' : ''}" data-action="paint-tab" data-arg="${id}">${n}</button>`).join('');
     return `<div class="paint-opts">
       <p class="muted small">Your look is kept between runs. Every finish, paint and part of the kit is yours to choose.</p>
       <div class="opts subtabs">${tabs}</div>
-      ${sub === 'cabin' || sub === 'body' || sub === 'kit' ? `<p class="muted small">Drag the view to look ${sub === 'cabin' ? 'round the cabin' : 'round the car'}${sub === 'cabin' ? '' : ' · scroll to zoom'}.</p>` : ''}${pages[sub]()}</div>`;
+      ${sub === 'cabin' || sub === 'body' || sub === 'kit' || sub === 'vest' ? `<p class="muted small">Drag the view to look ${sub === 'cabin' ? 'round the cabin' : sub === 'vest' ? 'round yourself' : 'round the car'}${sub === 'body' || sub === 'kit' ? ' · scroll to zoom' : ''}.</p>` : ''}${pages[sub]()}</div>`;
   },
 
   showReward() {
@@ -1965,7 +1967,7 @@ function drawHitMarker(ctx, P, W, H, dt) {
 // Fitting a spare: a progress bar in the middle of the screen.
 function drawFitProgress(ctx, P, W, H) {
   const c = P.combat;
-  if (!c.busy) return;
+  if (!(c.fitT > 0)) return; // (not while climbing to or from the roof gun)
   const f = 1 - c.fitT / FIT_TIME;
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(W / 2 - 140, H * 0.62, 280, 44);
