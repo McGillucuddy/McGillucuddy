@@ -79,7 +79,7 @@ const MAG_RELOAD = {
 // the hand doing the work: the mag well canted down towards your left hand, the shotgun's port rolled up, the
 // break-open flare gun tipped muzzle-down so the breech lifts towards you, the rocket tube muzzle-up for its warhead.
 const RELOAD_POSE = {
-  pistol: { rx: 0.32, ry: 0.18, rz: -0.55, ox: -1.0, oy: 1.0, oz: 0.9 },
+  pistol: { rx: 0.42, ry: 0.35, rz: -0.95, ox: -1.7, oy: 1.25, oz: 0.35 }, // brought in front of your chest and canted over, the butt of the grip to the other hand
   mag: { rx: 0.22, ry: 0.22, rz: -0.6, ox: -1.2, oy: 1.3, oz: 0.8 }, // SMG, carbine, Typewriter: mag or drum underneath
   pangun: { rx: 0.4, ry: 0.12, rz: 0.25, ox: -0.8, oy: 0.6, oz: 0.6 }, // the pan on top: tipped so its top faces you
   lmg: { rx: 0.15, ry: 0.15, rz: 0.4, ox: -0.6, oy: 0.4, oz: 0.5 }, // the box on its left side: rolled to face up
@@ -95,6 +95,10 @@ const ADS_POSE = {
   shotgun: [0.12, -0.3, -0.5], liberty: [0.12, -0.3, -0.5], rocket: [1.5, -0.75, 0.3], nailgun: [1.05, -0.55, 0],
   flamer: [0.9, -0.45, 0], harpoon: [0, -0.1, 0.9], flare: [0.15, -0.1, 0],
 };
+// A magazine reload off your vest, on the dash reload's timeline: the hand's trip down to your chest and back is
+// short, so it spends far less of the reload out of sight. [vest time, dash-reload time] pairs.
+const BODY_TIME = [[0, 0], [0.04, 0.12], [0.18, 0.3], [0.24, 0.45], [0.42, 0.62], [0.52, 0.72], [0.6, 0.8], [0.74, 0.92], [0.84, 0.94], [1, 1]];
+const bodyTime = (t) => { for (let k = 1; k < BODY_TIME.length; k++) { const [a0, b0] = BODY_TIME[k - 1], [a1, b1] = BODY_TIME[k]; if (t <= a1) return b0 + ((t - a0) / (a1 - a0)) * (b1 - b0); } return 1; };
 const reloadPose = (id) => RELOAD_POSE[id] || (MAG_RELOAD[id] ? RELOAD_POSE.mag : RELOAD_POSE.other);
 
 // The roof gun's hold: [x, y, z, scale, yaw, roll, pitch], dead ahead and low, braced on its pintle.
@@ -1818,49 +1822,51 @@ class CockpitView {
       if (u.jet) { u.jet.visible = combat.lastFire < 0.09 && st.reloadT <= 0; u.jet.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.5, 0.8 + Math.random() * 0.4); } // the flamethrower's jet
       let ox = 0, oy = 0, oz = 0, rx = 0, ry = 0, rz = 0;
       if (rp >= 0) {
-        const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp)) * (fromBody ? 0.6 : 1);
+        const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp));
         const scaled = (P, k) => ({ rx: P.rx * k, ry: P.ry * k, rz: P.rz * k, ox: P.ox * k, oy: P.oy * k, oz: P.oz * k });
         if (MAG_RELOAD[id] && u.mag) {
+          const q = fromBody ? bodyTime(rp) : rp; // (off your vest, the trip out of sight is short)
           // Side-on: the empty mag (drum, box, pan) drops out tumbling, the support hand (on a one-handed pistol, the
           // spare one) drops down to the rack, comes back up with a fresh one, lines it up under the well, pushes it
           // home and the bolt (or the pistol's slide) goes forward.
           ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
-          if (u.slide && id === 'pistol') u.slide.position.z = 0.45 * (1 - ss(0.82, 0.86, rp)); // locked back until the new mag is in
+          if (u.slide && id === 'pistol') u.slide.position.z = 0.45 * (1 - ss(0.82, 0.86, q)); // locked back until the new mag is in
           const MR = MAG_RELOAD[id], off = new THREE.Vector3(...MR.off), rest0 = new THREE.Vector3(...(u.magRest || [0, -2.7, 0.2]));
           const hand = hands[1], R = this.rackPoint(g, i, fromBody), well = rest0.clone().sub(off);
           const belted = !!(u.cover && u.belt); // a belt-fed gun: after the box, the belt goes into the tray
           const below = well.clone().addScaledVector(new THREE.Vector3(...(MR.dir || [0, -1, 0])).normalize(), MR.depth || 1.2); // lined up outside the well
-          const drop = ss(0.15, 0.32, rp);
+          const drop = ss(0.15, 0.32, q);
           if (hand && R) {
             const rest = hand.userData.rest.pos;
             hand.visible = true;
-            if (rp < 0.3) hand.position.lerpVectors(rest, R, ss(0.12, 0.3, rp));
-            else if (rp < 0.45) hand.position.copy(R);
-            else if (rp < 0.62) hand.position.lerpVectors(R, below, ss(0.45, 0.62, rp));
-            else if (rp < 0.72) hand.position.lerpVectors(below, well, ss(0.63, 0.72, rp)); // and straight in
-            else if (belted) this.loadBelt(u, hand, well, rest, rp);
-            else if (rp < 0.8) hand.position.copy(well).add(new THREE.Vector3(0, 0.3 * ss(0.72, 0.78, rp), 0));
-            else hand.position.lerpVectors(well, rest, ss(0.8, 0.92, rp));
-            hand.rotation.x = hand.userData.rest.rot + 0.6 * bump(0.12, 0.8, rp);
-            stash[i] && (stash[i].hide = rp > 0.38 && rp < 0.8 ? 1 : 0);
+            if (q < 0.3) hand.position.lerpVectors(rest, R, ss(0.12, 0.3, q));
+            else if (q < 0.45) hand.position.copy(R);
+            else if (q < 0.62) hand.position.lerpVectors(R, below, ss(0.45, 0.62, q));
+            else if (q < 0.72) hand.position.lerpVectors(below, well, ss(0.63, 0.72, q)); // and straight in
+            else if (belted) this.loadBelt(u, hand, well, rest, q);
+            else if (q < 0.8) hand.position.copy(well).add(new THREE.Vector3(0, 0.3 * ss(0.72, 0.78, q), 0));
+            else hand.position.lerpVectors(well, rest, ss(0.8, 0.92, q));
+            hand.rotation.x = hand.userData.rest.rot + 0.6 * bump(0.12, 0.8, q);
+            stash[i] && (stash[i].hide = q > 0.38 && q < 0.8 ? 1 : 0);
           }
-          if (rp < 0.32) { // the empty one falls away, turning over as it goes
+          if (q < 0.32) { // the empty one falls away, turning over as it goes
             u.mag.position.addScaledVector(new THREE.Vector3(...MR.drop), drop * drop);
             const sp = MR.spin || [0.9, 0, 0.6];
             u.mag.rotation.set(sp[0] * drop, sp[1] * drop, sp[2] * drop);
             u.mag.visible = drop < 0.98;
           }
-          else if (rp < 0.4) u.mag.visible = false;
-          else if (rp < (belted ? 0.72 : 0.78) && hand) { u.mag.visible = true; u.mag.position.copy(hand.position).add(off); }
-          if (belted && rp < 0.32) { u.belt.position.addScaledVector(new THREE.Vector3(...MR.drop), drop); u.belt.visible = drop < 0.98; } // the old belt goes with the old box
-          else if (belted && rp < 0.72) u.belt.visible = false;
-          oz += bump(0.72, 0.8, rp) * (id === 'pistol' ? 0.3 : 0.4); // pushed home
-          oy += bump(0.72, 0.8, rp) * 0.25; // the gun gives a little under the push
-          rx -= bump(0.86, 0.94, rp) * 0.12; // bolt (or slide) forward
+          else if (q < 0.4) u.mag.visible = false;
+          else if (q < (belted ? 0.72 : 0.78) && hand) { u.mag.visible = true; u.mag.position.copy(hand.position).add(off); }
+          if (belted && q < 0.32) { u.belt.position.addScaledVector(new THREE.Vector3(...MR.drop), drop); u.belt.visible = drop < 0.98; } // the old belt goes with the old box
+          else if (belted && q < 0.72) u.belt.visible = false;
+          oz += bump(0.72, 0.8, q) * (id === 'pistol' ? 0.3 : 0.4); // pushed home
+          oy += bump(0.72, 0.8, q) * 0.25; // the gun gives a little under the push
+          rx -= bump(0.86, 0.94, q) * 0.12; // bolt (or slide) forward
         } else if (id === 'shotgun') {
           // Roll it over; four trips to the rack, each shell thumbed into the loading port; rack the pump.
           ({ rx, ry, rz, ox, oy, oz } = scaled(reloadPose(id), tilt));
-          const hand = hands[1], port = new THREE.Vector3(0, -0.9, -0.3), R = this.rackPoint(g, i, fromBody);
+          const hand = hands[1], port = new THREE.Vector3(0, -0.9, -0.3), R0 = this.rackPoint(g, i, fromBody);
+          const R = R0 && fromBody ? port.clone().lerp(R0, 0.55) : R0; // off the vest: a short dip to the loops on your chest, just below the port
           const load = ss(0.12, 0.2, rp) * (1 - ss(0.78, 0.85, rp));
           if (hand) {
             hand.position.lerp(port, load);
