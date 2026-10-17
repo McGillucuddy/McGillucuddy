@@ -158,6 +158,7 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
 | Grenade | Hold `G` to pull the pin (it cooks while held), let go to throw |
 | Abilities | `Space` / `E` |
 | Fit spare part | `B` |
+| Kick the windshield out | `K` |
 | Swerve left / right | `A` / `D` |
 
 The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor/` so it works offline.
@@ -350,8 +351,9 @@ volume and looks for overlaps.
     line of fire crosses the glass (none if you're firing out of the side window): a bullet hole with a frosted
     ring and cracks, a cluster from the shotgun, a punched-through starburst from a rocket, harpoon or flare,
     soot from the flamethrower. Incoming rounds crack it too. Every hole and crack wears it down, and worn
-    through it gives way: the middle falls out, a crazed rim is left in the frame, and the rain stops landing
-    on it. It's new every race.
+    through it's simply gone. Or press `K` and kick it out: your boot comes up into view, the first kick stars
+    it, the second pops the whole laminated sheet out of its frame, and the wind throws it up over the roof (at
+    a standstill it flops onto the bonnet). Either way the rain stops landing on it. It's new every race.
   - **The ammo board on the dashboard is the backup:** strapped over the glovebox lid in front of your seat,
     facing you, it holds everything else. Once your rig is empty, each reload reaches forward to the next round
     on it and takes 30% longer than usual. As the hand goes for it you lean in and glance down a little, so the

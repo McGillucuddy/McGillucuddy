@@ -1428,31 +1428,75 @@ class CockpitView {
     this.wearGlass(GLASS.hit[type] || 2);
   }
 
-  // Wear on the windshield; worn through, it gives way.
+  // Wear on the windshield; worn through, it's gone.
   wearGlass(n) {
     const G = this.glass;
     if (!G || G.gone) return;
     G.hp -= n;
-    if (G.hp > 0) return;
-    // Shattered: the middle falls out, a jagged rim of crazed glass is left round the frame.
+    if (G.hp <= 0) this.glassOut(false);
+  }
+
+  // The windshield goes: shot out, it just falls away to nothing; kicked out, the whole laminated sheet pops out of
+  // its frame in one piece and the wind takes it (at a standstill it flops onto the bonnet).
+  glassOut(kicked) {
+    const G = this.glass, ws = this.windshield;
+    if (!G || G.gone || !ws) return;
     G.gone = true;
-    const c = this.cracks.ctx, W = 512, H = 256, rnd = Math.random;
-    c.save();
-    c.globalCompositeOperation = 'destination-over'; c.fillStyle = 'rgba(200,225,240,0.12)'; c.fillRect(0, 0, W, H); // the rim left behind, crazed white
-    c.globalCompositeOperation = 'destination-out';
-    c.fillStyle = '#000'; // (opaque: clears the glass right out)
-    c.beginPath();
-    const N = 40;
-    for (let k = 0; k < N; k++) {
-      const a = (k / N) * TAU, rx = W * (0.44 - rnd() * 0.07), ry = H * (0.42 - rnd() * 0.09);
-      c.lineTo(W / 2 + Math.cos(a) * rx, H / 2 + Math.sin(a) * ry);
-    }
-    c.closePath(); c.fill();
-    c.restore();
-    this.cracks.tex.needsUpdate = true;
-    this.shake = Math.max(this.shake, 0.6);
+    this.shake = Math.max(this.shake, kicked ? 0.5 : 0.6);
     Sound.play({ type: 'shatter', vol: 1 });
-    this.race.message('The windshield gives way', '#9fd0ff');
+    if (!kicked) { ws.visible = false; return; }
+    this.glassFly = { t: 0, vx: 26, vy: 22, spin: -2.2 - Math.random() };
+  }
+
+  // K: your boot through the windshield. Two kicks: the first stars it, the second pops the sheet out.
+  kickGlass() {
+    const G = this.glass;
+    if (!G || G.gone || this.bootT != null || this.combat.exposed || this.combat.hatch.pos > 0.3) return;
+    this.bootT = 0;
+    if (!this.boot) {
+      const B = new THREE.Group(), s = new Sculpt('kickboot', 0.05), suit = LP.mat('#a8521e', { roughness: 0.95 }), leather = LP.mat('#1a1410', { roughness: 0.8 }), sole = LP.mat('#0c0b0a', { roughness: 0.9 });
+      s.add(leather, SDF.ellipsoid([0.55, 0.62, 0.95], [0, 0, 0]), 0.2); // the boot, toe forward (-z)
+      s.add(leather, SDF.cyl(0.5, 1.0, 'y', 0.15, [0, -0.55, 0.35]), 0.25); // its ankle
+      s.add(sole, SDF.box([1.1, 0.5, 0.22], 0.08, [0, -0.05, -0.92]), 0.05); // the sole, square to the glass
+      s.add(suit, SDF.cone([0, -0.9, 0.5], [0, -4.5, 3.4], 0.6, 0.75), 0.3); // your shin, back down to the knee
+      s.build(B);
+      B.scale.setScalar(1.6);
+      PSX.apply(B);
+      this.vmScene.add(B);
+      this.boot = B;
+    }
+    this.boot.visible = true;
+  }
+
+  // The kick and the flying windshield, each frame.
+  updateBootKick(dt) {
+    if (this.bootT != null) {
+      const t = (this.bootT += dt), B = this.boot, ss = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+      // Camera-space path: up from under the view, stamp, draw back, stamp again, back down.
+      const rest = new THREE.Vector3(0.8, -8, -2), cock = new THREE.Vector3(0.7, -3.6, -3.2), hit = new THREE.Vector3(0.5, -1.4, -6.2);
+      const P = new THREE.Vector3();
+      if (t < 0.18) P.lerpVectors(rest, cock, ss(0, 0.18, t));
+      else if (t < 0.3) P.lerpVectors(cock, hit, ss(0.18, 0.3, t));
+      else if (t < 0.46) P.lerpVectors(hit, cock, ss(0.3, 0.46, t));
+      else if (t < 0.58) P.lerpVectors(cock, hit, ss(0.46, 0.58, t));
+      else P.lerpVectors(hit, rest, ss(0.62, 0.95, t));
+      B.position.copy(P);
+      B.rotation.set(-0.15 + 0.25 * Math.sin(t * 9), 0.1, 0.05);
+      if (t >= 0.3 && !this.bootHit1) { this.bootHit1 = true; this.crack(0.15); this.crack(0.05); this.shake = Math.max(this.shake, 0.35); Sound.play({ type: 'crash', vol: 0.5, power: 120 }); }
+      if (t >= 0.58 && !this.bootHit2) { this.bootHit2 = true; this.glassOut(true); }
+      if (t > 1) { this.bootT = null; this.bootHit1 = this.bootHit2 = false; B.visible = false; }
+    }
+    const F = this.glassFly, ws = this.windshield;
+    if (F && ws) { // in the car's frame: it pops forward and up, the wind throws it back over the roof
+      F.t += dt;
+      const wind = Math.min(1, this.race.player.speed / 300);
+      F.vx -= (25 + 260 * wind) * dt;
+      F.vy -= (60 - 45 * wind) * dt;
+      ws.position.x += F.vx * dt; ws.position.y += F.vy * dt;
+      ws.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), F.spin * dt));
+      if (wind < 0.1 && ws.position.y < 8) { F.vx *= 0.9; F.vy = Math.max(F.vy, 0); F.spin *= 0.9; } // landed on the bonnet
+      if (F.t > 1.6) { ws.visible = wind < 0.1; this.glassFly = null; }
+    }
   }
 
   aimAngle() { return this.race.player.heading + this.look.yaw; }
@@ -1839,6 +1883,7 @@ class CockpitView {
     // Aiming down the sights, eased in and out.
     this.adsK = clamp((this.adsK || 0) + (combat.ads ? 1 : -1) * dt / ADS.time, 0, 1);
     this.updateKick(dt);
+    this.updateBootKick(dt);
     A.switchT = Math.max(0, A.switchT - dt);
     A.pumpT = Math.max(0, A.pumpT - dt);
     A.dry = Math.max(0, A.dry - dt);
@@ -1863,7 +1908,7 @@ class CockpitView {
     sw.vr += ((-dyaw * 4 - sw.r) * k - sw.vr * d) * dt; sw.r += sw.vr * dt;
     const spd = Math.min(1, p.speed / 500);
     const bob = Math.sin(t * 9) * spd * 0.05 + Math.sin(t * 1.7) * 0.03; // road vibration + breathing
-    const busyDip = (combat.busy ? 4 : 0) + combat.hatch.pos * 7.5 + clamp((-this.look.pitch - 0.35) / 0.25, 0, 1) * 4.5; // looking down at your gear lowers the gun
+    const busyDip = (combat.busy ? 4 : 0) + (this.bootT != null ? 5 : 0) + combat.hatch.pos * 7.5 + clamp((-this.look.pitch - 0.35) / 0.25, 0, 1) * 4.5; // looking down at your gear lowers the gun
     this.dip = lerp(this.dip || 0, busyDip, Math.min(1, dt * 10));
     const sw01 = A.switchT / 0.38, raise = sw01 * sw01 * 5;
     vm.guns.forEach((g, i) => {

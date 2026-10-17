@@ -1707,6 +1707,7 @@ const Proto = {
     this.updateEmoteKey(dt);
     this.updateOrderKey(dt);
     if (Input.consume('KeyB')) combat.fitSpare();
+    if (Input.consume('KeyK') && this.cockpit) this.cockpit.kickGlass(); // boot the windshield out
     if (Input.consume('KeyV') || Input.consume('Digit4')) combat.toggleRoof(); // up into the roof hatch to the mounted gun, or back down
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
     if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
