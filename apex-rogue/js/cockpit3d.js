@@ -86,7 +86,8 @@ const RELOAD_POSE = {
   shotgun: { rx: 0.18, ry: 0.15, rz: -0.95, ox: -0.6, oy: 1.0, oz: 0.6 }, // loading port, underneath, rolled up
   rocket: { rx: 0.5, ry: 0.12, rz: 0.1, ox: -0.9, oy: 0.4, oz: 1.0 }, // muzzle up: the warhead goes in the front
   flare: { rx: -0.12, ry: 0.1, rz: -0.12, ox: -0.7, oy: 0.5, oz: 0.3 }, // broken open, the breech lifting to you
-  other: { rx: 0.15, ry: 0.18, rz: -0.4, ox: -1.0, oy: 1.0, oz: 0.6 }, // nail gun, flamethrower, harpoon
+  nailgun: { rx: 0.3, ry: 0.35, rz: -1.15, ox: -1.8, oy: 1.6, oz: 0.5 }, // brought up and rolled over, the magazine underneath turned to the other hand
+  other: { rx: 0.15, ry: 0.18, rz: -0.4, ox: -1.0, oy: 1.0, oz: 0.6 }, // flamethrower, harpoon
 };
 // Down the sights, per gun: [x, y, z] nudges from dead centre. Guns with no real sight line (the rocket tube on
 // your shoulder, the nail gun's motor, the flamer's tank) sit off to the right so you look past them; the long
@@ -1805,6 +1806,7 @@ class CockpitView {
       if (u.pump) u.pump.position.set(0, 0, 0);
       if (u.barrelGrp) u.barrelGrp.rotation.x = 0;
       if (u.shell) u.shell.visible = false;
+      if (u.strip) u.strip.visible = false; // the nail gun's fresh strip, only out while it's being loaded
       const gw = i === combat.roofIdx ? b.roof.gun : b.rack[i]; // the gun this model is (the roof gun sits after the rack)
       if (u.tip) { u.tip.position.z = -6.3; u.tip.visible = gw.mag > 0; }
       if (u.bolt) u.bolt.visible = gw.mag > 0; // the harpoon's gone until you load another
@@ -1942,6 +1944,22 @@ class CockpitView {
           }
           if (stash[i]) stash[i].hide = rp > 0.38 && rp < 0.72 ? 1 : 0;
           if (hand) hand.visible = true;
+          if (id === 'nailgun' && hand && R) { // a fresh strip up from the vest, lined up behind the raked magazine and slid in from the back
+            if (!u.strip) { u.strip = Models.ammoItem('nailgun', 0); u.strip.scale.setScalar(1.8); u.strip.rotation.x = Math.PI / 2 + 0.341; g.add(u.strip); }
+            const mz = new THREE.Vector3(0, -1.0, -0.3), d = new THREE.Vector3(0, -Math.sin(0.341), Math.cos(0.341)), at = (sv) => mz.clone().addScaledVector(d, sv);
+            const grip = (c) => c.clone().addScaledVector(d, 1.15).add(new THREE.Vector3(0, -0.35, 0)); // the hand holds the strip's back end
+            const ready = at(2.9), home = at(0.4), rest = hand.userData.rest.pos;
+            let c = null;
+            if (rp < 0.3) hand.position.lerpVectors(rest, R, ss(0.1, 0.3, rp));
+            else if (rp < 0.36) hand.position.copy(R);
+            else if (rp < 0.58) { c = ready.clone().lerp(R, 1 - ss(0.36, 0.58, rp)); hand.position.copy(grip(c)); }
+            else if (rp < 0.72) { c = ready.clone().lerp(home, ss(0.58, 0.72, rp)); hand.position.copy(grip(c)); } // slid home along the track
+            else hand.position.lerpVectors(grip(home), rest, ss(0.74, 0.9, rp));
+            hand.rotation.x = hand.userData.rest.rot + 0.4 * bump(0.1, 0.85, rp);
+            u.strip.visible = !!c;
+            if (c) u.strip.position.copy(c);
+            oz += bump(0.7, 0.78, rp) * 0.25; // the pusher snaps shut
+          } else if (u.strip) u.strip.visible = false;
           if (u.bolt) { // the harpoon: the new bolt rides in the hand from the rack, then slides home down the rail
             u.bolt.visible = rp > 0.4;
             const home = new THREE.Vector3(0, 0.36, -2.65), front = home.clone().add(new THREE.Vector3(0, 0.1, -3.2));
