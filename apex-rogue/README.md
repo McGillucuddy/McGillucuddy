@@ -338,8 +338,12 @@ volume and looks for overlaps.
     Lifted Riot Vest, each with its own stencil and your number. It holds three pistol, SMG or carbine mags,
     four Liberty clips, two drums or nail strips, one LMG box, pan or fuel can, twelve shells, four flares, two
     rockets and three bolts. Look down (the view now goes further down) and you see what's left on you.
-    Reloads come off your body first, and they're 20% quicker: the hand just drops below the view to your chest
-    and comes back, and the gun barely tips.
+    Reloads come off your body first, and they're 20% quicker: the hand drops just below the view to your chest
+    and comes back. A magazine reload off the vest runs on the dash reload's keyframes with the trip to your
+    chest squeezed (`BODY_TIME`), so the hand is back with the new mag about a quarter of the way in, and the
+    gun is brought in where you can see the swap. The pistol comes up in front of your chest canted over, its
+    grip turned to the incoming mag. Shotgun shells come off the bandolier in short dips just below the
+    loading port. The nail gun is rolled over and a fresh strip slid into its magazine from the back.
   - **The ammo board on the dashboard is the backup:** strapped over the glovebox lid in front of your seat,
     facing you, it holds everything else. Once your rig is empty, each reload reaches forward to the next round
     on it and takes 30% longer than usual. As the hand goes for it you lean in and glance down a little, so the
