@@ -1894,6 +1894,8 @@ function drawWeaponPanel(ctx, P, W, H) {
   }
   const hh = ensureHatch(b), hf = hh.hp / HATCH.max;
   const hatch = c.hatch.jammed ? 'HATCH JAMMED' : c.guarded ? 'HATCH SHUT' : hf < 0.995 ? `HATCH ${Math.ceil(hh.hp)}%` : '';
+  const gl = P.cockpit && P.cockpit.glass; // the windshield: worn by rounds, or kicked out (K)
+  if (gl && (gl.gone || gl.hp < GLASS.hp)) rows.push([false, 'Windshield', gl.gone ? 'OUT' : `${Math.max(1, Math.round(gl.hp))}%`, gl.gone ? null : gl.hp / GLASS.hp, '#9fd0ff']);
   rows.push([false, `G ×${b.grenades}`, hatch, hatch && !c.guarded ? hf : null, c.hatch.jammed ? '#ff3b1f' : hf < 0.3 ? '#ff7a1f' : '#c9a43a']);
   c.abil.forEach((a, i) => {
     if (!a) return;

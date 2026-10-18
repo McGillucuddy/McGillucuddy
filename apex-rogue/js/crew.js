@@ -153,7 +153,7 @@ Object.assign(Combat.prototype, {
   cabinHit(pr) {
     const p = this.player, rel = wrapAngle(Math.atan2(-pr.vy, -pr.vx) - p.heading); // 0: from dead ahead, +: from the left
     const a = Math.abs(rel);
-    if (a < 0.9) return this.rng() < CABIN.front ? (this.rng() < 0.5 ? 'driver' : 'you') : null;
+    if (a < 0.9) return this.rng() < (this.glassOut ? GLASS_FX.front : CABIN.front) ? (this.rng() < 0.5 ? 'driver' : 'you') : null; // (no windshield: far more gets in)
     if (a < 2.2) return this.rng() < CABIN.side ? (rel > 0 ? 'you' : 'driver') : null;
     return this.rng() < CABIN.back ? (this.rng() < 0.5 ? 'driver' : 'you') : null;
   },

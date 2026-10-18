@@ -20,6 +20,11 @@ const WORN = {
 // One load of a gun: a magazine's worth for the box-fed guns, a single round for the rest.
 const wornPer = (w) => (['shotgun', 'flare', 'rocket', 'harpoon'].includes(w.id) ? 1 : weaponStats(w).mag);
 const wornCap = (w) => (WORN.loads[w.id] || 2) * wornPer(w);
+// Your windshield, the trade-off: in place, it takes some of what comes at you from the front, but your own
+// rounds going out through it are deflected (wider spread) and lose some punch. Kicked or shot out, you shoot
+// clean, and far more of what comes in from the front gets to you and your driver (CABIN in js/crew.js).
+// arc: how far either side of dead ahead you're shooting through it (radians).
+const GLASS_FX = { arc: 0.9, spread: 0.03, dmg: 0.8, front: 0.45 };
 const ADS = { spread: 0.5, bloom: 0.6, recoil: 0.6, fov: 0.76, time: 0.16 };
 // A real grenade: pull the pin and the fuse is lit whether you throw it or not. Thrown straight away it lands, bounces
 // and rolls before it goes; hold it a moment ("cooking") and it bursts as it lands. Hold it too long and it goes off
@@ -221,9 +226,12 @@ class Combat {
     if (this.build.gunnerHp != null && this.build.gunnerHp < GUNNER.hp) d.spread *= 1 + GUNNER.shake * (1 - this.build.gunnerHp / GUNNER.hp); // wounded: shaky hands
     if (this.orderAiming) d.spread *= ORDER.easeAim; // you told the driver to ease off: a steadier platform
     if (this.ads) { d.spread *= ADS.spread; d.bloom = (d.bloom || 0) * ADS.bloom; } // down the sights: tighter
+    if (this.throughGlass) { d.spread = (d.spread || 0) + GLASS_FX.spread; d.dmg *= GLASS_FX.dmg; } // out through your own windshield
     return d;
   }
   get busy() { return this.fitT > 0 || this.climbT > 0; }
+  // Shooting forward out through the windshield (still in, and you're in your seat).
+  get throughGlass() { return !this.glassOut && !this.exposed && Math.abs(wrapAngle(this.aimAng - this.player.heading)) < GLASS_FX.arc; }
   get guarded() { return this.hatch.pos >= HATCH.guard; }
   get hatchDown() { return this.hatch.pos > 0.05; } // anywhere off its stop: you can't shoot past it
 

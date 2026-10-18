@@ -1442,6 +1442,7 @@ class CockpitView {
     const G = this.glass, ws = this.windshield;
     if (!G || G.gone || !ws) return;
     G.gone = true;
+    this.combat.glassOut = true; // (the trade-off: see GLASS_FX in js/combat.js)
     this.shake = Math.max(this.shake, kicked ? 0.5 : 0.6);
     Sound.play({ type: 'shatter', vol: 1 });
     if (!kicked) { ws.visible = false; return; }

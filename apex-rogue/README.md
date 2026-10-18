@@ -354,6 +354,11 @@ volume and looks for overlaps.
     through it's simply gone. Or press `K` and kick it out: your boot comes up into view, the first kick stars
     it, the second pops the whole laminated sheet out of its frame, and the wind throws it up over the roof (at
     a standstill it flops onto the bonnet). Either way the rain stops landing on it. It's new every race.
+  - **The trade-off** (`GLASS_FX` in js/combat.js): while the glass is in, anything you fire forward through it
+    (within about 50° of dead ahead) is deflected, with 0.03 more spread and 20% less damage, but it keeps most
+    of the front's fire off you. With it out you shoot clean, but a round from the front that hits the car gets
+    into you or your driver 45% of the time instead of 20%. The weapon panel shows the windshield's state
+    once it's damaged, and OUT once it's gone.
   - **The ammo board on the dashboard is the backup:** strapped over the glovebox lid in front of your seat,
     facing you, it holds everything else. Once your rig is empty, each reload reaches forward to the next round
     on it and takes 30% longer than usual. As the hand goes for it you lean in and glance down a little, so the
