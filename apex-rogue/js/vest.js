@@ -61,19 +61,32 @@ const Vest = {
   ITEM: { pistol: [0.34, 0.5], smg: [0.4, 0.46], shotgun: [0.15, 0.55], rocket: [0.62, 0.32], flare: [0.3, 0.6], nailgun: [0.36, 0.5], flamer: [0.6, 0.42], harpoon: [0.42, 0.4],
     carbine: [0.4, 0.44], liberty: [0.3, 0.55], typewriter: [0.62, 0.26], lmg: [0.6, 0.3], pangun: [0.6, 0.26] },
 
+  // How each vest is put together: padding (how far it stands off the jumpsuit), where the hem falls, and its
+  // build: a solid shell, open down the front, cropped at the ribs, bands of rubber with gaps between, or plates.
+  CUT: {
+    canvas: { T: 0.2, hem: 1.0, round: true }, // baggy sack, long, a round rolled neck
+    jumpsuit: { T: 0.14, hem: 1.3 }, // a sleeveless jacket
+    mattress: { T: 0.32, hem: 1.3 }, // fat and puffy
+    tube: { T: 0.18, bands: true }, // rubber strips wrapped round
+    tape: { T: 0.12, hem: 2.15 }, // cropped at the ribs
+    hivis: { T: 0.08, hem: 1.0, open: true }, // thin, long, open down the front
+    fence: { T: 0.16, hem: 1.35 },
+    riot: { T: 0.14, hem: 1.45, plates: true }, // a plate carrier
+  },
+
   // The vest on a torso: style id, the rack (weapon objects, for what's in the loops), your inmate number and the
   // torso's width (People.BUILD). userData.rows: per rack gun, the items in its loops (for showing what's left).
-  // The shell is the torso's own shape (ribcage, chest, belly; see People.figure) let out a little, so it sits on
-  // the body like a real vest: open at the neck and arms, cut off above the hips. The ammo straps go round it like
-  // belts, and what's in their loops follows the curve of the chest.
+  // Every vest starts from the torso's own shape (ribcage, chest, belly; see People.figure) let out a little, so
+  // it sits on the body; then each is built its own way (CUT, and the makes below).
   build(id, rack, inmate, w) {
     id = VESTS[id] ? id : 'canvas';
     w = w || 1;
-    const V = VESTS[id], G = new THREE.Group(), heavy = w > 1.1;
-    const cloth = LP.mat('#ffffff', { map: this.tex(id), roughness: V.rough || 0.95 });
+    const V = VESTS[id], K = this.CUT[id], G = new THREE.Group(), heavy = w > 1.1, rnd = (() => { let a = 7; return () => ((a = (a * 16807) % 2147483647) / 2147483647); })();
+    const clothMat = () => LP.mat('#ffffff', { map: this.tex(id), roughness: V.rough || 0.95 }), cloth = clothMat();
     const strapMat = () => LP.mat(V.strap, { roughness: 0.95 }), strap = strapMat();
-    const trim = LP.mat(V.trim, { metalness: V.trim === '#8a8f94' || V.trim === '#9aa0a6' || V.trim === '#b8bcc0' ? 0.6 : 0, roughness: 0.6 });
-    const rows = rack.length, top = 3.3, step = Math.min(0.62, 2.1 / Math.max(1, rows - 1 || 1)), HEM = 1.35;
+    const metal = V.trim === '#8a8f94' || V.trim === '#9aa0a6' || V.trim === '#b8bcc0';
+    const trim = LP.mat(V.trim, { metalness: metal ? 0.6 : 0, roughness: 0.6 }), steel = LP.mat('#8a8e92', { metalness: 0.7, roughness: 0.4 });
+    const rows = rack.length, top = 3.2, step = Math.min(0.52, 1.6 / Math.max(1, rows - 1 || 1)), T = K.T, HEM = K.hem || 1.3;
     // The torso's shapes, let out by t: [radii, centre].
     const body = (t) => [
       [[1.02 + t, 1.3 + t, 1.62 * w + t], [0.06, 3.42, 0]], // ribcage
@@ -87,45 +100,132 @@ const Vest = {
       return x;
     };
     const facing = (y, z, t) => Math.atan2(1, -(surf(y, z + 0.05, t) - surf(y, z - 0.05, t)) / 0.1); // rotation.y that turns +z out of the surface
-    const T = 0.16; // how far the vest stands off the jumpsuit (padding)
-    const s = new Sculpt(`vest2:${id}:${rows}:${w}`, 0.06);
-    for (const [r, c] of body(T)) s.add(cloth, SDF.ellipsoid(r, c), 0.45);
-    s.cut(SDF.box([4, 2, 5], 0.05, [0, HEM - 1, 0]), 0.1, [cloth]); // the hem
-    s.cut(SDF.box([4, 2, 5], 0.05, [0, 5.75, 0]), 0.1, [cloth]); // over the shoulders, only the straps
-    s.cut(SDF.ellipsoid([0.95, 1.25, 0.72 * w], [1.2, 4.75, 0]), 0.12, [cloth]); // the V at the neck, deep enough to see your loops past
-    s.cut(SDF.ellipsoid([1.0, 0.45, 0.72 * w], [-0.1, 4.75, 0]), 0.12, [cloth]); // round the back of the neck
-    for (const z of [-1, 1]) s.cut(SDF.ellipsoid([0.95, 1.05, 0.55], [0.0, 4.1, z * 1.9 * w]), 0.15, [cloth]); // armholes
+    const on = (y, z, t, out) => [surf(y, z, t) + (out || 0), y, z]; // a point on the surface
+    const turn = (y, z, t, roll) => [0, facing(y, z, t) - Math.PI / 2, roll || 0]; // turns local x out of the surface there
+    const s = new Sculpt(`vest3:${id}:${rows}:${w}`, 0.06), collar = []; // (collar pieces: hidden in your own view, they'd sit under your chin)
+    const collarMat = (m) => { collar.push(m); return m; };
+    // A band round the body at height y, h tall (its own material, so it can be trimmed to its own height).
+    const band = (mat, y, h, t, k) => {
+      for (const [r, c] of body(t)) s.add(mat, SDF.ellipsoid(r, c), k == null ? 0.3 : k);
+      s.cut(SDF.box([5, 3, 5], 0.02, [0, y + h / 2 + 1.5, 0]), 0.02, [mat]);
+      s.cut(SDF.box([5, 3, 5], 0.02, [0, y - h / 2 - 1.5, 0]), 0.02, [mat]);
+    };
+    // A strip laid along the surface from (y0, z0) to (y1, z1): tape, a placket, a lapel.
+    const strip = (mat, y0, z0, y1, z1, wd, t, n) => {
+      for (let k = 0; k <= n; k++) {
+        const f = k / n, y = y0 + (y1 - y0) * f, z = z0 + (z1 - z0) * f;
+        s.add(mat, SDF.box([0.07, wd, 0.34], 0.03, on(y, z, t, 0.01), [Math.atan2(z1 - z0, y1 - y0), facing(y, z, t) - Math.PI / 2, 0]), 0.05);
+      }
+    };
+
+    // ---- The shell ----
+    if (K.bands) { // strips of inner tube wrapped round, the jumpsuit showing between
+      for (const [k, y] of [1.55, 2.08, 2.61, 3.14, 3.67, 4.12].entries()) band(clothMat(), y, k === 5 ? 0.36 : 0.44, T + (k % 2) * 0.03, 0.25);
+    } else {
+      for (const [r, c] of body(T)) s.add(cloth, SDF.ellipsoid(r, c), 0.45);
+      s.cut(SDF.box([4, 2, 5], 0.05, [0, HEM - 1, 0]), 0.1, [cloth]); // the hem
+      s.cut(SDF.box([4, 2, 5], 0.05, [0, 5.75, 0]), 0.1, [cloth]); // over the shoulders, only the straps
+      if (K.round) s.cut(SDF.ellipsoid([0.95, 0.62, 0.82 * w], [0.45, 4.8, 0]), 0.12, [cloth]); // a round neck
+      else s.cut(SDF.ellipsoid([0.95, 1.25, 0.72 * w], [1.2, 4.75, 0]), 0.12, [cloth]); // the V at the neck, deep enough to see your loops past
+      s.cut(SDF.ellipsoid([1.0, 0.45, 0.72 * w], [-0.1, 4.75, 0]), 0.12, [cloth]); // round the back of the neck
+      for (const z of [-1, 1]) s.cut(SDF.ellipsoid([0.95, 1.05, 0.55], [0.0, 4.1, z * 1.9 * w]), 0.15, [cloth]); // armholes
+      if (K.open) s.cut(SDF.box([1.6, 3.6, 0.42 * w], 0.08, [1.0, HEM + 1.6, 0]), 0.05, [cloth]); // open down the front
+    }
     for (const z of [-1, 1]) s.add(strap, SDF.path([[surf(4.2, z * 1.0 * w, T) - 0.05, 4.2, z * 1.0 * w], [0.75, 4.78, z * 1.02 * w], [0.1, 5.02, z * 1.05 * w], [-0.6, 4.8, z * 1.02 * w], [-0.95, 4.2, z * 1.0 * w]], 0.17), 0.08); // shoulder straps, over the top and down the back
-    // Each style's own make.
-    if (V.patches) V.patches.forEach((col, k) => { const y = 1.75 + k * 0.5, z = (k % 2 ? -0.75 : 0.8) * w; s.add(LP.mat(col, { roughness: 0.95 }), SDF.ellipsoid([0.08, 0.3 + (k % 2) * 0.1, 0.32], [surf(y, z, T) - 0.02, y, z], [0, facing(y, z, T) - Math.PI / 2, 0.1 * (k - 1.5)]), 0.03); });
-    if (id === 'tube') for (const z of [-0.9, 0.9]) for (const y of [2.0, 2.8, 3.6]) s.add(trim, SDF.ellipsoid([0.07, 0.07, 0.07], [surf(y, z * w, T), y, z * w]), 0.01); // bolts through the rubber
-    if (id === 'canvas') for (const z of [-1, 1]) s.add(trim, SDF.path([[0.55, 2.2, z * 1.4 * w], [0.1, 2.0, z * 1.5 * w], [-0.35, 2.2, z * 1.4 * w]], 0.06), 0.02); // rope ties at the sides
-    if (id === 'mattress') for (const y of [2.0, 2.7, 3.4]) s.cut(SDF.box([3, 0.06, 4.2 * w], 0.02, [0.08, y, 0]), 0.03, [cloth]); // quilted
-    // The ammo straps: belts round the vest, each its own piece so it can be trimmed to its own height.
-    const band = [];
+
+    // ---- Each one's own make ----
+    let face = null; // a flat face the ammo rides on instead of belts round the body (the riot vest's plate)
+    if (id === 'canvas') { // a laundry sack: rolled neck, drawstring hem with toggles, a big pocket, rope ties
+      s.add(collarMat(clothMat()), SDF.torus(0.78 * w, 0.15, [0.42, 4.5, 0], [Math.PI / 2 + 0.25, 0, 0]), 0.1); // the neck, rolled over
+      band(LP.mat(V.trim, { roughness: 0.8 }), HEM + 0.1, 0.12, T + 0.03, 0.2); // drawstring in the hem
+      for (const z of [-0.18, 0.18]) s.add(trim, SDF.path([on(HEM + 0.1, z, T, 0.02), on(HEM - 0.2, z * 1.6, T, 0.05), on(HEM - 0.45, z * 1.3, T, 0.06)], 0.04), 0.02); // its two ends
+      for (const z of [-0.18, 0.18]) s.add(steel, SDF.cyl(0.07, 0.16, 'y', 0.03, on(HEM - 0.45, z * 1.3, T, 0.06)), 0.02); // toggles
+      s.add(clothMat(), SDF.box([0.12, 0.6, 1.5 * w], 0.08, on(1.52, 0, T, -0.02), turn(1.52, 0, T)), 0.06); // the pocket
+      for (const z of [-1, 1]) s.add(trim, SDF.path([[0.55, 2.2, z * 1.48 * w], [0.1, 2.0, z * 1.58 * w], [-0.35, 2.2, z * 1.48 * w]], 0.06), 0.02); // rope ties at the sides
+    }
+    if (id === 'jumpsuit') { // a jacket cut from old jumpsuits: lapels, a button placket, the stubs of sleeves, patches
+      strip(strap, HEM + 0.05, 0, 3.45, 0, 0.26, T, 8); // placket
+      for (let y = HEM + 0.3; y < 3.4; y += 0.45) s.add(steel, SDF.ellipsoid([0.06, 0.08, 0.08], on(y, 0, T, 0.06)), 0.01); // buttons
+      const lapel = collarMat(clothMat());
+      for (const z of [-1, 1]) s.add(lapel, SDF.cone(on(3.5, z * 0.12, T, 0.04), [0.85, 4.55, z * 0.62 * w], 0.12, 0.16), 0.08); // lapels up the V
+      const sleeve = clothMat();
+      for (const z of [-1, 1]) s.add(sleeve, SDF.ellipsoid([0.66, 0.5, 0.42], [0.0, 4.15, z * 1.82 * w]), 0.15); // cap sleeves over the shoulders
+      for (const z of [-1, 1]) s.cut(SDF.ellipsoid([0.55, 0.6, 0.6], [0.0, 3.85, z * 2.0 * w]), 0.05, [sleeve]); // open underneath, the arm through
+      V.patches.forEach((col, k) => { const y = 1.75 + k * 0.5, z = (k % 2 ? -0.75 : 0.8) * w; s.add(LP.mat(col, { roughness: 0.95 }), SDF.ellipsoid([0.08, 0.3 + (k % 2) * 0.1, 0.32], on(y, z, T, -0.02), turn(y, z, T, 0.1 * (k - 1.5))), 0.03); });
+    }
+    if (id === 'mattress') { // fat quilting, a padded roll round the neck, stuffing coming out of a split
+      for (const y of [1.85, 2.45, 3.05, 3.65]) s.cut(SDF.box([3.2, 0.1, 4.5 * w], 0.03, [0.08, y, 0]), 0.05, [cloth]);
+      for (const z of [-0.55, 0.55]) s.cut(SDF.box([1.6, 3.2, 0.1], 0.03, [1.2, 2.7, z * w]), 0.05, [cloth]); // channels both ways
+      s.add(collarMat(clothMat()), SDF.torus(0.86 * w, 0.26, [0.3, 4.62, 0], [Math.PI / 2 + 0.15, 0, 0]), 0.15); // the collar roll
+      const ty = 2.2, tz = -1.0 * w, stuff = LP.mat('#e8e2d0', { roughness: 1 });
+      s.cut(SDF.ellipsoid([0.35, 0.22, 0.3], on(ty, tz, T, 0)), 0.05, [cloth]); // a split
+      for (let k = 0; k < 4; k++) s.add(stuff, SDF.ellipsoid([0.16, 0.13, 0.15], on(ty + (rnd() - 0.5) * 0.25, tz + (rnd() - 0.5) * 0.3, T, -0.05 + rnd() * 0.12)), 0.08); // stuffing
+    }
+    if (id === 'tube') { // bolted where the strips meet, a patch or two, and a valve stem still on
+      for (const z of [-0.9, 0.9]) for (const y of [1.55, 2.08, 2.61, 3.14, 3.67]) s.add(trim, SDF.ellipsoid([0.08, 0.08, 0.08], on(y, z * w, T, 0.02)), 0.01);
+      for (const [y, z] of [[2.08, 0.4], [3.14, -0.5]]) s.add(LP.mat('#7a2a1e', { roughness: 0.6 }), SDF.ellipsoid([0.06, 0.18, 0.24], on(y, z * w, T, 0.02), turn(y, z * w, T)), 0.02);
+      s.add(steel, SDF.cone(on(2.61, 0.55 * w, T, 0.02), on(2.71, 0.55 * w, T, 0.32), 0.06, 0.045), 0.02); // valve stem
+    }
+    if (id === 'tape') { // cropped, a cross of tape over the chest, loose ends hanging
+      const tape = LP.mat('#9a9c9e', { metalness: 0.35, roughness: 0.45 });
+      strip(tape, 4.3, -1.15 * w, 3.45, 0.95 * w, 0.3, T, 10); // an X over the top of the chest
+      strip(tape, 4.3, 1.15 * w, 3.45, -0.95 * w, 0.3, T + 0.03, 10);
+      for (const y of [2.35, 2.75]) band(LP.mat('#9a9c9e', { metalness: 0.35, roughness: 0.45 }), y, 0.26, T + 0.02, 0.2); // wound round and round below it
+      for (const z of [-0.6, 0.35]) s.add(tape, SDF.box([0.05, 0.62, 0.28], 0.02, on(HEM - 0.25, z * w, T, -0.04), turn(HEM, z * w, T, z * 0.4)), 0.02); // loose ends
+    }
+    if (id === 'hivis') { // open-fronted, a badge clipped on, and a length of chain from the hem
+      for (const z of [-1, 1]) strip(trim, HEM + 0.05, z * 0.25 * w, 3.5, z * 0.3 * w, 0.12, T, 8); // the edges either side of the opening
+      s.add(LP.mat('#e8e6dc', { roughness: 0.4 }), SDF.box([0.05, 0.44, 0.32], 0.03, on(3.85, -0.72 * w, T, 0.04), turn(3.85, -0.72 * w, T)), 0.02); // ID badge
+      for (let k = 0; k < 6; k++) { const p = on(HEM + 0.05, 1.05 * w, T, 0.06); p[1] -= k * 0.17; p[0] += Math.sin(k * 0.8) * 0.05; s.add(steel, SDF.torus(0.09, 0.03, p, [0, k % 2 ? Math.PI / 2 : 0, 0]), 0.01); } // chain
+    }
+    if (id === 'fence') { // tin plates wired over the front, cut-off wire bristling at the shoulders
+      const tins = [LP.mat('#b4b6b0', { metalness: 0.7, roughness: 0.4 }), LP.mat('#8a4e2c', { metalness: 0.3, roughness: 0.8 })]; // galvanised and rusted
+      for (const [k, [y, z]] of [[3.8, -0.62], [3.8, 0.62], [1.7, -0.7], [1.7, 0.1], [1.75, 0.85], [3.0, -1.2], [3.0, 1.2]].entries()) {
+        const zz = z * w, tin = tins[k % 2];
+        s.add(tin, SDF.box([0.07, 0.62, 0.78], 0.03, on(y, zz, T, 0.04), turn(y, zz, T, (rnd() - 0.5) * 0.25)), 0.02);
+        for (const dy of [-0.18, 0, 0.18]) s.add(tin, SDF.box([0.05, 0.05, 0.72], 0.02, on(y + dy, zz, T, 0.09), turn(y, zz, T)), 0.01); // corrugated
+        for (const dz of [-0.32, 0.32]) s.add(steel, SDF.torus(0.06, 0.02, on(y + 0.27, zz + dz, T, 0.08), turn(y, zz, T)), 0.01); // wired on
+      }
+      for (const z of [-1, 1]) for (let k = 0; k < 4; k++) { const b = [0.5 - k * 0.3, 4.75 + Math.sin(k) * 0.12, z * (0.95 + rnd() * 0.2) * w]; s.add(steel, SDF.cone(b, [b[0] + (rnd() - 0.5) * 0.3, b[1] + 0.35 + rnd() * 0.2, b[2] + z * 0.15], 0.03, 0.01), 0.005); }
+    }
+    if (id === 'riot') { // a plate carrier: plates front and back, a cummerbund, shoulder pads, a neck guard
+      const plate = strapMat(), px = surf(2.9, 0, T) + 0.08, bx = -(1.02 + T) + 0.06 - 0.1;
+      s.add(plate, SDF.box([0.32, 2.15, 2.25 * w], 0.2, [px, 2.9, 0]), 0.1);
+      s.add(plate, SDF.box([0.3, 2.3, 2.3 * w], 0.2, [bx, 3.0, 0]), 0.1);
+      band(strapMat(), 2.05, 1.0, T + 0.06, 0.2); // cummerbund
+      for (const z of [-1, 1]) s.add(plate, SDF.ellipsoid([0.62, 0.2, 0.55], [0.05, 4.98, z * 1.2 * w]), 0.08); // shoulder pads
+      const neck = collarMat(strapMat());
+      s.add(neck, SDF.torus(0.82 * w, 0.17, [-0.05, 4.85, 0], [Math.PI / 2 - 0.2, 0, 0]), 0.08);
+      s.cut(SDF.box([2, 1.4, 3], 0.05, [1.15, 4.85, 0]), 0.05, [neck]); // open at the front
+      face = px + 0.16;
+    }
+
+    // ---- The ammo: belts round the vest, or pouch strips on the plate ----
+    const AT = T + (id === 'mattress' ? 0.06 : 0.1), rowY = [];
     for (let r = 0; r < rows; r++) {
-      const y = top - r * step - 0.14, m = strapMat();
-      for (const [rr, c] of body(T + 0.1)) s.add(m, SDF.ellipsoid(rr, c), 0.3);
-      s.cut(SDF.box([5, 3, 5], 0.02, [0, y + 0.17 + 1.5, 0]), 0.02, [m]);
-      s.cut(SDF.box([5, 3, 5], 0.02, [0, y - 0.17 - 1.5, 0]), 0.02, [m]);
-      const bz = 1.15 * w; band.push(y);
-      s.add(trim, SDF.box([0.08, 0.22, 0.16], 0.02, [surf(y, bz, T + 0.1) + 0.02, y, bz], [0, facing(y, bz, T + 0.1) - Math.PI / 2, 0]), 0.01); // buckle
+      const y = top - r * step - 0.14;
+      rowY.push(y);
+      if (face != null) { s.add(strap, SDF.box([0.12, 0.34, 2.0 * w], 0.04, [face + 0.02, y, 0]), 0.02); continue; }
+      // A strip of loops across the front, following the chest (split either side of an open front).
+      for (let z = -1.0 * w; z <= 1.0 * w + 1e-6; z += 0.2 * w) if (!K.open || Math.abs(z) > 0.3 * w) s.add(strap, SDF.box([0.12, 0.34, 0.3], 0.04, on(y, z, AT, -0.04), turn(y, z, AT)), 0.06);
+      for (const z of [-1.05 * w, 1.05 * w]) s.add(trim, SDF.box([0.1, 0.24, 0.12], 0.02, on(y, z, AT, -0.01), turn(y, z, AT)), 0.01); // stitched ends
     }
     s.build(G);
+    G.traverse((o) => { if (o.isMesh && collar.includes(o.material)) o.userData.collar = true; });
     // The words on the chest, above the straps.
     const ym = top + 0.5, zm = 0.72 * w;
-    const m = LP.mesh(new THREE.PlaneGeometry(1.5, 0.56), LP.mat('#ffffff', { map: this.mark(id, inmate || '4471'), transparent: true, roughness: 0.9 }), surf(ym, zm, T) + 0.03, ym, zm);
-    m.rotation.y = facing(ym, zm, T);
+    const m = LP.mesh(new THREE.PlaneGeometry(1.5, 0.56), LP.mat('#ffffff', { map: this.mark(id, inmate || '4471'), transparent: true, roughness: 0.9 }), face != null ? face + 0.01 : surf(ym, zm, T) + 0.03, face != null ? 3.75 : ym, face != null ? 0 : zm);
+    m.rotation.y = face != null ? Math.PI / 2 : facing(ym, zm, T);
     m.scale.setScalar(0.7);
     G.add(m);
-    // What's in the loops, round the curve of the chest.
+    // What's in the loops, round the curve of the chest (or flat on the plate).
     G.userData.rows = rack.map((wpn, r) => {
-      const n = (WORN.loads[wpn.id] || 2), [gap0, sc] = this.ITEM[wpn.id] || [0.4, 0.45], y = band[r] + 0.19;
-      const gap = Math.min(gap0, 2.1 * w / Math.max(1, n - 1)), items = [];
+      const n = (WORN.loads[wpn.id] || 2), [gap0, sc] = this.ITEM[wpn.id] || [0.4, 0.45], y = rowY[r] + 0.19;
+      const gap = Math.min(gap0, (face != null ? 1.8 : 2.1) * w / Math.max(1, n - 1)), items = [];
       for (let k = 0; k < n; k++) {
         const it = Models.ammoItem(wpn.id, k), z = -((n - 1) * gap) / 2 + k * gap;
-        it.position.set(surf(y, z, T + 0.1) + 0.1, y, z);
-        it.rotation.y = facing(y, z, T + 0.1); // its face out from the chest
+        if (face != null) { it.position.set(face + 0.12, y, z); it.rotation.y = Math.PI / 2; }
+        else { it.position.set(surf(y, z, AT) + 0.1, y, z); it.rotation.y = facing(y, z, AT); } // its face out from the chest
         it.scale.setScalar(sc * 1.2);
         G.add(it);
         items.push(it);

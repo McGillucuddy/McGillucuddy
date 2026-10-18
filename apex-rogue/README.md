@@ -336,9 +336,17 @@ volume and looks for overlaps.
     ammo vest from the board, one padded strap of loops per rack gun across its front. The vest is a cosmetic
     (Paint booth, **Vest** tab, shown on you on the lift), made from whatever the prison throws away: Laundry
     Sack, Jumpsuit Patchwork, Mattress Ticking, Inner Tube, Duct Tape, Chain Gang Hi-Vis, Fence Wire or a
-    Lifted Riot Vest, each with its own stencil and your number. It's cut from your torso's own shape let out a
-    little, so it fits: open at the neck and arms, ending above the hips, with the ammo straps belted round it
-    and their loops following the curve of your chest. It holds three pistol, SMG or carbine mags,
+    Lifted Riot Vest, each with its own stencil and your number. Each starts from your torso's own shape let out
+    a little, so it fits, and each is built its own way (`Vest.CUT` and the makes in js/vest.js): the laundry
+    sack baggy and long with a rolled round neck, a drawstring hem with toggles and a big pocket; the patchwork
+    a sleeveless jacket with lapels, a button placket and cap sleeves; the mattress fat and quilted both ways
+    with a padded collar roll and stuffing out of a split; the inner tube strips of rubber wound round with the
+    jumpsuit showing between, bolted, patched, a valve stem still on; the duct tape cropped at the ribs with a
+    cross of tape over the chest and loose ends hanging; the hi-vis thin, long and open down the front, with a
+    badge and a length of chain; the fence wire with rusted and galvanised tin plates wired on and cut wire
+    bristling at the shoulders; the riot vest a plate carrier with front and back plates, a cummerbund,
+    shoulder pads and a neck guard. Your ammo rides in strips of loops across the chest (on the riot vest,
+    on the plate). Collar pieces are hidden in your own view; they'd sit under your chin. It holds three pistol, SMG or carbine mags,
     four Liberty clips, two drums or nail strips, one LMG box, pan or fuel can, twelve shells, four flares, two
     rockets and three bolts. Look down (the view now goes further down) and you see what's left on you.
     Reloads come off your body first, and they're 20% quicker: the hand drops just below the view to your chest

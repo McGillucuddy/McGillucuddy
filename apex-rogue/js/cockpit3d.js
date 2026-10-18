@@ -958,6 +958,7 @@ class CockpitView {
     if (!this.meTorso) return;
     const cab = this.look3d.cabin || {};
     const V = Vest.build(cab.vest, b.rack, String(cab.inmate || '4471'), this.meBuild || 1);
+    V.traverse((o) => { if (o.userData.collar) o.visible = false; }); // (under your chin: it would fill the view looking down)
     this.meTorso.add(V);
     this.vestGroup = V;
     this.bodyAmmo = V.userData.rows.map((items, r) => ({ items, wi: r, per: wornPer(b.rack[r]), shown: -1, hide: 0 }));
