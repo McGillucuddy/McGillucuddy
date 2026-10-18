@@ -311,6 +311,35 @@ volume and looks for overlaps.
 - **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
   turning in place inside your own neck.
 
+### Motion: how everything moves (prototype)
+
+Every moving body part is built from the same two tools in `js/motion.js`, so they all move alike:
+
+- **`Motion.path(keys, t)`**: hands, the boot, a shell or a bolt moving through timed waypoints. It flows through
+  each one on a smooth curve (velocity never jumps) instead of easing to a stop at every key, which read as
+  robotic. It only comes to rest where it should: at the start, the end, and on a hold (the same point twice: a
+  grab, a push). All the reloads and the windshield kick use it.
+- **`Motion.spring(s, target, dt, w)`**: a critically damped spring, for anything that catches up with where it
+  ought to be without snapping or overshooting: the driver's lean into corners and pitch under the brakes (a
+  touch behind the car, then settling), their glances, and the people in the garage turning and getting up to
+  speed.
+
+What that fixed, measured with a probe that steps the game at 60fps and records the gun and each hand:
+
+- **Changing guns** (`SWITCH`): the gun in your hands now goes down out of sight just as it is, then the new one
+  comes up, instead of the new one appearing at the bottom of the screen. Peak acceleration went from about
+  18,600 to about 355.
+- **Changing guns mid-reload**: the old gun used to snap out of its reload pose. Now it goes down still in it, and
+  each gun keeps its own reload: come back to it and it carries on. About 24,000 down to 350-1,800.
+- **Reloads**: one flowing move from the vest or the dash to the gun (the magazine's trip out, under the well,
+  up and in, the push to seat it), and the harpoon's bolt and the nail gun's strip ride in the hand the whole
+  way, where they used to jump between poses.
+- **The garage**: the people walking about turn to face the way before they set off, get up to speed, slow into
+  their stop and coast the last bit, with their shoulders turning against their hips, the head held steady and
+  breathing when they stand. Peak acceleration went from about 800 to 23.
+- **Your driver**: leans into corners and is thrown forward under braking (back under power) on springs, keeps
+  their head level against the lean, glances quickly but smoothly, and breathes.
+
 ### Feel: hit markers and reloads (prototype)
 
 - **No white flash:** rivals don't light up white when hit. Dents, sparks, cracked glass and the hit marker

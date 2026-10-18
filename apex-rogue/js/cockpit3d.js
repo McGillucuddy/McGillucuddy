@@ -107,6 +107,9 @@ const ROOF_HOLD = [0.4, -2.0, -5.2, 0.78, 0.02, 0, 0.02];
 // The windshield: your own rounds go through it and leave holes (where your aim crosses the glass), rounds coming
 // in crack it, and each wears it down; worn through, it shatters and falls out. hit: wear per shot or crack.
 const GLASS = { hp: 100, hit: { shoot: 2.5, nail: 1.5, shotgun: 9, flare: 20, rocket: 35, harpoon: 30, flame: 0.4, crack: 10 } };
+// Changing guns: the one in your hands goes down (easing into the drop), then the new one comes up (easing out of
+// it). t: the whole change, seconds; down: the share of it spent lowering; drop: how far out of sight.
+const SWITCH = { t: 0.42, down: 0.42, drop: 5.5 };
 const FIRE_EVENTS = ['shoot', 'shotgun', 'nail', 'flame', 'harpoon', 'rocket', 'flare'];
 
 // Small canvas textures for the muzzle flash (a spiky star) and smoke puffs (a soft blob).
@@ -742,13 +745,19 @@ class CockpitView {
     if (O && O !== C.lastOrder) { C.lastOrder = O; C.glance = 0.75; C.glanceDur = 0.45; }
     C.glanceDur = (C.glanceDur || 0) - dt;
     const want = C.glanceDur > 0 ? C.glance : 0;
-    C.yaw = lerp(C.yaw || 0, want, Math.min(1, dt * 8));
+    C.yaw = Motion.spring(C.yawS || (C.yawS = { x: 0, v: 0 }), want, dt, 11); // a glance: quick, but it starts and settles
     const hurt = this.combat.driverHurtT || 0, dead = this.combat.ownDriverDead;
     C.slump = dead ? Math.min(1, (C.slump || 0) + dt * 2.5) : 0;
     const k = C.slump * C.slump, jolt = hurt > 0 ? Math.sin(hurt * 40) * 0.25 * hurt : 0;
-    d.head.rotation.set(Math.sin(t * 7) * 0.02 * Math.min(1, p.speed / 300) + jolt, C.yaw * (1 - k), Math.sin(t * 0.7) * 0.03 - k * 0.7);
-    d.torso.rotation.x = clamp(-(this.acc ? this.acc.lat : 0) * 0.00008, -0.12, 0.12) + jolt * 0.5; // leaning into the corners (and flinching)
-    d.torso.rotation.z = -k * 0.55; // slumped over the wheel
+    // The body rides the car on springs: it leans into the corners and is thrown forward under braking (back under
+    // power), lagging a touch behind the car and settling, and breathes.
+    const acc = this.acc || { lat: 0, fwd: 0 };
+    const side = Motion.spring(C.sideS || (C.sideS = { x: 0, v: 0 }), clamp(-acc.lat * 0.00008, -0.12, 0.12), dt, 7);
+    const pitch = Motion.spring(C.pitchS || (C.pitchS = { x: 0, v: 0 }), clamp(acc.fwd * 0.00005, -0.08, 0.08), dt, 6);
+    const breathe = Math.sin(t * 1.4) * 0.012;
+    d.head.rotation.set(Math.sin(t * 7) * 0.02 * Math.min(1, p.speed / 300) + jolt - side * 0.4, C.yaw * (1 - k), Math.sin(t * 0.7) * 0.03 - k * 0.7 - pitch * 0.5); // (the head keeps level against the lean)
+    d.torso.rotation.x = side + jolt * 0.5; // leaning into the corners (and flinching)
+    d.torso.rotation.z = -k * 0.55 + pitch + breathe; // slumped over the wheel; or pitched by the brakes, and breathing
     // Arms: shoulder to the fist on the rim, elbows down and out.
     C.drv.updateMatrixWorld(true);
     this.wheel.updateMatrixWorld(true);
@@ -1302,7 +1311,6 @@ class CockpitView {
       this.recoil2(this.combat.weapon.id, soft || 1);
     }
     if (ev.type === 'explode') this.burst(ev.x, ev.y, ev.big);
-    if (ev.type === 'switch') this.anim.switchT = 0.38;
     else if (ev.type === 'empty') this.anim.dry = 0.14;
     if (ev.type === 'shotgun') this.anim.pumpT = 0.55;
     if (ev.type === 'ping') this.anim.pingT = 0.6;
@@ -1474,16 +1482,10 @@ class CockpitView {
   // The kick and the flying windshield, each frame.
   updateBootKick(dt) {
     if (this.bootT != null) {
-      const t = (this.bootT += dt), B = this.boot, ss = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
+      const t = (this.bootT += dt), B = this.boot;
       // Camera-space path: up from under the view, stamp, draw back, stamp again, back down.
       const rest = new THREE.Vector3(0.8, -8, -2), cock = new THREE.Vector3(0.7, -3.6, -3.2), hit = new THREE.Vector3(0.5, -1.4, -6.2);
-      const P = new THREE.Vector3();
-      if (t < 0.18) P.lerpVectors(rest, cock, ss(0, 0.18, t));
-      else if (t < 0.3) P.lerpVectors(cock, hit, ss(0.18, 0.3, t));
-      else if (t < 0.46) P.lerpVectors(hit, cock, ss(0.3, 0.46, t));
-      else if (t < 0.58) P.lerpVectors(cock, hit, ss(0.46, 0.58, t));
-      else P.lerpVectors(hit, rest, ss(0.62, 0.95, t));
-      B.position.copy(P);
+      Motion.path([[0, rest], [0.18, cock], [0.3, hit], [0.33, hit], [0.46, cock], [0.58, hit], [0.62, hit], [0.95, rest]], t, B.position); // (the boot stops dead on the glass, twice)
       B.rotation.set(-0.15 + 0.25 * Math.sin(t * 9), 0.1, 0.05);
       if (t >= 0.3 && !this.bootHit1) { this.bootHit1 = true; this.crack(0.15); this.crack(0.05); this.shake = Math.max(this.shake, 0.35); Sound.play({ type: 'crash', vol: 0.5, power: 120 }); }
       if (t >= 0.58 && !this.bootHit2) { this.bootHit2 = true; this.glassOut(true); }
@@ -1876,7 +1878,6 @@ class CockpitView {
   // from the car and your look, breathing, recoil and a dry-fire twitch.
   animateViewmodel(dt, t) {
     const combat = this.combat, p = this.race.player, b = combat.build, vm = this.vm, A = this.anim;
-    const st = combat.wstate[combat.wi], id = combat.weapon.id;
     const ss = (a, c, x) => { const k = clamp((x - a) / (c - a), 0, 1); return k * k * (3 - 2 * k); }; // smoothstep a..c
     const bump = (a, c, x) => Math.sin(Math.PI * clamp((x - a) / (c - a), 0, 1)); // 0 -> 1 -> 0 over a..c
     this.recoil = Math.max(0, this.recoil - dt * 6);
@@ -1891,14 +1892,23 @@ class CockpitView {
     A.pumpT = Math.max(0, A.pumpT - dt);
     A.dry = Math.max(0, A.dry - dt);
     A.pingT = Math.max(0, (A.pingT || 0) - dt);
-    // Reload progress 0..1 for the held weapon.
+    // Switching guns: the one in your hands goes down out of sight just as it is (mid-reload or not, so nothing
+    // snaps), then the new one comes up. Each gun keeps its own reload: come back to it and it carries on.
+    if (A.heldWi == null) A.heldWi = combat.wi;
+    if (combat.wi !== A.heldWi) { A.prevWi = A.switchT > 0 && A.prevWi != null && (1 - A.switchT / SWITCH.t) < SWITCH.down ? A.prevWi : A.heldWi; A.heldWi = combat.wi; A.switchT = SWITCH.t; }
+    const swf = A.switchT > 0 ? 1 - A.switchT / SWITCH.t : 1, lowering = swf < SWITCH.down && A.prevWi != null && A.prevWi !== combat.wi && vm.guns[A.prevWi];
+    const show = lowering ? A.prevWi : combat.wi;
+    const raise = SWITCH.drop * (lowering ? Motion.easeIn(swf / SWITCH.down) : swf < 1 ? 1 - Motion.easeOut((swf - SWITCH.down) / (1 - SWITCH.down)) : 0);
+    const st = combat.wstate[show], id = (show === combat.roofIdx ? b.roof.gun : b.rack[show]).id;
+    // Reload progress 0..1 for the gun in your hands (each gun's own).
+    A.rlDur = A.rlDur || {};
     let rp = -1;
     if (st.reloadT > 0) {
-      if (!A.rl || A.rl.wi !== combat.wi) A.rl = { wi: combat.wi, dur: st.reloadT };
-      rp = 1 - st.reloadT / A.rl.dur;
-    } else { A.rl = null; for (const r of (this.ammoRack || []).concat(this.bodyAmmo || [])) r.hide = 0; }
+      if (!(A.rlDur[show] >= st.reloadT)) A.rlDur[show] = st.reloadT;
+      rp = 1 - st.reloadT / A.rlDur[show];
+    } else { delete A.rlDur[show]; for (const r of (this.ammoRack || []).concat(this.bodyAmmo || [])) r.hide = 0; }
     // Off your chest rig: a short dip of the hand, and the gun barely tipped. Off the dash: the full reach.
-    const fromBody = rp >= 0 && st.src === 'body' && combat.wi !== combat.roofIdx;
+    const fromBody = rp >= 0 && st.src === 'body' && show !== combat.roofIdx;
     this.bodyReach = fromBody;
     const stash = fromBody ? this.bodyAmmo || [] : this.ammoRack || [];
     // Inertia: the gun lags behind the car's lurches and your mouse movements, on springs.
@@ -1913,9 +1923,8 @@ class CockpitView {
     const bob = Math.sin(t * 9) * spd * 0.05 + Math.sin(t * 1.7) * 0.03; // road vibration + breathing
     const busyDip = (combat.busy ? 4 : 0) + (this.bootT != null ? 5 : 0) + combat.hatch.pos * 7.5 + clamp((-this.look.pitch - 0.35) / 0.25, 0, 1) * 4.5; // looking down at your gear lowers the gun
     this.dip = lerp(this.dip || 0, busyDip, Math.min(1, dt * 10));
-    const sw01 = A.switchT / 0.38, raise = sw01 * sw01 * 5;
     vm.guns.forEach((g, i) => {
-      g.visible = i === combat.wi;
+      g.visible = i === show;
       if (!g.visible) return;
       if (g.userData.shieldKit) g.userData.shieldKit.visible = (b.roof.shieldHp || 0) > 0;
       const [x, y, z] = g.userData.hold, u = g.userData, hands = u.hands || [];
@@ -1963,13 +1972,11 @@ class CockpitView {
           if (hand && R) {
             const rest = hand.userData.rest.pos;
             hand.visible = true;
-            if (q < 0.3) hand.position.lerpVectors(rest, R, ss(0.12, 0.3, q));
-            else if (q < 0.45) hand.position.copy(R);
-            else if (q < 0.62) hand.position.lerpVectors(R, below, ss(0.45, 0.62, q));
-            else if (q < 0.72) hand.position.lerpVectors(below, well, ss(0.63, 0.72, q)); // and straight in
-            else if (belted) this.loadBelt(u, hand, well, rest, q);
-            else if (q < 0.8) hand.position.copy(well).add(new THREE.Vector3(0, 0.3 * ss(0.72, 0.78, q), 0));
-            else hand.position.lerpVectors(well, rest, ss(0.8, 0.92, q));
+            // Out to the mags, a beat to take one, then in one flowing move under the well, up into it, a push to
+            // seat it, and back to the grip (Motion.path: it flows through the waypoints, stopping only on holds).
+            const seat = well.clone().add(new THREE.Vector3(0, 0.3, 0));
+            if (belted && q >= 0.72) this.loadBelt(u, hand, well, rest, q);
+            else Motion.path([[0.12, rest], [0.3, R], [0.42, R], [0.6, below], [0.7, well], [0.75, seat], [0.8, well], [0.93, rest]], q, hand.position);
             hand.rotation.x = hand.userData.rest.rot + 0.6 * bump(0.12, 0.8, q);
             stash[i] && (stash[i].hide = q > 0.38 && q < 0.8 ? 1 : 0);
           }
@@ -2015,11 +2022,8 @@ class CockpitView {
           const hand = hands[1], R = this.rackPoint(g, i, fromBody), front = new THREE.Vector3(0, -0.6, -6.5);
           if (hand && R) {
             const rest = hand.userData.rest.pos;
-            if (rp < 0.32) hand.position.lerpVectors(rest, R, ss(0.12, 0.32, rp));
-            else if (rp < 0.4) hand.position.copy(R);
-            else if (rp < 0.6) hand.position.lerpVectors(R, front, ss(0.4, 0.6, rp));
-            else if (rp < 0.82) hand.position.lerpVectors(front, new THREE.Vector3(0, -0.6, -5.3), ss(0.6, 0.82, rp));
-            else hand.position.lerpVectors(new THREE.Vector3(0, -0.6, -5.3), rest, ss(0.82, 0.95, rp));
+            const home = new THREE.Vector3(0, -0.6, -5.3); // the warhead slid down into the tube
+            Motion.path([[0.12, rest], [0.32, R], [0.4, R], [0.6, front], [0.82, home], [0.95, rest]], rp, hand.position);
             if (stash[i]) stash[i].hide = rp > 0.36 && rp < 0.82 ? 1 : 0;
             if (u.tip) {
               u.tip.visible = rp > 0.36;
@@ -2051,7 +2055,7 @@ class CockpitView {
             }
             if (stash[i]) stash[i].hide = rp > 0.5 && rp < 0.75 ? 1 : 0;
           }
-          oz += bump(0.86, 0.92, rp) * 0.3; // snap shut
+          oz += bump(0.85, 0.95, rp) * 0.3; // snap shut
         } else {
           // Nail gun, flamethrower, harpoon: tip it over, the other hand fetches a strip, a can or a bolt from the
           // rack and feeds it in; the one-handed nail gun just gets turned over and slapped.
@@ -2059,9 +2063,7 @@ class CockpitView {
           const hand = hands[1], R = this.rackPoint(g, i, fromBody);
           if (hand && R) {
             const rest = hand.userData.rest.pos;
-            if (rp < 0.35) hand.position.lerpVectors(rest, R, ss(0.12, 0.35, rp));
-            else if (rp < 0.45) hand.position.copy(R);
-            else hand.position.lerpVectors(R, rest, ss(0.45, 0.78, rp));
+            Motion.path([[0.12, rest], [0.35, R], [0.45, R], [0.78, rest]], rp, hand.position);
             hand.rotation.x = hand.userData.rest.rot + 0.5 * bump(0.12, 0.78, rp);
           }
           if (stash[i]) stash[i].hide = rp > 0.38 && rp < 0.72 ? 1 : 0;
@@ -2070,13 +2072,11 @@ class CockpitView {
             if (!u.strip) { u.strip = Models.ammoItem('nailgun', 0); u.strip.scale.setScalar(1.8); u.strip.rotation.x = Math.PI / 2 + 0.341; g.add(u.strip); }
             const mz = new THREE.Vector3(0, -1.0, -0.3), d = new THREE.Vector3(0, -Math.sin(0.341), Math.cos(0.341)), at = (sv) => mz.clone().addScaledVector(d, sv);
             const grip = (c) => c.clone().addScaledVector(d, 1.15).add(new THREE.Vector3(0, -0.35, 0)); // the hand holds the strip's back end
-            const ready = at(2.9), home = at(0.4), rest = hand.userData.rest.pos;
-            let c = null;
-            if (rp < 0.3) hand.position.lerpVectors(rest, R, ss(0.1, 0.3, rp));
-            else if (rp < 0.36) hand.position.copy(R);
-            else if (rp < 0.58) { c = ready.clone().lerp(R, 1 - ss(0.36, 0.58, rp)); hand.position.copy(grip(c)); }
-            else if (rp < 0.72) { c = ready.clone().lerp(home, ss(0.58, 0.72, rp)); hand.position.copy(grip(c)); } // slid home along the track
-            else hand.position.lerpVectors(grip(home), rest, ss(0.74, 0.9, rp));
+            const ready = at(2.9), home = at(0.4), rest = hand.userData.rest.pos, held = grip(new THREE.Vector3()); // (held: from the strip's middle to the hand)
+            // Down to the vest, a beat to take a strip, up behind the magazine, a straight slide home along the track,
+            // a moment holding it in, and back. The strip rides in the hand.
+            Motion.path([[0.1, rest], [0.3, R], [0.36, R], [0.58, grip(ready)], [0.72, grip(home)], [0.75, grip(home)], [0.9, rest]], rp, hand.position);
+            const c = rp > 0.36 && rp < 0.75 ? hand.position.clone().sub(held) : null;
             hand.rotation.x = hand.userData.rest.rot + 0.4 * bump(0.1, 0.85, rp);
             u.strip.visible = !!c;
             if (c) u.strip.position.copy(c);
@@ -2085,9 +2085,14 @@ class CockpitView {
           if (u.bolt) { // the harpoon: the new bolt rides in the hand from the rack, then slides home down the rail
             u.bolt.visible = rp > 0.4;
             const home = new THREE.Vector3(0, 0.36, -2.65), front = home.clone().add(new THREE.Vector3(0, 0.1, -3.2));
-            if (rp > 0.4 && rp < 0.62 && hand) u.bolt.position.copy(hand.position).add(new THREE.Vector3(0, 0.55, -0.6));
-            else if (rp >= 0.62) u.bolt.position.lerpVectors(front, home, ss(0.62, 0.76, rp));
-            if (hand && rp >= 0.55 && rp < 0.78) hand.position.lerpVectors(front.clone().add(new THREE.Vector3(0, -0.55, 0.6)), home.clone().add(new THREE.Vector3(0, -0.55, 0.8)), ss(0.62, 0.76, rp));
+            // One flowing move: the hand brings the bolt up to the front of the rail, slides it home, lets go, and goes
+            // back to the grip; the bolt rides in the hand until it's home.
+            if (hand && R) {
+              const atFront = front.clone().add(new THREE.Vector3(0, -0.55, 0.6)), atHome = home.clone().add(new THREE.Vector3(0, -0.55, 0.8));
+              Motion.path([[0.12, hand.userData.rest.pos], [0.35, R], [0.45, R], [0.6, atFront], [0.63, atFront], [0.76, atHome], [0.8, atHome], [0.95, hand.userData.rest.pos]], rp, hand.position);
+              if (rp > 0.4 && rp < 0.78) u.bolt.position.copy(hand.position).add(new THREE.Vector3(0, 0.55, -0.6 - 0.2 * ss(0.63, 0.76, rp)));
+              else if (rp >= 0.78) u.bolt.position.copy(home);
+            }
           }
           if (u.clip) u.clip.visible = rp > 0.62; // a fresh clip pressed in from the top
           oz += bump(0.74, 0.82, rp) * 0.35; // seated

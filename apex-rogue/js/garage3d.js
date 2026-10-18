@@ -7,6 +7,8 @@
 
 const GARAGE_LIFT = { x: 0, y: 6, z: 10 };
 
+// How hard the people in the garage can slow down (units/s²): they ease off as they near where they're going.
+const WALK_BRAKE = 22;
 // Camera poses per station: [position, look-at].
 // Where people can walk in the garage: open spots on the floor, and which are joined by a clear straight line
 // (worked out once from the furniture's footprints). look: what someone stopping at a spot turns to face.
@@ -643,11 +645,14 @@ class Garage3D {
   updateWalkers(dt) {
     for (const wk of this.walkers || []) {
       const f = wk.fig, U = f.userData, P = GARAGE_WALK.pts;
+      wk.t = (wk.t || 0) + dt;
       if (wk.to == null) {
         wk.wait -= dt;
-        // Standing: turn to look at whatever they stopped for.
-        f.rotation.y += wrapAngle(wk.face - f.rotation.y) * Math.min(1, dt * 3);
-        f.position.y = wk.foot - (1 - Math.cos(this.stride(U, 0, dt))) * 7.4 * f.scale.y;
+        // Standing: turn to look at whatever they stopped for, and breathe.
+        this.turn(wk, wk.face, dt);
+        wk.v = Motion.spring(wk.vs || (wk.vs = { x: 0, v: 0 }), 0, dt, 6);
+        if (wk.dir && wk.v > 0.01) { f.position.x += wk.dir[0] * wk.v * dt; f.position.z += wk.dir[1] * wk.v * dt; } // the last of a step, settling
+        f.position.y = wk.foot - (1 - Math.cos(this.stride(U, 0, dt, null, wk))) * 7.4 * f.scale.y;
         if (wk.wait > 0) continue;
         // Somewhere new: a neighbouring spot this walker uses, that nobody else is at or heading to.
         const busy = new Set(this.walkers.flatMap((x) => [x.at, x.to]));
@@ -661,27 +666,49 @@ class Garage3D {
       // (Not for long: after a moment they step round.)
       const block = this.walkers.some((x) => x !== wk && Math.hypot(x.fig.position.x - f.position.x - dx / d * 9, x.fig.position.z - f.position.z - dz / d * 9) < 7);
       wk.blockT = block ? (wk.blockT || 0) + dt : 0;
-      const step = block && wk.blockT < 1.2 ? 0 : Math.min(d, wk.speed * dt);
+      // Face the way first (setting off only as they come round), get up to speed, and slow into the stop.
+      const head = Math.atan2(-dz, dx), off = this.turn(wk, head, dt);
+      const want = block && wk.blockT < 1.2 ? 0 : wk.speed * Math.max(0, Math.cos(off)) ** 2 * Math.min(1, d / 6);
+      wk.v = Math.min(Motion.spring(wk.vs || (wk.vs = { x: 0, v: 0 }), want, dt, 3.2), Math.sqrt(2 * WALK_BRAKE * d)); // never too fast to stop in time
+      wk.vs.x = wk.v;
+      wk.dir = [dx / d, dz / d];
+      const step = Math.min(d, Math.max(0, wk.v) * dt);
       f.position.x += (dx / d) * step; f.position.z += (dz / d) * step;
-      f.rotation.y += wrapAngle(Math.atan2(-dz, dx) - f.rotation.y) * Math.min(1, dt * 6);
-      wk.phase += step / 7; // a stride every few units
-      const a = this.stride(U, step > 0 ? 1 : 0, dt, wk.phase);
+      wk.phase += step / 7; // a stride every few units, so the feet keep pace with the ground
+      const a = this.stride(U, clamp(wk.v / wk.speed, 0, 1), dt, wk.phase, wk);
       f.position.y = wk.foot - (1 - Math.cos(a)) * 7.4 * f.scale.y; // straight legs splayed: the hips drop so both feet stay down
-      if (d < 1) {
+      if (d < 0.3 || (d < 2 && wk.v < 0.4)) { // arrived (having slowed right down)
         wk.at = wk.to; wk.to = null; wk.wait = 1.5 + Math.random() * 3.5;
         const S = GARAGE_WALK.look[wk.at];
         wk.face = S ? Math.atan2(-(S[1] - T[1]), S[0] - T[0]) : Math.random() * TAU;
       }
     }
   }
-  // Legs and arms: swinging with the stride (k: 1 walking, 0 standing, eased between).
-  stride(U, k, dt, phase) {
-    U.walkK = (U.walkK || 0) + (k - (U.walkK || 0)) * Math.min(1, dt * 8);
+  // Turning on the spot or as they walk, on a spring (so they start and finish a turn smoothly). Returns how far
+  // they still have to come round.
+  turn(wk, to, dt) {
+    const f = wk.fig, Y = wk.ys || (wk.ys = { x: f.rotation.y, v: 0 });
+    Y.x = f.rotation.y; // (unwrapped: aim at the nearest way round)
+    f.rotation.y = Motion.spring(Y, f.rotation.y + wrapAngle(to - f.rotation.y), dt, 4.5);
+    return wrapAngle(to - f.rotation.y);
+  }
+
+  // Legs and arms swinging with the stride (k: how far into a walk, 0 standing, 1 full pace), the shoulders
+  // turning against the hips, the head held steady, and breathing when they stand.
+  stride(U, k, dt, phase, wk) {
+    U.walkK = Motion.spring(U.walkS || (U.walkS = { x: 0, v: 0 }), k, dt, 9);
     if (phase != null) U.lastPhase = phase;
-    const a = Math.sin((U.lastPhase || 0) * Math.PI) * 0.38 * U.walkK;
+    const ph = (U.lastPhase || 0) * Math.PI, a = Math.sin(ph) * 0.38 * U.walkK, t = wk ? wk.t : 0;
     // Figures face +x, so a stride swings about z (forward is -z rotation for the leg's foot to come forward).
     if (U.legs && U.legs.length === 2) { U.legs[0].rotation.z = a; U.legs[1].rotation.z = -a; }
     if (U.arms && U.arms.length === 2) { U.arms[0].rotation.z = -a * 0.8; U.arms[1].rotation.z = a * 0.8; }
+    if (U.torso) {
+      const breathe = Math.sin(t * 1.6) * 0.012 * (1 - U.walkK);
+      U.torso.rotation.y = -a * 0.22; // shoulders against the hips
+      U.torso.rotation.x = Math.sin(ph) * 0.025 * U.walkK; // a little weight from foot to foot
+      U.torso.rotation.z = -0.04 * U.walkK + breathe; // leaning into the walk
+    }
+    if (U.head) U.head.rotation.y = a * 0.18; // the head stays on where they're going
     return a;
   }
 
