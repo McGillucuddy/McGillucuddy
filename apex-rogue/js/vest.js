@@ -6,7 +6,7 @@
 
 const VESTS = {
   canvas: { base: '#b5ad95', strap: '#6a634e', trim: '#4a3a26', mark: 'C9 LAUNDRY', ink: '#2a2a2a' },
-  mattress: { base: '#d8d6cc', strap: '#2c3a5a', trim: '#2c3a5a', stripes: ['#e2e0d6', '#3a4e7a'], mark: 'BLOCK D', ink: '#1a2238' },
+  mattress: { base: '#d8d6cc', strap: '#2c3a5a', trim: '#2c3a5a', stripes: ['#e2e0d6', '#3a4e7a'], mark: 'BLOCK D', ink: '#8a1a12' },
   tube: { base: '#1e1e1f', strap: '#2c2c2d', trim: '#8a8f94', mark: 'NO RETREAD', ink: '#d8d2c0', rough: 0.55 },
   riot: { base: '#3a4658', strap: '#141a22', trim: '#c9a227', mark: 'CORRECTIONS', ink: '#c9a227', cross: true },
   hivis: { base: '#b8b33a', strap: '#5a5a30', trim: '#b8bcc0', mark: 'ROAD CREW', ink: '#1a1a1a', bands: true },
@@ -57,6 +57,25 @@ const Vest = {
     return (this.textures[key] = t);
   },
 
+  // Across the back: your number big, the vest's words over it, sprayed through a card stencil.
+  backMark(id, inmate) {
+    const key = 'back:' + id + ':' + inmate;
+    if (this.textures[key]) return this.textures[key];
+    const V = VESTS[id], c = document.createElement('canvas');
+    c.width = 256; c.height = 128;
+    const g = c.getContext('2d');
+    g.textAlign = 'center'; g.fillStyle = V.ink;
+    g.font = 'bold 24px monospace'; g.fillText(V.mark, 128, 30);
+    g.font = 'bold 72px monospace'; g.fillText(String(inmate).slice(0, 6), 128, 104);
+    if (V.cross) { g.strokeStyle = '#b01a12'; g.lineWidth = 7; g.beginPath(); g.moveTo(30, 28); g.lineTo(226, 14); g.stroke(); }
+    g.fillStyle = V.ink; for (let k = 0; k < 14; k++) { const x = 40 + Math.random() * 176, y = 50 + Math.random() * 60; g.fillRect(x, y, 2, 6 + Math.random() * 14); } // runs of paint
+    g.globalCompositeOperation = 'destination-out';
+    for (let k = 0; k < 160; k++) { g.fillStyle = `rgba(0,0,0,${Math.random() * 0.8})`; g.fillRect(Math.random() * 256, Math.random() * 128, 1 + Math.random() * 4, 1 + Math.random() * 3); }
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return (this.textures[key] = t);
+  },
+
   // Per gun: spacing and scale of what's tucked in the loops.
   ITEM: { pistol: [0.34, 0.5], smg: [0.4, 0.46], shotgun: [0.15, 0.55], rocket: [0.62, 0.32], flare: [0.3, 0.6], nailgun: [0.36, 0.5], flamer: [0.6, 0.42], harpoon: [0.42, 0.4],
     carbine: [0.4, 0.44], liberty: [0.3, 0.55], typewriter: [0.62, 0.26], lmg: [0.6, 0.3], pangun: [0.6, 0.26] },
@@ -102,7 +121,7 @@ const Vest = {
     const facing = (y, z, t) => Math.atan2(1, -(surf(y, z + 0.05, t) - surf(y, z - 0.05, t)) / 0.1); // rotation.y that turns +z out of the surface
     const on = (y, z, t, out) => [surf(y, z, t) + (out || 0), y, z]; // a point on the surface
     const turn = (y, z, t, roll) => [0, facing(y, z, t) - Math.PI / 2, roll || 0]; // turns local x out of the surface there
-    const s = new Sculpt(`vest3:${id}:${rows}:${w}`, 0.06), collar = []; // (collar pieces: hidden in your own view, they'd sit under your chin)
+    const s = new Sculpt(`vest4:${id}:${rows}:${w}`, 0.06), collar = []; // (collar pieces: hidden in your own view, they'd sit under your chin)
     const collarMat = (m) => { collar.push(m); return m; };
     // A band round the body at height y, h tall (its own material, so it can be trimmed to its own height).
     const band = (mat, y, h, t, k) => {
@@ -200,38 +219,67 @@ const Vest = {
       face = px + 0.16;
     }
 
-    // ---- The ammo: belts round the vest, or pouch strips on the plate ----
-    const AT = T + (id === 'mattress' ? 0.06 : 0.1), rowY = [];
+    // ---- The ammo: each vest carries it its own way ----
+    // loops: a stitched strip of loops; pocket: tall sack-cloth pockets; tape: each one taped straight on; tube:
+    // tucked under a rubber strap; sash: crossed bandoliers; hook: hung on wire hooks through the mesh; pouch:
+    // pouches on the plate.
+    const carry = { canvas: 'pocket', tape: 'tape', tube: 'tube', hivis: 'sash', fence: 'hook', riot: 'pouch' }[id] || 'loops';
+    const AT = T + (id === 'mattress' ? 0.06 : 0.1), place = [];
+    const tapeMat = LP.mat('#9a9c9e', { metalness: 0.35, roughness: 0.45 }), rubber = LP.mat('#1a1a1b', { roughness: 0.55 });
     for (let r = 0; r < rows; r++) {
-      const y = top - r * step - 0.14;
-      rowY.push(y);
-      if (face != null) { s.add(strap, SDF.box([0.12, 0.34, 2.0 * w], 0.04, [face + 0.02, y, 0]), 0.02); continue; }
-      // A strip of loops across the front, following the chest (split either side of an open front).
-      for (let z = -1.0 * w; z <= 1.0 * w + 1e-6; z += 0.2 * w) if (!K.open || Math.abs(z) > 0.3 * w) s.add(strap, SDF.box([0.12, 0.34, 0.3], 0.04, on(y, z, AT, -0.04), turn(y, z, AT)), 0.06);
-      for (const z of [-1.05 * w, 1.05 * w]) s.add(trim, SDF.box([0.1, 0.24, 0.12], 0.02, on(y, z, AT, -0.01), turn(y, z, AT)), 0.01); // stitched ends
+      const wpn = rack[r], n = (WORN.loads[wpn.id] || 2), [gap0, sc] = this.ITEM[wpn.id] || [0.4, 0.45];
+      const y = top - r * step - 0.14, items = [];
+      if (carry === 'sash' && r < 2) { // a bandolier from one shoulder to the other hip, the second crossing it
+        const sd = r ? -1 : 1, y0 = 4.25, z0 = -1.1 * w * sd, y1 = 1.5, z1 = 1.05 * w * sd;
+        strip(strapMat(), y0, z0, y1, z1, 0.36, AT - 0.04 + r * 0.04, 14);
+        const roll = -Math.atan2(y1 - y0, z1 - z0) * (sd > 0 ? 1 : -1) - (sd > 0 ? 0 : Math.PI);
+        for (let k = 0; k < n; k++) { const f = 0.12 + (0.76 * (k + 0.5)) / n, yy = y0 + (y1 - y0) * f, zz = z0 + (z1 - z0) * f; items.push({ y: yy, z: zz, t: AT + r * 0.04, roll, sc }); }
+        place.push(items);
+        continue;
+      }
+      const sashBelt = carry === 'sash'; // a third gun on the hi-vis: a belt round the waist
+      const yy = sashBelt ? 1.45 : y, gap = Math.min(gap0, (face != null ? 1.8 : 2.1) * w / Math.max(1, n - 1));
+      for (let k = 0; k < n; k++) items.push({ y: yy + 0.19, z: -((n - 1) * gap) / 2 + k * gap, t: AT, roll: 0, sc });
+      if (carry === 'loops' || sashBelt) {
+        for (let z = -1.0 * w; z <= 1.0 * w + 1e-6; z += 0.2 * w) if (!K.open || sashBelt || Math.abs(z) > 0.3 * w) s.add(strap, SDF.box([0.12, 0.34, 0.3], 0.04, on(yy, z, AT, -0.04), turn(yy, z, AT)), 0.06);
+        for (const z of [-1.05 * w, 1.05 * w]) s.add(trim, SDF.box([0.1, 0.24, 0.12], 0.02, on(yy, z, AT, -0.01), turn(yy, z, AT)), 0.01); // stitched ends
+      } else if (carry === 'pocket') { // a row of sack-cloth pockets, the tops of the mags showing
+        const pk = clothMat();
+        for (const it of items) { s.add(pk, SDF.box([0.16, 0.5, gap * 0.92], 0.06, on(yy + 0.05, it.z, AT, 0.04), turn(yy + 0.05, it.z, AT)), 0.04); s.add(trim, SDF.box([0.04, 0.03, gap * 0.8], 0.01, on(yy + 0.29, it.z, AT, 0.13), turn(yy, it.z, AT)), 0.005); }
+      } else if (carry === 'tape') { // taped straight on, any old how
+        for (const it of items) { it.roll = (rnd() - 0.5) * 0.5; it.t = AT - 0.06; s.add(tapeMat, SDF.box([0.05, 0.16, Math.max(0.42, sc * 0.9)], 0.02, on(it.y, it.z, it.t, 0.14), turn(it.y, it.z, it.t, it.roll * 0.6)), 0.01); }
+      } else if (carry === 'tube') { // tucked under a strip of rubber nailed across
+        for (const it of items) it.t = AT - 0.06;
+        for (let z = -1.05 * w; z <= 1.05 * w + 1e-6; z += 0.21 * w) s.add(rubber, SDF.box([0.07, 0.18, 0.3], 0.03, on(yy + 0.12, z, AT, 0.1), turn(yy + 0.12, z, AT)), 0.05);
+      } else if (carry === 'hook') { // hung through the mesh on bent wire
+        for (const it of items) { it.y -= 0.08; it.roll = (rnd() - 0.5) * 0.3; s.add(steel, SDF.torus(0.09, 0.025, on(it.y + 0.42, it.z, AT, 0.02), [Math.PI / 2, facing(it.y, it.z, AT), 0]), 0.01); }
+      } else if (carry === 'pouch') { // a pouch each on the plate, flaps tucked back
+        for (const it of items) { it.face = true; s.add(strap, SDF.box([0.26, 0.46, gap * 0.86], 0.06, [face + 0.12, yy, it.z]), 0.04); s.add(strap, SDF.box([0.05, 0.22, gap * 0.8], 0.02, [face + 0.02, yy + 0.36, it.z]), 0.02); }
+      }
+      place.push(items);
     }
     s.build(G);
     G.traverse((o) => { if (o.isMesh && collar.includes(o.material)) o.userData.collar = true; });
-    // The words on the chest, above the straps.
-    const ym = top + 0.5, zm = 0.72 * w;
+    // The words: small on the chest, big across the back.
+    const ym = top + 0.55, zm = 0.72 * w;
     const m = LP.mesh(new THREE.PlaneGeometry(1.5, 0.56), LP.mat('#ffffff', { map: this.mark(id, inmate || '4471'), transparent: true, roughness: 0.9 }), face != null ? face + 0.01 : surf(ym, zm, T) + 0.03, face != null ? 3.75 : ym, face != null ? 0 : zm);
     m.rotation.y = face != null ? Math.PI / 2 : facing(ym, zm, T);
-    m.scale.setScalar(0.7);
+    m.scale.setScalar(0.85);
     G.add(m);
-    // What's in the loops, round the curve of the chest (or flat on the plate).
-    G.userData.rows = rack.map((wpn, r) => {
-      const n = (WORN.loads[wpn.id] || 2), [gap0, sc] = this.ITEM[wpn.id] || [0.4, 0.45], y = rowY[r] + 0.19;
-      const gap = Math.min(gap0, (face != null ? 1.8 : 2.1) * w / Math.max(1, n - 1)), items = [];
-      for (let k = 0; k < n; k++) {
-        const it = Models.ammoItem(wpn.id, k), z = -((n - 1) * gap) / 2 + k * gap;
-        if (face != null) { it.position.set(face + 0.12, y, z); it.rotation.y = Math.PI / 2; }
-        else { it.position.set(surf(y, z, AT) + 0.1, y, z); it.rotation.y = facing(y, z, AT); } // its face out from the chest
-        it.scale.setScalar(sc * 1.2);
-        G.add(it);
-        items.push(it);
-      }
-      return items;
-    });
+    const back = (y, z, t) => { let x = 9; for (const [[a, b, c], [px, py, pz]] of body(t)) { const k = 1 - ((y - py) / b) ** 2 - ((z - pz) / c) ** 2; if (k > 0) x = Math.min(x, px - a * Math.sqrt(k)); } return x; };
+    const by = 3.15, bxp = id === 'riot' ? -(1.02 + T) + 0.06 - 0.1 - 0.16 : back(by, 0, T + (K.bands ? 0.03 : 0)) - 0.04;
+    const bm = LP.mesh(new THREE.PlaneGeometry(2.6, 1.3), LP.mat('#ffffff', { map: this.backMark(id, inmate || '4471'), transparent: true, roughness: 0.9 }), bxp, by, 0);
+    bm.rotation.y = -Math.PI / 2;
+    G.add(bm);
+    // What's in the loops (and pockets, tape, straps, hooks, pouches).
+    G.userData.rows = place.map((items, r) => items.map((p0, k) => {
+      const it = Models.ammoItem(rack[r].id, k);
+      if (p0.face) { it.position.set(face + 0.2, p0.y + 0.08, p0.z); it.rotation.y = Math.PI / 2; }
+      else { it.position.set(surf(p0.y, p0.z, p0.t) + 0.1, p0.y, p0.z); it.rotation.set(0, facing(p0.y, p0.z, p0.t), 0); if (p0.roll) it.rotateZ(p0.roll); } // its face out from the chest
+      it.scale.setScalar(p0.sc * 1.2);
+      G.add(it);
+      return it;
+    }));
     return G;
   },
 };

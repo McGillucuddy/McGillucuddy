@@ -214,13 +214,14 @@ const People = {
       hs.build(head);
     }
     // The number stencilled on the chest (on the vest's back strap it'd be hidden: only on the jumpsuit).
+    let patch = null;
     if (!vest) {
       const tex = People.patch(o.number || L.number);
-      const patch = LP.mesh(new THREE.PlaneGeometry(1.3, 0.55), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, transparent: true }), 1.09, 3.05, -0.6);
+      patch = LP.mesh(new THREE.PlaneGeometry(1.3, 0.55), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, transparent: true }), 1.09, 3.05, -0.6);
       patch.rotation.y = Math.PI / 2;
       torso.add(patch);
     }
-    g.userData = { torso, head, looks: L, M, legs: strides, arms: swing, helmet: !!o.helmet, armMat: vest ? M.skin : M.suit, shoulders: [[0.05, 4.25, -1.72 * w], [0.05, 4.25, 1.72 * w]] };
+    g.userData = { torso, head, patch, looks: L, M, legs: strides, arms: swing, helmet: !!o.helmet, armMat: vest ? M.skin : M.suit, shoulders: [[0.05, 4.25, -1.72 * w], [0.05, 4.25, 1.72 * w]] };
     return g;
   },
 

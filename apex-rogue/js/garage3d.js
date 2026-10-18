@@ -791,6 +791,7 @@ class Garage3D {
       const me = People.figure({ seed: seed + 1, role: 'passenger', pose: 'stand', arms: 'swing', cell: 0.08, number: inmate, looks: { suit: '#a8521e' } });
       const w = People.BUILD[(me.userData.looks || {}).build] || 1;
       (me.userData.torso || me).add(Vest.build(cab.vest, look.rack || [], inmate, w));
+      if (me.userData.patch) me.userData.patch.visible = false; // (the vest carries your number now)
       for (const a of me.userData.arms || []) a.rotation.x = -0.14 * Math.sign(a.position.z); // arms a little out from the vest
       me.scale.setScalar(2.3); // as tall as the others in the garage
       const bb = new THREE.Box3().setFromObject(me);

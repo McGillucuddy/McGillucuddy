@@ -345,8 +345,14 @@ volume and looks for overlaps.
     cross of tape over the chest and loose ends hanging; the hi-vis thin, long and open down the front, with a
     badge and a length of chain; the fence wire with rusted and galvanised tin plates wired on and cut wire
     bristling at the shoulders; the riot vest a plate carrier with front and back plates, a cummerbund,
-    shoulder pads and a neck guard. Your ammo rides in strips of loops across the chest (on the riot vest,
-    on the plate). Collar pieces are hidden in your own view; they'd sit under your chin. It holds three pistol, SMG or carbine mags,
+    shoulder pads and a neck guard. Each carries your ammo its own way too: stitched loops on the patchwork and
+    the mattress, tall sack-cloth pockets on the laundry sack with the tops showing, each mag taped straight on
+    any old how on the duct tape, tucked under a rubber strap on the inner tube, crossed bandoliers over the
+    hi-vis (a third gun on a belt round the waist), hung on bent-wire hooks through the fence wire, and a pouch
+    each on the riot vest's plate. Across the back of every vest your number is sprayed big under its words
+    (C9 LAUNDRY, DEATH ROW, BLOCK D, NO RETREAD, FRAGILE, ROAD CREW, KEEP OUT, and CORRECTIONS sprayed out in
+    red); the jumpsuit's own number patch is hidden under it. Collar pieces are hidden in your own view;
+    they'd sit under your chin. It holds three pistol, SMG or carbine mags,
     four Liberty clips, two drums or nail strips, one LMG box, pan or fuel can, twelve shells, four flares, two
     rockets and three bolts. Look down (the view now goes further down) and you see what's left on you.
     Reloads come off your body first, and they're 20% quicker: the hand drops just below the view to your chest

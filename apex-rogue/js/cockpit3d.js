@@ -690,6 +690,7 @@ class CockpitView {
     // with theirs.
     const mt = me.userData.torso || me;
     this.meTorso = mt;
+    if (me.userData.patch) me.userData.patch.visible = false; // (your vest carries your number)
     this.meBuild = People.BUILD[(me.userData.looks || {}).build] || 1;
     mt.add(LP.mesh(new THREE.TorusGeometry(0.5, 0.13, 6, 16).rotateX(Math.PI / 2), steel, 0.12, 5.0, 0));
     mt.add(LP.box(0.36, 0.32, 0.3, LP.mat('#1c1c1e', { metalness: 0.4 }), 0.55, 4.95, 0));
