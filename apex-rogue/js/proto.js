@@ -393,7 +393,8 @@ const Proto = {
         <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
         <div class="ctl"><kbd>RMB</kbd> Aim down the sights · <kbd>G</kbd> Grenade (land one in a rival's open hatch or window) · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
         <div class="ctl"><kbd>Space</kbd> (hold) Slam the blast hatch: it stops bullets and most of a blast, but you can't shoot. Slam it as a rocket hits to bat it back.</div>
-        <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve · <kbd>B</kbd> Fit spare part</div>
+        <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve (they dodge rockets and mines on their own too) · <kbd>B</kbd> Fit spare part</div>
+        <div class="ctl"><kbd>L</kbd> Lean out of your window: shoot out over your side and behind you, but you're out in the open and reloads are slower · <kbd>K</kbd> Kick the windshield out: clean shots forward, but nothing between you and the front</div>
         <div class="ctl"><kbd>V</kbd> (or <kbd>4</kbd>) Climb up to the roof gun, if you've mounted one, and back down. Steadier and all the way round, but you're exposed and the blast hatch can't cover you.</div>
         <div class="ctl"><kbd>T</kbd> Emote at a rival (hold for the wheel): they get tilted. Pass or wreck them while they're seething for Infamy.</div>
         <div class="ctl"><kbd>M</kbd> Mute · <kbd>Esc</kbd> Pause</div>
@@ -1708,6 +1709,7 @@ const Proto = {
     this.updateOrderKey(dt);
     if (Input.consume('KeyB')) combat.fitSpare();
     if (Input.consume('KeyK') && this.cockpit) this.cockpit.kickGlass(); // boot the windshield out
+    if (Input.consume('KeyL')) combat.toggleLean(); // lean out of the window (js/lean.js)
     if (Input.consume('KeyV') || Input.consume('Digit4')) combat.toggleRoof(); // up into the roof hatch to the mounted gun, or back down
     if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
     if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
@@ -1894,6 +1896,7 @@ function drawWeaponPanel(ctx, P, W, H) {
   }
   const hh = ensureHatch(b), hf = hh.hp / HATCH.max;
   const hatch = c.hatch.jammed ? 'HATCH JAMMED' : c.guarded ? 'HATCH SHUT' : hf < 0.995 ? `HATCH ${Math.ceil(hh.hp)}%` : '';
+  if (c.leanOut) rows.push([false, 'Window', 'LEANING OUT', null, '#ff9f1c']);
   const gl = P.cockpit && P.cockpit.glass; // the windshield: worn by rounds, or kicked out (K)
   if (gl && (gl.gone || gl.hp < GLASS.hp)) rows.push([false, 'Windshield', gl.gone ? 'OUT' : `${Math.max(1, Math.round(gl.hp))}%`, gl.gone ? null : gl.hp / GLASS.hp, '#9fd0ff']);
   rows.push([false, `G ×${b.grenades}`, hatch, hatch && !c.guarded ? hf : null, c.hatch.jammed ? '#ff3b1f' : hf < 0.3 ? '#ff7a1f' : '#c9a43a']);

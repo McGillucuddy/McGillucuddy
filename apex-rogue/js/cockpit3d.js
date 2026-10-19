@@ -749,14 +749,14 @@ class CockpitView {
     const hurt = this.combat.driverHurtT || 0, dead = this.combat.ownDriverDead;
     C.slump = dead ? Math.min(1, (C.slump || 0) + dt * 2.5) : 0;
     const k = C.slump * C.slump, jolt = hurt > 0 ? Math.sin(hurt * 40) * 0.25 * hurt : 0;
-    // The body rides the car on springs: it leans into the corners and is thrown forward under braking (back under
-    // power), lagging a touch behind the car and settling, and breathes.
+    // The body rides the car on springs: it's pushed to the outside of a corner and thrown forward under braking
+    // (back under power), lagging a touch behind the car and settling, and breathes.
     const acc = this.acc || { lat: 0, fwd: 0 };
     const side = Motion.spring(C.sideS || (C.sideS = { x: 0, v: 0 }), clamp(-acc.lat * 0.00008, -0.12, 0.12), dt, 7);
     const pitch = Motion.spring(C.pitchS || (C.pitchS = { x: 0, v: 0 }), clamp(acc.fwd * 0.00005, -0.08, 0.08), dt, 6);
     const breathe = Math.sin(t * 1.4) * 0.012;
     d.head.rotation.set(Math.sin(t * 7) * 0.02 * Math.min(1, p.speed / 300) + jolt - side * 0.4, C.yaw * (1 - k), Math.sin(t * 0.7) * 0.03 - k * 0.7 - pitch * 0.5); // (the head keeps level against the lean)
-    d.torso.rotation.x = side + jolt * 0.5; // leaning into the corners (and flinching)
+    d.torso.rotation.x = side + jolt * 0.5; // pushed out by the corner (and flinching)
     d.torso.rotation.z = -k * 0.55 + pitch + breathe; // slumped over the wheel; or pitched by the brakes, and breathing
     // Arms: shoulder to the fist on the rim, elbows down and out.
     C.drv.updateMatrixWorld(true);
@@ -1303,7 +1303,7 @@ class CockpitView {
     if (ev.type === 'dent') this.syncDents(false);
     if (ev.type === 'jam') { this.shake = Math.max(this.shake, 0.5); if (this.hatchFx) this.hatchFx.shudder = 1.5; }
     if (ev.type === 'shoot' || ev.type === 'shotgun') this.ejectCasing(ev.type === 'shotgun');
-    if (FIRE_EVENTS.includes(ev.type) && !this.combat.exposed) this.shootGlass(ev.type);
+    if (FIRE_EVENTS.includes(ev.type) && !this.combat.exposed && !this.combat.leanOut) this.shootGlass(ev.type); // (out of the window or the roof, the glass isn't in the way)
     if (FIRE_EVENTS.includes(ev.type)) {
       const k = FIRE_KICK[this.combat.weapon.id] || FIRE_KICK.smg, soft = this.combat.buffs && this.combat.buffs.kick; // whiskey: a steadier hand
       const ads = 1 - (1 - ADS.recoil) * (this.adsK || 0); // down the sights, the gun kicks less in your hands too
@@ -1610,7 +1610,7 @@ class CockpitView {
       }
     }
 
-    this.wheel.rotation.z = -(p.input ? p.input.steer : 0) * 2.2;
+    this.wheel.rotation.z = (p.input ? p.input.steer : 0) * 2.2; // + steer turns the car right: the wheel goes clockwise as the driver sees it (its axis points up the column, away from them)
     this.animateMyCrew(dt, t);
 
     // Bad wiring: the bulb mostly glows, sometimes stutters or drops out.
@@ -1661,14 +1661,19 @@ class CockpitView {
     // limits how far round you can swing it.
     const upK = this.combat.up * this.combat.up * (3 - 2 * this.combat.up);
     if (this.combat.exposed) { const arc = this.combat.shield.arc; this.look.yaw = clamp(this.look.yaw, -arc, arc); }
+    // Out of the window (js/lean.js): the head goes out through your window (on the right), a little up, tilted out, buffeted
+    // by the wind at speed; you can look from just past dead ahead round to behind you.
+    const lk = Motion.ease(this.combat.leanK || 0);
+    if (this.combat.leanOut) this.look.yaw = clamp(this.look.yaw, LEAN.arc[0], LEAN.arc[1]);
     // Your head turns on your neck: the eyes sit in front of it and swing round with the look, so turning to look
     // behind you puts your eyes over your shoulder instead of inside your own neck.
     const NECK = 0.85, hy = this.look.yaw;
     // Reaching for the ammo board on the dash: you lean in towards it and glance down, so it's within arm's length.
-    this.lean = lerp(this.lean || 0, this.combat.exposed ? 0 : (this.reachNow || 0), Math.min(1, dt * 7));
+    this.lean = lerp(this.lean || 0, this.combat.exposed || this.combat.leanOut ? 0 : (this.reachNow || 0), Math.min(1, dt * 7));
     this.reachNow = 0;
     const ln = this.lean;
-    const eye = this.playerGroup.localToWorld(new THREE.Vector3(EYE.x - NECK + NECK * Math.cos(hy) + 0.4 * upK + 1.3 * ln, EYE.y + 5.4 * upK - 0.8 * ln, EYE.z + NECK * Math.sin(hy)));
+    const eye = this.playerGroup.localToWorld(new THREE.Vector3(EYE.x - NECK + NECK * Math.cos(hy) + 0.4 * upK + 1.3 * ln - 0.4 * lk, EYE.y + 5.4 * upK - 0.8 * ln + 1.4 * lk, EYE.z + NECK * Math.sin(hy) + 5.6 * lk));
+    if (lk > 0) { const wind = lk * Math.min(1, this.race.player.speed / 450) * 0.07; eye.x += (Math.random() - 0.5) * wind; eye.y += (Math.random() - 0.5) * wind; }
     if (this.roofHatch) this.roofHatch.rotation.z = 1.95 * clamp(this.combat.up * 2.5, 0, 1); // the lid flips up and over as you climb
     const sh = this.shake;
     eye.x += (Math.random() - 0.5) * sh * 1.2;
@@ -1689,6 +1694,7 @@ class CockpitView {
     this.camera.updateMatrixWorld(); this.playerGroup.updateWorldMatrix(true, false);
     this.camInCar = this.playerGroup.matrixWorld.clone().invert().multiply(this.camera.matrixWorld);
     if (this.kick) this.camera.rotateX(this.kick.cp); // the punch of a big gun going off
+    if (lk > 0) this.camera.rotateZ(0.09 * lk * Math.cos(this.look.yaw)); // the head tipped out against the frame
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(yw) * sway);
     // Drunk (pruno, whiskey): the cabin swims. Only the view moves, not where the gun points, so your aim drifts off
     // the crosshair's idea of the world a little: that's the cost of the courage.

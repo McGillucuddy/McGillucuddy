@@ -159,6 +159,7 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
 | Abilities | `Space` / `E` |
 | Fit spare part | `B` |
 | Kick the windshield out | `K` |
+| Lean out of your window (and back in) | `L` |
 | Swerve left / right | `A` / `D` |
 
 The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor/` so it works offline.
@@ -310,6 +311,27 @@ volume and looks for overlaps.
   down over the glass first, because it lies over the hatch you climb through.
 - **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
   turning in place inside your own neck.
+
+### Your driver dodges, and you can lean out (prototype)
+
+- **Dodging** (`DODGE` in js/dodge.js): your driver watches for rockets coming at the car and mines on the road
+  ahead, and swerves on their own. They take a moment to react (0.26s for a stranger down to 0.1s for family,
+  js/bond.js), don't always see it coming (60% up to 100%), and throw the wheel over and, for a straight rocket,
+  stab the brakes, so a rocket aimed where you were going to be goes past in front. Past a mine they pick a lane
+  that clears it on whichever side has room, judged off the road at the mine and the line they're steering
+  for (so they don't swerve for a mine the bend takes them past anyway). A homing rocket turns faster than a
+  car can get out of its way, so they don't try: yours shouts that it's locked on, your cue to shoot it down or
+  slam the hatch. Rivals dodge too, less well (the better the driver, the likelier; bosses most of all).
+  Measured (40 shots, 3 seeds, nobody else near): mines on your line 30/120 hits without dodging, 11/120 with;
+  straight rockets 86/120 without, 66/120 with.
+- **Leaning out** (`LEAN` in js/lean.js, `L`): your seat is on the right (the driver's on the left), so you hang
+  out of the right window. From out there you can swing from just past dead ahead, out over your side, round to
+  behind you, with no windshield in the way. The price: rounds from your side find you 42% of the time, from
+  behind 30%, from the front 24% (in your seat: 16% from the side, 8% from behind, 20% from the front, shared
+  with your driver), reloads take 35%
+  longer with one hand on the door frame, and you can't slam the blast hatch or climb to the roof while you're out.
+  A Window Cage welded over the side windows shuts it off.
+- **The steering wheel** now turns the way the car does (it was turning the opposite way).
 
 ### Motion: how everything moves (prototype)
 

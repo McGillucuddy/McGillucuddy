@@ -229,19 +229,19 @@ class Combat {
     if (this.throughGlass) { d.spread = (d.spread || 0) + GLASS_FX.spread; d.dmg *= GLASS_FX.dmg; } // out through your own windshield
     return d;
   }
-  get busy() { return this.fitT > 0 || this.climbT > 0; }
+  get busy() { return this.fitT > 0 || this.climbT > 0 || (this.leanT || 0) > 0; } // (fitting a part, climbing, getting out of or back in the window)
   // Shooting forward out through the windshield (still in, and you're in your seat).
-  get throughGlass() { return !this.glassOut && !this.exposed && Math.abs(wrapAngle(this.aimAng - this.player.heading)) < GLASS_FX.arc; }
+  get throughGlass() { return !this.glassOut && !this.exposed && !this.leanOut && Math.abs(wrapAngle(this.aimAng - this.player.heading)) < GLASS_FX.arc; }
   get guarded() { return this.hatch.pos >= HATCH.guard; }
   get hatchDown() { return this.hatch.pos > 0.05; } // anywhere off its stop: you can't shoot past it
 
   // Called every frame with whether Space is held.
-  setHatch(want) { this.hatch.want = !!want && !this.exposed; } // no slamming the blast hatch with your head out of the roof
+  setHatch(want) { this.hatch.want = !!want && !this.exposed && !this.leanOut; } // no slamming the blast hatch with your head out of the roof
 
   // Climb up into the roof hatch to the mounted gun, or drop back into your seat.
   toggleRoof() {
     if (this.roofIdx < 0) { this.race.message('No gun on the roof: mount one in the Armory', '#ccc'); return; }
-    if (this.climbT > 0 || this.fitT > 0 || this.player.finished) return;
+    if (this.climbT > 0 || this.fitT > 0 || this.player.finished || this.leanOut) return; // (get back in from the window first)
     if (this.exposed) this.dropDown();
     else {
       this.seatWi = this.wi;
@@ -376,7 +376,7 @@ class Combat {
     // Off your body if there's any left on it, otherwise off the dash.
     w.worn = Math.min(w.worn || 0, w.reserve); // (a lucky charm's refill comes out of the same ammo)
     st.src = this.exposed || !(w.worn > 0) ? 'dash' : 'body';
-    st.reloadT = def.reload * (this.exposed ? 1 : st.src === 'body' ? WORN.fast : WORN.slow);
+    st.reloadT = def.reload * (this.exposed ? 1 : st.src === 'body' ? WORN.fast : WORN.slow) * (this.leanOut ? LEAN.reload : 1); // (out of the window: one hand on the frame)
     this.events.push({ type: 'reload', src: st.src });
   }
 
@@ -618,7 +618,7 @@ class Combat {
     w.mag--;
     this.lastFire = 0;
     // Aiming into your own cabin (js/crew.js): what's pointed at your driver goes into your driver.
-    const ff = !this.exposed && this.friendlyFire ? this.friendlyFire() : null;
+    const ff = !this.exposed && !this.leanOut && this.friendlyFire ? this.friendlyFire() : null; // (out of the window, your gun's clear of them)
     if (ff && def.kind !== 'bullet') {
       this.hitOwnDriver(def.kind === 'rocket' ? 999 : def.dmg * (def.pellets || 1) * 0.5, ff.part, 1);
       if (def.kind === 'rocket') this.race.damage(p, def.dmg, { kind: 'blast' }); // and the rocket goes off in the cabin
@@ -717,6 +717,8 @@ class Combat {
     }
     if (this.updateOrders) this.updateOrders(dt); // js/orders.js
     if (this.updateBond) this.updateBond(dt); // js/bond.js
+    if (this.updateDodge) this.updateDodge(dt); // js/dodge.js
+    if (this.updateLean) this.updateLean(dt); // js/lean.js
     this.yellCd = Math.max(0, (this.yellCd || 0) - dt);
     this.driverHurtT = Math.max(0, (this.driverHurtT || 0) - dt);
     if (this.big) this.big.t += dt;

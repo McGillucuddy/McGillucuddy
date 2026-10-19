@@ -49,9 +49,19 @@ class AIDriver {
     return Math.sqrt(this.car.stats.aLat / c);
   }
 
+  // side: +1 right, -1 left (the lane's + is to the right of the way the car's going, along the track's normal).
   swerve(side, duration) {
     this.forceLane = clamp(this.lane + side * 0.9, -0.8, 0.8);
     this.forceT = duration;
+  }
+
+  // Hold a particular lane for a while (js/dodge.js: past a mine).
+  dodgeTo(lane, duration) { this.forceLane = clamp(lane, -0.85, 0.85); this.forceT = duration; }
+
+  // An evasive jink (js/dodge.js): the wheel thrown hard over for a moment on top of the swerve, and (brake) a
+  // stab of the brakes, so a rocket aimed where you were going to be goes past in front.
+  jink(side, duration, brake) {
+    this.jinkSide = side; this.jinkT = duration; this.jinkBrake = brake || 0;
   }
 
   update(race, dt) {
@@ -127,7 +137,8 @@ class AIDriver {
     if (this.shaky) noise += Math.sin(this.wobblePhase * 7.3) * 0.12; // gun nut: distracted by the shooting
     if (car.blindT > 0) noise += Math.sin(this.wobblePhase * 3.1) * 0.9; // blinded by a flare
     const err = wrapAngle(Math.atan2(ty - car.y, tx - car.x) - car.heading) + noise;
-    const steer = clamp(err * 2.8, -1, 1);
+    let steer = clamp(err * 2.8, -1, 1);
+    if (this.jinkT > 0) { this.jinkT -= dt; steer = this.jinkSide; } // the wheel thrown right over (side + is right, as for a swerve and the steering)
 
     // Speed: lowest of (corner speed + braking distance) over the next ~700px.
     const B = 520;
@@ -159,6 +170,7 @@ class AIDriver {
     }
     if (this.stuckT >= 3) { race.respawn(car); this.stuckT = 0; }
 
+    if (this.jinkT > 0 && this.jinkBrake) { throttle = 0; brake = Math.max(brake, this.jinkBrake); } // (stab of the brakes)
     return { throttle, brake, steer, handbrake: false, nitro };
   }
 }

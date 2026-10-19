@@ -151,8 +151,9 @@ Object.assign(Combat.prototype, {
   // Did that round come through your glass into someone? Windscreen: either of you; a side window: whoever sits
   // on that side (you on the left, your driver on the right); the back window, now and then.
   cabinHit(pr) {
-    const p = this.player, rel = wrapAngle(Math.atan2(-pr.vy, -pr.vx) - p.heading); // 0: from dead ahead, +: from the left
+    const p = this.player, rel = wrapAngle(Math.atan2(-pr.vy, -pr.vx) - p.heading); // 0: from dead ahead, +: from the right (your side)
     const a = Math.abs(rel);
+    if (this.leanOut) return this.leanHit(rel); // hanging out of the window (js/lean.js)
     if (a < 0.9) return this.rng() < (this.glassOut ? GLASS_FX.front : CABIN.front) ? (this.rng() < 0.5 ? 'driver' : 'you') : null; // (no windshield: far more gets in)
     if (a < 2.2) return this.rng() < CABIN.side ? (rel > 0 ? 'you' : 'driver') : null;
     return this.rng() < CABIN.back ? (this.rng() < 0.5 ? 'driver' : 'you') : null;
