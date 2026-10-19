@@ -964,6 +964,7 @@ class Combat {
           if (role) this.woundCrew(c, role, pr.dmg * (pr.type === 'harpoon' ? 2.5 : 1), pr.owner);
           const tyre = !role && pr.type === 'bullet' && this.bulletTyre(c, pr); // or into a tyre
           this.hitCar(c, pr.dmg * (tyre ? 0.5 : 1) * (you === 'you' ? ROOF.youDmg : 1), pr.owner, Math.atan2(-pr.vy, -pr.vx), 0.985, you === 'you' ? 'exposed' : pr.type === 'flame' ? 'fire' : 'bullet');
+          if (pr.owner === p && c !== p && pr.type !== 'flame') this.events.push({ type: 'impact', car: c, x: pr.x, y: pr.y, ang: Math.atan2(pr.vy, pr.vx), dmg: pr.dmg * (pr.type === 'harpoon' ? 2 : 1) }); // where your round landed (js/cockpit3d.js)
           if (pr.puncture && c !== pr.owner) { // nails in the tyres: each one drags a little more
             c.slowDrag = Math.min(2.2, (c.slowT > 0 ? c.slowDrag : 0) + pr.puncture * 0.25);
             c.slowT = 1.5;

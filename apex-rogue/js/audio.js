@@ -3,17 +3,19 @@
 // Everything loud also feeds a short generated reverb (the slap off concrete), and things that happen away from you
 // (explosions, rival fire) are quieter and more muffled the further off they are (Sound.listener, set each frame).
 
-// Each gun's report: body filter frequency f and length d, the thump's pitch lo, levels, and the reverb send.
+// Each gun's report: body filter frequency f and length d, the thump's pitch lo, levels, and the reverb send; sub
+// is the low drop you feel in your chest more than hear, tail the report rolling away off the buildings, and duck
+// how far the engine, the music and the weather dip under the shot so it cuts through everything.
 const GUN_SOUND = {
-  pistol: { f: 1500, d: 0.11, lo: 140, crack: 0.35, body: 0.32, thump: 0.18, wet: 0.35, mech: 0.04 },
-  smg: { f: 2100, d: 0.07, lo: 170, crack: 0.25, body: 0.2, thump: 0.1, wet: 0.25, mech: 0.05 },
-  drum: { f: 1900, d: 0.08, lo: 150, crack: 0.25, body: 0.22, thump: 0.12, wet: 0.25, mech: 0.05 },
-  carbine: { f: 1900, d: 0.1, lo: 120, crack: 0.33, body: 0.26, thump: 0.15, wet: 0.35, mech: 0.04 },
-  liberty: { f: 1100, d: 0.28, lo: 80, crack: 0.45, body: 0.42, thump: 0.3, wet: 0.55 },
-  typewriter: { f: 1600, d: 0.07, lo: 160, crack: 0.22, body: 0.18, thump: 0.08, wet: 0.2, mech: 0.07 },
-  lmg: { f: 1200, d: 0.12, lo: 95, crack: 0.33, body: 0.3, thump: 0.18, wet: 0.35, mech: 0.05 },
-  pangun: { f: 1050, d: 0.13, lo: 85, crack: 0.33, body: 0.3, thump: 0.2, wet: 0.35, mech: 0.05 },
-  shotgun: { f: 850, d: 0.26, lo: 75, crack: 0.5, body: 0.5, thump: 0.35, wet: 0.5 },
+  pistol: { f: 1500, d: 0.12, lo: 140, crack: 0.42, body: 0.36, thump: 0.24, sub: 0.18, tail: 0.06, wet: 0.4, mech: 0.05, duck: 0.25 },
+  smg: { f: 2100, d: 0.07, lo: 170, crack: 0.3, body: 0.22, thump: 0.13, sub: 0.06, wet: 0.28, mech: 0.05, duck: 0.12 },
+  drum: { f: 1900, d: 0.08, lo: 150, crack: 0.3, body: 0.24, thump: 0.15, sub: 0.07, wet: 0.28, mech: 0.05, duck: 0.12 },
+  carbine: { f: 1900, d: 0.11, lo: 120, crack: 0.4, body: 0.3, thump: 0.2, sub: 0.12, tail: 0.04, wet: 0.38, mech: 0.04, duck: 0.18 },
+  liberty: { f: 1100, d: 0.3, lo: 80, crack: 0.55, body: 0.5, thump: 0.4, sub: 0.45, tail: 0.18, wet: 0.6, duck: 0.55 },
+  typewriter: { f: 1600, d: 0.08, lo: 150, crack: 0.28, body: 0.22, thump: 0.12, sub: 0.07, wet: 0.24, mech: 0.08, duck: 0.12 },
+  lmg: { f: 1200, d: 0.13, lo: 95, crack: 0.4, body: 0.36, thump: 0.24, sub: 0.18, tail: 0.05, wet: 0.38, mech: 0.05, duck: 0.2 },
+  pangun: { f: 1050, d: 0.14, lo: 85, crack: 0.4, body: 0.36, thump: 0.26, sub: 0.2, tail: 0.06, wet: 0.38, mech: 0.05, duck: 0.22 },
+  shotgun: { f: 850, d: 0.3, lo: 70, crack: 0.6, body: 0.6, thump: 0.45, sub: 0.6, tail: 0.22, wet: 0.55, duck: 0.65 },
 };
 
 const Sound = {
@@ -31,7 +33,12 @@ const Sound = {
     const c = this.ctx;
     this.master = c.createGain();
     this.master.gain.value = this.muted ? 0 : 0.5 * this.volume;
-    this.master.connect(c.destination);
+    // A compressor at the end: the guns can hit hard without clipping, and everything else sits under them.
+    this.comp = c.createDynamicsCompressor();
+    this.comp.threshold.value = -12; this.comp.knee.value = 8; this.comp.ratio.value = 4; this.comp.attack.value = 0.003; this.comp.release.value = 0.18;
+    this.master.connect(this.comp); this.comp.connect(c.destination);
+    // The bed: the engine, the music and the weather, which dip under your own shots (Sound.duck).
+    this.bed = c.createGain(); this.bed.connect(this.master);
 
     this.engFilter = c.createBiquadFilter();
     this.engFilter.type = 'lowpass';
@@ -39,7 +46,7 @@ const Sound = {
     this.engGain = c.createGain();
     this.engGain.gain.value = 0;
     this.engFilter.connect(this.engGain);
-    this.engGain.connect(this.master);
+    this.engGain.connect(this.bed);
     this.osc1 = c.createOscillator();
     this.osc1.type = 'sawtooth';
     this.osc2 = c.createOscillator();
@@ -125,7 +132,45 @@ const Sound = {
     this.layer({ f: 5200 * k, type: 'highpass', dur: 0.012, vol: G.crack, q: 0.5 });
     this.layer({ f: G.f * k, to: G.f * 0.3, dur: G.d, vol: G.body, q: 0.7, wet: G.wet });
     this.thump(G.lo * 2.2 * k, G.lo, Math.min(0.18, G.d * 1.2), G.thump, G.wet * 0.6);
+    if (G.sub) this.thump(G.lo * 0.9 * k, 34, 0.12 + G.sub * 0.3, G.sub); // the chest punch
+    if (G.tail) this.layer({ f: 800 * k, to: 140, type: 'lowpass', dur: 0.4 + G.tail * 2.5, vol: G.tail, at: 0.04, atk: 0.03, q: 0.5, wet: 0.7 }); // rolling away down the street
     if (G.mech) this.layer({ f: 2400, dur: 0.025, vol: G.mech, at: 0.035 + Math.random() * 0.01, q: 3 });
+    this.duck(G.duck || 0.1);
+  },
+  // Everything else dips for a moment under your shot, then swells back.
+  duck(k) {
+    if (!this.bed) return;
+    const g = this.bed.gain, t = this.ctx.currentTime, now = Math.min(1, g.value);
+    g.cancelScheduledValues(t); g.setValueAtTime(now, t); g.linearRampToValueAtTime(Math.min(now, 1 - k), t + 0.008); g.setTargetAtTime(1, t + 0.05, 0.1 + k * 0.15);
+  },
+  // The launchers: the rocket's motor lighting with a bang and a roar, the harpoon's spring and its line paying
+  // out, the flare's pop and fizz, the nail gun's air hammer.
+  launch(w) {
+    if (w === 'rocket') {
+      this.layer({ f: 4200, type: 'highpass', dur: 0.02, vol: 0.5, q: 0.5 });
+      this.thump(130, 32, 0.5, 0.7, 0.5);
+      this.layer({ f: 1600, to: 180, type: 'lowpass', dur: 0.8, vol: 0.55, atk: 0.006, q: 0.6, wet: 0.6 }); // the backblast roar
+      this.layer({ f: 3200, to: 1400, dur: 0.6, vol: 0.14, at: 0.05, atk: 0.04, q: 1.2 }); // the motor's hiss going away
+      this.duck(0.75);
+    } else if (w === 'harpoon') {
+      this.layer({ f: 4000, type: 'highpass', dur: 0.015, vol: 0.4, q: 0.5 });
+      this.thump(170, 50, 0.2, 0.7, 0.35);
+      this.layer({ f: 1900, dur: 0.08, vol: 0.5, q: 5 }); // the clank of the spring letting go
+      this.layer({ f: 3400, to: 1100, dur: 0.4, vol: 0.09, at: 0.03, atk: 0.02, q: 3 }); // the line whipping out
+      this.tone(98, 0.3, 'sawtooth', 0.05);
+      this.duck(0.4);
+    } else if (w === 'flare') {
+      this.layer({ f: 3000, type: 'highpass', dur: 0.015, vol: 0.55, q: 0.5 });
+      this.thump(220, 60, 0.16, 0.6, 0.4);
+      this.layer({ f: 2200, to: 700, dur: 0.5, vol: 0.12, at: 0.03, atk: 0.03, q: 1, wet: 0.3 }); // the fizz
+      this.duck(0.3);
+    } else if (w === 'nail') {
+      this.layer({ f: 5000, type: 'highpass', dur: 0.01, vol: 0.3, q: 0.5 }); // the hammer striking
+      this.layer({ f: 2600 * (0.9 + Math.random() * 0.2), dur: 0.045, vol: 0.4, q: 1.5 });
+      this.thump(260, 100, 0.05, 0.3);
+      this.layer({ f: 6500, type: 'highpass', dur: 0.07, vol: 0.1, at: 0.01, q: 0.5 }); // the air
+      this.duck(0.06);
+    }
   },
   // An explosion: a sub-bass drop, a long roar, crackle, and debris pattering down after; muffled with distance.
   boom(ev) {
@@ -273,11 +318,11 @@ const Sound = {
       case 'jump': this.noiseBurst(0.35, 600, 0.12, 1800); break;
       case 'land': this.noiseBurst(0.3, 160, Math.min(0.6, 0.15 + ev.power / 900), 60); this.tone(60, 0.2, 'sine', Math.min(0.3, ev.power / 1500)); break;
       case 'scatter': this.noiseBurst(0.25, 220, 0.3, 90); break;
-      case 'nail': this.noiseBurst(0.05, 3200, 0.1, 1800); break;
+      case 'nail': this.launch('nail'); break;
       case 'ping': setTimeout(() => { this.tone(2650, 0.35, 'sine', 0.09); this.tone(3980, 0.18, 'sine', 0.04); }, 60); break; // the empty clip
       case 'flame': this.noiseBurst(0.09, 500, 0.05, 160); break;
-      case 'harpoon': this.noiseBurst(0.25, 900, 0.2, 300); this.tone(180, 0.2, 'sawtooth', 0.05); break;
-      case 'rocket': this.noiseBurst(0.4, 1200, 0.3, 200); break;
+      case 'harpoon': this.launch('harpoon'); break;
+      case 'rocket': this.launch('rocket'); break;
       case 'enemyShot': { const F = this.far(ev); this.layer({ f: 1800, to: 500, dur: 0.07, vol: 0.12 * F.vol, cut: F.cut, wet: 0.5 }); this.thump(140, 70, 0.06, 0.05 * F.vol); break; } // their rounds: a duller crack the further off
       case 'enemyRocket': { const F = this.far(ev); this.layer({ f: 900, to: 200, dur: 0.45, vol: 0.2 * F.vol, cut: F.cut, wet: 0.4, atk: 0.02 }); break; }
       case 'explode': this.boom(ev); break;
@@ -324,7 +369,7 @@ const Sound = {
       case 'mine': this.tone(180, 0.1, 'square', 0.08); break;
       case 'switch': this.tone(900, 0.04, 'square', 0.06); break;
       case 'shotgun': this.gunshot('shotgun'); break;
-      case 'flare': this.noiseBurst(0.3, 1800, 0.18, 600); this.tone(300, 0.2, 'sine', 0.1); break;
+      case 'flare': this.launch('flare'); break;
       case 'reload': this.tone(320, 0.05, 'square', 0.08); setTimeout(() => this.tone(260, 0.05, 'square', 0.08), 120); break;
       case 'reloaded': this.tone(520, 0.05, 'square', 0.08); break;
       case 'smoke': this.noiseBurst(0.8, 300, 0.2, 120); break;

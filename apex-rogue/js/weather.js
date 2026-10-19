@@ -259,7 +259,7 @@ const WeatherSound = {
     }
     this.out = c.createGain();
     this.out.gain.value = 0;
-    this.out.connect(Sound.master);
+    this.out.connect(Sound.bed || Sound.master);
     this.nodes = [];
     const bed = (type, freq, q, vol) => {
       const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();

@@ -58,8 +58,8 @@ const Music = {
     if (this.cfg.lowpass) { // a muffled mix (rain on the roof)
       this.lp = c.createBiquadFilter();
       this.lp.type = 'lowpass'; this.lp.frequency.value = this.cfg.lowpass; this.lp.Q.value = 0.5;
-      this.bus.connect(this.lp); this.lp.connect(Sound.master);
-    } else this.bus.connect(Sound.master);
+      this.bus.connect(this.lp); this.lp.connect(Sound.bed || Sound.master);
+    } else this.bus.connect(Sound.bed || Sound.master);
     this.makeDuck(c);
     this.bar = 0;
     this.step = 0;

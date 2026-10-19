@@ -312,6 +312,21 @@ volume and looks for overlaps.
 - **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
   turning in place inside your own neck.
 
+### Guns that hit hard (prototype)
+
+- **In your hands** (`FIRE_KICK` and `RECOIL` in js/cockpit3d.js): every gun kicks harder, and part of the kick
+  lands on the frame it goes off (a punch, not a push), then settles on springs. The view takes the hit too: a
+  snap up, a twist of the head, and on the big guns a split-second widening of the view (the blast filling your
+  eyes) and a jolt through the seat. Rifle, shotgun and rocket throw your aim up further.
+- **In your ears** (`GUN_SOUND` in js/audio.js): a sub-bass drop under every report you feel more than hear, the
+  big guns' reports rolling away down the street, and the engine, the music and the rain ducking under each of
+  your shots so they cut through. The rocket, harpoon, flare and nail gun have real launch sounds now (a backblast
+  roar, a spring and a whipping line, a pop and fizz, an air hammer). A compressor on the master keeps it from
+  clipping.
+- **On the target**: your rounds throw sparks off the panel where they land, back the way they came and carried
+  along with the car, and knock the body over on its springs, more the heavier the round (a load of buckshot rocks
+  it up to about 15 degrees).
+
 ### Your driver dodges, and you can lean out (prototype)
 
 - **Dodging** (`DODGE` in js/dodge.js): your driver watches for rockets coming at the car and mines on the road

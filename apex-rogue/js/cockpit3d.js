@@ -35,30 +35,33 @@ function canvasTex(w, h) {
 }
 
 // How each gun bucks when it fires: push back (z), muzzle climb (pitch), a random sideways jitter (yaw) and roll,
-// a punch to the view, the size of the muzzle flash, smoke, and how hard the flash lights the cabin.
+// a punch to the view (cam: pitch, croll: a twist of the head), a widening of the view for a split second (fov,
+// degrees: the blast filling your eyes), a jolt through the seat (shake), the size of the muzzle flash, smoke, and
+// how hard the flash lights the cabin. Some of the kick lands at once (it's a punch, not a push) and the rest
+// arrives on springs and settles.
 const FIRE_KICK = {
-  pistol: { back: 0.55, climb: 0.2, yaw: 0.04, roll: 0.06, cam: 0.012, flash: 1, smoke: 0.5, light: 1 },
-  smg: { back: 0.32, climb: 0.07, yaw: 0.035, roll: 0.03, cam: 0.005, flash: 0.85, smoke: 0.25, light: 0.8 },
-  nailgun: { back: 0.28, climb: 0.06, yaw: 0.03, roll: 0.02, cam: 0.003, flash: 0, smoke: 0.15, light: 0 },
-  shotgun: { back: 1.3, climb: 0.38, yaw: 0.05, roll: 0.14, cam: 0.035, flash: 1.9, smoke: 1, light: 1.6 },
-  rocket: { back: 1.4, climb: 0.16, yaw: 0.03, roll: 0.05, cam: 0.04, flash: 2.6, smoke: 2, light: 2 },
-  flare: { back: 0.8, climb: 0.4, yaw: 0.04, roll: 0.1, cam: 0.02, flash: 1.3, smoke: 0.8, light: 1.2, color: '#ff6a3a' },
-  harpoon: { back: 0.9, climb: 0.14, yaw: 0.02, roll: 0.04, cam: 0.015, flash: 0, smoke: 0, light: 0 },
-  flamer: { back: 0.04, climb: 0.01, yaw: 0.015, roll: 0.01, cam: 0, flash: 0, smoke: 0, light: 0.5, color: '#ff7a2a' },
-  carbine: { back: 0.42, climb: 0.1, yaw: 0.035, roll: 0.03, cam: 0.008, flash: 1, smoke: 0.3, light: 0.9 },
-  liberty: { back: 0.95, climb: 0.3, yaw: 0.04, roll: 0.08, cam: 0.025, flash: 1.4, smoke: 0.7, light: 1.3 },
-  typewriter: { back: 0.36, climb: 0.14, yaw: 0.05, roll: 0.04, cam: 0.007, flash: 1.1, smoke: 0.35, light: 0.9 },
-  lmg: { back: 0.5, climb: 0.09, yaw: 0.05, roll: 0.04, cam: 0.012, flash: 1.3, smoke: 0.45, light: 1.1 },
-  pangun: { back: 0.55, climb: 0.1, yaw: 0.045, roll: 0.04, cam: 0.013, flash: 1.3, smoke: 0.5, light: 1.1 },
+  pistol: { back: 0.7, climb: 0.3, yaw: 0.05, roll: 0.09, cam: 0.02, croll: 0.01, fov: 0.6, flash: 1, smoke: 0.5, light: 1 },
+  smg: { back: 0.38, climb: 0.09, yaw: 0.04, roll: 0.035, cam: 0.008, croll: 0.004, fov: 0.25, flash: 0.85, smoke: 0.25, light: 0.8 },
+  nailgun: { back: 0.32, climb: 0.07, yaw: 0.03, roll: 0.02, cam: 0.004, fov: 0, flash: 0, smoke: 0.15, light: 0 },
+  shotgun: { back: 1.8, climb: 0.55, yaw: 0.06, roll: 0.2, cam: 0.06, croll: 0.03, fov: 3, shake: 0.35, flash: 1.9, smoke: 1, light: 1.6 },
+  rocket: { back: 1.9, climb: 0.22, yaw: 0.04, roll: 0.07, cam: 0.07, croll: 0.02, fov: 4, shake: 0.55, flash: 2.6, smoke: 2, light: 2 },
+  flare: { back: 1.0, climb: 0.5, yaw: 0.05, roll: 0.12, cam: 0.03, croll: 0.012, fov: 1.2, flash: 1.3, smoke: 0.8, light: 1.2, color: '#ff6a3a' },
+  harpoon: { back: 1.3, climb: 0.2, yaw: 0.03, roll: 0.06, cam: 0.03, croll: 0.01, fov: 1.5, shake: 0.15, flash: 0, smoke: 0, light: 0 },
+  flamer: { back: 0.04, climb: 0.01, yaw: 0.015, roll: 0.01, cam: 0, fov: 0, flash: 0, smoke: 0, light: 0.5, color: '#ff7a2a' },
+  carbine: { back: 0.5, climb: 0.13, yaw: 0.04, roll: 0.035, cam: 0.012, croll: 0.005, fov: 0.35, flash: 1, smoke: 0.3, light: 0.9 },
+  liberty: { back: 1.4, climb: 0.45, yaw: 0.05, roll: 0.12, cam: 0.05, croll: 0.02, fov: 2.2, shake: 0.2, flash: 1.4, smoke: 0.7, light: 1.3 },
+  typewriter: { back: 0.42, climb: 0.17, yaw: 0.06, roll: 0.05, cam: 0.01, croll: 0.006, fov: 0.3, flash: 1.1, smoke: 0.35, light: 0.9 },
+  lmg: { back: 0.6, climb: 0.11, yaw: 0.06, roll: 0.05, cam: 0.016, croll: 0.006, fov: 0.45, shake: 0.06, flash: 1.3, smoke: 0.45, light: 1.1 },
+  pangun: { back: 0.7, climb: 0.13, yaw: 0.055, roll: 0.05, cam: 0.02, croll: 0.007, fov: 0.55, shake: 0.08, flash: 1.3, smoke: 0.5, light: 1.1 },
 };
 // Recoil you have to fight: each shot throws your view up (v, radians) and kicks it sideways at random (h, which
 // does move your aim); once you stop firing, most of the climb settles back (rec, the share that comes back). Aiming
 // down the sights and the braced roof mount both cut it.
 const RECOIL = {
-  pistol: { v: 0.022, h: 0.006, rec: 0.8 }, smg: { v: 0.011, h: 0.009, rec: 0.75 }, nailgun: { v: 0.005, h: 0.004, rec: 0.9 },
-  shotgun: { v: 0.075, h: 0.012, rec: 0.8 }, rocket: { v: 0.055, h: 0.006, rec: 0.85 }, flare: { v: 0.04, h: 0.008, rec: 0.85 },
-  harpoon: { v: 0.045, h: 0.006, rec: 0.85 }, flamer: { v: 0.001, h: 0.002, rec: 1 }, carbine: { v: 0.014, h: 0.006, rec: 0.75 },
-  liberty: { v: 0.06, h: 0.01, rec: 0.8 }, typewriter: { v: 0.016, h: 0.013, rec: 0.6 }, lmg: { v: 0.013, h: 0.01, rec: 0.7 },
+  pistol: { v: 0.026, h: 0.006, rec: 0.8 }, smg: { v: 0.011, h: 0.009, rec: 0.75 }, nailgun: { v: 0.005, h: 0.004, rec: 0.9 },
+  shotgun: { v: 0.09, h: 0.012, rec: 0.8 }, rocket: { v: 0.065, h: 0.006, rec: 0.85 }, flare: { v: 0.04, h: 0.008, rec: 0.85 },
+  harpoon: { v: 0.05, h: 0.006, rec: 0.85 }, flamer: { v: 0.001, h: 0.002, rec: 1 }, carbine: { v: 0.014, h: 0.006, rec: 0.75 },
+  liberty: { v: 0.075, h: 0.01, rec: 0.8 }, typewriter: { v: 0.016, h: 0.013, rec: 0.6 }, lmg: { v: 0.013, h: 0.01, rec: 0.7 },
   pangun: { v: 0.016, h: 0.011, rec: 0.7 },
 };
 
@@ -1073,7 +1076,7 @@ class CockpitView {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: Cockpit3DTex.puff(), color: '#a09a90', transparent: true, depthWrite: false, opacity: 0 }));
       m.visible = false; this.vmCamera.add(m); this.gunSmoke.push({ m, t: 9, life: 1 });
     }
-    this.kick = { z: 0, vz: 0, p: 0, vp: 0, y: 0, vy: 0, r: 0, vr: 0, cp: 0, vcp: 0 };
+    this.kick = { z: 0, vz: 0, p: 0, vp: 0, y: 0, vy: 0, r: 0, vr: 0, cp: 0, vcp: 0, cr: 0, vcr: 0, f: 0, vf: 0 };
     this.vm = { root: vm, guns, flash };
     // Your free left hand, for emotes: one sculpted gesture each (the beckon has two, curling between them).
     this.emoteHands = {};
@@ -1293,6 +1296,7 @@ class CockpitView {
     if (ev.type === 'eject') this.eject(ev);
     if (ev.type === 'emote') this.emoteAnim = { id: ev.id, t: 0 };
     if (ev.type === 'deflect') this.sparkAt(ev.x, ev.y, 5);
+    if (ev.type === 'impact') this.impact(ev);
     if (ev.type === 'gunnerHit') { this.shake = Math.max(this.shake, 1.0); this.hitRed = 0.5; }
     if (ev.type === 'thrown') { this.shake = Math.max(this.shake, 0.6 + ev.f); if (this.cabinMo) { this.cabinMo.vroll += (Math.random() - 0.5) * 3 * ev.f; this.cabinMo.vpitch -= 1.5 * ev.f; } }
     if (ev.type === 'ownDriverHit') { this.shake = Math.max(this.shake, 0.5); this.hitRed = Math.max(this.hitRed || 0, 0.3); }
@@ -1307,7 +1311,7 @@ class CockpitView {
     if (FIRE_EVENTS.includes(ev.type)) {
       const k = FIRE_KICK[this.combat.weapon.id] || FIRE_KICK.smg, soft = this.combat.buffs && this.combat.buffs.kick; // whiskey: a steadier hand
       const ads = 1 - (1 - ADS.recoil) * (this.adsK || 0); // down the sights, the gun kicks less in your hands too
-      this.fireKick(Object.assign({}, k, { back: k.back * (soft || 1) * ads, climb: k.climb * (soft || 1) * ads, yaw: k.yaw * (soft || 1) * ads, roll: k.roll * (soft || 1) * ads, cam: k.cam * (soft || 1) * ads }));
+      this.fireKick(Object.assign({}, k, { back: k.back * (soft || 1) * ads, climb: k.climb * (soft || 1) * ads, yaw: k.yaw * (soft || 1) * ads, roll: k.roll * (soft || 1) * ads, cam: k.cam * (soft || 1) * ads, croll: (k.croll || 0) * (soft || 1) * ads, fov: (k.fov || 0) * (soft || 1), shake: (k.shake || 0) * (soft || 1) * (this.combat.exposed ? 0.6 : 1) }));
       this.recoil2(this.combat.weapon.id, soft || 1);
     }
     if (ev.type === 'explode') this.burst(ev.x, ev.y, ev.big);
@@ -1684,7 +1688,7 @@ class CockpitView {
     const yw = this.look.yaw;
     const dir = new THREE.Vector3(Math.cos(yw) * Math.cos(pt), Math.sin(pt), Math.sin(yw) * Math.cos(pt)).applyQuaternion(this.playerGroup.quaternion);
     // Down the sights the view narrows a little (and the held gun's with it, less).
-    const ak = this.adsK || 0, fov = 74 * (1 - (1 - ADS.fov) * ak), vfov = 74 * (1 - 0.12 * ak);
+    const ak = this.adsK || 0, fov = 74 * (1 - (1 - ADS.fov) * ak) + (this.kick ? clamp(this.kick.f, -1, 6) : 0), vfov = 74 * (1 - 0.12 * ak);
     if (Math.abs(this.camera.fov - fov) > 0.01) { this.camera.fov = fov; this.camera.updateProjectionMatrix(); }
     if (Math.abs(this.vmCamera.fov - vfov) > 0.01) { this.vmCamera.fov = vfov; this.vmCamera.updateProjectionMatrix(); }
     this.camera.position.copy(eye);
@@ -1693,7 +1697,7 @@ class CockpitView {
     // Where the camera sits in the car (for reaching to things in the cabin next frame; see rackPoint).
     this.camera.updateMatrixWorld(); this.playerGroup.updateWorldMatrix(true, false);
     this.camInCar = this.playerGroup.matrixWorld.clone().invert().multiply(this.camera.matrixWorld);
-    if (this.kick) this.camera.rotateX(this.kick.cp); // the punch of a big gun going off
+    if (this.kick) { this.camera.rotateX(this.kick.cp); this.camera.rotateZ(this.kick.cr); } // the punch of a big gun going off
     if (lk > 0) this.camera.rotateZ(0.09 * lk * Math.cos(this.look.yaw)); // the head tipped out against the frame
     this.camera.rotateZ(clamp(this.acc.lat * 0.00012, -0.08, 0.08) * Math.cos(yw) * sway);
     // Drunk (pruno, whiskey): the cabin swims. Only the view moves, not where the gun points, so your aim drifts off
@@ -1778,6 +1782,21 @@ class CockpitView {
       const c = Math.cos(car.heading), s = Math.sin(car.heading);
       this.puffs.push({ x: car.x - c * 19, y: car.y - s * 19, t: 0, exh: true });
     }
+  }
+
+  // One of your rounds landing on a rival: a spray of sparks off the panel where it hit, thrown back the way it
+  // came and carried along with the car, and the body knocked over by it (more the heavier the round: a pistol
+  // round flicks it, a rifle round or a load of buckshot rocks it on its springs).
+  impact(ev) {
+    const c = ev.car, m = this.carMeshes && this.carMeshes.get(c), k = Math.min(1, ev.dmg / 11);
+    for (let i = 0, n = 2 + Math.round(k * 7); i < n && this.sparks.length < this.sparkPool.length; i++) {
+      const a = ev.ang + Math.PI + (Math.random() - 0.5) * 2.2, sp = 80 + Math.random() * 160 * (0.5 + k);
+      this.sparks.push({ x: ev.x, y: ev.y, z: 4 + Math.random() * 6, vx: c.vx + Math.cos(a) * sp, vy: c.vy + Math.sin(a) * sp, vz: 20 + Math.random() * 70 * (0.5 + k), t: 0, life: 0.18 + Math.random() * 0.25 * (0.6 + k) });
+    }
+    if (!m || !m.mo) return;
+    const h = c.heading, side = -Math.cos(ev.ang) * Math.sin(h) + Math.sin(ev.ang) * Math.cos(h), fwd = Math.cos(ev.ang - h);
+    m.mo.vroll = clamp(m.mo.vroll + side * (0.3 + k * 2.2) * (0.8 + Math.random() * 0.4), -3, 3); // shoved away from the shot (a load of buckshot: up to about 15 degrees)
+    m.mo.vpitch = clamp(m.mo.vpitch + fwd * (0.2 + k * 1.4), -2, 2);
   }
 
   sparkAt(x, y, n) {
@@ -2264,6 +2283,11 @@ class CockpitView {
     K.vy += k.yaw * j() * 12;
     K.vr += k.roll * j() * 12;
     K.vcp += k.cam * 30;
+    // The punch lands at once: part of the shove and the climb are there on the frame it goes off.
+    K.z += k.back * 0.35; K.p += k.climb * 0.3; K.cp += k.cam * 0.35;
+    K.vcr += (k.croll || 0) * (Math.random() < 0.5 ? -1 : 1) * (24 + Math.random() * 10);
+    K.f += (k.fov || 0) * 0.6; K.vf += (k.fov || 0) * 30;
+    if (k.shake) this.shake = Math.max(this.shake, k.shake);
     if (k.flash) { // about two frames: a real flash is gone almost as soon as you see it
       this.flash = 0.032 + k.flash * 0.006; this.flashK = k.flash;
       const fl = this.vm.flash.userData, tint = k.color || '#ffffff', vars = Cockpit3DTex.flash();
@@ -2291,7 +2315,7 @@ class CockpitView {
     const K = this.kick;
     for (let s = 0; s < 2; s++) {
       const h = dt / 2;
-      for (const [x, v, kk, cc] of [['z', 'vz', 210, 19], ['p', 'vp', 210, 19], ['y', 'vy', 170, 19], ['r', 'vr', 190, 19], ['cp', 'vcp', 260, 26]]) {
+      for (const [x, v, kk, cc] of [['z', 'vz', 210, 19], ['p', 'vp', 210, 19], ['y', 'vy', 170, 19], ['r', 'vr', 190, 19], ['cp', 'vcp', 260, 26], ['cr', 'vcr', 240, 24], ['f', 'vf', 320, 34]]) {
         K[v] += (-kk * K[x] - cc * K[v]) * h;
         K[x] += K[v] * h;
       }
