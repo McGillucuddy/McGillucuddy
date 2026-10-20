@@ -11,7 +11,7 @@ rm -rf "$OUT" && mkdir -p "$OUT/js" "$OUT/vendor"
 # The page itself: mark it as a release (hides dev-only links) and stamp the build.
 sed "s#<script src=\"vendor/three.min.js\"></script>#<script>window.RELEASE = true; window.BUILD = '${BUILD}';</script>\n  <script src=\"vendor/three.min.js\"></script>#" prototype.html > "$OUT/index.html"
 grep -q "window.RELEASE" "$OUT/index.html" || { echo "release.sh: couldn't stamp index.html"; exit 1; }
-cp style.css "$OUT/"
+cp style.css fonts.css "$OUT/"
 cp vendor/three.min.js vendor/three.LICENSE "$OUT/vendor/"
 for f in $(grep -o 'src="js/[^"]*"' prototype.html | sed 's/src="//; s/"$//'); do cp "$f" "$OUT/$f"; done
 ZIP="dist/death-row-derby-$(date +%Y%m%d)-${SHA}.zip"

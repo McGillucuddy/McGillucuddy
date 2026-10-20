@@ -1143,6 +1143,7 @@ const Proto = {
       ${c.isBoss ? '<em class="tag yellow">👑 Boss</em>' : ''}${c.bounty ? `<em class="tag yellow">💰 ${c.bounty}</em>` : ''}${c.weapon === 'rocket' ? '<em class="tag red">🚀 Rocket gunner</em>' : c.weapon === 'mine' ? '<em class="tag yellow">💣 Mine layer</em>' : c.weapon === 'gun' ? '<em class="tag red">🔫 Gunner</em>' : ''}</div>`).join('');
     const boosts = tr.hazards.filter((h) => h.type === 'boost').length, oils = tr.hazards.length - boosts;
     this.setUI(`<div class="screen briefing">
+      <div class="doc-head"><span>Warden Corp · Race booking sheet</span><span>Race no. ${String(this.build.race + 1).padStart(3, '0')} · inmate ${this.cos.inmate || '4471'}</span></div>
       <h1>${race.node.tutorial ? 'Tutorial: practice race' : race.boss ? 'Qualifier: ' + race.boss.name : race.node.type === 'elite' ? 'Elite race' : race.node.type === 'bounty' ? 'Bounty race' : 'Race briefing'}</h1>
       <p class="act-line">Act ${ROMAN[this.run.act]} · ${this.act.title}${race.boss && race.boss.mustWin ? ' · <b class="bad">FINAL: win it or stay a prisoner</b>' : ''}</p>
       <p class="wx-line"><span>${wxOf(race.weather).icon}</span> <b>${wxOf(race.weather).name}.</b> ${wxOf(race.weather).desc}</p>
@@ -1324,7 +1325,10 @@ const Proto = {
     if (!ok) b.strikes++;
     const parts = PART_SLOTS.map((slot) => `<span class="${b.parts[slot].dur <= 0 ? 'bad' : ''}">${SLOT_NAMES[slot]} ${b.parts[slot].dur <= 0 ? 'BROKEN' : Math.round((100 * b.parts[slot].dur) / partMaxDur(b, b.parts[slot].id)) + '%'}</span>`).join(' · ');
     const rows = race.ranking.map((c, i) => `<tr class="${c.isPlayer ? 'me' : ''}"><td>${i + 1}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}${c.weapon ? ' ⚔' : ''}</td><td>${c.finished ? fmtTime(c.finishTime) : c.wrecked || (c.isPlayer && c.dnf) ? '<b class="bad">WRECKED</b>' : '—'}</td><td>${Math.ceil(c.hp)} HP</td></tr>`).join('');
+    const stamp = p.dnf ? 'Wrecked' : ok ? (boss && boss.mustWin ? 'Crowned' : boss ? 'Qualified' : 'Passed') : `Strike ${b.strikes}`;
     this.setUI(`<div class="screen results">
+      <div class="doc-head"><span>Warden Corp · Incident report</span><span>Race no. ${String(b.race).padStart(3, '0')} · Act ${ROMAN[run.act]}</span></div>
+      <div class="rubber ${ok ? 'ok' : ''}">${stamp}</div>
       <h1 class="${ok ? 'good' : 'bad'}">${p.dnf ? 'Wrecked' : ordinal(p.place) + ' place'}: ${ok ? (boss ? (boss.mustWin ? 'you won the Crown' : boss.name + ' beaten') : 'you survived') : 'strike ' + b.strikes + ' of ' + STRIKES_TO_LOSE}</h1>
       <p class="muted">${boss ? (ok ? (boss.mustWin ? 'The upper city is on its feet.' : 'You qualify for the next act.') : `${boss.name} is still ahead of you. Patch up and face them again.`) : ok ? 'Top 3 keeps the warden happy.' : 'Finish outside the top 3 three times and the run is over.'}</p>
       <div class="results-grid">

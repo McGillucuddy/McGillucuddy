@@ -317,6 +317,18 @@ volume and looks for overlaps.
 - **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
   turning in place inside your own neck.
 
+### Menus in the house style
+
+Every screen now speaks the game's language (`style.css`): the warden's paperwork, the garage's steel and rust,
+hazard yellow, the broadcast's typed amber. Buttons are steel plates; the one to press is a rust plate with a
+hazard-striped edge. The race briefing is a booking sheet clipped to a board (the circuit as a photo pinned to it),
+the results an incident report with a rubber stamp slammed on it (PASSED, QUALIFIED, CROWNED, STRIKE 2, WRECKED),
+rewards are manila tags hung a little crooked, the pause menu a steel plate under hazard stripes, and the end of a
+run is the verdict stamped across the screen. Fonts are bundled so it looks the same everywhere (`fonts/`, all SIL
+Open Font License 1.1, licences alongside): Anton for headlines, Courier Prime for anything typed, Black Ops One for
+stencils and stamps. They're inlined into `fonts.css` by `tools/fonts.sh`, because browsers won't load font files
+from a page opened from disk.
+
 ### The engine (prototype)
 
 A big supercharged V8 with straight-through pipes, synthesized (`buildEngine` / `engine` in js/audio.js). One whole
