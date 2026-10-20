@@ -1204,6 +1204,7 @@ class Combat {
     if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
     this.cloverRefill();
     if (!c.downed) c.downed = { how };
+    if (how !== 'crowd' && this.voiceHook && (this.yellCd || 0) <= 0 && this.voiceHook('kill')) this.yellCd = 1.5; // your driver saw that (js/voice.js)
     if (how !== 'crowd' && this.fame) { // Infamy (js/infamy.js): a clean kill is the better show, and more so from up on the roof
       let n = this.fame(how === 'driver' ? INFAMY.clean : INFAMY.wreck, how === 'driver' ? 'CLEAN KILL' : 'WRECK');
       if (this.exposed) n += this.fame(INFAMY.roofWreck, 'FROM THE ROOF');

@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 SHA=$(git rev-parse --short HEAD 2>/dev/null || echo dev)
 BUILD="playtest $(date +%Y-%m-%d) ${SHA}"
 OUT=dist/death-row-derby
-rm -rf "$OUT" && mkdir -p "$OUT/js" "$OUT/vendor"
+rm -rf "$OUT" && mkdir -p "$OUT/js/voices" "$OUT/vendor"
 # The page itself: mark it as a release (hides dev-only links) and stamp the build.
 sed "s#<script src=\"vendor/three.min.js\"></script>#<script>window.RELEASE = true; window.BUILD = '${BUILD}';</script>\n  <script src=\"vendor/three.min.js\"></script>#" prototype.html > "$OUT/index.html"
 grep -q "window.RELEASE" "$OUT/index.html" || { echo "release.sh: couldn't stamp index.html"; exit 1; }

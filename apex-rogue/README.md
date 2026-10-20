@@ -317,6 +317,27 @@ volume and looks for overlaps.
 - **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
   turning in place inside your own neck.
 
+### Voices (prototype)
+
+Your driver talks, and you grunt (`js/voice.js`). The lines are real speech, made offline by
+`tools/make_voices.py` from `tools/voice_lines.json` with [Piper](https://github.com/rhasspy/piper) and the
+**LibriTTS** voices (CC BY 4.0, from LibriTTS by Zen et al., built on LibriSpeech/LibriVox), then roughed up with
+ffmpeg and carried in `js/voices/*.js` as small MP3s (a page opened from disk can't fetch files). Six driver voices:
+every inmate who drives for you gets one of their own (by their seed).
+
+- **Nerve:** how a driver says things depends on how many races you've done together, the bond (js/bond.js), their
+  trait and how badly they're hurt. Green, they're terrified: pitched up, hurried, shaking, swearing at everything
+  ("Oh fuck!", "Shit! Sorry! Sorry!", "We're gonna die!"). Steadier after a few races ("Damn it!", "Rocket! Hold
+  on!"). Hardened, nothing scares them ("Yeehaw!", "That all you got?", "Scratch one."). A getaway veteran starts
+  calm, a daredevil whoops at every jump, a cautious one stays scared longer, and a driver with half their blood on
+  the seat loses their nerve again.
+- **When:** off a ramp and landing, a hard crash, a blast that throws the car, a rocket or mine they're dodging, a
+  lock-on, a round through the glass (theirs, or yours: "Are you shooting me?!"), a rival you wreck, crossing the
+  line in the places, an order, and the green light. Each kind has its own cooldown, a more urgent line cuts off a
+  less urgent one, and the engine and music dip under what they say. It's subtitled.
+- **You:** a grunt when the car slams into something, a cry when a round finds you, an effort when you climb to
+  the roof, throw a grenade or kick the windshield out.
+
 ### Menus in the house style
 
 Every screen now speaks the game's language (`style.css`): the warden's paperwork, the garage's steel and rust,

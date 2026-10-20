@@ -71,14 +71,14 @@ Object.assign(Combat.prototype, {
   // The swerve itself, once they've reacted.
   doDodge(q) {
     if (q.car.finished || q.car.wrecked || (q.car === this.player && this.ownDriverDead)) return;
-    if (q.why === 'lock') { if (!this.hatchDown) { this.radio(['"It\'s locked on us! Hatch!"', '"Homer on our tail! Get down!"', '"Can\'t shake that one! Hatch!"']); this.yellCd = 2.5; } return; }
+    if (q.why === 'lock') { if (!this.hatchDown) { this.speakOr('lock', ['"It\'s locked on us! Hatch!"', '"Homer on our tail! Get down!"', '"Can\'t shake that one! Hatch!"']); this.yellCd = 2.5; } return; }
     if (q.lane != null && q.D.dodgeTo) q.D.dodgeTo(q.lane, q.hold); else q.D.swerve(q.side, q.hold || DODGE.hold);
     if (q.D.jink) q.D.jink(q.side, q.why === 'mine' ? 0.3 : DODGE.jink, q.brake);
     if (q.car !== this.player) return;
     this.events.push({ type: 'swerve' });
     this.stats.dodges = (this.stats.dodges || 0) + 1;
-    if ((this.yellCd || 0) <= 0 && this.rng() < 0.5) {
-      this.radio(q.why === 'mine' ? ['"Mine!"', '"Seen it!"', '"Hold on!"'] : ['"Hold on!"', '"Incoming!"', '"Not today!"']);
+    if ((this.yellCd || 0) <= 0 && this.rng() < (this.voiceHook ? 0.85 : 0.5)) {
+      this.speakOr(q.why === 'mine' ? 'mine' : 'rocket', q.why === 'mine' ? ['"Mine!"', '"Seen it!"', '"Hold on!"'] : ['"Hold on!"', '"Incoming!"', '"Not today!"']);
       this.yellCd = 2.5;
     }
   },

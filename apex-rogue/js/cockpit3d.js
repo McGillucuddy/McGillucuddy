@@ -1491,7 +1491,8 @@ class CockpitView {
       const rest = new THREE.Vector3(0.8, -8, -2), cock = new THREE.Vector3(0.7, -3.6, -3.2), hit = new THREE.Vector3(0.5, -1.4, -6.2);
       Motion.path([[0, rest], [0.18, cock], [0.3, hit], [0.33, hit], [0.46, cock], [0.58, hit], [0.62, hit], [0.95, rest]], t, B.position); // (the boot stops dead on the glass, twice)
       B.rotation.set(-0.15 + 0.25 * Math.sin(t * 9), 0.1, 0.05);
-      if (t >= 0.3 && !this.bootHit1) { this.bootHit1 = true; this.crack(0.15); this.crack(0.05); this.shake = Math.max(this.shake, 0.35); Sound.play({ type: 'crash', vol: 0.5, power: 120 }); }
+      if (t >= 0.3 && !this.bootHit1) { this.bootHit1 = true; this.combat.events.push({ type: 'kickGlass' }); // (you grunt with it: js/voice.js)
+       this.crack(0.15); this.crack(0.05); this.shake = Math.max(this.shake, 0.35); Sound.play({ type: 'crash', vol: 0.5, power: 120 }); }
       if (t >= 0.58 && !this.bootHit2) { this.bootHit2 = true; this.glassOut(true); }
       if (t > 1) { this.bootT = null; this.bootHit1 = this.bootHit2 = false; B.visible = false; }
     }

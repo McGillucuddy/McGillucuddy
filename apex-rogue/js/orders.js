@@ -84,7 +84,7 @@ Object.assign(Combat.prototype, {
     D.order = { kind, target, t: def.t * (B.hold || 1), delay: (C.delay ?? ORDER.delay) * (B.delay || 1), k, done: null };
     this.orderCd = def.cd;
     this.lastOrder = kind;
-    this.radio((C.line && C.line[kind]) ? [C.line[kind]] : def.ack);
+    if (C.line && C.line[kind]) this.radio([C.line[kind]]); else this.speakOr('order', def.ack);
     this.events.push({ type: 'order', kind });
     return true;
   },
@@ -98,6 +98,8 @@ Object.assign(Combat.prototype, {
     }
     return best;
   },
+  // Your driver says it out loud (js/voice.js), or, with no voice to hand, it goes out on the radio as text.
+  speakOr(kind, lines) { const said = this.voiceHook ? this.voiceHook(kind) : null; if (!said && lines) this.radio(lines); return said; },
   radio(lines) { this.race.message(`${((this.crew && this.crew.short) || 'Driver').toUpperCase()}: ${lines[Math.floor(this.rng() * lines.length)]}`, '#9fd0ff'); },
   // Each frame: count the order down, and report back when it's over.
   updateOrders(dt) {

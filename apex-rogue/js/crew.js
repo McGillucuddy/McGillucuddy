@@ -127,7 +127,7 @@ Object.assign(Combat.prototype, {
       this.race.damage(p, p.hp + 1, { kind: 'crash' }); p.hp = 0; // nobody at the wheel: into the wall
       return;
     }
-    if ((this.yellCd || 0) <= 0) { this.radio(by === 'you' ? DRIVER_YELLS : DRIVER_HIT); this.yellCd = DRIVER.yellCd; }
+    if ((this.yellCd || 0) <= 0) { this.speakOr(by === 'you' ? 'shot' : 'hit', by === 'you' ? DRIVER_YELLS : DRIVER_HIT); this.yellCd = DRIVER.yellCd; }
   },
 
   // You, the gunner, take a round through the glass: a jolt, worse aim until you're patched up, and if it's too

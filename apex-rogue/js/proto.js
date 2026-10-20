@@ -1022,8 +1022,14 @@ const Proto = {
     if (!this.tutorial && this.race) Playtest.raceStart({ act: this.run.act, type: this.race.node && this.race.node.type, boss: this.race.boss && this.race.boss.name, weather: this.race.weather });
     this.setUI('');
     if (this.view === 'cockpit') this.lock();
+    if (this.combat && !this.tutorial) { // the voices in the car (js/voice.js)
+      this.voices = this.voices || new VoicePlayer();
+      this.voices.begin(this.combat, this.build);
+      this.combat.voiceHook = (kind) => this.voices.speak(kind);
+    }
     if (!this.tutorial && this.race && this.combat && this.combat.crew) {
       this.race.message(`On air: ${this.combat.inmate} and ${this.combat.crew.short} in ${CarHistory.name(this.build)}`, '#c9c2a8');
+      if (this.voices) setTimeout(() => { if (this.voices && this.race && this.race.state !== 'finished') this.voices.speak('start'); }, 900); // (once the clips are decoded)
       const line = Bond.opener(Bond.rec(this.build), Math.random, this.combat.inmate); // something you've been through together
       if (line) this.combat.radio([line]);
     }
@@ -1731,9 +1737,10 @@ const Proto = {
         : { throttle: race.countdown < 0.2 ? 1 : 0, brake: 0, steer: 0, handbrake: false, nitro: false };
       race.update(sdt, inp);
       combat.update(sdt, { aim, firing: this.mouse.down, pressed: this.mouse.pressed && k === 0 });
-      for (const ev of race.events) { Sound.play(ev); if (ev.type === 'crash' && this.cockpit) this.cockpit.crash(ev); }
+      for (const ev of race.events) { Sound.play(ev); if (this.voices) this.voices.onEvent(ev); if (ev.type === 'crash' && this.cockpit) this.cockpit.crash(ev); }
       for (const ev of combat.events) {
         Sound.play(ev);
+        if (this.voices) this.voices.onEvent(ev);
         Playtest.event(ev, combat.weapon.id);
         if (this.cockpit) this.cockpit.onEvent(ev);
         if (this.tutorial) this.tutorial.onEvent(ev);
