@@ -110,7 +110,7 @@ const Music = {
     const fb = c.createGain(), tone = c.createBiquadFilter();
     fb.gain.value = 0.35;
     tone.type = 'lowpass';
-    tone.frequency.value = 2400;
+    tone.frequency.value = 1500; // a dark echo
     echo.connect(tone); tone.connect(fb); fb.connect(echo);
     tone.connect(verb);
     tone.connect(Sound.master);
@@ -203,7 +203,7 @@ const Music = {
     o.start(t); o.stop(t + 0.16);
   },
 
-  hat(t, vol, open) { this.noise(t, open ? 0.2 : 0.035, 'highpass', 7500, 0.5, vol * 1.5, open ? 0.3 : 0); },
+  hat(t, vol, open) { this.noise(t, open ? 0.2 : 0.035, 'highpass', 7500, 0.5, vol * 1.15, open ? 0.3 : 0); },
 
   // A long noise wash on the downbeat of a new section; the noise buffer loops so it can ring out.
   crash(t) {
@@ -258,7 +258,7 @@ const Music = {
   pad(t, notes, dur, bright, vol) {
     bright = bright || 1; vol = vol ?? 1;
     const c = Sound.ctx, f = c.createBiquadFilter(), g = c.createGain();
-    f.type = 'lowpass'; f.frequency.value = 1700 * bright; f.Q.value = 0.7;
+    f.type = 'lowpass'; f.frequency.value = 1100 * bright; f.Q.value = 0.7;
     g.gain.value = 0;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.045 * vol, t + 0.35);
@@ -276,11 +276,11 @@ const Music = {
   // Arp pluck: a saw and a square with a fast filter snap, into the dotted echo.
   arpNote(t, m, bright) {
     const c = Sound.ctx, o = c.createOscillator(), o2 = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
-    o.type = 'sawtooth'; o2.type = 'square';
-    o.frequency.value = this.hz(m); o2.frequency.value = this.hz(m); o2.detune.value = 6;
-    f.type = 'lowpass'; f.Q.value = 3;
-    f.frequency.setValueAtTime(600 + 3400 * bright, t);
-    f.frequency.exponentialRampToValueAtTime(400 + 500 * bright, t + 0.16);
+    o.type = 'sawtooth'; o2.type = 'sawtooth'; // (no square: it chirps)
+    o.frequency.value = this.hz(m); o2.frequency.value = this.hz(m - 12); o2.detune.value = 6;
+    f.type = 'lowpass'; f.Q.value = 4;
+    f.frequency.setValueAtTime(350 + 1500 * bright, t);
+    f.frequency.exponentialRampToValueAtTime(250 + 250 * bright, t + 0.16);
     this.env(g, t, 0.003, 0.05, 0.2);
     o.connect(f); o2.connect(f); f.connect(g); g.connect(this.duck);
     this.send(g, 0.4, 0.55);
@@ -317,14 +317,14 @@ const Music = {
       // swelling every bar, taiko on the B, bells, the first breath of a choir.
       { bpm: [116, 118, 120], scale: HARMONIC, progs: [[0, 5, 3, 4], [0, 5, 1, 4], [0, 3, 5, 4]], drums: 'four', clap: false, hats: 16,
         bassPat: 'straight', dist: 1.4, arp: null, arpOct: 0, strings: 1, stringsA: true, brass: 1, brassA: true, lead: null,
-        taiko: true, pedal: true, pad: 0.4, padBright: 0.9, bells: 0.45, choir: 0.45, toll: false, toms: true },
+        taiko: true, pedal: true, pad: 0.4, padBright: 0.9, bells: 0, choir: 0.45, toll: false, toms: true },
       // Act IV, the Crown: the end titles. Half-time, enormous strings and brass, a choir of the damned singing for
       // the rich, a great bell tolling every four bars.
       { bpm: [86, 88, 90], scale: AEOLIAN, progs: [[0, 5, 2, 6], [0, 3, 5, 4], [0, 5, 3, 6]], drums: 'half', clap: false, hats: 8,
         bassPat: 'half', dist: 1.2, arp: null, arpOct: 0, strings: 1.1, stringsA: true, brass: 1.3, brassA: true, lead: null,
-        taiko: true, pedal: false, pad: 0.4, padBright: 0.9, bells: 0.8, choir: 1.1, toll: true, toms: true },
+        taiko: true, pedal: false, pad: 0.4, padBright: 0.9, bells: 0, choir: 1.1, toll: true, toms: true },
     ][Math.min(3, act)];
-    const root = 60 + pick([2, 4, 5, 0, 7]); // D, E, F, C or G
+    const root = 48 + pick([2, 4, 5, 0, 7]); // D, E, F, C or G, low: the whole score sits an octave down
     return this.build(P, root, pick(P.progs), r, {
       id: 'race:' + act + ':' + type + ':' + seed + ':' + (weather || 'clear'), style: 'race',
       bpm: pick(P.bpm) + (boss ? 6 : elite ? 3 : 0) + (final ? 4 : 0),
@@ -340,9 +340,9 @@ const Music = {
     const sc = P.scale;
     const deg = (d) => sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
     const chords = prog.map((d) => [deg(d), deg(d + 2), deg(d + 4)].map((n) => { n += root; while (n > root + 10) n -= 12; return n; }).sort((a, b) => a - b));
-    const roots = prog.map((d) => { let n = root - 24 + sc[((d % 7) + 7) % 7]; while (n > 45) n -= 12; return n; });
+    const roots = prog.map((d) => { let n = root - 12 + sc[((d % 7) + 7) % 7]; while (n > 45) n -= 12; while (n < 33) n += 12; return n; }); // the bass, A1-A2
     // The choir sings the chord low with an added ninth; at the Crown a semitone grinds against it now and then.
-    const choirs = prog.map((d, i) => { const c = chords[i]; return [c[0] - 12, c[1] - 12, c[2] - 12, root + deg(d + 1) - (extra.act3 && i === 3 ? 11 : 0)]; });
+    const choirs = prog.map((d, i) => { const c = chords[i]; return [c[0], c[1], c[2], root + 12 + deg(d + 1) - (extra.act3 && i === 3 ? 11 : 0)]; }); // (a low men's choir)
     const tonic = roots[0], leadNote = (d) => root + deg(d); // the lead's riff is in degrees of the key
     const cfg = Object.assign({}, P, { chords, roots, choirs, tonic, leadNote, root }, extra);
     // The weather colours the track: rain muffles it, storms and furnaces drive it harder, fog and blackouts open
@@ -360,9 +360,9 @@ const Music = {
   // The title's track: "The Grid" at 120, in D minor, the brass carrying it.
   menuTrack() {
     const AEOLIAN = [0, 2, 3, 5, 7, 8, 10];
-    return this.build({ scale: AEOLIAN, drums: 'four', clap: true, hats: 16, bassPat: 'octave', dist: 1.6, arp: [0, null, 2, null, 1, null, 3, null, 0, null, 2, null, 3, null, 1, null], arpOct: 12,
+    return this.build({ scale: AEOLIAN, drums: 'four', clap: true, hats: 16, bassPat: 'octave', dist: 1.6, arp: [0, null, 2, null, 1, null, 3, null, 0, null, 2, null, 3, null, 1, null], arpOct: 0,
       strings: 0.7, stringsA: true, brass: 0.9, brassA: false, lead: null, taiko: false, pedal: true, pad: 0.5, padBright: 0.8, bells: 0, choir: 0, toll: false, toms: false },
-    62, [0, 5, 2, 6], Math.random, { id: 'menu', style: 'menu', bpm: 120, intensity: 0, act3: false, choir: 0 });
+    50, [0, 5, 2, 6], Math.random, { id: 'menu', style: 'menu', bpm: 120, intensity: 0, act3: false, choir: 0 });
   },
 
   // Bars 0-3 intro (the bass alone, its filter opening); then a 20-bar loop: groove A (8), full B (8),
@@ -374,26 +374,26 @@ const Music = {
     // The filter opens across a phrase: through the intro, up the A, wide on the B, shut for the breakdown.
     const cut = intro ? 220 + ((bar * 16 + s) / 64) * 1100 : A ? 750 + (loop / 8) * 900 + (s / 16) * 110 : B ? 2300 : 480;
     if (s === 0) {
-      if (C.pad && !B) this.pad(t, chord, dt * 16, C.padBright * (brk ? 0.7 : 0.85), C.pad);
+      if (C.pad && !B) this.pad(t, chord.map((n) => n + 12), dt * 16, C.padBright * (brk ? 0.7 : 0.85), C.pad);
       if (C.choir && (intro || B || brk || C.act3)) this.choir(t, C.choirs[ch], dt * 16, C.choir * (B ? 1 : 0.75), ch % 2 ? 'oo' : 'ah');
       if (C.toll && ch === 0) this.toll(t, C.roots[ch]);
       // The brass: a swell across each bar of the B (and the A, in the cinematic acts), the breakdown's last
       // two bars rising into the drop.
-      if (C.brass && (B || (C.brassA && A) || (brk && loop >= 18))) this.brass(t, chord.map((n) => n - 12), dt * 16, C.brass * (B ? 1 : 0.65), brk ? 'rise' : 'swell');
-      if (C.strings && (brk || C.act3)) this.cellos(t, [C.roots[ch] + 12, chord[0]], dt * 16, C.strings);
+      if (C.brass && (B || (C.brassA && A) || (brk && loop >= 18))) this.brass(t, [chord[0] - 12, ...chord], dt * 16, C.brass * (B ? 1 : 0.65), brk ? 'rise' : 'swell');
+      if (C.strings && (brk || C.act3)) this.cellos(t, [C.roots[ch] + 12, chord[0] + 12], dt * 16, C.strings);
     }
-    if (C.stabs && B && (s === 0 || s === 6 || s === 10)) this.brass(t, chord.map((n) => n - 12), dt * 2.5, 1.1, 'stab');
+    if (C.stabs && B && (s === 0 || s === 6 || s === 10)) this.brass(t, [chord[0] - 12, ...chord], dt * 2.5, 1.1, 'stab');
     // Strings: a spiccato ostinato up the chord (the B, or the whole loop in the cinematic acts).
-    if (C.strings && (B || (C.stringsA && A))) this.spiccato(t, tones[[0, 1, 2, 1, 3, 1, 2, 1, 0, 1, 2, 1, 3, 2, 1, 2][s]] + 12, 0.055 * C.strings * (s % 4 === 0 ? 1.25 : 1));
+    if (C.strings && (B || (C.stringsA && A))) this.spiccato(t, tones[[0, 1, 2, 1, 3, 1, 2, 1, 0, 1, 2, 1, 3, 2, 1, 2][s]], // violas and cellos, not violins
+ 0.055 * C.strings * (s % 4 === 0 ? 1.25 : 1));
     // The arp, gated into the echo; bells instead in the B when the act has them.
     const ap = C.arp && C.arp[s];
     if (ap != null && !intro) {
       if (C.bells && B) this.bell(t, tones[ap] + C.arpOct, 0.05 * C.bells);
       else this.arpNote(t, tones[ap] + C.arpOct, intro ? 0.3 : brk ? 0.5 : B ? 1 : 0.7);
     }
-    if (C.bells && !C.arp && B && s % 4 === 0) this.bell(t, tones[(s / 4) % 4] + 12, 0.04 * C.bells);
     // The lead: on the B, sliding from note to note.
-    if (C.lead && B && C.lead[s] != null) this.lead(t, C.leadNote(C.lead[s]) + 12, dt * 1.6);
+    if (C.lead && B && C.lead[s] != null) this.lead(t, C.leadNote(C.lead[s]), dt * 1.6); // a baritone lead, gritty, not a chirp
     // The pulse bass, under everything from the first bar.
     const pat = { octave: [0, 0, 12, 0, 0, 0, 12, 0, 0, 0, 12, 0, 0, 0, 12, 0], derez: [0, 0, 12, 0, 0, 12, 0, 0, 0, 0, 12, 0, 0, 12, 0, 12], straight: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], half: [0, null, 0, null, 0, null, 0, null, 0, null, 0, null, 12, null, 0, null] }[C.bassPat];
     if (pat && pat[s] != null && !(brk && s % 2)) this.pulse(t, root + pat[s], dt * (C.bassPat === 'half' ? 1.8 : 0.85), cut, s % 4 === 0, C.dist);
@@ -454,8 +454,8 @@ const Music = {
     const atk = stab ? 0.012 : kind === 'rise' ? dur * 0.9 : 0.22, peak = 0.11 * vol;
     f.type = 'lowpass'; f.Q.value = 1.2;
     f.frequency.setValueAtTime(180, t);
-    f.frequency.exponentialRampToValueAtTime(stab ? 3200 : 2400, t + Math.max(0.02, atk * (stab ? 1 : 1.2)));
-    f.frequency.exponentialRampToValueAtTime(stab ? 600 : 1100, t + dur);
+    f.frequency.exponentialRampToValueAtTime(stab ? 2000 : 1500, t + Math.max(0.02, atk * (stab ? 1 : 1.2)));
+    f.frequency.exponentialRampToValueAtTime(stab ? 420 : 700, t + dur);
     g.gain.value = 0;
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(peak, t + atk);
@@ -481,7 +481,7 @@ const Music = {
   spiccato(t, m, vol) {
     const c = Sound.ctx, f = c.createBiquadFilter(), g = c.createGain();
     f.type = 'lowpass'; f.Q.value = 0.8;
-    f.frequency.setValueAtTime(5200, t); f.frequency.exponentialRampToValueAtTime(1800, t + 0.12);
+    f.frequency.setValueAtTime(2600, t); f.frequency.exponentialRampToValueAtTime(900, t + 0.12);
     this.env(g, t, 0.006, vol, 0.14);
     f.connect(g); g.connect(this.duck);
     this.send(g, 0.9);
@@ -514,7 +514,7 @@ const Music = {
     const from = this.lastLead != null && Math.abs(this.lastLead - m) < 13 ? this.lastLead : m;
     this.lastLead = m;
     f.type = 'lowpass'; f.Q.value = 4;
-    f.frequency.setValueAtTime(4200, t); f.frequency.exponentialRampToValueAtTime(1600, t + dur);
+    f.frequency.setValueAtTime(2200, t); f.frequency.exponentialRampToValueAtTime(700, t + dur);
     sh.curve = this.curveFor(3.5);
     this.env(g, t, 0.004, 0.085, dur);
     f.connect(sh); sh.connect(g); g.connect(this.duck);
@@ -628,7 +628,7 @@ const Music = {
   // Choir: detuned saw voices through vowel formant filters, with a slow vibrato and a long swell. 'ah' or 'oo'.
   choir(t, notes, dur, vol, vowel) {
     const c = Sound.ctx, out = c.createGain(), mix = c.createGain();
-    const F = vowel === 'oo' ? [[350, 9, 1], [700, 10, 0.4], [2500, 12, 0.12]] : [[780, 8, 1], [1150, 10, 0.55], [2850, 12, 0.22]];
+    const F = vowel === 'oo' ? [[300, 9, 1], [620, 10, 0.35], [2300, 12, 0.06]] : [[480, 8, 1], [820, 10, 0.5], [2500, 12, 0.08]]; // dark vowels: 'oo' and 'oh', low men's voices
     for (const [fr, q, amp] of F) {
       const bp = c.createBiquadFilter(), fg = c.createGain();
       bp.type = 'bandpass'; bp.frequency.value = fr; bp.Q.value = q; fg.gain.value = amp;
