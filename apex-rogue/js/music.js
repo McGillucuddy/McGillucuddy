@@ -1,11 +1,11 @@
 'use strict';
-// Music, synthesized live like the rest of the sound: no audio files. The score leans on Daft Punk's Tron: Legacy:
-// a pulsing sixteenth-note synth bass whose filter opens across each phrase, pumping under a hard kick; staccato
-// string ostinatos; huge synth-brass swells and stabs; a distorted square lead that slides between its notes;
-// claps, taiko in the cinematic acts. Every track is generated (see Music.forRace): the act sets the mood, from the
-// Undercity's "End of Line" pulse through the Stacks' grinding "Derezzed" lead and the Terraces' cinematic grid to
-// the Crown's half-time strings, brass and choir; the race type, the weather and the seed vary key, tempo and parts.
-// The menu plays one too.
+// Music, synthesized live like the rest of the sound: no audio files. The score is darksynth, after Deadlife,
+// Volkor X and the darker corners of Tron: Legacy: a growling reese bass (detuned saws ground through distortion,
+// a sine sub under it, pumping under a hard kick), huge reverb-drenched snares, industrial metal hits, ominous
+// drones and horror brass, and a saturated lead gliding through Phrygian riffs. Every track is generated (see
+// Music.forRace): the act sets the mood, from the Undercity's grind and the Stacks' industrial drive to the
+// Terraces' half-time menace and the Crown's choir; the race type, the weather and the seed vary key, tempo and
+// parts. The menu plays one too. The whole score runs through a little saturation, for grit.
 
 const MUSIC = {
   bpm: 104,
@@ -60,8 +60,8 @@ const Music = {
     if (this.cfg.lowpass) { // a muffled mix (rain on the roof)
       this.lp = c.createBiquadFilter();
       this.lp.type = 'lowpass'; this.lp.frequency.value = this.cfg.lowpass; this.lp.Q.value = 0.5;
-      this.bus.connect(this.lp); this.lp.connect(Sound.bed || Sound.master);
-    } else this.bus.connect(Sound.bed || Sound.master);
+      this.glue(c, this.bus).connect(this.lp); this.lp.connect(Sound.bed || Sound.master);
+    } else this.glue(c, this.bus).connect(Sound.bed || Sound.master);
     this.makeDuck(c);
     this.bar = 0;
     this.step = 0;
@@ -166,13 +166,16 @@ const Music = {
     g.gain.exponentialRampToValueAtTime(0.0001, t + a + d);
   },
 
+  // The kick: a sine dropping into the sub, driven into distortion so it punches, with a click on top.
   kick(t) {
-    const c = Sound.ctx, o = c.createOscillator(), g = c.createGain();
-    o.frequency.setValueAtTime(165, t);
-    o.frequency.exponentialRampToValueAtTime(44, t + 0.11);
-    this.env(g, t, 0.003, 0.82, 0.42);
-    o.connect(g); g.connect(this.bus);
-    o.start(t); o.stop(t + 0.5);
+    const c = Sound.ctx, o = c.createOscillator(), g = c.createGain(), sh = c.createWaveShaper(), post = c.createGain();
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+    this.env(g, t, 0.002, 1.4, 0.48);
+    sh.curve = this.curveFor(2.4); post.gain.value = 0.62;
+    o.connect(g); g.connect(sh); sh.connect(post); post.connect(this.bus);
+    o.start(t); o.stop(t + 0.55);
+    this.noise(t, 0.012, 'highpass', 3500, 0.7, 0.18, 0); // the beater's click
     // Pump: everything melodic dips under the kick and swells back.
     const d = this.duck.gain;
     d.setValueAtTime(1, t);
@@ -190,17 +193,18 @@ const Music = {
     src.start(t, Math.random() * 0.2); src.stop(t + dur + 0.05);
   },
 
-  // The big eighties snare: a noise crack and a body tone thrown into the reverb.
+  // The snare: huge and low, a crack of noise and a fat body thrown deep into the hall.
   snare(t) {
-    this.noise(t, 0.22, 'bandpass', 1600, 0.6, 0.5, 1.8);
+    this.noise(t, 0.3, 'bandpass', 1300, 0.55, 0.55, 2.6);
+    this.noise(t, 0.08, 'highpass', 4000, 0.5, 0.12, 0.6);
     const c = Sound.ctx, o = c.createOscillator(), g = c.createGain();
     o.type = 'triangle';
-    o.frequency.setValueAtTime(200, t);
-    o.frequency.exponentialRampToValueAtTime(140, t + 0.08);
-    this.env(g, t, 0.002, 0.35, 0.12);
+    o.frequency.setValueAtTime(170, t);
+    o.frequency.exponentialRampToValueAtTime(110, t + 0.1);
+    this.env(g, t, 0.002, 0.45, 0.16);
     o.connect(g); g.connect(this.bus);
-    this.send(g, 1);
-    o.start(t); o.stop(t + 0.16);
+    this.send(g, 1.6);
+    o.start(t); o.stop(t + 0.2);
   },
 
   hat(t, vol, open) { this.noise(t, open ? 0.2 : 0.035, 'highpass', 7500, 0.5, vol * 1.15, open ? 0.3 : 0); },
@@ -299,57 +303,54 @@ const Music = {
   // A race's track. Act 0-3 sets the mood; elites and bosses push harder; the seed picks key, tempo and parts.
   forRace(act, type, seed, final, weather) {
     const r = mulberry32((seed ^ 0x5eed) >>> 0), pick = (a) => a[Math.floor(r() * a.length)];
-    const AEOLIAN = [0, 2, 3, 5, 7, 8, 10], PHRYGIAN = [0, 1, 3, 5, 7, 8, 10], HARMONIC = [0, 2, 3, 5, 7, 8, 11], DORIAN = [0, 2, 3, 5, 7, 9, 10];
+    const AEOLIAN = [0, 2, 3, 5, 7, 8, 10], PHRYGIAN = [0, 1, 3, 5, 7, 8, 10], HARMONIC = [0, 2, 3, 5, 7, 8, 11];
     const boss = type === 'boss', elite = type === 'elite';
     const P = [
-      // Act I, the Undercity: "End of Line". A minor loop over a pulsing octave bass, claps on two and four, a
-      // gated arp into the echo; the brass and strings come in on the B.
-      { bpm: [120, 122, 124], scale: pick([AEOLIAN, DORIAN]), progs: [[0, 5, 2, 6], [0, 5, 3, 6], [0, 3, 5, 4], [0, 6, 5, 6]], drums: 'four', clap: true, hats: 16,
-        bassPat: 'octave', dist: 1.8, arp: pick([[0, null, 1, null, 2, null, 3, null, 2, null, 1, null, 2, null, 3, null], [0, null, null, 2, null, null, 1, null, 3, null, null, 2, null, null, 1, null]]), arpOct: 12,
-        strings: 0.5, stringsA: false, brass: 0.75, brassA: false, lead: null, taiko: false, pedal: false, pad: 0.45, padBright: 0.7, bells: 0, choir: 0, toll: false, toms: false },
-      // Act II, the Stacks: "Derezzed". Fast and grinding: a galloping bass, a distorted square lead sliding through
-      // its riff, toms into every phrase.
-      { bpm: [132, 136, 140], scale: pick([AEOLIAN, PHRYGIAN]), progs: [[0, 0, 5, 6], [0, 6, 5, 6], [0, 0, 3, 4]], drums: 'drive', clap: true, hats: 16,
-        bassPat: 'derez', dist: 3, arp: null, arpOct: 0, strings: 0, stringsA: false, brass: 0.55, brassA: false,
-        lead: pick([[0, null, 0, null, 3, null, 2, null, 0, null, -1, null, 0, null, 4, 3], [0, 0, null, 2, null, 3, null, 4, null, 3, 2, null, 0, null, -2, null]]),
-        taiko: false, pedal: false, pad: 0, padBright: 0.8, bells: 0, choir: 0, toll: false, toms: true },
-      // Act III, the Gilded Terraces: "The Grid". Cinematic: spiccato strings racing over a tonic pedal, brass
-      // swelling every bar, taiko on the B, bells, the first breath of a choir.
-      { bpm: [116, 118, 120], scale: HARMONIC, progs: [[0, 5, 3, 4], [0, 5, 1, 4], [0, 3, 5, 4]], drums: 'four', clap: false, hats: 16,
-        bassPat: 'straight', dist: 1.4, arp: null, arpOct: 0, strings: 1, stringsA: true, brass: 1, brassA: true, lead: null,
-        taiko: true, pedal: true, pad: 0.4, padBright: 0.9, bells: 0, choir: 0.45, toll: false, toms: true },
-      // Act IV, the Crown: the end titles. Half-time, enormous strings and brass, a choir of the damned singing for
-      // the rich, a great bell tolling every four bars.
-      { bpm: [86, 88, 90], scale: AEOLIAN, progs: [[0, 5, 2, 6], [0, 3, 5, 4], [0, 5, 3, 6]], drums: 'half', clap: false, hats: 8,
-        bassPat: 'half', dist: 1.2, arp: null, arpOct: 0, strings: 1.1, stringsA: true, brass: 1.3, brassA: true, lead: null,
-        taiko: true, pedal: false, pad: 0.4, padBright: 0.9, bells: 0, choir: 1.1, toll: true, toms: true },
+      // Act I, the Undercity: the grind. A reese bass rolling in eighths under a four-on-the-floor kick and a big
+      // snare, a drone under it all; the horror brass and the lead come in on the B.
+      { bpm: [104, 108, 110], scale: pick([PHRYGIAN, AEOLIAN]), progs: [[0, 1, 0, 6], [0, 5, 6, 0], [0, 3, 1, 0], [0, 0, 5, 6]], drums: 'four', metal: false,
+        bassPat: 'roll', dist: 5, drone: 0.9, brass: 0.9, brassA: false, cellos: 0, choir: 0,
+        lead: pick([[0, null, null, 0, null, null, 1, null, 0, null, null, -2, null, null, -1, null], [4, null, 3, null, 1, null, 0, null, -1, null, 0, null, 1, null, null, null]]),
+        toll: false, toms: false },
+      // Act II, the Stacks: industrial. Faster, a galloping sixteenth growl, metal hits on the off-beats, toms
+      // into every phrase, the lead snarling.
+      { bpm: [122, 126, 128], scale: PHRYGIAN, progs: [[0, 0, 1, 0], [0, 6, 5, 1], [0, 1, 6, 0]], drums: 'drive', metal: true,
+        bassPat: 'gallop', dist: 6, drone: 0.7, brass: 0.8, brassA: false, cellos: 0, choir: 0,
+        lead: pick([[0, 0, null, 1, null, 0, null, -1, 0, null, 3, null, 1, null, 0, null], [0, null, 1, null, 0, null, -2, null, -1, null, -2, null, -4, null, null, null]]),
+        toll: false, toms: true },
+      // Act III, the Gilded Terraces: menace. Half time, the reese held and wobbling, horror brass every bar,
+      // low strings, a low choir, taiko.
+      { bpm: [96, 100, 102], scale: HARMONIC, progs: [[0, 5, 1, 4], [0, 3, 5, 4], [0, 1, 0, 4]], drums: 'half', metal: false, taiko: true,
+        bassPat: 'wobble', dist: 5, drone: 1, brass: 1.1, brassA: true, cellos: 1, choir: 0.6,
+        lead: [0, null, null, null, 1, null, null, null, 0, null, null, null, -1, null, -3, null], toll: false, toms: true },
+      // Act IV, the Crown: the end of everything. Slow half time, the choir of the damned, brass and strings, the
+      // reese as a drone, a great bell tolling every four bars.
+      { bpm: [84, 86, 88], scale: AEOLIAN, progs: [[0, 5, 1, 6], [0, 3, 5, 4], [0, 5, 3, 1]], drums: 'half', metal: false, taiko: true,
+        bassPat: 'hold', dist: 4, drone: 1, brass: 1.3, brassA: true, cellos: 1.2, choir: 1.1, lead: null, toll: true, toms: true },
     ][Math.min(3, act)];
-    const root = 48 + pick([2, 4, 5, 0, 7]); // D, E, F, C or G, low: the whole score sits an octave down
-    return this.build(P, root, pick(P.progs), r, {
+    const root = 48 + pick([1, 2, 4, 0, -2]); // C#, D, E, C or A#: low, the darksynth keys
+    return this.build(P, root, pick(P.progs), {
       id: 'race:' + act + ':' + type + ':' + seed + ':' + (weather || 'clear'), style: 'race',
       bpm: pick(P.bpm) + (boss ? 6 : elite ? 3 : 0) + (final ? 4 : 0),
       intensity: boss ? 2 : elite ? 1 : 0, toms: P.toms || boss, act3: act >= 3,
       choir: P.choir + (final ? 0.4 : boss && act >= 2 ? 0.2 : 0),
       fourClimax: act >= 3 && (boss || final), // the final race lets the kick loose under the choir
-      stabs: boss || final, // "the game has changed": brass hits on the B
+      stabs: boss || final, // brass hits on the B
     }, weather);
   },
 
   // Chords, roots and voicings from a preset, a key and a progression; then the weather's colour.
-  build(P, root, prog, r, extra, weather) {
+  build(P, root, prog, extra, weather) {
     const sc = P.scale;
     const deg = (d) => sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
     const chords = prog.map((d) => [deg(d), deg(d + 2), deg(d + 4)].map((n) => { n += root; while (n > root + 10) n -= 12; return n; }).sort((a, b) => a - b));
-    const roots = prog.map((d) => { let n = root - 12 + sc[((d % 7) + 7) % 7]; while (n > 45) n -= 12; while (n < 33) n += 12; return n; }); // the bass, A1-A2
-    // The choir sings the chord low with an added ninth; at the Crown a semitone grinds against it now and then.
-    const choirs = prog.map((d, i) => { const c = chords[i]; return [c[0], c[1], c[2], root + 12 + deg(d + 1) - (extra.act3 && i === 3 ? 11 : 0)]; }); // (a low men's choir)
-    const tonic = roots[0], leadNote = (d) => root + deg(d); // the lead's riff is in degrees of the key
-    const cfg = Object.assign({}, P, { chords, roots, choirs, tonic, leadNote, root }, extra);
+    const roots = prog.map((d) => { let n = root - 24 + sc[((d % 7) + 7) % 7]; while (n > 38) n -= 12; while (n < 26) n += 12; return n; }); // the bass, D1-D2
+    const choirs = chords.map((c) => [c[0] - 12, c[0], c[1], c[2]]); // (low men's voices)
+    const cfg = Object.assign({}, P, { chords, roots, choirs, root, leadNote: (d) => root + deg(d) }, extra);
     // The weather colours the track: rain muffles it, storms and furnaces drive it harder, fog and blackouts open
     // up the reverb, a gala crashes in on every section.
     const wm = (typeof WEATHER !== 'undefined' && WEATHER[weather] && WEATHER[weather].music) || {};
     if (wm.lowpass) cfg.lowpass = wm.lowpass;
-    if (wm.padBright) cfg.padBright *= wm.padBright;
     if (wm.intensity) cfg.intensity = Math.min(2, cfg.intensity + wm.intensity);
     if (wm.toms) cfg.toms = true;
     if (wm.reverb) cfg.reverb = wm.reverb;
@@ -357,48 +358,44 @@ const Music = {
     return cfg;
   },
 
-  // The title's track: "The Grid" at 120, in D minor, the brass carrying it.
+  // The title's track: the Undercity's grind at 100, in C# Phrygian.
   menuTrack() {
-    const AEOLIAN = [0, 2, 3, 5, 7, 8, 10];
-    return this.build({ scale: AEOLIAN, drums: 'four', clap: true, hats: 16, bassPat: 'octave', dist: 1.6, arp: [0, null, 2, null, 1, null, 3, null, 0, null, 2, null, 3, null, 1, null], arpOct: 0,
-      strings: 0.7, stringsA: true, brass: 0.9, brassA: false, lead: null, taiko: false, pedal: true, pad: 0.5, padBright: 0.8, bells: 0, choir: 0, toll: false, toms: false },
-    50, [0, 5, 2, 6], Math.random, { id: 'menu', style: 'menu', bpm: 120, intensity: 0, act3: false, choir: 0 });
+    return this.build({ scale: [0, 1, 3, 5, 7, 8, 10], drums: 'four', metal: false, bassPat: 'roll', dist: 5, drone: 1, brass: 1, brassA: false, cellos: 0.6, choir: 0,
+      lead: [0, null, null, 0, null, null, 1, null, 0, null, null, -2, null, null, -1, null], toll: false, toms: false },
+    49, [0, 1, 0, 6], { id: 'menu', style: 'menu', bpm: 100, intensity: 0, act3: false, choir: 0 });
   },
 
-  // Bars 0-3 intro (the bass alone, its filter opening); then a 20-bar loop: groove A (8), full B (8),
-  // breakdown (4: strings and brass swelling, no kick, a riser into the next downbeat).
+  // Bars 0-3 intro (the drone and the bass alone, its filter opening); then a 20-bar loop: groove A (8), full B
+  // (8: brass, lead, everything), breakdown (4: the drone, the brass rising, a riser into the next downbeat).
   playRace(bar, s, t, dt) {
     const C = this.cfg, ch = bar % 4, intro = bar < 4, loop = intro ? -1 : (bar - 4) % 20;
     const B = loop >= 8 && loop < 16, brk = loop >= 16, A = !intro && !B && !brk;
-    const chord = C.chords[ch], root = C.pedal && ch !== 3 ? C.tonic : C.roots[ch], tones = [...chord, chord[0] + 12];
-    // The filter opens across a phrase: through the intro, up the A, wide on the B, shut for the breakdown.
-    const cut = intro ? 220 + ((bar * 16 + s) / 64) * 1100 : A ? 750 + (loop / 8) * 900 + (s / 16) * 110 : B ? 2300 : 480;
+    const chord = C.chords[ch], root = C.roots[ch];
+    // The bass filter opens across a phrase: through the intro, up the A, wide on the B, shut for the breakdown.
+    const cut = intro ? 160 + ((bar * 16 + s) / 64) * 700 : A ? 500 + (loop / 8) * 500 : B ? 1300 : 300;
     if (s === 0) {
-      if (C.pad && !B) this.pad(t, chord.map((n) => n + 12), dt * 16, C.padBright * (brk ? 0.7 : 0.85), C.pad);
-      if (C.choir && (intro || B || brk || C.act3)) this.choir(t, C.choirs[ch], dt * 16, C.choir * (B ? 1 : 0.75), ch % 2 ? 'oo' : 'ah');
-      if (C.toll && ch === 0) this.toll(t, C.roots[ch]);
-      // The brass: a swell across each bar of the B (and the A, in the cinematic acts), the breakdown's last
-      // two bars rising into the drop.
-      if (C.brass && (B || (C.brassA && A) || (brk && loop >= 18))) this.brass(t, [chord[0] - 12, ...chord], dt * 16, C.brass * (B ? 1 : 0.65), brk ? 'rise' : 'swell');
-      if (C.strings && (brk || C.act3)) this.cellos(t, [C.roots[ch] + 12, chord[0] + 12], dt * 16, C.strings);
+      if (C.drone) this.darkPad(t, [chord[0] - 12, chord[0], chord[2]], dt * 16, C.drone * (B ? 0.8 : 1));
+      if (C.choir && (B || brk || C.act3)) this.choir(t, C.choirs[ch], dt * 16, C.choir * (B ? 1 : 0.75), ch % 2 ? 'oo' : 'ah');
+      if (C.toll && ch === 0) this.toll(t, root + 12);
+      // Horror brass: a swell across each bar of the B (and the A, in the late acts), the breakdown's last two
+      // bars rising into the drop.
+      if (C.brass && (B || (C.brassA && A) || (brk && loop >= 18))) this.brass(t, [chord[0] - 12, chord[0], chord[1], chord[2]], dt * 16, C.brass * (B ? 1 : 0.65), brk ? 'rise' : 'swell');
+      if (C.cellos && !intro) this.cellos(t, [root + 12, chord[0]], dt * 16, C.cellos);
     }
-    if (C.stabs && B && (s === 0 || s === 6 || s === 10)) this.brass(t, [chord[0] - 12, ...chord], dt * 2.5, 1.1, 'stab');
-    // Strings: a spiccato ostinato up the chord (the B, or the whole loop in the cinematic acts).
-    if (C.strings && (B || (C.stringsA && A))) this.spiccato(t, tones[[0, 1, 2, 1, 3, 1, 2, 1, 0, 1, 2, 1, 3, 2, 1, 2][s]], // violas and cellos, not violins
- 0.055 * C.strings * (s % 4 === 0 ? 1.25 : 1));
-    // The arp, gated into the echo; bells instead in the B when the act has them.
-    const ap = C.arp && C.arp[s];
-    if (ap != null && !intro) {
-      if (C.bells && B) this.bell(t, tones[ap] + C.arpOct, 0.05 * C.bells);
-      else this.arpNote(t, tones[ap] + C.arpOct, intro ? 0.3 : brk ? 0.5 : B ? 1 : 0.7);
-    }
-    // The lead: on the B, sliding from note to note.
-    if (C.lead && B && C.lead[s] != null) this.lead(t, C.leadNote(C.lead[s]), dt * 1.6); // a baritone lead, gritty, not a chirp
-    // The pulse bass, under everything from the first bar.
-    const pat = { octave: [0, 0, 12, 0, 0, 0, 12, 0, 0, 0, 12, 0, 0, 0, 12, 0], derez: [0, 0, 12, 0, 0, 12, 0, 0, 0, 0, 12, 0, 0, 12, 0, 12], straight: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], half: [0, null, 0, null, 0, null, 0, null, 0, null, 0, null, 12, null, 0, null] }[C.bassPat];
-    if (pat && pat[s] != null && !(brk && s % 2)) this.pulse(t, root + pat[s], dt * (C.bassPat === 'half' ? 1.8 : 0.85), cut, s % 4 === 0, C.dist);
+    if (C.stabs && B && (s === 0 || s === 6 || s === 10)) this.brass(t, [chord[0] - 12, chord[0], chord[2]], dt * 2.5, 1.2, 'stab');
+    // The lead: on the B, gliding.
+    if (C.lead && B && C.lead[s] != null) this.darkLead(t, C.leadNote(C.lead[s]), dt * 2.2);
+    // The reese bass, under everything from the first bar.
+    const P = {
+      roll: [0, null, 0, null, 0, null, 0, null, 0, null, 0, null, 0, null, 12, null], // eighths, an octave flick at the end of the bar
+      gallop: [0, 0, 12, 0, 0, 12, 0, 0, 0, 0, 12, 0, 0, 12, 0, 12],
+      wobble: [0, null, null, null, null, null, null, null, 0, null, null, null, null, null, 12, null], // held, the filter wobbling
+      hold: [0, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
+    }[C.bassPat];
+    const len = { roll: 1.8, gallop: 0.9, wobble: 6, hold: 15.5 }[C.bassPat];
+    const wob = C.bassPat === 'wobble' || C.bassPat === 'hold' ? (60 / C.bpm) * (C.bassPat === 'hold' ? 2 : 1) : 0;
+    if (P && P[s] != null && !(brk && C.bassPat === 'gallop' && s % 2)) this.growl(t, root + P[s], dt * len, cut, s % 4 === 0, C.dist, wob);
     if (intro || brk) {
-      if (s % 4 === 2 && C.drums !== 'half' && !intro) this.hat(t, 0.04, false);
       if (brk && loop === 19 && s === 0) this.riser(t, dt * 16);
       if (brk && loop === 19 && C.taiko && s >= 8 && s % 2 === 0) this.taiko(t, 0.5 + (s - 8) * 0.07);
       return;
@@ -408,43 +405,118 @@ const Music = {
     const four = C.drums === 'four' || C.drums === 'drive' || (C.fourClimax && B);
     if (four) {
       if (s % 4 === 0) this.kick(t);
-      if (C.drums === 'drive' && ch === 3 && s === 14) this.kick(t);
-      if (s === 4 || s === 12) { if (C.clap) this.clap(t); else this.snare(t); }
-    } else { // half time: kick on one, snare on three, a pickup kick
-      if (s === 0 || (s === 10 && ch % 2)) this.kick(t);
+      if (C.drums === 'drive' && (s === 14 || (ch === 3 && s === 10))) this.kick(t);
+      if (s === 4 || s === 12) this.snare(t);
+    } else { // half time: kick on one, the big snare on three, a pickup kick
+      if (s === 0 || (s === 10 && ch % 2) || (B && s === 7)) this.kick(t);
       if (s === 8) this.snare(t);
     }
+    if (C.metal && s % 4 === 2) this.metal(t, B ? 0.09 : 0.06);
     if (C.taiko && B && (s === 0 || s === 8 || (s === 14 && ch === 3))) this.taiko(t, s === 0 ? 0.9 : 0.6);
-    if (C.hats === 16 && (B || C.intensity || C.drums === 'drive')) this.hat(t, s % 2 ? 0.04 : s % 4 === 2 ? 0.085 : 0.05, s === 14);
-    else if (s % 2 === 0) this.hat(t, s % 4 === 2 ? 0.08 : 0.045, s === 14);
-    if (C.toms && ch === 3 && loop % 8 === 7 && s >= 12) this.tom(t, 52 - (s - 12) * 4);
-    if (C.intensity >= 2 && s % 4 === 2 && B) this.tom(t, 40, 0.5); // boss races: a pounding off-beat floor tom
+    if (s % 2 === 0) this.hat(t, s % 4 === 2 ? 0.06 : 0.03, B && s === 14);
+    if (C.toms && ch === 3 && loop % 8 === 7 && s >= 12) this.tom(t, 45 - (s - 12) * 3);
+    if (C.intensity >= 2 && s % 4 === 2 && B) this.tom(t, 36, 0.55); // boss races: a pounding off-beat floor tom
   },
 
-  // ---------- The Tron instruments ----------
+  // ---------- The darksynth instruments ----------
 
-  // The pulse bass: a saw and a square through a resonant low-pass that snaps on each note and is opened across
-  // the phrase (cut), a little fuzz, pumped by the kick; the downbeats accented.
-  pulse(t, m, dur, cut, accent, dist) {
+  // A touch of saturation across the whole score, after the bus (so the bus still fades as before).
+  glue(c, bus) {
+    const sh = c.createWaveShaper(), out = c.createGain();
+    sh.curve = this.curveFor(1.4); out.gain.value = 0.85;
+    bus.connect(sh); sh.connect(out);
+    return out;
+  },
+
+  // The reese: three detuned saws ground through heavy distortion, a low-pass that snaps on each note and opens
+  // across the phrase (cut), the fizz shaved off above it, a sine sub underneath; wob = a filter wobble period.
+  growl(t, m, dur, cut, accent, dist, wob) {
+    const c = Sound.ctx, pre = c.createGain(), sh = c.createWaveShaper(), f = c.createBiquadFilter(), shave = c.createBiquadFilter(), g = c.createGain();
+    pre.gain.value = 1.6;
+    sh.curve = this.curveFor(dist || 5);
+    f.type = 'lowpass'; f.Q.value = 3;
+    f.frequency.setValueAtTime(Math.min(4000, cut * (accent ? 1.7 : 1.25)), t);
+    f.frequency.exponentialRampToValueAtTime(Math.max(70, cut * 0.55), t + Math.min(dur, 0.5));
+    if (wob) { // the filter swinging open and shut
+      const l = c.createOscillator(), lg = c.createGain();
+      l.frequency.value = 1 / wob; lg.gain.value = cut * 0.6;
+      l.connect(lg); lg.connect(f.frequency); l.start(t); l.stop(t + dur + 0.05);
+    }
+    shave.type = 'lowpass'; shave.frequency.value = 2600;
+    const lvl = accent ? 0.17 : 0.14;
+    g.gain.value = 0;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(lvl, t + 0.006);
+    g.gain.setValueAtTime(lvl, t + Math.max(0.01, dur - 0.04));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.02);
+    pre.connect(sh); sh.connect(f); f.connect(shave); shave.connect(g); g.connect(this.duck);
+    for (const det of [-24, 0, 21]) {
+      const o = c.createOscillator();
+      o.type = 'sawtooth'; o.frequency.value = this.hz(m); o.detune.value = det;
+      o.connect(pre); o.start(t); o.stop(t + dur + 0.05);
+    }
+    const sub = c.createOscillator(), sg = c.createGain();
+    sub.frequency.value = this.hz(m < 33 ? m : m - 12);
+    sg.gain.value = 0;
+    sg.gain.setValueAtTime(0.0001, t);
+    sg.gain.exponentialRampToValueAtTime(0.3, t + 0.006);
+    sg.gain.setValueAtTime(0.3, t + Math.max(0.01, dur - 0.04));
+    sg.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.02);
+    sub.connect(sg); sg.connect(this.duck); sub.start(t); sub.stop(t + dur + 0.05);
+  },
+
+  // The drone: detuned saws, very dark, the filter breathing slowly; it fills the floor of every bar.
+  darkPad(t, notes, dur, vol) {
+    const c = Sound.ctx, f = c.createBiquadFilter(), l = c.createOscillator(), lg = c.createGain(), g = c.createGain();
+    f.type = 'lowpass'; f.frequency.value = 420; f.Q.value = 1.5;
+    l.frequency.value = 0.12; lg.gain.value = 220; l.connect(lg); lg.connect(f.frequency);
+    g.gain.value = 0;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.05 * vol, t + 0.8);
+    g.gain.setValueAtTime(0.05 * vol, t + dur - 0.2);
+    g.gain.linearRampToValueAtTime(0.0001, t + dur + 0.4);
+    f.connect(g); g.connect(this.duck);
+    this.send(g, 0.9);
+    const end = t + dur + 0.5;
+    l.start(t); l.stop(end);
+    for (const n of notes) for (const det of [-13, 0, 13]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = this.hz(n); o.detune.value = det; o.connect(f); o.start(t); o.stop(end); }
+  },
+
+  // The lead: two detuned saws and a square an octave down, ground through a fuzz, gliding up into each note from
+  // the last, a slow vibrato on the held ones, into the echo and the hall.
+  darkLead(t, m, dur) {
     const c = Sound.ctx, f = c.createBiquadFilter(), sh = c.createWaveShaper(), g = c.createGain();
-    f.type = 'lowpass'; f.Q.value = 7;
-    const top = Math.min(8000, cut * (accent ? 1.6 : 1.15));
-    f.frequency.setValueAtTime(top, t);
-    f.frequency.exponentialRampToValueAtTime(Math.max(90, cut * 0.45), t + dur * 0.9);
-    sh.curve = this.curveFor(dist || 1.6);
-    this.env(g, t, 0.003, accent ? 0.2 : 0.15, dur);
-    f.connect(sh); sh.connect(g); g.connect(this.duck);
-    const o = c.createOscillator(), o2 = c.createOscillator();
-    o.type = 'sawtooth'; o2.type = 'square';
-    o.frequency.value = this.hz(m); o2.frequency.value = this.hz(m); o2.detune.value = 7;
-    o.connect(f); o2.connect(f); o.start(t); o2.start(t); o.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
-    if (accent) { // a sine sub under the downbeats
-      const sub = c.createOscillator(), sg = c.createGain();
-      sub.frequency.value = this.hz(m - 12);
-      this.env(sg, t, 0.004, 0.22, dur * 1.6);
-      sub.connect(sg); sg.connect(this.duck); sub.start(t); sub.stop(t + dur * 1.6 + 0.05);
+    const from = this.lastLead != null && Math.abs(this.lastLead - m) < 13 ? this.lastLead : m;
+    this.lastLead = m;
+    f.type = 'lowpass'; f.Q.value = 2;
+    f.frequency.setValueAtTime(1900, t); f.frequency.exponentialRampToValueAtTime(900, t + dur);
+    sh.curve = this.curveFor(3.2);
+    this.env(g, t, 0.01, 0.07, dur);
+    sh.connect(f); f.connect(g); g.connect(this.duck);
+    this.send(g, 0.9, 0.5);
+    for (const [type, det, oct] of [['sawtooth', -12, 0], ['sawtooth', 12, 0], ['square', 0, -12]]) {
+      const o = c.createOscillator(), l = c.createOscillator(), lg = c.createGain();
+      o.type = type; o.detune.value = det;
+      o.frequency.setValueAtTime(this.hz(from + oct), t); o.frequency.exponentialRampToValueAtTime(this.hz(m + oct), t + 0.08);
+      l.frequency.value = 5; lg.gain.setValueAtTime(0, t); lg.gain.linearRampToValueAtTime(this.hz(m + oct) * 0.006, t + Math.max(0.1, dur * 0.8));
+      l.connect(lg); lg.connect(o.frequency);
+      o.connect(sh); o.start(t); l.start(t); o.stop(t + dur + 0.05); l.stop(t + dur + 0.05);
     }
   },
+
+  // An industrial hit: a metallic FM clang, short, band-passed.
+  metal(t, vol) {
+    const c = Sound.ctx, car = c.createOscillator(), mod = c.createOscillator(), mg = c.createGain(), f = c.createBiquadFilter(), g = c.createGain();
+    car.type = 'square'; car.frequency.value = 330; mod.frequency.value = 787; mg.gain.value = 900;
+    mod.connect(mg); mg.connect(car.frequency);
+    f.type = 'bandpass'; f.frequency.value = 2200; f.Q.value = 2;
+    this.env(g, t, 0.001, vol, 0.09);
+    car.connect(f); f.connect(g); g.connect(this.bus);
+    this.send(g, 0.6);
+    car.start(t); mod.start(t); car.stop(t + 0.12); mod.stop(t + 0.12);
+  },
+
+  // ---------- Older instruments, still in use (brass, strings, taiko, the intro's) ----------
 
   // Synth brass: stacked detuned saws with a square an octave down for weight, the filter opening as the note
   // swells ("bwaaah"), a touch of vibrato on the long ones. 'swell' fills a bar, 'rise' builds through it, 'stab'
@@ -477,17 +549,6 @@ const Music = {
     }
   },
 
-  // Spiccato strings: two detuned saws, bowed short and bright, into the hall.
-  spiccato(t, m, vol) {
-    const c = Sound.ctx, f = c.createBiquadFilter(), g = c.createGain();
-    f.type = 'lowpass'; f.Q.value = 0.8;
-    f.frequency.setValueAtTime(2600, t); f.frequency.exponentialRampToValueAtTime(900, t + 0.12);
-    this.env(g, t, 0.006, vol, 0.14);
-    f.connect(g); g.connect(this.duck);
-    this.send(g, 0.9);
-    for (const det of [-9, 9]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = this.hz(m); o.detune.value = det; o.connect(f); o.start(t); o.stop(t + 0.2); }
-  },
-
   // Low strings: cellos and basses holding the bar, a slow bow in, vibrato.
   cellos(t, notes, dur, vol) {
     const c = Sound.ctx, f = c.createBiquadFilter(), g = c.createGain();
@@ -506,30 +567,6 @@ const Music = {
       l.connect(lg); lg.connect(o.frequency);
       o.connect(f); o.start(t); l.start(t); o.stop(t + dur + 0.35); l.stop(t + dur + 0.35);
     }
-  },
-
-  // The Derezzed lead: a fuzzed square and saw sliding up from the last note, bright, into the echo.
-  lead(t, m, dur) {
-    const c = Sound.ctx, f = c.createBiquadFilter(), sh = c.createWaveShaper(), g = c.createGain();
-    const from = this.lastLead != null && Math.abs(this.lastLead - m) < 13 ? this.lastLead : m;
-    this.lastLead = m;
-    f.type = 'lowpass'; f.Q.value = 4;
-    f.frequency.setValueAtTime(2200, t); f.frequency.exponentialRampToValueAtTime(700, t + dur);
-    sh.curve = this.curveFor(3.5);
-    this.env(g, t, 0.004, 0.085, dur);
-    f.connect(sh); sh.connect(g); g.connect(this.duck);
-    this.send(g, 0.5, 0.5);
-    for (const [type, det] of [['square', 0], ['sawtooth', 9]]) {
-      const o = c.createOscillator();
-      o.type = type; o.detune.value = det;
-      o.frequency.setValueAtTime(this.hz(from), t); o.frequency.exponentialRampToValueAtTime(this.hz(m), t + 0.045);
-      o.connect(f); o.start(t); o.stop(t + dur + 0.05);
-    }
-  },
-
-  // A clap: three quick bursts of band-passed noise and a short tail into the reverb.
-  clap(t) {
-    for (const [d, v] of [[0, 0.32], [0.011, 0.28], [0.022, 0.36]]) this.noise(t + d, d === 0.022 ? 0.16 : 0.012, 'bandpass', 1300, 0.9, v, d === 0.022 ? 1.2 : 0);
   },
 
   // Taiko: a huge low drum, a skin slap on top, thrown into the hall.

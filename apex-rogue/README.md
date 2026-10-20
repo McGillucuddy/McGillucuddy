@@ -27,13 +27,13 @@ and nothing to unlock: all 13 weapons, 20 car parts, 4 abilities, 30 attachments
 can turn up in shops and rewards from the first race. There are two currencies, both for the run only: **scrap**
 (money: purses, bounties) and **Infamy** (fame: the show you put on).
 
-**Race music.** Every race gets its own synthesized track, scored after Daft Punk's *Tron: Legacy*: a pulsing 16th-note synth bass whose filter opens across each phrase and pumps under the kick, staccato string ostinatos, huge synth-brass swells and stabs, a fuzzed square lead that slides between its notes, claps, and taiko in the cinematic acts. Each track runs intro (the bass alone, opening up), groove, full section, then a breakdown that swells into a riser. It sits low and dark: the keys an octave down, the bass in A1-A2, the arp, strings and lead in the baritone range, sawtooth not square, no bells, a low men's choir on dark vowels. The act sets the mood, and the race type and seed set the key, tempo and progression:
-- **Act I, Undercity:** "End of Line": a minor loop over an octave-pulse bass, claps, a gated arp into the echo, brass and strings on the full section (120-124 BPM).
-- **Act II, Stacks:** "Derezzed": fast (132-140 BPM), a galloping bass, the distorted sliding lead riff, toms into every phrase.
-- **Act III, Terraces:** "The Grid": cinematic harmonic minor, spiccato strings racing over a tonic pedal, brass swelling every bar, taiko, bells, a first breath of choir.
-- **Act IV, Crown:** the end titles: half-time, enormous strings and brass, the formant-synthesized choir, a great sour bell tolling each phrase.
+**Race music.** Every race gets its own synthesized track, in darksynth (after Deadlife, Volkor X and the darker side of *Tron: Legacy*): a growling reese bass (detuned saws ground through distortion, a sine sub under it) pumping under a distorted kick, a huge low snare thrown into the hall, ominous drones, horror brass, and a saturated lead gliding through Phrygian riffs. The keys sit low (C#, D, E, C, A#), the bass in D1-D2, and the whole score runs through a little saturation. Each track runs intro (the drone and the bass alone, the filter opening), groove, full section (brass, lead, everything), then a breakdown that swells into a riser. The act sets the mood, and the race type and seed set the key, tempo and progression:
+- **Act I, Undercity:** the grind: the reese rolling in eighths under four on the floor (104-110 BPM).
+- **Act II, Stacks:** industrial: a galloping sixteenth growl, metal hits on the off-beats, toms, the lead snarling (122-128 BPM).
+- **Act III, Terraces:** menace: half time, the reese held and wobbling, horror brass every bar, low strings, a low choir, taiko (96-102 BPM).
+- **Act IV, Crown:** the end of everything: slow half time, the choir of the damned, brass and strings, the reese as a drone, a great bell tolling each phrase (84-88 BPM).
 
-Bosses push the tempo and add pounding toms, and boss and final races get brass stabs on the full section ("the game has changed"). The final race lets the kick loose under the full choir.
+Bosses push the tempo and add pounding toms, and boss and final races get brass stabs on the full section. The final race lets the kick loose under the full choir.
 The music plays from the briefing, ducks while paused and fades at the flag. **Settings → Race music** sets its volume.
 
 **Weather.** Every race has a forecast, shown in its TV caption, on the TV guide and in the briefing, so it can steer your route.
@@ -95,7 +95,7 @@ It opens on a **start menu** over the garage, with your car swinging slowly on t
 - **Settings** and **How to play**;
 - **Exit**. Browsers only let a page close a tab it opened itself, so otherwise Exit shows a "lights out" screen.
 
-The menu has its own theme, synthesized live in `js/music.js` like the rest of the sound (there are no audio files): a Tron-style track in D minor at 120 BPM over a tonic pedal, the pulse bass, claps, an arp, strings, and brass carrying the full section.
+The menu has its own theme, synthesized live in `js/music.js` like the rest of the sound (there are no audio files): the Undercity's darksynth grind at 100 BPM in C# Phrygian, the reese, the drone, horror brass and the gliding lead.
 
 Everything but the drums ducks under the kick. Browsers hold sound back until your first click or key press. The music fades out when you leave the menu.
 **Settings → Menu music** sets its volume; the main volume and mute apply too.
