@@ -27,13 +27,13 @@ and nothing to unlock: all 13 weapons, 20 car parts, 4 abilities, 30 attachments
 can turn up in shops and rewards from the first race. There are two currencies, both for the run only: **scrap**
 (money: purses, bounties) and **Infamy** (fame: the show you put on).
 
-**Race music.** Every race gets its own synthesized track. The act sets the mood, the race type and seed set the key, tempo, chord progression and arp:
-- **Act I, Undercity:** dark synthwave with a dirty bass.
-- **Act II, Stacks:** harder, faster and Phrygian, with a galloping 16th-note bass and tom fills.
-- **Act III, Terraces:** cinematic harmonic minor, with bells, string pads and a first breath of choir.
-- **Act IV, Crown:** half-time and ethereal, with a formant-synthesized choir, celesta bells, a sub drone and a great sour bell tolling each phrase.
+**Race music.** Every race gets its own synthesized track, scored after Daft Punk's *Tron: Legacy*: a pulsing 16th-note synth bass whose filter opens across each phrase and pumps under the kick, staccato string ostinatos, huge synth-brass swells and stabs, a fuzzed square lead that slides between its notes, claps, and taiko in the cinematic acts. Each track runs intro (the bass alone, opening up), groove, full section, then a breakdown that swells into a riser. The act sets the mood, and the race type and seed set the key, tempo and progression:
+- **Act I, Undercity:** "End of Line": a minor loop over an octave-pulse bass, claps, a gated arp into the echo, brass and strings on the full section (120-124 BPM).
+- **Act II, Stacks:** "Derezzed": fast (132-140 BPM), a galloping bass, the distorted sliding lead riff, toms into every phrase.
+- **Act III, Terraces:** "The Grid": cinematic harmonic minor, spiccato strings racing over a tonic pedal, brass swelling every bar, taiko, bells, a first breath of choir.
+- **Act IV, Crown:** the end titles: half-time, enormous strings and brass, the formant-synthesized choir, a great sour bell tolling each phrase.
 
-Bosses push the tempo and add pounding toms. The final race lets the kick loose under the full choir.
+Bosses push the tempo and add pounding toms, and boss and final races get brass stabs on the full section ("the game has changed"). The final race lets the kick loose under the full choir.
 The music plays from the briefing, ducks while paused and fades at the flag. **Settings → Race music** sets its volume.
 
 **Weather.** Every race has a forecast, shown in its TV caption, on the TV guide and in the briefing, so it can steer your route.
@@ -95,10 +95,7 @@ It opens on a **start menu** over the garage, with your car swinging slowly on t
 - **Settings** and **How to play**;
 - **Exit**. Browsers only let a page close a tab it opened itself, so otherwise Exit shows a "lights out" screen.
 
-The menu has its own theme, synthesized live in `js/music.js` like the rest of the sound (there are no audio files). It's straight synthwave in D minor at 104 BPM, over Dm–B♭–F–C:
-- four-on-the-floor kick and a big reverb-drenched snare;
-- a pumping saw bass with a deep sub;
-- supersaw pads and a 16th-note arpeggio with a dotted echo.
+The menu has its own theme, synthesized live in `js/music.js` like the rest of the sound (there are no audio files): a Tron-style track in D minor at 120 BPM over a tonic pedal, the pulse bass, claps, an arp, strings, and brass carrying the full section.
 
 Everything but the drums ducks under the kick. Browsers hold sound back until your first click or key press. The music fades out when you leave the menu.
 **Settings → Menu music** sets its volume; the main volume and mute apply too.
