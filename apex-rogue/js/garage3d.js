@@ -827,7 +827,7 @@ class Garage3D {
       g.add(me);
     } else if (this.mode === 'interior') {
       g.add(Models.car(Object.assign({}, look, { shell: true })));
-      g.add(Models.interior(look.color, { cabin: look.cabin }).group);
+      g.add(Models.interior(look.color, { cabin: look.cabin, noRoof: !!(CAR_STYLES[look.style] || {}).open }).group);
       this.cabinLight = new THREE.PointLight(look.cabin.bulb, 1.6, 40, 1.2);
       this.cabinLight.position.set(-7.5, 10, -1.5);
       g.add(this.cabinLight);

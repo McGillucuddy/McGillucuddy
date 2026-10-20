@@ -7,6 +7,9 @@ const COSMETICS = {
     { id: 'comet', name: 'Coupe', rep: 0 }, { id: 'brick', name: 'Estate', rep: 20 },
     { id: 'wasp', name: 'Hot Hatch', rep: 60 }, { id: 'phantom', name: 'Fastback', rep: 120 },
     { id: 'sedan', name: 'Sedan', rep: 30 }, { id: 'pickup', name: 'Pickup', rep: 90 }, { id: 'van', name: 'Panel Van', rep: 160 },
+    // Prize bodies: each is yours (for every run after) once you beat the boss of that act (boss: its index in BOSSES).
+    { id: 'bus', name: 'Prison Bus', boss: 0 }, { id: 'tow', name: 'Tow Truck', boss: 1 },
+    { id: 'buggy', name: 'Dune Buggy', boss: 2 }, { id: 'hearse', name: 'Hearse', boss: 3 },
   ],
   paint: [
     { id: 'red', name: 'Rust Red', color: '#a8322a', rep: 0 }, { id: 'primer', name: 'Primer Grey', color: '#6f6f68', rep: 0 },
@@ -130,6 +133,7 @@ function loadCosmetics() {
     seats: 'vinyl', wheelWrap: 'tape', dash: 'black', bulb: 'warm', ornament: 'none', vest: 'canvas',
     gunFinish: {}, gunKit: {}, patchSeed: {},
     inmate: '4471', plate: 'INM 4471', rep: 0, presets: [null, null, null],
+    beaten: [], // the acts whose boss you've ever beaten: they unlock the prize bodies
   };
   let c;
   try { c = Object.assign(def, JSON.parse(localStorage.getItem(COSMETIC_KEY)) || {}); } catch (e) { c = def; }
@@ -141,6 +145,8 @@ function loadCosmetics() {
   for (const w of Object.keys(c.gunFinish)) if (renamed[c.gunFinish[w]]) c.gunFinish[w] = renamed[c.gunFinish[w]];
   if (Array.isArray(c.presets)) for (const pr of c.presets) if (pr && pr.gunFinish) for (const w of Object.keys(pr.gunFinish)) if (renamed[pr.gunFinish[w]]) pr.gunFinish[w] = renamed[pr.gunFinish[w]];
   if (!Array.isArray(c.presets)) c.presets = [null, null, null];
+  if (!Array.isArray(c.beaten)) c.beaten = [];
+  if (cosLocked(c, 'style', cosOption('style', c.style))) c.style = 'comet';
   return c;
 }
 
@@ -149,6 +155,15 @@ function saveCosmetics(c) {
 }
 
 const cosOption = (key, id) => (COSMETICS[key] || []).find((o) => o.id === id);
+// Is this option still locked? Returns the boss you have to beat for it, or null.
+const cosLocked = (c, key, o) => (o && o.boss != null && !(c.beaten || []).includes(o.boss) ? BOSSES[o.boss] : null);
+// You beat the boss of an act: remember it for good. Returns the body that just unlocked, if one did.
+function unlockBody(c, act) {
+  if (c.beaten.includes(act)) return null;
+  c.beaten.push(act);
+  saveCosmetics(c);
+  return COSMETICS.style.find((o) => o.boss === act) || null;
+}
 const paintColor = (c) => (cosOption('paint', c.paint) || COSMETICS.paint[0]).color;
 
 // Everything the 3D models need to dress your car, cabin and guns.
@@ -187,6 +202,7 @@ function loadPreset(c, i) {
   for (const k of LOOK_KEYS) if (snap[k] !== undefined) {
     // Skip anything no longer unlocked (shouldn't happen, but presets outlive balance changes).
     const opt = cosOption(k, snap[k]);
+    if (cosLocked(c, k, opt)) continue;
     c[k] = JSON.parse(JSON.stringify(snap[k]));
   }
 }

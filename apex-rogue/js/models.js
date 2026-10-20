@@ -1011,6 +1011,96 @@ const CAR_STYLES = {
       for (const sd of [-1, 1]) sc.add(m.dark, SDF.box([13, 0.3, 0.3], 0.1, [-8.6, 9.8, sd * 8.0]), 0.1); // sliding door rail
     },
   },
+
+  // Prize bodies: each one is yours after you beat the boss it's named in (prize: the act, see COSMETICS.style).
+  // Prison Bus: the Turnkey's transport, cut down short: a snub nose, a tall box, bars over the back windows.
+  bus: {
+    prize: 0,
+    top: [[18.6, 2.0], [18.8, 6.6], [18.0, 7.8], [11.6, 8.6], [-17.8, 8.8], [-18.4, 8.0], [-18.6, 2.0]],
+    cabin: [[11.4, 8.7], [8.4, 15.6], [-17.6, 15.6], [-18.2, 8.9]], cabinW: 15.8, bodyW: 17,
+    wheels: [12.4, -11.4], wheelR: 3.1, wheelZ: 7.8,
+    lightY: 5.4, tailY: 7.2, frontPlateY: 2.8, rearPlateY: 5.0, mirrorX: 10.6, mirrorY: 10.4,
+    bPillar: 4.4, seams: [10.6, 4.4], cPillar: [[-16.8, 8.9], [-16.8, 15.6], [-17.6, 15.6], [-18.2, 8.9]],
+    face: { lights: 'round4', grille: 'bars' }, stance: { lift: 0.6, tyre: 1.1 },
+    kit: { bumper: 'pushbar', roof: 'none', spoiler: 'none' },
+    extras(sc, m) {
+      for (const sd of [-1, 1]) {
+        for (const x of [-1.6, -7.4, -12.6]) sc.add(m.roofMat, SDF.box([0.9, 6.6, 0.45], 0.15, [x, 12.2, sd * 7.9]), 0.3); // window pillars
+        for (const y of [10.6, 12.2, 13.8]) sc.add(m.dark, SDF.box([20.6, 0.22, 0.22], 0.08, [-6.2, y, sd * 8.25]), 0.05); // bars over the windows
+        for (let x = -16; x <= 3.6; x += 1.4) sc.add(m.dark, SDF.box([0.22, 5.4, 0.22], 0.08, [x, 12.2, sd * 8.25]), 0.05);
+        sc.add(m.dark, SDF.box([30, 0.5, 0.4], 0.15, [-2.6, 7.6, sd * 8.9]), 0.2); // rubbing strake
+      }
+      sc.add(m.body, SDF.box([3.2, 0.7, 3.2], 0.3, [-6, 16.0, 0]), 0.4); // roof vent
+    },
+  },
+  // Tow Truck: Smokestack Sal's wrecker. A pickup cab with a boom and a hook where the bed was.
+  tow: {
+    prize: 1,
+    top: [[18.8, 2.0], [19.0, 5.6], [18.0, 7.0], [9.2, 7.8], [-2.0, 8.0], [-18.4, 8.2], [-18.8, 7.4], [-18.9, 2.0]],
+    cabin: [[9.0, 7.9], [5.0, 12.6], [-1.2, 12.6], [-2.0, 8.0]], cabinW: 15.2, bodyW: 16.8,
+    wheels: [12.0, -11.8], wheelR: 3.2, wheelZ: 7.6,
+    lightY: 5.2, tailY: 6.6, frontPlateY: 2.8, rearPlateY: 4.6, mirrorX: 8.2, mirrorY: 8.8,
+    bPillar: -0.6, seams: [7.6, -1.6], cPillar: [[-0.6, 8.0], [-0.8, 12.6], [-1.2, 12.6], [-2.0, 8.0]],
+    face: { lights: 'slit', grille: 'bars' }, stance: { lift: 1.2, tyre: 1.15, rake: -0.01 },
+    kit: { bumper: 'pushbar', roof: 'lightbar', spoiler: 'none' },
+    extras(sc, m) {
+      sc.add(m.dark, SDF.box([16.4, 0.4, 15.6], 0.15, [-10.4, 8.6, 0]), 0.2); // a steel deck plate where a bed would be
+      for (const sd of [-1, 1]) {
+        sc.add(m.chrome, SDF.box([1.2, 1.6, 1.6], 0.3, [-4.2, 9.4, sd * 4.2]), 0.3); // boom mounts
+        sc.add(m.chrome, SDF.cone([-4.2, 9.6, sd * 4.2], [-15.2, 15.2, sd * 1.0], 0.75, 0.55), 0.3); // the A-frame boom
+        sc.add(m.chrome, SDF.cone([-15.4, 8.8, sd * 4.6], [-15.2, 15.2, sd * 1.0], 0.5, 0.45), 0.3); // its back legs
+      }
+      sc.add(m.chrome, SDF.cone([-6.4, 10.4, -1.8], [-6.4, 10.4, 1.8], 1.1, 1.1), 0.1); // winch drum
+      sc.add(m.dark, SDF.box([1.6, 1.4, 4.4], 0.4, [-6.4, 9.4, 0]), 0.3); // on its stand
+      sc.add(m.chrome, SDF.box([1.6, 1.0, 2.6], 0.3, [-15.4, 15.4, 0]), 0.3); // the head sheave
+      sc.add(m.dark, SDF.cone([-15.9, 15.0, 0], [-15.9, 9.6, 0], 0.16, 0.16), 0.05); // the cable
+      sc.add(m.chrome, SDF.box([0.5, 1.4, 0.5], 0.2, [-15.9, 9.2, 0]), 0.1); // and its hook
+      sc.add(m.chrome, SDF.box([1.3, 0.4, 0.5], 0.18, [-15.3, 8.6, 0]), 0.15);
+    },
+  },
+  // Dune Buggy: off Augustin Vale's sponsors' beach. A low tub in a roll cage, big wheels out in the air, the engine
+  // hanging off the back. No glass at all: your crew rides in the wind (and the line of fire).
+  buggy: {
+    prize: 2, open: true,
+    top: [[17.6, 2.6], [17.8, 4.4], [16.6, 5.0], [8.0, 5.4], [-12.0, 5.6], [-16.0, 5.6], [-17.0, 4.8], [-17.2, 2.6]],
+    cabin: [[8.0, 5.5], [3.4, 11.6], [-8.6, 11.6], [-12.6, 5.7]], cabinW: 13.4, bodyW: 14,
+    wheels: [12.2, -11.6], wheelR: 3.3, wheelZ: 8.6,
+    lightY: 4.2, tailY: 4.6, frontPlateY: 3.0, rearPlateY: 3.6, mirrorX: 6.8, mirrorY: 6.6,
+    bPillar: -2.6, seams: [6.0, -6.0], cPillar: [[-8.6, 5.7], [-8.6, 11.6], [-9.2, 11.6], [-12.6, 5.7]],
+    face: { lights: 'round2', grille: 'none' }, stance: { lift: 1.0, tyre: 1.18 },
+    kit: { bumper: 'pushbar', roof: 'none', spoiler: 'none' },
+    extras(sc, m) {
+      sc.cut(SDF.box([18.6, 4, 11.4], 0.8, [-2.2, 7.4, 0]), 0.5); // the open tub
+      sc.add(m.dark, SDF.box([4.6, 3.0, 6.4], 0.6, [-16.4, 5.6, 0]), 0.3); // the engine out the back
+      for (const sd of [-1, 1]) {
+        sc.add(m.chrome, SDF.cone([-16.8, 4.2, sd * 2.2], [-19.4, 6.8, sd * 2.6], 0.32, 0.28), 0.2); // its pipes
+        sc.add(m.dark, SDF.cone([14.8, 3.0, sd * 3.6], [12.2, 3.3, sd * 7.6], 0.3, 0.3), 0.15); // front suspension arms
+        sc.add(m.dark, SDF.cone([-14.4, 3.0, sd * 3.6], [-11.6, 3.3, sd * 7.6], 0.3, 0.3), 0.15); // rear
+      }
+    },
+  },
+  // Hearse: what they carried the Apex out in. Long, low, a blind back with landau bars, a chrome waterfall grille.
+  hearse: {
+    prize: 3,
+    top: [[18.8, 1.9], [19.0, 4.6], [18.2, 5.6], [8.8, 6.4], [-17.6, 6.8], [-18.6, 6.0], [-18.8, 2.0]],
+    cabin: [[8.6, 6.5], [3.6, 11.4], [-16.8, 11.4], [-18.0, 6.9]], cabinW: 14.6, bodyW: 16.4,
+    wheels: [12.0, -11.8], wheelR: 2.9, wheelZ: 7.4,
+    lightY: 4.4, tailY: 5.6, frontPlateY: 2.6, rearPlateY: 4.2, mirrorX: 7.6, mirrorY: 7.6,
+    bPillar: -2.6, seams: [6.8, -2.0], cPillar: [[-7.4, 6.9], [-7.4, 11.4], [-16.8, 11.4], [-18.0, 6.9]],
+    face: { lights: 'quadRect', grille: 'waterfall' }, stance: { lift: -0.2 },
+    kit: { bumper: 'none', roof: 'none', spoiler: 'none' },
+    extras(sc, m) {
+      for (const sd of [-1, 1]) {
+        const z = sd * 7.55;
+        sc.add(m.chrome, SDF.cone([-9.0, 8.4, z], [-11.4, 10.0, z], 0.16, 0.16), 0.1); // landau bar, an S on the blind quarter
+        sc.add(m.chrome, SDF.cone([-11.4, 10.0, z], [-13.6, 8.6, z], 0.16, 0.16), 0.1);
+        sc.add(m.chrome, SDF.ellipsoid([0.5, 0.5, 0.2], [-11.4, 10.0, z]), 0.05);
+        sc.add(m.chrome, SDF.box([30, 0.22, 0.2], 0.08, [-1, 6.6, sd * 8.6]), 0.05); // chrome belt trim
+      }
+      sc.add(m.chrome, SDF.box([12, 0.25, 0.4], 0.1, [-10.6, 11.9, -6.4]), 0.1); // roof rails
+      sc.add(m.chrome, SDF.box([12, 0.25, 0.4], 0.1, [-10.6, 11.9, 6.4]), 0.1);
+    },
+  },
 };
 
 // Chaikin corner cutting: rounds a polyline's corners (ends stay put).
@@ -1117,7 +1207,7 @@ const Models = {
 
     const fx = st.top[0][0] + bev, rx = st.top[st.top.length - 1][0] - bev;
     Models.carBody(g, st, opts, { body, body2, roofMat, dark, chrome }, W, bev, fx, rx);
-    if (!opts.shell) {
+    if (!opts.shell && !st.open) {
       // Tinted glass sits inside the pillars; it leans in as it rises (tumblehome), like the roof around it.
       const cab = st.cabin, cw = st.cabinW, belt = cab[0][1], roofY = cab[1][1];
       const house = [LP.side(cab, cw, glass, 0.25)];
@@ -1142,9 +1232,14 @@ const Models = {
         gg.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       }
       g.add(...house);
+      // Wipers at the base of the windscreen.
+      for (const z of [-3.2, 1.6]) g.add(LP.beam([cab[0][0] - 0.2, belt + 0.25, z], [cab[0][0] - 1.6, belt + 1.1, z + 3.4], 0.15, dark));
+      if (opts.crew) { glass.transparent = true; glass.opacity = 0.42; glass.depthWrite = false; }
+    }
+    if (!opts.shell) {
       // A crew you can see through the glass (rivals): the driver on the left, a gunner beside them if armed.
+      const cab = st.cabin, cw = st.cabinW, belt = cab[0][1], roofY = cab[1][1];
       if (opts.crew) {
-        glass.transparent = true; glass.opacity = 0.42; glass.depthWrite = false;
         const hx = cab[1][0] - 0.35 * (cab[1][0] - cab[2][0]), hipY = Math.max(belt - 3.8, roofY - 7.2); // heads (and hats) clear of the roof
         const crew = {};
         for (const role of ['driver', 'gunner']) {
@@ -1157,8 +1252,6 @@ const Models = {
         }
         g.userData.crew = crew;
       }
-      // Wipers at the base of the windscreen.
-      for (const z of [-3.2, 1.6]) g.add(LP.beam([cab[0][0] - 0.2, belt + 0.25, z], [cab[0][0] - 1.6, belt + 1.1, z + 3.4], 0.15, dark));
     }
 
     // Front: grille and headlights (each body has its own face, see Models.face), plate. Rear: tail lights, plate.
@@ -1180,8 +1273,8 @@ const Models = {
     if (!opts.shell) {
       for (const s of [-1, 1]) {
         const z = (hw + bev + 0.02) * s;
-        for (const x of st.seams) g.add(LP.box(0.12, 5, 0.06, dark, x, 4.1, z));
-        g.add(LP.box(0.9, 0.25, 0.12, chrome, st.seams[st.seams.length - 1] + 1.2, 6.0, z));
+        if (!st.open) for (const x of st.seams) g.add(LP.box(0.12, 5, 0.06, dark, x, 4.1, z)); // (an open tub has no doors)
+        if (!st.open) g.add(LP.box(0.9, 0.25, 0.12, chrome, st.seams[st.seams.length - 1] + 1.2, 6.0, z));
         if (s > 0) g.add(LP.mesh(new THREE.CircleGeometry(0.55, 8), chrome, st.wheels[1] + st.wheelR + 2.35, 5.4, z + 0.02)); // fuel cap
         g.add(LP.box(0.12, 0.65, 0.95, LP.mat('#3a4a5a', { metalness: 0.8, roughness: 0.15 }), st.mirrorX - 0.42, st.mirrorY, (hw + 1.05) * s)); // mirror glass
       }
@@ -1237,6 +1330,7 @@ const Models = {
       const hx = EYE.x - 0.6, hz = EYE.z, roofY = topAt(hx) + bev, H = 3.6; // the hatch, centred over your seat
       const frameM = LP.mat('#2e3032', { metalness: 0.6, roughness: 0.5 }), lidM = LP.mat(opts.color, { metalness: 0.3, roughness: 0.5 });
       const open = !!opts.roofGun || !!opts.roofHatchOpen;
+      if (!st.open) { // (an open car has no roof to cut a hatch in: the gun goes on the cage)
       g.add(LP.box(H, 0.12, H, LP.mat('#050505', { roughness: 1 }), hx, roofY + 0.05, hz)); // the dark opening
       for (const [dx, dz, w, d] of [[0, H / 2 + 0.2, H + 0.8, 0.4], [0, -H / 2 - 0.2, H + 0.8, 0.4], [H / 2 + 0.2, 0, 0.4, H], [-H / 2 - 0.2, 0, 0.4, H]]) g.add(LP.box(w, 0.35, d, frameM, hx + dx, roofY + 0.15, hz + dz)); // the frame
       const hinge = new THREE.Group();
@@ -1244,6 +1338,7 @@ const Models = {
       hinge.add(LP.box(H + 0.2, 0.25, H + 0.2, lidM, (H + 0.2) / 2, 0, 0), LP.box(0.5, 0.2, 1.2, frameM, (H + 0.2) / 2 + 1.0, 0.2, 0)); // the lid and its handle
       hinge.rotation.z = open ? 1.95 : 0; // standing open, tipped back over the hinge
       g.add(hinge);
+      }
       if (opts.roofGun) { // the gun on its pintle, in front of the hatch
         const m = Models.roofMount(opts.roofGun.id, opts.roofGun.shield), k = 0.55;
         m.scale.setScalar(k);
@@ -1327,7 +1422,12 @@ const Models = {
       for (const dy of [-0.8, 0.8]) g.add(LP.box(0.4, 0.3, gz * 2 + 0.6, chrome, fx + 0.42, gy + dy, 0));
       for (const s of [-1, 1]) g.add(LP.box(0.4, 1.9, 0.3, chrome, fx + 0.42, gy, (gz + 0.15) * s));
       g.add(LP.box(0.5, 0.5, 0.9, chrome, fx + 0.5, gy, 0));
-    } else lit(LP.box(0.2, 1.3, gz * 2 - 1, DECALS.mat('grille'), fx + 0.35, gy, 0)); // 'mesh'
+    } else if (F.grille === 'waterfall') { // tall and chrome, falling right to the bumper
+      g.add(LP.box(0.2, 2.6, gz * 2, black, fx + 0.2, ly - 0.5, 0));
+      for (let z = -gz + 0.3; z <= gz - 0.29; z += 0.42) g.add(LP.box(0.3, 2.6, 0.12, chrome, fx + 0.32, ly - 0.5, z));
+      g.add(LP.box(0.45, 0.35, gz * 2 + 0.4, chrome, fx + 0.36, ly + 0.9, 0));
+      g.add(LP.mesh(new THREE.SphereGeometry(0.35, 10, 6), chrome, fx - 1.4, profileY(st.top, fx - 1.4) + 0.75, 0)); // hood ornament
+    } else if (F.grille !== 'none') lit(LP.box(0.2, 1.3, gz * 2 - 1, DECALS.mat('grille'), fx + 0.35, gy, 0)); // 'mesh'
 
     // Headlights.
     for (const s of [-1, 1]) {
@@ -1347,7 +1447,11 @@ const Models = {
         pod.rotation.z = -0.08;
         g.add(pod, LP.box(1.0, 0.25, 2.8, dark, px - 0.3, top + 0.05, z));
         lit(LP.box(0.2, 0.95, 2.4, lamp(), px + 0.72, top + 0.5, z));
-      } else square(2.8, 1.1, z); // 'rect'
+      } else if (F.lights === 'slit') { // a narrow work-truck strip, a spot lamp under it
+        square(3.2, 0.55, z, ly + 0.3);
+        disc(0.45, (hz - 0.6) * s, ly - 0.75);
+      } else if (F.lights === 'quadRect') { square(2.6, 0.7, z, ly + 0.45); square(2.6, 0.7, z, ly - 0.45); } // stacked, the 70s land-yacht way
+      else square(2.8, 1.1, z); // 'rect'
     }
   },
 
@@ -1547,7 +1651,19 @@ const Models = {
         const band = [...archPts(wc, cy, ar + 0.55, 16), ...archPts(wc, cy, ar - 0.05, 16).reverse()];
         sc.add(m.body, SDF.sideX(band, 0.7, 0.3, [0, 0, (hw * (wc > 0 ? 0.985 : 0.99) + bev - 0.2) * s]), 0.6);
       }
+      // Open bodies: a welded roll cage where the glasshouse would be.
+      if (st.open) {
+        const lean = (y) => 1 - 0.12 * clamp((y - belt) / (roofY - belt), 0, 1), r = 0.3;
+        const P = (x, y, s) => [x, y, (cw / 2) * lean(y) * s];
+        for (const s of [-1, 1]) {
+          for (let i = 0; i < cab.length - 1; i++) sc.add(m.roofMat, SDF.cone(P(cab[i][0], cab[i][1], s), P(cab[i + 1][0], cab[i + 1][1], s), r, r), 0.2); // hoops and side rails
+          sc.add(m.roofMat, SDF.cone(P(cab[2][0], roofY, s), P(cab[3][0] - 1.2, belt - 0.4, -s), r * 0.8, r * 0.8), 0.15); // the X behind the seats
+        }
+        for (const i of [1, 2]) sc.add(m.roofMat, SDF.cone(P(cab[i][0], roofY, -1), P(cab[i][0], roofY, 1), r, r), 0.2); // cross bars
+        sc.add(m.roofMat, SDF.cone(P(cab[0][0], belt, -1), P(cab[0][0], belt, 1), r, r), 0.2); // the dash hoop
+      }
       // Glasshouse frame: roof skin and pillars, leaning in as they rise, blended into the body and each other.
+      if (!st.open) {
       const lean = (y) => 1 - 0.15 * clamp((y - belt) / (roofY - belt), 0, 1);
       const house = [SDF.inflate(SDF.sideX([[cab[1][0] - 0.2, roofY - 0.2], [cab[2][0] + 0.2, roofY - 0.2], [cab[2][0], roofY + 0.35], [cab[1][0] - 0.3, roofY + 0.35]], cw + 0.3, 0), 0.12)];
       for (const s of [-1, 1]) {
@@ -1557,6 +1673,7 @@ const Models = {
         house.push(SDF.inflate(SDF.sideX(st.cPillar, 0.3, 0, [0, 0, z]), 0.1)); // C-pillar
       }
       for (const h of house) sc.add(m.roofMat, SDF.warp(h, (x, y, z) => [x, y, z / lean(y)], 0.2), 0.35);
+      }
       // Mirrors: a rounded housing on a stalk growing out of the door.
       for (const s of [-1, 1]) {
         sc.add(m.body, SDF.ellipsoid([0.5, 0.45, 0.7], [st.mirrorX, st.mirrorY, (hw + 0.95) * s]), 0.15);

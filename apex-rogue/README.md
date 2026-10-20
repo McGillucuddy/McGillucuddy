@@ -69,6 +69,12 @@ Big guns punch the view. A brief ragged muzzle flame flickers light over your ha
   - **Junk:** every rival also gets its own seeded heap of scrap. It can include a blower or scoop, zoomie stacks, riveted door armour, rear-screen slats, hub and nose spikes, a spare wheel, jerry cans, steer horns or a skull, spotlights, scrap fenders, barbed wire, a chain and an antenna rag. Each crew also adds its own lift and rake.
   - The front and side glass stays clear so you can still shoot the driver.
   - The junk is merged into one mesh per material (`Models.junk`), and it tears off with the other bolt-ons when the car is nearly wrecked.
+- **Prize bodies:** beating a boss unlocks a new body in the paint booth. Unlocks are kept between runs, so once a body is yours it stays yours for every run. Until then the booth shows it locked, along with the boss you have to beat.
+  - **Prison Bus** (beat The Turnkey): a cut-down transport with a snub nose, a tall box and bars over the windows.
+  - **Tow Truck** (beat Smokestack Sal): a pickup cab with a flatbed, an A-frame boom, a winch and a hook.
+  - **Dune Buggy** (beat Augustin Vale): a low open tub in a roll cage, with big wheels and the engine hanging off the back. It has no glass anywhere. From the gunner's seat the cabin has no roof and no windshield.
+  - **Hearse** (beat Vex Marlowe, i.e. win the Crown): long and low, with a blind back, landau bars and a chrome waterfall grille.
+  - Only you can drive the prize bodies; rivals stick to the seven standard ones.
 - **Rival crews:** every rival car has a driver at the wheel, and armed cars carry a gunner beside them. You can see them through the glass.
   - **Driver:** a shot whose path passes their seat hits them. A hit makes the car flinch into a swerve. Kill the driver and the car coasts on, steering itself into a wall: it's out of the race and counts as your wreck.
   - **Gunner:** hits break their lock, and killing them silences the car's weapon.

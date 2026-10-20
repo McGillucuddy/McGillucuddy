@@ -779,7 +779,8 @@ class CockpitView {
   }
 
   buildInterior() {
-    const { group: I, refs } = Models.interior(this.race.player.color, { cabin: this.look3d.cabin });
+    const open = !!(CAR_STYLES[this.look3d.style] || {}).open; // an open body (the buggy): no roof, no windshield
+    const { group: I, refs } = Models.interior(this.race.player.color, { cabin: this.look3d.cabin, noRoof: open });
     this.ornament = refs.ornament ? refs.ornament.userData.sway : null;
     this.roofHatch = refs.roofHatch;
     this.wheel = refs.wheel;
@@ -808,6 +809,7 @@ class CockpitView {
     live(refs.windshield, this.cracks.tex, { opacity: 1 });
     this.windshield = refs.windshield;
     this.glass = { hp: GLASS.hp, gone: false }; // a new windshield every race
+    if (open) { this.glass.gone = this.glass.none = true; this.windshield.visible = false; } // (none: nothing to report on the HUD)
     this.buildHatch(I);
 
     // Dust drifting in the bulb light.

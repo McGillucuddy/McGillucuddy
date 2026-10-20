@@ -95,7 +95,7 @@ const Proto = {
       Intro.warm(this); // the cold open's car and people go first: they mesh while the gate and the sting are up
       for (const id of Object.keys(WEAPONS)) Models.weapon(id); // the guns (their fitted gloves follow once these are meshed)
       for (const id of Object.keys(WEAPONS)) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id], this.cos.patchSeed[id]); // your welded-on junk
-      for (const style of Object.keys(CAR_STYLES)) Models.car({ style, color: '#888888' });
+      for (const style of Object.keys(CAR_STYLES).filter((k) => CAR_STYLES[k].prize == null)) Models.car({ style, color: '#888888' }); // the rivals' bodies (prize bodies are only ever yours)
       Models.car(Object.assign({}, carLook(this.cos, this.build), { shell: true })); // your own car, seen from inside
       Models.interior('#888888', {});
       Models.rocketPod(); Models.mineDropper(); Models.gunner(); Models.grenade(); Models.rocket(); Models.mine(); Models.grenadeCrate();
@@ -108,7 +108,7 @@ const Proto = {
       M.fireBarrel(); M.wreck(4); M.wreck(8); M.junk(5); Env.guardTower(); M.palm(3); M.palm(8); M.palm(5); M.palm(13);
       M.topiary(1); M.topiary(2); M.fountain(); M.statue(); M.colonnade(); M.flags(1); M.flags(2);
       // Last: every bolt-on kit piece on every body, so rivals' random kits never stall a race load.
-      for (const style of Object.keys(CAR_STYLES)) for (const [bumper, roof] of [['pushbar', 'rails'], ['bullbar', 'rack'], ['plow', 'lightbar'], ['stock', 'cage']]) Models.car({ style, color: '#888888', bumper, roof });
+      for (const style of Object.keys(CAR_STYLES).filter((k) => CAR_STYLES[k].prize == null)) for (const [bumper, roof] of [['pushbar', 'rails'], ['bullbar', 'rack'], ['plow', 'lightbar'], ['stock', 'cage']]) Models.car({ style, color: '#888888', bumper, roof });
     } finally { Sculpt.collect = false; }
     // The gloves are fitted to each gun's measured grip, so they're queued as soon as the guns themselves are meshed
     // (the guns go first), and jump the queue: a race can't start without them.
@@ -346,6 +346,7 @@ const Proto = {
         else if (key.startsWith('gun.')) this.cos.gunFinish[key.slice(4)] = val;
         else if (key.startsWith('kit.')) this.cos.gunKit[key.slice(4)] = val;
         else if (key.startsWith('reweld.')) this.cos.patchSeed[key.slice(7)] = (this.cos.patchSeed[key.slice(7)] || 0) + 1;
+        else if (cosLocked(this.cos, key, cosOption(key, val))) break; // a prize body you haven't earned yet
         else this.cos[key] = val;
         saveCosmetics(this.cos);
         if (this.preview) this.preview.setLook(carLook(this.cos, this.build));
@@ -1311,6 +1312,7 @@ const Proto = {
     const lost = this.tutorial || this.combat.crewDone ? null : Crew.afterRace(b, run, !!this.combat.ownDriverDead); // your driver: heals, or is replaced
     if (!this.tutorial && !this.combat.crewDone) Crew.gunnerAfterRace(b, !!this.combat.gunnerOut);
     if (lost) lost.by = this.combat.driverKilledBy;
+    if (!this.tutorial && !this.combat.crewDone && boss && ok) this.combat.newBody = unlockBody(this.cos, run.act); // a prize body, yours for good
     if (!this.tutorial && !this.combat.crewDone) CarHistory.afterRace(b, race, mulberry32((this.seed ^ 0x3a7) >>> 0), !!(boss && ok), run.act);
     if (!this.tutorial && !this.combat.crewDone) SeasonTape.record(run, b, race, this.combat, ok);
     this.combat.crewDone = true;
@@ -1349,6 +1351,7 @@ const Proto = {
           <div><span>Placing purse <small class="muted">${p.dnf ? 'did not finish' : `${range[0]}-${range[1]}`}</small></span><b>${placePay} scrap</b></div>
           <div><span>Bounties${claimed.length ? ` <small class="muted">${claimed.map((x) => `${shortName(x.c)} ${x.pay}${x.clean ? ' (clean kill)' : ''}`).join(', ')}</small>` : ''}</span><b>${wreckPay} scrap</b></div>
           ${bossPay ? `<div><span>Qualifier purse</span><b>${bossPay} scrap</b></div>` : ''}
+          ${this.combat.newBody ? `<div class="unlock">New body in the paint shop: <b>${this.combat.newBody.name}</b>. It's yours from now on, every run.</div>` : ''}
           ${bc && !bc.downed ? `<div><span>Most wanted: ${bc.name}</span><b>got away</b></div>` : ''}
           ${sponsorCut ? `<div><span>Sponsor takes back</span><b class="bad">-${sponsorCut} scrap</b></div>` : ''}
           ${betPay ? `<div><span>Bet winnings</span><b>${betPay} scrap</b></div>` : ''}
@@ -1605,8 +1608,8 @@ const Proto = {
   garagePaint() {
     const c = this.cos, sub = this.paintTab || 'body';
     const opt = (key, list, render, cur = c[key], argKey = key) => list.map((o) => {
-      const locked = false, on = cur === o.id; // every paint job is open: runs are self-contained
-      return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'disabled' : ''} data-action="cosmetic" data-arg="${argKey}:${o.id}" title="${locked ? 'Unlocks at ' + o.rep + ' reputation' : o.name}">${render ? render(o) : ''}<span>${locked ? '🔒 ' + o.rep : o.name}</span></button>`;
+      const locked = cosLocked(c, key, o), on = cur === o.id; // all open, but for the prize bodies: beat their boss first
+      return `<button class="opt ${on ? 'on' : ''} ${locked ? 'locked' : ''}" ${locked ? 'disabled' : ''} data-action="cosmetic" data-arg="${argKey}:${o.id}" title="${locked ? 'Beat ' + locked.name + ' to unlock' : o.name}">${render ? render(o) : ''}<span>${locked ? '🔒 ' + o.name : o.name}</span>${locked ? `<small>Beat ${locked.name}</small>` : ''}</button>`;
     }).join('');
     const sw = (o) => `<i class="swatch" style="background:${o.color}"></i>`;
     const L = COSMETICS, row = (title, html) => `<h3>${title}</h3><div class="opts">${html}</div>`;
@@ -1635,7 +1638,7 @@ const Proto = {
     const tabs = [['body', 'Body'], ['kit', 'Kit'], ['cabin', 'Cabin'], ['vest', 'Vest'], ['guns', 'Guns'], ['presets', 'Presets']]
       .map(([id, n]) => `<button class="opt ${sub === id ? 'on' : ''}" data-action="paint-tab" data-arg="${id}">${n}</button>`).join('');
     return `<div class="paint-opts">
-      <p class="muted small">Your look is kept between runs. Every finish, paint and part of the kit is yours to choose.</p>
+      <p class="muted small">Your look is kept between runs. Every finish, paint and part of the kit is yours to choose; the prize bodies are yours once you've beaten their boss.</p>
       <div class="opts subtabs">${tabs}</div>
       ${sub === 'cabin' || sub === 'body' || sub === 'kit' || sub === 'vest' ? `<p class="muted small">Drag the view to look ${sub === 'cabin' ? 'round the cabin' : sub === 'vest' ? 'round yourself' : 'round the car'}${sub === 'body' || sub === 'kit' ? ' · scroll to zoom' : ''}.</p>` : ''}${pages[sub]()}</div>`;
   },
@@ -1909,7 +1912,7 @@ function drawWeaponPanel(ctx, P, W, H) {
   const hatch = c.hatch.jammed ? 'HATCH JAMMED' : c.guarded ? 'HATCH SHUT' : hf < 0.995 ? `HATCH ${Math.ceil(hh.hp)}%` : '';
   if (c.leanOut) rows.push([false, 'Window', 'LEANING OUT', null, '#ff9f1c']);
   const gl = P.cockpit && P.cockpit.glass; // the windshield: worn by rounds, or kicked out (K)
-  if (gl && (gl.gone || gl.hp < GLASS.hp)) rows.push([false, 'Windshield', gl.gone ? 'OUT' : `${Math.max(1, Math.round(gl.hp))}%`, gl.gone ? null : gl.hp / GLASS.hp, '#9fd0ff']);
+  if (gl && !gl.none && (gl.gone || gl.hp < GLASS.hp)) rows.push([false, 'Windshield', gl.gone ? 'OUT' : `${Math.max(1, Math.round(gl.hp))}%`, gl.gone ? null : gl.hp / GLASS.hp, '#9fd0ff']);
   rows.push([false, `G ×${b.grenades}`, hatch, hatch && !c.guarded ? hf : null, c.hatch.jammed ? '#ff3b1f' : hf < 0.3 ? '#ff7a1f' : '#c9a43a']);
   c.abil.forEach((a, i) => {
     if (!a) return;
