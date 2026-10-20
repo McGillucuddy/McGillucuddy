@@ -42,7 +42,7 @@ const TYRE_R = 4.2; // how close a shot's path must pass a wheel to hit the tyre
 // hits you rather than the car a share of the time (exposure): more damage, a flinch, and enough of them in a few
 // seconds knock you back down. Climbing up or down takes a moment.
 // How hard an explosion throws a car at full strength (scaled by distance, blast size and the car's mass).
-const BLAST = { push: 160, lift: 210 };
+const BLAST = { push: 160, lift: 140, tumble: 2.2 }; // (lift: up off its wheels on the jump physics, js/car.js; tumble: how hard it's turned over)
 const ROOF = { cageDud: 0.35, cageRocket: 0.35, cageBlast: 0.7, steady: 0.6, climb: 0.6, drop: 0.45, exposure: 0.45, youDmg: 1.6, blastMul: 1.3, knockHits: 3, knockWindow: 2.5 };
 const RIVAL_TYRE = 0.15; // a stray rival round that happens to land by a wheel
 // A tyre hunter's aimed burst: a longer wind-up (you see it coming), eight rounds at one wheel. 'start' is how long
@@ -289,8 +289,8 @@ class Combat {
     const m = Math.max(0.6, c.stats.mass || 1), k = f * clamp(radius / 60, 0.5, 1.6) / m;
     const dx = c.x - x, dy = c.y - y, dl = Math.hypot(dx, dy) || 1;
     c.vx += (dx / dl) * BLAST.push * k; c.vy += (dy / dl) * BLAST.push * k;
-    if (!c.air && f > 0.35) { c.air = true; c.airT = 0; c.vz = BLAST.lift * k; c.z = Math.max(c.z || 0, 0.5); }
-    const side = Math.sign(Math.cos(c.heading) * dy - Math.sin(c.heading) * dx) || 1;
+    const side = Math.sign(Math.cos(c.heading) * dy - Math.sin(c.heading) * dx) || 1, fwd = (Math.cos(c.heading) * dx + Math.sin(c.heading) * dy) / dl;
+    if (!c.air && f > 0.35) c.launch(BLAST.lift * k, fwd * BLAST.tumble * k * 0.5, side * BLAST.tumble * k); // tipped away from the blast (one behind lifts the tail)
     c.spinT = Math.max(c.spinT || 0, 0.35 * f); c.spinDir = -side;
     if (c.hp <= 0 && f > 0.55 && !c.flipped && this.rng() < 0.6) c.flipped = true;
     if (c === this.player) this.events.push({ type: 'thrown', f });

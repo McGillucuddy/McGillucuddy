@@ -4,7 +4,19 @@
 const CAR_LEN = 36;
 const CAR_WID = 18;
 const CAR_RADIUS = 13;
-const GRAVITY = 900; // for jumps off ramps
+// Jumps (ramps, blasts). The world's scale is about 0.13m a unit (the car's 36 long), so real gravity would be ~75;
+// this is game gravity, heavy enough to land with a thump but light enough for real air time off a ramp.
+const JUMP = {
+  g: 320, // gravity, units/s^2
+  launch: 1.4, // how hard the ramp's lip throws you up (times the climb the slope gives)
+  tip: 1.1, // how far the nose tips over in the air (times the ramp's angle): the rear wheels leave last
+  steerRoll: 0.35, // roll rate from turning the wheel as you leave
+  airSteer: 0.15, // the wheels turned in the air barely move the car
+  bounce: 0.22, // a hard landing hops back up this much of its speed
+  bounceMin: 150,
+  squash: 0.06, // the suspension giving on landing (body drop per unit of impact)
+};
+const GRAVITY = JUMP.g;
 
 class Car {
   constructor(opts) {
@@ -30,6 +42,9 @@ class Car {
     // Height off the ground (ramps, jumps) and the body's pitch and roll on its springs (the 3D view shows them).
     this.z = 0; this.vz = 0; this.air = false; this.airT = 0; this.landImpact = 0;
     this.pitch = 0; this.vpitch = 0; this.roll = 0; this.vroll = 0;
+    // The body's attitude off the ground: jp pitch (+ nose down), jr roll, free in the air and on stiff springs
+    // on the ground (the ramp's slope, the bounce after a landing), and sq the suspension squashed (body drop).
+    this.jp = 0; this.vjp = 0; this.jr = 0; this.vjr = 0; this.sq = 0; this.vsq = 0; this.groundPitch = 0;
   }
 
   get speed() { return Math.hypot(this.vx, this.vy); }
@@ -45,6 +60,7 @@ class Car {
   step(inp, dt, gripMul) {
     const s = this.stats;
     if (this.air) { this.stepAir(inp, dt); return; }
+    this.settleBody(dt);
     const fx = Math.cos(this.heading), fy = Math.sin(this.heading);
     let vF = this.vx * fx + this.vy * fy;
     let vR = -this.vx * fy + this.vy * fx;
@@ -130,25 +146,52 @@ class Car {
     this.roll += this.vroll * dt;
   }
 
-  // In the air: no grip and no throttle, a touch of steering, gravity. Lands back on its springs.
+  // On the ground, the jump attitude springs back to the road (or the ramp's slope) with a bounce, and the
+  // suspension recovers from a landing.
+  settleBody(dt) {
+    const k = 160, c = 15;
+    this.vjp += ((this.groundPitch - this.jp) * k - this.vjp * c) * dt; this.jp += this.vjp * dt;
+    this.vjr += (-this.jr * k - this.vjr * c) * dt; this.jr += this.vjr * dt;
+    this.vsq += (-this.sq * 220 - this.vsq * 17) * dt; this.sq += this.vsq * dt;
+  }
+
+  // Leaving the ground (a ramp's lip, a blast): up at vz, the body turning as it goes (pitch rate vp, roll rate vr).
+  // set: the turning it leaves with replaces whatever the springs were doing (off a ramp's lip), else adds to it (a blast).
+  launch(vz, vp, vr, set) {
+    this.air = true; this.airT = 0; this.vz = vz; this.z = Math.max(this.z, 0.5);
+    if (set) { this.vjp = vp; this.vjr = vr; } else { this.vjp += vp; this.vjr += vr; }
+  }
+
+  // In the air: no grip and no throttle, barely any steering, gravity. The body keeps turning the way it left
+  // (the nose tips over), and how it meets the ground decides the landing: square, it squats and bounces; nose
+  // or tail first, or tipped over, it slams, bounces harder, and scrubs more speed (and does more damage).
   stepAir(inp, dt) {
     this.airT += dt;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     const drag = 1 - 0.04 * dt;
     this.vx *= drag; this.vy *= drag;
-    this.heading += (inp.steer || 0) * 0.3 * dt;
-    this.vz -= GRAVITY * dt;
+    this.heading += (inp.steer || 0) * JUMP.airSteer * dt;
+    this.vz -= JUMP.g * dt;
     this.z += this.vz * dt;
-    this.springBody(dt, clamp(-this.vz * 0.0011, -0.3, 0.3), this.roll * 0.5); // nose up on the way up, down on the way down
+    this.jp += this.vjp * dt; this.vjp *= 1 - 0.25 * dt;
+    this.jr += this.vjr * dt; this.vjr *= 1 - 0.25 * dt;
+    this.vsq += (-this.sq * 220 - this.vsq * 17) * dt; this.sq += this.vsq * dt;
+    this.springBody(dt, 0, this.roll * 0.5);
     this.nitro = Math.min(this.stats.nitroCap, this.nitro + this.stats.nitroRegen * dt);
     if (this.hitFlash > 0) this.hitFlash -= dt;
     if (this.z <= 0) {
-      this.landImpact = -this.vz;
-      this.z = 0; this.vz = 0; this.air = false;
-      this.vpitch += this.landImpact * 0.004; // the nose slams down and bounces
-      const keep = 1 - Math.min(0.12, this.landImpact / 4000); // a hard landing scrubs speed
+      const down = -this.vz, bad = Math.max(0, Math.abs(this.jp) - 0.12) * 3 + Math.max(0, Math.abs(this.jr) - 0.15) * 2.5; // off square
+      this.landImpact = down * (1 + bad);
+      this.z = 0; this.groundPitch = 0;
+      // The end that hits first slams the other down: the body rocks over onto its wheels.
+      this.vjp += -this.jp * 6 + down * 0.002; // (and the front dips as the springs take it)
+      this.vjr += -this.jr * 6;
+      this.vsq -= this.landImpact * JUMP.squash * 14;
+      const keep = 1 - Math.min(0.3, this.landImpact / 3000 + bad * 0.06); // a hard or crooked landing scrubs speed
       this.vx *= keep; this.vy *= keep;
+      if (down > JUMP.bounceMin) { this.vz = down * JUMP.bounce * (1 + bad * 0.5); this.z = 0.5; this.vjp *= 0.6; } // back up off the springs
+      else { this.vz = 0; this.air = false; }
     }
   }
 

@@ -311,6 +311,7 @@ function mountRoofGun(b, stashIndex) {
 }
 
 function addWeapon(b, id, replaceIndex) {
+  if (WEAPONS[id].roof) { const R = ensureRoof(b); if (R.gun) b.stash.weapons.push(R.gun); R.gun = newWeapon(id); return; } // machine guns only ever go on the roof
   if (replaceIndex != null) b.rack[replaceIndex] = newWeapon(id);
   else b.rack.push(newWeapon(id));
 }

@@ -70,7 +70,7 @@ class Race {
     car.placeAt(tr.pts[i].x + tr.nx[i] * clamp(q.lat, -tr.hw * 0.5, tr.hw * 0.5),
       tr.pts[i].y + tr.ny[i] * clamp(q.lat, -tr.hw * 0.5, tr.hw * 0.5), tr.ang[i]);
     car.spinT = 0; car.oilT = 0;
-    car.air = false; car.z = 0; car.vz = 0; car.onRamp = null;
+    car.air = false; car.z = 0; car.vz = 0; car.onRamp = null; car.jp = car.vjp = car.jr = car.vjr = car.sq = car.vsq = car.groundPitch = 0;
   }
 
   rankCars() {
@@ -326,13 +326,17 @@ class Race {
       const d = dx * c + dy * s, l = -dx * s + dy * c;
       if (Math.abs(l) < r.w / 2 && d >= 0 && d <= r.len) { on = { r, d }; break; }
     }
-    if (on) { car.z = (on.r.h * on.d) / on.r.len; car.onRamp = on.r; car.rampD = on.d; return; }
+    if (on) { car.z = (on.r.h * on.d) / on.r.len; car.onRamp = on.r; car.rampD = on.d; car.groundPitch = -Math.atan2(on.r.h, on.r.len); return; } // up the wedge, nose up
     const r = car.onRamp;
     car.onRamp = null;
     const fs = car.forwardSpeed;
+    car.groundPitch = 0;
     if (r && car.rampD > r.len * 0.75 && fs > 90) {
-      car.air = true; car.airT = 0;
-      car.vz = fs * (r.h / r.len) * 1.9;
+      // Off the lip: thrown up by the slope at the speed you hit it, nose up at the ramp's angle and tipping over
+      // as it flies (the rear wheels leave last), rolling a little if the wheel was turned.
+      const vz = fs * (r.h / r.len) * JUMP.launch, ang = Math.atan2(r.h, r.len), flight = 2 * vz / JUMP.g;
+      car.jp = -ang;
+      car.launch(vz, (ang * JUMP.tip + 0.04) / Math.max(0.3, flight) * (0.85 + Math.random() * 0.3), ((car.input && car.input.steer) || 0) * JUMP.steerRoll + (Math.random() - 0.5) * 0.12, true);
       if (car === this.player) { this.events.push({ type: 'jump' }); if (fs > 300) this.message('Airborne!', '#ffd23f'); }
     } else car.z = 0;
   }

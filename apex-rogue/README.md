@@ -53,8 +53,13 @@ A stop that was underway replays from the same random state, so it's the identic
 Big guns punch the view. A brief ragged muzzle flame flickers light over your hands and the cabin, and smoke curls off the barrel.
 
 **Ramps, obstacles and car physics.** Every gunner race now has steel ramps and obstacles, and there are more of each act by act.
-- **Ramps:** ride up the wedge, leave the lip at speed and you're airborne. You get no grip and only a touch of steering in the air.
-  You land with a nose-slam bounce, and a hard landing costs speed and hull.
+- **Ramps:** ride up the wedge (the car tilts up with it), leave the lip at speed and you're airborne (`JUMP` in
+  js/car.js). Gravity is game-scale (about 4x real for the car's size), so a fast car gets about a second in the
+  air and 4-5 m of height. It leaves nose-up and tips forward as it flies (the rear wheels leave last); turning the
+  wheel as you leave rolls it. No grip and barely any steering in the air. Landing square, the suspension squats and
+  the body rocks onto its wheels; a hard landing bounces back up. Nose-first, tail-first or tipped over, it slams
+  harder, bounces higher, scrubs more speed and can cost hull. Blasts throw cars on the same physics, tipping them
+  away from the explosion.
 - **Obstacles:** concrete jersey barriers, tyre stacks (they scatter if you hit them hard), burnt-out wrecks, and red barrel clusters.
   Barrels explode when shot or rammed, set off any barrels nearby, and hurt any car in the blast. Clear an obstacle in the air and you sail over it.
 - **AI:** drivers steer round obstacles, and some go out of their way to hit the ramps.

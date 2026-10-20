@@ -1561,15 +1561,15 @@ class CockpitView {
       cm.vroll += ((clamp(-this.acc.lat * 0.0001, -0.09, 0.09) - cm.roll) * k - cm.vroll * d) * dt; cm.roll += cm.vroll * dt;
       cm.vpitch += ((clamp(this.acc.fwd * 0.00006, -0.05, 0.05) - cm.pitch) * k - cm.vpitch * d) * dt; cm.pitch += cm.vpitch * dt;
     }
-    this.playerGroup.position.set(p.x, (p.z || 0) + Math.sin(t * 13) * 0.05 * Math.min(1, p.speed / 300) * sway, p.y);
+    this.playerGroup.position.set(p.x, (p.z || 0) + (p.sq || 0) + Math.sin(t * 13) * 0.05 * Math.min(1, p.speed / 300) * sway, p.y);
     this.playerGroup.rotation.order = 'YXZ';
     // Off a ramp the nose lifts and drops with the jump (always shown: it's the jump, not cabin sway).
-    this.playerGroup.rotation.set(cm.roll * sway, -p.heading, cm.pitch * sway - (p.air ? p.pitch : 0));
+    this.playerGroup.rotation.set(cm.roll * sway + (p.jr || 0), -p.heading, cm.pitch * sway - (p.jp || 0));
     this.playerGroup.updateMatrixWorld(true); // localToWorld below needs this frame's transform
     for (const [car, m] of this.carMeshes) {
-      m.g.position.set(car.x, car.z || 0, car.y);
+      m.g.position.set(car.x, (car.z || 0) + (car.sq || 0), car.y);
       m.g.rotation.order = 'YXZ';
-      m.g.rotation.set(0, -car.heading, car.air ? -car.pitch : 0); // nose up off a ramp, down as it falls
+      m.g.rotation.set(car.jr || 0, -car.heading, -(car.jp || 0)); // up the ramp nose first, tipping over in the air, rocking on landing
       m.wheels.forEach((w, i) => {
         w.rotation.z -= (car.forwardSpeed * dt) / 3.8;
         if (w.position.x > 0) w.rotation.y = -(car.input ? car.input.steer : 0) * 0.5; // front wheels steer
