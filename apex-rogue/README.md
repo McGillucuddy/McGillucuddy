@@ -337,6 +337,10 @@ every inmate who drives for you gets one of their own (by their seed).
   less urgent one, and the engine and music dip under what they say. It's subtitled.
 - **You:** a grunt when the car slams into something, a cry when a round finds you, an effort when you climb to
   the roof, throw a grenade or kick the windshield out.
+- **Your own takes:** record the lines (the script is `tools/voice_lines.json`; file names are `driver/<situation>_<tier>_<n>.wav`
+  and `gunner/<kind>_<n>.wav`) and run `python3 tools/import_voices.py <folder>`: it trims and levels them into
+  `js/voices/rec.js` and `rec_gunner.js` and adds them to the page. Recorded takes speak for every driver; any line
+  without one keeps its synthetic voice.
 
 ### Menus in the house style
 

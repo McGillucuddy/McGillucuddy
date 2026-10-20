@@ -19,7 +19,7 @@ const VOICE = {
 const VoiceBank = {
   banks: {}, // id -> { id, who, lines }
   add(b) { this.banks[b.id] = b; },
-  drivers() { return Object.keys(this.banks).filter((id) => this.banks[id].who === 'driver').sort(); },
+  drivers() { return Object.keys(this.banks).filter((id) => this.banks[id].who === 'driver' && !this.banks[id].recorded).sort(); },
 };
 
 // Nerve: 0 (their first race, terrified) to 1 (nothing scares them), from the races you've done together, the
@@ -48,12 +48,15 @@ class VoicePlayer {
     this.driverId = ids.length ? ids[((crew && crew.seed) || 0) % ids.length] : null;
     if (this.driverId) this.decode(this.driverId);
     if (VoiceBank.banks.gunner) this.decode('gunner');
+    // Your own recordings (tools/import_voices.py), if there are any: they speak for every driver, and for you.
+    for (const id of ['rec', 'rec_gunner']) if (VoiceBank.banks[id]) this.decode(id);
   }
 
   decode(id) {
     if (this.buffers[id] || !Sound.ctx) return;
     const out = this.buffers[id] = {}, B = VoiceBank.banks[id];
     const put = (key, b64) => {
+      if (!b64) return; // (a line with no recorded take)
       const bin = atob(b64), u = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
       Sound.ctx.decodeAudioData(u.buffer).then((buf) => { out[key] = buf; }, () => {});
@@ -91,7 +94,7 @@ class VoicePlayer {
     const list = cat[tier] || cat.m, bufs = this.buffers[this.driverId] || {};
     let i = Math.floor(Math.random() * list.length);
     if (list.length > 1 && i === this.last[kind]) i = (i + 1) % list.length; // not the same line twice running
-    const buf = bufs[`${kind}.${tier}.${i}`];
+    const key = `${kind}.${tier}.${i}`, buf = (this.buffers.rec || {})[key] || bufs[key]; // (a recorded take first)
     if (!buf || !this.play('driver', buf, VOICE.pri[kind] || 1)) return null;
     this.cd[kind] = t + (VOICE.cd[kind] || 1.5);
     this.last[kind] = i;
@@ -102,7 +105,7 @@ class VoicePlayer {
   grunt(kind) {
     const t = this.now(), bank = VoiceBank.banks.gunner, list = bank && bank.lines[kind];
     if (!list || (this.cd['g.' + kind] || 0) > t || (this.combat && this.combat.gunnerOut)) return;
-    const i = Math.floor(Math.random() * list.length), buf = (this.buffers.gunner || {})[`${kind}.${i}`];
+    const i = Math.floor(Math.random() * list.length), buf = (this.buffers.rec_gunner || {})[`${kind}.${i}`] || (this.buffers.gunner || {})[`${kind}.${i}`];
     if (buf && this.play('gunner', buf, kind === 'hurt' ? 4 : 2)) this.cd['g.' + kind] = t + VOICE.gunnerCd[kind];
   }
 
