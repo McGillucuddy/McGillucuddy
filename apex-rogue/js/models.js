@@ -928,6 +928,7 @@ const CAR_STYLES = {
     wheels: [11.2, -10.8], wheelR: 2.7, wheelZ: 7.25,
     lightY: 4.1, tailY: 5.6, frontPlateY: 2.5, rearPlateY: 4.2, mirrorX: 7.6, mirrorY: 7.6,
     bPillar: -1.6, seams: [6.6, -4.8], cPillar: [[-5.4, 7.1], [-7, 10.8], [-12.2, 7.1]],
+    face: { lights: 'popup', grille: 'slats' }, stance: { rake: 0.012 }, // its own face and stance
     kit: { bumper: 'none', roof: 'none', spoiler: 'lip' },
     extras() {},
   },
@@ -938,6 +939,7 @@ const CAR_STYLES = {
     wheels: [11.4, -11], wheelR: 3, wheelZ: 7.4,
     lightY: 4.7, tailY: 6.4, frontPlateY: 2.6, rearPlateY: 4.6, mirrorX: 8.2, mirrorY: 8.2,
     bPillar: -1.2, seams: [7.4, -3.4, -11.5], cPillar: [[-10.6, 7.8], [-10.6, 12], [-11.6, 12], [-11.6, 7.8]],
+    face: { lights: 'square2', grille: 'bars' }, stance: { lift: 0.9, tyre: 1.12 }, // its own face and stance
     kit: { bumper: 'bullbar', roof: 'rails', spoiler: 'none' },
     extras() {},
   },
@@ -948,6 +950,7 @@ const CAR_STYLES = {
     wheels: [10.4, -9.6], wheelR: 2.6, wheelZ: 6.8,
     lightY: 4, tailY: 5.4, frontPlateY: 2.4, rearPlateY: 3.8, mirrorX: 6.4, mirrorY: 7.3,
     bPillar: -2.4, seams: [5.6, -5.4], cPillar: [[-7.6, 6.9], [-9.2, 10.3], [-10.8, 10.3], [-13.9, 7]],
+    face: { lights: 'round2', grille: 'mesh' }, stance: { lift: -0.3, rake: 0.02, tyre: 0.95 }, // its own face and stance
     kit: { bumper: 'none', roof: 'none', spoiler: 'roofspoiler' },
     extras(sc, m) {
       sc.add(m.dark, SDF.box([1.4, 0.4, 13], 0.18, [17.6, 1.6, 0]), 0.3); // front lip
@@ -960,6 +963,7 @@ const CAR_STYLES = {
     wheels: [11.8, -11.2], wheelR: 2.9, wheelZ: 7.4,
     lightY: 4.4, tailY: 5.2, frontPlateY: 2.6, rearPlateY: 3.6, mirrorX: 4.4, mirrorY: 7.4,
     bPillar: -3.4, seams: [3.4, -6.2], cPillar: [[-6.4, 6.8], [-4.6, 10.3], [-16.4, 6.8]],
+    face: { lights: 'round4', grille: 'egg' }, stance: { lift: 0.2, rake: 0.025, rearTyre: 1.12 }, // its own face and stance
     kit: { bumper: 'none', roof: 'none', spoiler: 'ducktail' },
     extras(sc, m) {
       sc.add(m.body, SDF.inflate(SDF.sideX([[13, 6.3], [7.5, 6.8], [7.2, 7.8], [10.5, 7.8]], 4, 0), 0.15), 0.5); // hood scoop, moulded into the hood
@@ -973,6 +977,7 @@ const CAR_STYLES = {
     wheels: [11.6, -11.2], wheelR: 2.8, wheelZ: 7.3,
     lightY: 4.6, tailY: 5.8, frontPlateY: 2.6, rearPlateY: 4.4, mirrorX: 7.4, mirrorY: 7.9,
     bPillar: -2.2, seams: [6.6, -2.4, -10.2], cPillar: [[-7.2, 7.2], [-8.4, 11.2], [-12.8, 7.2]],
+    face: { lights: 'rect', grille: 'chrome' }, stance: {}, // its own face and stance
     kit: { bumper: 'none', roof: 'none', spoiler: 'none' },
     extras(sc, m) {
       sc.add(m.body, SDF.box([0.8, 0.8, 13.4], 0.3, [-1.6, 11.6, 0]), 0.6); // roof drip ridge
@@ -985,6 +990,7 @@ const CAR_STYLES = {
     wheels: [12.0, -11.6], wheelR: 3.2, wheelZ: 7.6,
     lightY: 5.0, tailY: 6.4, frontPlateY: 2.8, rearPlateY: 4.6, mirrorX: 8.0, mirrorY: 8.6,
     bPillar: -0.4, seams: [7.4, -1.6], cPillar: [[-0.4, 7.9], [-0.6, 12.2], [-1.0, 12.2], [-1.8, 7.9]],
+    face: { lights: 'roundCaged', grille: 'bars' }, stance: { lift: 1.6, tyre: 1.2 }, // its own face and stance
     kit: { bumper: 'pushbar', roof: 'lightbar', spoiler: 'none' },
     extras(sc, m) {
       sc.cut(SDF.box([16.2, 8, 14.6], 0.6, [-10.4, 8.6, 0]), 0.4); // the open load bed
@@ -999,6 +1005,7 @@ const CAR_STYLES = {
     wheels: [12.0, -11.6], wheelR: 3.0, wheelZ: 7.6,
     lightY: 5.2, tailY: 7.0, frontPlateY: 2.8, rearPlateY: 4.8, mirrorX: 9.2, mirrorY: 9.2,
     bPillar: 3.6, seams: [9.6, 3.2, -6.0], cPillar: [[-3.4, 8.7], [-3.4, 14.6], [-17.4, 14.6], [-18.0, 8.7]],
+    face: { lights: 'square4', grille: 'slats' }, stance: { lift: 0.4, tyre: 1.05 }, // its own face and stance
     kit: { bumper: 'none', roof: 'rack', spoiler: 'none' },
     extras(sc, m) {
       for (const sd of [-1, 1]) sc.add(m.dark, SDF.box([13, 0.3, 0.3], 0.1, [-8.6, 9.8, sd * 8.0]), 0.1); // sliding door rail
@@ -1052,6 +1059,15 @@ function shellProfiles(st, xf, xr) {
   const rearX = st.top[st.top.length - 1][0];
   const rear = [[xr, topY(xr)], ...top.filter(([x]) => x < xr), [rearX + 2.2, 1.5], ...archPts(wr, cy, R, 7).filter(([x]) => x < xr), [xr, bottomY(xr, wr)]];
   return [front, rear];
+}
+
+// Height of a side profile (a polyline of [x, y]) at x.
+function profileY(pts, x) {
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x1, y1] = pts[i], [x2, y2] = pts[i + 1];
+    if ((x <= x1 && x >= x2) || (x >= x1 && x <= x2)) return y1 + ((y2 - y1) * (x - x1)) / (x2 - x1 || 1);
+  }
+  return pts[x > pts[0][0] ? 0 : pts.length - 1][1];
 }
 
 // Darken vertices near the ground: road grime and fake ambient occlusion baked into vertex colours.
@@ -1145,20 +1161,15 @@ const Models = {
       for (const z of [-3.2, 1.6]) g.add(LP.beam([cab[0][0] - 0.2, belt + 0.25, z], [cab[0][0] - 1.6, belt + 1.1, z + 3.4], 0.15, dark));
     }
 
-    // Front: grille, headlights, plate. Rear: tail lights, plate, exhaust.
-    const grille = LP.box(0.2, 1.3, 6, DECALS.mat('grille'), fx + 0.35, st.lightY - 0.2, 0);
-    grille.userData.noGrime = true;
-    g.add(grille);
-    // Light positions follow the rounded nose/tail (the corners are pulled in).
-    const hz = (hw - 2.3) * 0.93, tz = (hw - 2.4) * 0.95;
+    // Front: grille and headlights (each body has its own face, see Models.face), plate. Rear: tail lights, plate.
+    const hz = (hw - 2.3) * 0.93, tz = (hw - 2.4) * 0.95; // light positions follow the rounded nose/tail (the corners are pulled in)
+    Models.face(g, st, opts, fx, hz, chrome, dark);
     for (const s of [-1, 1]) {
-      g.add(LP.box(0.4, 1.5, 3.3, chrome, fx - 0.05, st.lightY, hz * s)); // bezel
-      const hl = LP.box(0.3, 1.1, 2.8, DECALS.mat('headlight', { emissive: '#fff3c8', emissiveIntensity: 0.35 }), fx + 0.12, st.lightY, hz * s);
       const ind = LP.box(0.3, 0.5, 0.9, LP.glow('#ff9a1a', 0.35), fx + 0.1, st.lightY - 1.05, (hz + 0.9) * s); // indicator
       const tl = LP.box(0.3, 1.0, 3.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.25 }), rx - 0.2, st.tailY, tz * s);
       const wrap = LP.box(1.4, 0.9, 0.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.2 }), rx + 0.6, st.tailY, (hw * 0.93 + bev - 0.05) * s); // wraps round the corner
-      hl.userData.noGrime = tl.userData.noGrime = ind.userData.noGrime = wrap.userData.noGrime = true;
-      g.add(hl, ind, tl, wrap);
+      tl.userData.noGrime = ind.userData.noGrime = wrap.userData.noGrime = true;
+      g.add(ind, tl, wrap);
     }
     g.add(LP.box(0.6, 0.8, 7, DECALS.mat('grille'), fx + 0.55, 2.2, 0)); // lower intake
     const plate = opts.plate || 'APX ' + (100 + Math.floor(paint.r * 899));
@@ -1184,10 +1195,11 @@ const Models = {
     // bands and snow chains; soft tuning widens them, hard narrows them.
     const ty = opts.gear && opts.gear.tyres, tid = ty ? ty.id : 'stock_tyres', ttune = ty ? ty.tune || 0 : 0;
     const wS = ({ slicks: 1.28, all_terrain: 1.15 }[tid] || 1) * (1 + 0.1 * ttune), rS = tid === 'all_terrain' ? 1.07 : 1;
+    const S = st.stance || {};
     for (const x of st.wheels) {
       for (const s of [-1, 1]) {
         const w = new THREE.Group();
-        const R = st.wheelR * rS;
+        const R = st.wheelR * rS * (opts.shell ? 1 : (x < 0 ? S.rearTyre || S.tyre || 1 : S.tyre || 1)); // (big tyres on the trucks, fatter at the back on the muscle car)
         // Tyre with rounded shoulders and sidewalls, turned on a lathe.
         const t = LP.lathe([[R * 0.66, -1.15 * wS], [R * 0.9, -1.15 * wS], [R - 0.12, -0.95 * wS], [R, -0.55 * wS], [R, 0.55 * wS], [R - 0.12, 0.95 * wS], [R * 0.9, 1.15 * wS], [R * 0.66, 1.15 * wS]], 28, tyre);
         if (tid !== 'stock_tyres' && tid !== 'slicks') Models.tyreExtras(tid, R, wS).build(w);
@@ -1210,7 +1222,7 @@ const Models = {
           }
           w.add(LP.lathe([[R + 0.08, -0.9 * wS], [R + 0.16, 0], [R + 0.08, 0.9 * wS]], 16, LP.mat('#4a4d4e', { metalness: 0.7, roughness: 0.6 })));
         }
-        w.position.set(x, st.wheelR * rS, (st.wheelZ + (wS - 1) * 0.9) * s);
+        w.position.set(x, R, (st.wheelZ + (wS - 1) * 0.9 + (R - st.wheelR * rS) * 0.3) * s);
         g.add(w);
         g.userData.wheels.push(w);
       }
@@ -1255,6 +1267,17 @@ const Models = {
       d.position.set(rx - 0.6, 0, 0);
       g.add(d);
     }
+    // Junk, then the stance: everything but the wheels sits in a chassis group, lifted and raked over them.
+    const jS = opts.junk && !opts.shell ? Models.junk(g, st, opts, W, bev, fx, rx) : { lift: 0, rake: 0 };
+    const lift = (S.lift || 0) + jS.lift, rake = (S.rake || 0) + jS.rake;
+    if (!opts.shell && (lift || rake)) {
+      const chassis = new THREE.Group(), wheels = new Set(g.userData.wheels);
+      chassis.name = 'chassis';
+      for (const o of g.children.slice()) if (!wheels.has(o)) chassis.add(o);
+      chassis.position.y = lift;
+      chassis.rotation.z = -rake; // nose down
+      g.add(chassis);
+    }
     bakeGrime(g, 9, { clean: 0.35, dirty: 1, filthy: 1.6 }[opts.grime || 'dirty']);
     if (opts.underglow) {
       // Neon underglow: an additive glow pad under the car.
@@ -1266,6 +1289,232 @@ const Models = {
       }
     }
     return g;
+  },
+
+  // Each body's face: its grille and its headlights (st.face), so the cars read apart head-on in the mirror.
+  face(g, st, opts, fx, hz, chrome, dark) {
+    const F = st.face || {}, ly = st.lightY, gz = Math.max(2.6, hz - 2.1);
+    const lit = (m) => { m.userData.noGrime = true; g.add(m); return m; };
+    const lamp = () => DECALS.mat('headlight', { emissive: '#fff3c8', emissiveIntensity: 0.35 });
+    const black = LP.mat('#0a0b0c', { roughness: 1 });
+    // A round lamp in a chrome ring, facing forward.
+    const disc = (r, z, y) => {
+      g.add(LP.cyl(r + 0.22, r + 0.22, 0.4, 20, chrome, fx, y == null ? ly : y, z).rotateZ(Math.PI / 2));
+      const l = lit(LP.mesh(new THREE.CircleGeometry(r, 20), lamp(), fx + 0.21, y == null ? ly : y, z));
+      l.rotation.y = Math.PI / 2;
+    };
+    const square = (w, h, z, y) => {
+      g.add(LP.box(0.4, h + 0.4, w + 0.4, chrome, fx - 0.05, y == null ? ly : y, z)); // bezel
+      lit(LP.box(0.3, h, w, lamp(), fx + 0.12, y == null ? ly : y, z));
+    };
+
+    // Grille.
+    const gy = ly - 0.2;
+    if (F.grille === 'bars') { // heavy vertical bars over a black hole
+      g.add(LP.box(0.2, 1.8, gz * 2, black, fx + 0.2, gy, 0));
+      for (let z = -gz + 0.4; z <= gz - 0.39; z += 0.75) g.add(LP.box(0.35, 1.8, 0.22, chrome, fx + 0.35, gy, z));
+      g.add(LP.box(0.4, 0.3, gz * 2 + 0.3, chrome, fx + 0.38, gy + 1.0, 0), LP.box(0.4, 0.3, gz * 2 + 0.3, chrome, fx + 0.38, gy - 1.0, 0));
+    } else if (F.grille === 'slats') { // a thin letterbox of horizontal slats
+      g.add(LP.box(0.2, 1.2, gz * 2, black, fx + 0.2, gy + 0.1, 0));
+      for (const dy of [-0.35, 0.1, 0.55]) g.add(LP.box(0.3, 0.18, gz * 2 - 0.2, dark, fx + 0.33, gy + dy, 0));
+    } else if (F.grille === 'egg') { // egg-crate right across the nose, the lamps set into it
+      g.add(LP.box(0.2, 2.0, (hz + 1.4) * 2, black, fx + 0.1, ly, 0));
+      for (const dy of [-0.5, 0, 0.5]) g.add(LP.box(0.25, 0.12, (hz + 1.4) * 2, chrome, fx + 0.25, ly + dy, 0));
+      for (let z = -gz; z <= gz + 0.01; z += 0.9) g.add(LP.box(0.25, 1.9, 0.12, chrome, fx + 0.25, ly, z));
+      g.add(LP.box(0.45, 2.3, 0.3, chrome, fx + 0.2, ly, 0)); // the split down the middle
+    } else if (F.grille === 'chrome') { // a proud chrome surround and a badge
+      lit(LP.box(0.2, 1.3, gz * 2, DECALS.mat('grille'), fx + 0.35, gy, 0));
+      for (const dy of [-0.8, 0.8]) g.add(LP.box(0.4, 0.3, gz * 2 + 0.6, chrome, fx + 0.42, gy + dy, 0));
+      for (const s of [-1, 1]) g.add(LP.box(0.4, 1.9, 0.3, chrome, fx + 0.42, gy, (gz + 0.15) * s));
+      g.add(LP.box(0.5, 0.5, 0.9, chrome, fx + 0.5, gy, 0));
+    } else lit(LP.box(0.2, 1.3, gz * 2 - 1, DECALS.mat('grille'), fx + 0.35, gy, 0)); // 'mesh'
+
+    // Headlights.
+    for (const s of [-1, 1]) {
+      const z = hz * s;
+      if (F.lights === 'round2') disc(0.8, z);
+      else if (F.lights === 'round4') { disc(0.6, (hz - 0.75) * s); disc(0.6, (hz + 0.6) * s); }
+      else if (F.lights === 'roundCaged') { // big round lamps behind a steel cage
+        disc(0.9, z);
+        for (const dy of [-0.45, 0, 0.45]) g.add(LP.box(0.15, 0.12, 2.3, dark, fx + 0.75, ly + dy, z));
+        g.add(LP.box(0.15, 1.5, 0.15, dark, fx + 0.75, ly, z));
+      } else if (F.lights === 'square2') square(2.0, 1.6, z);
+      else if (F.lights === 'square4') { square(1.25, 1.25, (hz - 0.75) * s); square(1.25, 1.25, (hz + 0.7) * s); }
+      else if (F.lights === 'popup') { // pop-up lamps, standing up out of the hood
+        g.add(LP.box(0.3, 0.45, 2.6, dark, fx + 0.1, ly, z)); // the slot they sleep in
+        const px = fx - 2.4, top = profileY(st.top, px) + 0.5;
+        const pod = LP.box(1.4, 1.3, 2.8, g.userData.bodyMat || dark, px, top + 0.5, z);
+        pod.rotation.z = -0.08;
+        g.add(pod, LP.box(1.0, 0.25, 2.8, dark, px - 0.3, top + 0.05, z));
+        lit(LP.box(0.2, 0.95, 2.4, lamp(), px + 0.72, top + 0.5, z));
+      } else square(2.8, 1.1, z); // 'rect'
+    }
+  },
+
+  // The junk a crew bolts on and wires down (opts.junk: a seed, so each rival is its own heap): a blower or scoop,
+  // zoomie stacks, armour plate on the doors, slats over the rear screen, spikes, a spare, jerry cans, horns or a
+  // skull, spotlights, scrap fenders, wire, chains, a rag on the antenna, a jacked-up or slammed stance. The front
+  // and side glass stays clear so you can still see the driver. All of it is merged into a mesh per material and
+  // tagged as kit, so a car near the end of its life sheds it in one go.
+  junk(g, st, opts, W, bev, fx, rx) {
+    const rng = mulberry32((opts.junk * 2654435761) >>> 0), chance = (p) => rng() < p, pick = (a) => a[Math.floor(rng() * a.length)];
+    const hw = W / 2, side = hw + bev, cab = st.cabin, cw = st.cabinW, belt = cab[0][1], roofY = cab[1][1] + bev;
+    const top = (x) => profileY(st.top, x) + bev;
+    const rusty = LP.mat(pick(['#6b4a32', '#5a3c2a', '#7a5a3a']), { metalness: 0.6, roughness: 0.8 });
+    const steel = LP.mat('#71767a', { metalness: 0.7, roughness: 0.5 });
+    const black = LP.mat('#111', { roughness: 1 });
+    const bone = LP.mat('#d9cfb4', { roughness: 0.7 });
+    const cloth = LP.mat(pick(['#8a1c14', '#c9b98a', '#3c4a2a', '#1c1c1c']), { roughness: 1, side: THREE.DoubleSide });
+    const J = new THREE.Group();
+    g.add(J);
+    const add = (...ms) => { J.add(...ms); return ms[0]; };
+    const kitOf = (k) => (opts[k] && opts[k] !== 'stock' ? opts[k] : st.kit[k]);
+    const roofFree = kitOf('roof') === 'none' && opts.weapon !== 'rocket' && !opts.roofGun && !opts.roofHatch;
+    const hoodX = (fx + cab[0][0]) / 2, deckX0 = cab[cab.length - 1][0], hasDeck = deckX0 - rx > 4, bed = opts.style === 'pickup';
+    const deckY = (x) => (bed ? 5.0 : top(x));
+    const rivets = (x0, x1, y, z, n) => { for (let i = 0; i < n; i++) add(LP.cyl(0.14, 0.14, 0.2, 6, steel, x0 + ((x1 - x0) * (i + 0.5)) / n, y, z).rotateX(Math.PI / 2)); };
+
+    // On the hood: a supercharger poking through, or a bolted-on scoop.
+    if (opts.style !== 'phantom' && chance(0.4)) {
+      const y = top(hoodX);
+      if (chance(0.55)) {
+        add(LP.box(3.6, 1.6, 3.0, LP.mat('#9a9fa4', { metalness: 0.8, roughness: 0.3 }), hoodX, y + 0.6, 0)); // blower case
+        for (let i = 0; i < 7; i++) add(LP.box(3.4, 0.1, 0.12, black, hoodX, y + 1.45, -1.3 + i * 0.43)); // its ribs
+        add(LP.box(2.2, 1.4, 2.2, black, hoodX + 0.3, y + 2.1, 0)); // butterfly hat
+        add(LP.box(0.25, 1.1, 2.0, steel, hoodX + 1.45, y + 2.1, 0));
+      } else add(LP.box(4.2, 0.8, 3.6, rusty, hoodX, y + 0.35, 0), LP.box(0.2, 0.55, 3.0, black, hoodX + 2.05, y + 0.45, 0));
+    }
+    // Zoomie stacks out of the front wings.
+    if (chance(0.35)) {
+      const n = 2 + Math.floor(rng() * 3);
+      for (const s of [-1, 1]) for (let i = 0; i < n; i++) {
+        const x = cab[0][0] + 1.5 + i * 1.1, y = top(x) - 1.2;
+        add(LP.tube([x, y, (side - 0.6) * s], [x - 0.9, y + 2.2, (side + 1.2) * s], 0.3, rusty));
+      }
+    }
+    // Armour plate riveted over the doors.
+    if (chance(0.45)) {
+      const x0 = cab[cab.length - 1][0] + 0.5, x1 = cab[0][0] - 0.5, y = 2.4 + (belt - 2.4) / 2, h = belt - 3.0;
+      const plate = pick([steel, rusty]);
+      for (const s of [-1, 1]) {
+        add(LP.box(x1 - x0, h, 0.3, plate, (x0 + x1) / 2, y, (side + 0.2) * s));
+        for (const dy of [-h / 2 + 0.35, h / 2 - 0.35]) rivets(x0, x1, y + dy, (side + 0.38) * s, 8);
+      }
+    }
+    // Slats over the rear screen.
+    if (chance(0.35)) {
+      const [a, b] = [cab[2], cab[cab.length - 1]];
+      for (let i = 1; i <= 4; i++) {
+        const t = i / 5, x = a[0] + (b[0] - a[0]) * t - 0.35, y = a[1] + (b[1] - a[1]) * t;
+        add(LP.box(0.3, 0.3, cw * 0.9, pick([steel, rusty]), x, y, 0));
+      }
+    }
+    // Spikes on the hubs (these spin with the wheels) and on the nose.
+    if (chance(0.25)) {
+      for (const w of g.userData.wheels) {
+        const s = Math.sign(w.position.z) || 1, sp = LP.cyl(0, 0.4, 2.2, 8, steel, 0, 0, s * 2.3).rotateX((s * Math.PI) / 2);
+        sp.userData.kit = 'junk';
+        w.add(sp);
+      }
+    }
+    if (kitOf('bumper') === 'none' && chance(0.35)) {
+      for (const z of [-4.5, -1.5, 1.5, 4.5]) add(LP.cyl(0, 0.35, 2.0, 8, steel, fx + 1.6, 2.6, z).rotateZ(-Math.PI / 2));
+    }
+    // On the back: a spare wheel and jerry cans (in the bed of a pickup, on the roof if there is no deck).
+    if (chance(0.3)) {
+      const onDeck = hasDeck, x = onDeck ? (deckX0 + rx) / 2 + 0.5 : (cab[1][0] + cab[2][0]) / 2 - 1.5;
+      if (onDeck || roofFree) {
+        const y = onDeck ? deckY(x) : roofY;
+        add(LP.cyl(2.1, 2.1, 0.9, 20, black, x, y + 0.45, 0), LP.cyl(1.2, 1.2, 0.95, 16, steel, x, y + 0.47, 0));
+        for (const dz of [-1.0, 1.0]) add(LP.box(0.15, 0.12, 4.6, rusty, x + dz, y + 0.95, 0)); // tie-down straps
+      }
+    }
+    if (hasDeck && chance(0.35)) {
+      const can = LP.mat(pick(['#4a5a2a', '#9a2a1a', '#3a3a34']), { roughness: 0.6, metalness: 0.3 });
+      const n = 1 + Math.floor(rng() * 3), x = rx + 2.2;
+      for (let i = 0; i < n; i++) {
+        const z = (hw - 1.4 - i * 1.3) * (i % 2 ? -1 : 1), y = deckY(x);
+        add(LP.box(1.0, 1.7, 1.2, can, x, y + 0.85, z), LP.box(0.3, 0.3, 0.6, can, x, y + 1.85, z));
+      }
+    }
+    // A mascot on the nose: steer horns, or a skull.
+    if (chance(0.3)) {
+      const x = fx - 2.4, y = top(x) + 0.2;
+      if (chance(0.5)) {
+        add(LP.box(1.0, 0.5, 1.4, bone, x, y, 0));
+        for (const s of [-1, 1]) {
+          add(LP.tube([x, y + 0.1, 0.5 * s], [x + 0.6, y + 0.5, 2.6 * s], 0.22, bone));
+          add(LP.tube([x + 0.6, y + 0.5, 2.6 * s], [x + 0.2, y + 1.5, 3.4 * s], 0.15, bone));
+        }
+      } else {
+        add(LP.mesh(new THREE.SphereGeometry(0.75, 10, 8), bone, x, y + 0.7, 0), LP.box(0.7, 0.4, 0.9, bone, x + 0.25, y + 0.15, 0));
+        for (const s of [-1, 1]) add(LP.mesh(new THREE.SphereGeometry(0.2, 6, 4), black, x + 0.62, y + 0.8, 0.3 * s));
+      }
+    }
+    // Spotlights on the roof's front edge.
+    if (roofFree && chance(0.3)) {
+      for (const s of [-1, 1]) {
+        const x = cab[1][0] - 0.8, z = (cw / 2 - 1.4) * s;
+        add(LP.cyl(0.6, 0.5, 1.0, 14, black, x, roofY + 0.75, z).rotateZ(Math.PI / 2), LP.box(0.4, 0.5, 0.3, steel, x - 0.3, roofY + 0.2, z));
+        const lens = add(LP.mesh(new THREE.CircleGeometry(0.5, 14), LP.glow('#fff3c8', 0.4), x + 0.52, roofY + 0.75, z));
+        lens.rotation.y = Math.PI / 2;
+        lens.userData.noGrime = true;
+      }
+    }
+    // Scrap-metal fenders bolted over the wheels.
+    if (chance(0.3)) {
+      const ar = st.wheelR + 0.75, cy = st.wheelR - 0.2;
+      for (const s of [-1, 1]) for (const wc of st.wheels) {
+        const f = add(LP.box(ar * 2 + 0.6, 0.25, 2.0, rusty, wc, cy + ar + 0.45, (side + 0.5) * s));
+        f.rotation.x = 0.12 * s;
+      }
+    }
+    // Barbed wire strung round the roof.
+    if (roofFree && chance(0.2)) {
+      const x0 = cab[1][0] - 0.4, x1 = cab[2][0] + 0.4;
+      for (const s of [-1, 1]) for (let x = x1, k = 0; x < x0 - 0.5; x += 0.55, k++) {
+        add(LP.beam([x, roofY + 0.25 + (k % 2) * 0.35, (cw / 2 - 0.6) * s], [x + 0.55, roofY + 0.25 + ((k + 1) % 2) * 0.35, (cw / 2 - 0.6) * s], 0.06, steel));
+      }
+    }
+    // A rag on the antenna.
+    if (chance(0.35)) {
+      const ay = st.top[st.top.length - 2][1] + 2.4 + 2.2, flag = add(LP.mesh(new THREE.PlaneGeometry(1.8, 1.1), cloth, rx + 2.6, ay - 0.5, -hw + 2.5));
+      flag.rotation.z = -0.15;
+      flag.userData.noGrime = true;
+    }
+    // Chain slung under the nose.
+    if (chance(0.25)) {
+      const n = 14;
+      for (let i = 0; i < n; i++) {
+        const t = i / (n - 1), z = -5 + 10 * t, y = 2.0 - 1.1 * (1 - (2 * t - 1) ** 2);
+        const link = add(LP.mesh(new THREE.TorusGeometry(0.26, 0.08, 4, 8), steel, fx + 1.0, y, z));
+        link.rotation.y = i % 2 ? Math.PI / 2 : 0;
+      }
+    }
+    g.remove(J);
+
+    // Merge into a mesh per material (one draw call each, however much junk there is).
+    J.updateMatrixWorld(true);
+    const groups = new Map();
+    J.traverse((o) => { if (o.isMesh) { if (!groups.has(o.material)) groups.set(o.material, []); groups.get(o.material).push(o); } });
+    for (const [mat, list] of groups) {
+      const pos = [], nrm = [];
+      for (const o of list) {
+        let geo = o.geometry.clone().applyMatrix4(o.matrixWorld);
+        if (geo.index) geo = geo.toNonIndexed();
+        pos.push(geo.attributes.position.array); nrm.push(geo.attributes.normal.array);
+      }
+      const cat = (arrs) => { const out = new Float32Array(arrs.reduce((n, a) => n + a.length, 0)); let k = 0; for (const a of arrs) { out.set(a, k); k += a.length; } return out; };
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(cat(pos), 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(cat(nrm), 3));
+      const m = new THREE.Mesh(geo, mat);
+      m.userData.kit = 'junk';
+      m.userData.noGrime = list.every((o) => o.userData.noGrime);
+      g.add(m);
+    }
+    // The stance its crew gave it: jacked up a little, or raked.
+    return { lift: rng() * 0.6, rake: (rng() - 0.5) * 0.02 };
   },
 
   // The body as seamless sculpted panels: the shell with its rounded corners, flared arches, roof and pillars and

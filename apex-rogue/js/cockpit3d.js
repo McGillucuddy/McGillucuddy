@@ -503,6 +503,7 @@ class CockpitView {
       finish: pick(['gloss', 'matte', 'rusty', 'patched', 'gloss']), grime: pick(['clean', 'dirty', 'dirty', 'filthy']),
       livery: pick(['stencil', 'roundel', 'none', 'stripes', 'flames', 'skull']), rims: pick(['spoke5', 'steel', 'black', 'slotted', 'wire']),
       exhaust: pick(['single', 'twin', 'side']), tyreArmor: !!car.armorTyres,
+      junk: 1 + Math.floor(rng() * 1e6), // its crew's own heap of bolted-on scrap (Models.junk)
       roofHatch: car.weapon === 'rocket', roofHatchOpen: car.weapon === 'rocket', // the rocket gunner works through a hatch in the roof: a way in for a grenade
     };
   }
@@ -569,19 +570,25 @@ class CockpitView {
       ray.set(model.localToWorld(from.clone()), model.localToWorld(aim.clone()).sub(model.localToWorld(from.clone())).normalize());
       const hit = ray.intersectObjects(meshes, false)[0];
       if (!hit || !hit.face) continue;
-      const P = model.worldToLocal(hit.point.clone()), N = hit.face.normal.clone(); // meshes sit at the model origin, so face normals are model-local
+      // The hit and its panel normal, in the model's space (for the mark) and in each mesh's own (the body can sit
+      // in a sub-group: a car's stance lifts and rakes it over its wheels).
+      const Nw = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      const inv = new THREE.Matrix4().copy(model.matrixWorld).invert();
+      const P = model.worldToLocal(hit.point.clone()), N = Nw.clone().transformDirection(inv);
       // Dent: push the surface in along the panel normal, falling off with distance.
       const r = big ? Math.min(5, 2.8 + h.amt * 0.04) : 1.2, depth = big ? Math.min(1.5, 0.6 + h.amt * 0.025) : 0.12;
-      for (const mesh of meshes) {
+      for (const mesh0 of meshes) {
+        const mesh = mesh0, mInv = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+        const Pm = hit.point.clone().applyMatrix4(mInv), Nm = Nw.clone().transformDirection(mInv);
         const geo = mesh.geometry, pos = geo.attributes.position, col = geo.attributes.color;
         if (!geo.userData.orig) geo.userData.orig = Float32Array.from(pos.array);
         const O = geo.userData.orig, R2 = (r * 1.6) ** 2;
         let touched = false;
         for (let i = 0; i < pos.count; i++) {
-          const dx = pos.getX(i) - P.x, dy = pos.getY(i) - P.y, dz = pos.getZ(i) - P.z, d2 = dx * dx + dy * dy + dz * dz;
+          const dx = pos.getX(i) - Pm.x, dy = pos.getY(i) - Pm.y, dz = pos.getZ(i) - Pm.z, d2 = dx * dx + dy * dy + dz * dz;
           if (d2 >= R2) continue;
           const dd = Math.sqrt(d2), f = dd < r ? (1 - dd / r) ** 2 : 0, soot = 1 - dd / (r * 1.6);
-          let nx = pos.getX(i) - N.x * depth * f, ny = pos.getY(i) - N.y * depth * f, nz = pos.getZ(i) - N.z * depth * f;
+          let nx = pos.getX(i) - Nm.x * depth * f, ny = pos.getY(i) - Nm.y * depth * f, nz = pos.getZ(i) - Nm.z * depth * f;
           const ox = nx - O[i * 3], oy = ny - O[i * 3 + 1], oz = nz - O[i * 3 + 2], ol = Math.hypot(ox, oy, oz);
           if (ol > 1.8) { nx = O[i * 3] + (ox / ol) * 1.8; ny = O[i * 3 + 1] + (oy / ol) * 1.8; nz = O[i * 3 + 2] + (oz / ol) * 1.8; } // never crushed right through
           pos.setXYZ(i, nx, ny, nz);

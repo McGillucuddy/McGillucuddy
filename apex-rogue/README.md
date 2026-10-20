@@ -63,6 +63,12 @@ Big guns punch the view. A brief ragged muzzle flame flickers light over your ha
 - **Obstacles:** concrete jersey barriers, tyre stacks (they scatter if you hit them hard), burnt-out wrecks, and red barrel clusters.
   Barrels explode when shot or rammed, set off any barrels nearby, and hurt any car in the blast. Clear an obstacle in the air and you sail over it.
 - **AI:** drivers steer round obstacles, and some go out of their way to hit the ramps.
+- **Rival cars:** each of the seven bodies has its own face and stance.
+  - **Faces:** pop-up lamps on the Comet, square lamps and a barred grille on the Brick, round lamps on the Wasp, quad lamps in an egg-crate on the Phantom, a chrome grille on the Sedan, caged lamps on the Pickup, and stacked squares on the Van.
+  - **Stance:** the Pickup and Brick ride high on big tyres, the Wasp sits low and nose-down, and the Phantom is jacked up at the back on fat rear tyres.
+  - **Junk:** every rival also gets its own seeded heap of scrap. It can include a blower or scoop, zoomie stacks, riveted door armour, rear-screen slats, hub and nose spikes, a spare wheel, jerry cans, steer horns or a skull, spotlights, scrap fenders, barbed wire, a chain and an antenna rag. Each crew also adds its own lift and rake.
+  - The front and side glass stays clear so you can still shoot the driver.
+  - The junk is merged into one mesh per material (`Models.junk`), and it tears off with the other bolt-ons when the car is nearly wrecked.
 - **Rival crews:** every rival car has a driver at the wheel, and armed cars carry a gunner beside them. You can see them through the glass.
   - **Driver:** a shot whose path passes their seat hits them. A hit makes the car flinch into a swerve. Kill the driver and the car coasts on, steering itself into a wall: it's out of the race and counts as your wreck.
   - **Gunner:** hits break their lock, and killing them silences the car's weapon.
