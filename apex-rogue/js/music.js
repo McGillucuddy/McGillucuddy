@@ -4,8 +4,9 @@
 // a sine sub under it, pumping under a hard kick), huge reverb-drenched snares, industrial metal hits, ominous
 // drones and horror brass, and a saturated lead gliding through Phrygian riffs. Every track is generated (see
 // Music.forRace): the act sets the mood, from the Undercity's grind and the Stacks' industrial drive to the
-// Terraces' half-time menace and the Crown's choir; the race type, the weather and the seed vary key, tempo and
-// parts. The menu plays one too. The whole score runs through a little saturation, for grit.
+// Terraces' half-time menace and the Crown's choir; the seed picks the key, the tempo, the drum patterns and bass
+// rhythms of each section, the riff, and the shape of the song (see Music.plan), so no two races play alike. The
+// menu plays one too. The whole score runs through a little saturation, for grit.
 
 const MUSIC = {
   bpm: 104,
@@ -194,8 +195,8 @@ const Music = {
   },
 
   // The snare: huge and low, a crack of noise and a fat body thrown deep into the hall.
-  snare(t) {
-    this.noise(t, 0.3, 'bandpass', 1300, 0.55, 0.55, 2.6);
+  snare(t, accent) {
+    this.noise(t, 0.3, 'bandpass', 1300, 0.55, accent ? 0.7 : 0.55, 2.6);
     this.noise(t, 0.08, 'highpass', 4000, 0.5, 0.12, 0.6);
     const c = Sound.ctx, o = c.createOscillator(), g = c.createGain();
     o.type = 'triangle';
@@ -300,59 +301,62 @@ const Music = {
 
   // ---------- Race tracks ----------
 
-  // A race's track. Act 0-3 sets the mood; elites and bosses push harder; the seed picks key, tempo and parts.
+  // A race's track. Act 0-3 sets the mood; elites and bosses push harder; the seed picks the key, the tempo, the
+  // drum patterns, the bass rhythms, the riff and the shape of the whole song.
   forRace(act, type, seed, final, weather) {
     const r = mulberry32((seed ^ 0x5eed) >>> 0), pick = (a) => a[Math.floor(r() * a.length)];
     const AEOLIAN = [0, 2, 3, 5, 7, 8, 10], PHRYGIAN = [0, 1, 3, 5, 7, 8, 10], HARMONIC = [0, 2, 3, 5, 7, 8, 11];
     const boss = type === 'boss', elite = type === 'elite';
     const P = [
-      // Act I, the Undercity: the grind. A reese bass rolling in eighths under a four-on-the-floor kick and a big
-      // snare, a drone under it all; the horror brass and the lead come in on the B.
-      { bpm: [104, 108, 110], scale: pick([PHRYGIAN, AEOLIAN]), progs: [[0, 1, 0, 6], [0, 5, 6, 0], [0, 3, 1, 0], [0, 0, 5, 6]], drums: 'four', metal: false,
-        bassPat: 'roll', dist: 5, drone: 0.9, brass: 0.9, brassA: false, cellos: 0, choir: 0,
-        lead: pick([[0, null, null, 0, null, null, 1, null, 0, null, null, -2, null, null, -1, null], [4, null, 3, null, 1, null, 0, null, -1, null, 0, null, 1, null, null, null]]),
-        toll: false, toms: false },
-      // Act II, the Stacks: industrial. Faster, a galloping sixteenth growl, metal hits on the off-beats, toms
-      // into every phrase, the lead snarling.
-      { bpm: [122, 126, 128], scale: PHRYGIAN, progs: [[0, 0, 1, 0], [0, 6, 5, 1], [0, 1, 6, 0]], drums: 'drive', metal: true,
-        bassPat: 'gallop', dist: 6, drone: 0.7, brass: 0.8, brassA: false, cellos: 0, choir: 0,
-        lead: pick([[0, 0, null, 1, null, 0, null, -1, 0, null, 3, null, 1, null, 0, null], [0, null, 1, null, 0, null, -2, null, -1, null, -2, null, -4, null, null, null]]),
-        toll: false, toms: true },
-      // Act III, the Gilded Terraces: menace. Half time, the reese held and wobbling, horror brass every bar,
-      // low strings, a low choir, taiko.
-      { bpm: [96, 100, 102], scale: HARMONIC, progs: [[0, 5, 1, 4], [0, 3, 5, 4], [0, 1, 0, 4]], drums: 'half', metal: false, taiko: true,
-        bassPat: 'wobble', dist: 5, drone: 1, brass: 1.1, brassA: true, cellos: 1, choir: 0.6,
-        lead: [0, null, null, null, 1, null, null, null, 0, null, null, null, -1, null, -3, null], toll: false, toms: true },
-      // Act IV, the Crown: the end of everything. Slow half time, the choir of the damned, brass and strings, the
-      // reese as a drone, a great bell tolling every four bars.
-      { bpm: [84, 86, 88], scale: AEOLIAN, progs: [[0, 5, 1, 6], [0, 3, 5, 4], [0, 5, 3, 1]], drums: 'half', metal: false, taiko: true,
-        bassPat: 'hold', dist: 4, drone: 1, brass: 1.3, brassA: true, cellos: 1.2, choir: 1.1, lead: null, toll: true, toms: true },
+      // Act I, the Undercity: the grind. Four on the floor, broken and syncopated grooves, the reese rolling.
+      { bpm: [104, 108, 110], scale: pick([PHRYGIAN, AEOLIAN]), progs: [[0, 1, 0, 6], [0, 5, 6, 0], [0, 3, 1, 0], [0, 0, 5, 6]],
+        drA: ['four', 'syncA', 'broken', 'four'], drB: ['four16', 'gallopK', 'breaks', 'syncB'], drBridge: ['half', 'halfTrap'],
+        bassA: ['roll8', 'syncop', 'offbeat'], bassB: ['roll8', 'gallop', 'octaves', 'syncop'], bassBridge: ['hold', 'wobble'],
+        fills: ['snareRoll', 'toms', 'stop', 'stutter', 'swell'], dist: 5, drone: 0.9, brass: 0.9, brassA: false, cellos: 0, choir: 0, toll: false, metal: false, taiko: false },
+      // Act II, the Stacks: industrial. Driving, stomping, galloping double kicks, metal on the off-beats.
+      { bpm: [122, 126, 128], scale: PHRYGIAN, progs: [[0, 0, 1, 0], [0, 6, 5, 1], [0, 1, 6, 0]],
+        drA: ['drive', 'stomp', 'breaks'], drB: ['gallopK', 'dbl', 'drive', 'stomp'], drBridge: ['halfTrap', 'tribal'],
+        bassA: ['gallop', 'syncop', 'octaves'], bassB: ['gallop', 'octaves', 'roll8'], bassBridge: ['wobble', 'stab'],
+        fills: ['snareRoll', 'stutter', 'stop', 'toms'], dist: 6, drone: 0.7, brass: 0.8, brassA: false, cellos: 0, choir: 0, toll: false, metal: true, taiko: false },
+      // Act III, the Gilded Terraces: menace. Half time and tribal, the reese wobbling, horror brass, strings, choir.
+      { bpm: [96, 100, 102], scale: HARMONIC, progs: [[0, 5, 1, 4], [0, 3, 5, 4], [0, 1, 0, 4]],
+        drA: ['half', 'halfTrap', 'tribal'], drB: ['broken', 'halfTrap', 'four', 'breaks'], drBridge: ['tribal', 'half'],
+        bassA: ['wobble', 'stab', 'syncop'], bassB: ['syncop', 'roll8', 'wobble'], bassBridge: ['hold', 'wobble'],
+        fills: ['toms', 'swell', 'stop', 'snareRoll'], dist: 5, drone: 1, brass: 1.1, brassA: true, cellos: 1, choir: 0.6, toll: false, metal: false, taiko: true },
+      // Act IV, the Crown: the end of everything. Slow, the choir of the damned, the bell; it breaks into four on
+      // the floor only at its peak.
+      { bpm: [84, 86, 88], scale: AEOLIAN, progs: [[0, 5, 1, 6], [0, 3, 5, 4], [0, 5, 3, 1]],
+        drA: ['half', 'tribal'], drB: ['halfTrap', 'tribal', 'four'], drBridge: ['none', 'half'],
+        bassA: ['hold', 'stab'], bassB: ['hold', 'stab', 'wobble'], bassBridge: ['hold'],
+        fills: ['toms', 'swell', 'stop'], dist: 4, drone: 1, brass: 1.3, brassA: true, cellos: 1.2, choir: 1.1, toll: true, metal: false, taiko: true },
     ][Math.min(3, act)];
     const root = 48 + pick([1, 2, 4, 0, -2]); // C#, D, E, C or A#: low, the darksynth keys
-    return this.build(P, root, pick(P.progs), {
+    return this.build(P, root, pick(P.progs), r, {
       id: 'race:' + act + ':' + type + ':' + seed + ':' + (weather || 'clear'), style: 'race',
       bpm: pick(P.bpm) + (boss ? 6 : elite ? 3 : 0) + (final ? 4 : 0),
-      intensity: boss ? 2 : elite ? 1 : 0, toms: P.toms || boss, act3: act >= 3,
+      intensity: boss ? 2 : elite ? 1 : 0, toms: true, act3: act >= 3,
       choir: P.choir + (final ? 0.4 : boss && act >= 2 ? 0.2 : 0),
-      fourClimax: act >= 3 && (boss || final), // the final race lets the kick loose under the choir
-      stabs: boss || final, // brass hits on the B
+      stabs: boss || final, // brass hits in the big sections
+      lead: act < 3 || final, // (the Crown carries its tune in the choir and brass)
     }, weather);
   },
 
-  // Chords, roots and voicings from a preset, a key and a progression; then the weather's colour.
-  build(P, root, prog, extra, weather) {
+  // Chords, roots and voicings from a preset, a key and a progression, the riffs and the song's plan; then the
+  // weather's colour.
+  build(P, root, prog, r, extra, weather) {
     const sc = P.scale;
     const deg = (d) => sc[((d % 7) + 7) % 7] + 12 * Math.floor(d / 7);
     const chords = prog.map((d) => [deg(d), deg(d + 2), deg(d + 4)].map((n) => { n += root; while (n > root + 10) n -= 12; return n; }).sort((a, b) => a - b));
     const roots = prog.map((d) => { let n = root - 24 + sc[((d % 7) + 7) % 7]; while (n > 38) n -= 12; while (n < 26) n += 12; return n; }); // the bass, D1-D2
     const choirs = chords.map((c) => [c[0] - 12, c[0], c[1], c[2]]); // (low men's voices)
-    const cfg = Object.assign({}, P, { chords, roots, choirs, root, leadNote: (d) => root + deg(d) }, extra);
+    const riff = this.riff(r), riff2 = this.vary(riff, r);
+    const cfg = Object.assign({}, P, { chords, roots, choirs, root, riffs: [riff, riff2], leadNote: (d) => root + deg(d) }, extra);
+    cfg.plan = this.plan(P, r, cfg);
     // The weather colours the track: rain muffles it, storms and furnaces drive it harder, fog and blackouts open
     // up the reverb, a gala crashes in on every section.
     const wm = (typeof WEATHER !== 'undefined' && WEATHER[weather] && WEATHER[weather].music) || {};
     if (wm.lowpass) cfg.lowpass = wm.lowpass;
     if (wm.intensity) cfg.intensity = Math.min(2, cfg.intensity + wm.intensity);
-    if (wm.toms) cfg.toms = true;
     if (wm.reverb) cfg.reverb = wm.reverb;
     if (wm.crash) cfg.crashEvery = true;
     return cfg;
@@ -360,62 +364,143 @@ const Music = {
 
   // The title's track: the Undercity's grind at 100, in C# Phrygian.
   menuTrack() {
-    return this.build({ scale: [0, 1, 3, 5, 7, 8, 10], drums: 'four', metal: false, bassPat: 'roll', dist: 5, drone: 1, brass: 1, brassA: false, cellos: 0.6, choir: 0,
-      lead: [0, null, null, 0, null, null, 1, null, 0, null, null, -2, null, null, -1, null], toll: false, toms: false },
-    49, [0, 1, 0, 6], { id: 'menu', style: 'menu', bpm: 100, intensity: 0, act3: false, choir: 0 });
+    const P = { scale: [0, 1, 3, 5, 7, 8, 10], drA: ['four', 'syncA'], drB: ['four16', 'breaks'], drBridge: ['half'], bassA: ['roll8', 'syncop'], bassB: ['roll8', 'octaves'], bassBridge: ['hold'],
+      fills: ['snareRoll', 'stop', 'swell'], dist: 5, drone: 1, brass: 1, brassA: false, cellos: 0.6, choir: 0, toll: false, metal: false, taiko: false };
+    return this.build(P, 49, [0, 1, 0, 6], mulberry32(4471), { id: 'menu', style: 'menu', bpm: 100, intensity: 0, act3: false, choir: 0, lead: true });
   },
 
-  // Bars 0-3 intro (the drone and the bass alone, its filter opening); then a 20-bar loop: groove A (8), full B
-  // (8: brass, lead, everything), breakdown (4: the drone, the brass rising, a riser into the next downbeat).
+  // ---------- The arrangement ----------
+
+  // A riff: a rhythm from a handful of shapes, the notes a walk round the key's first few degrees (the flat second
+  // and the fifth pulling at it), ending back home or a step under.
+  riff(r) {
+    const rhythms = ['x..x..x.x..x..x.', 'x...x.x...x.x...', 'x.x...x.x...x...', 'x..x....x..x.x..', 'x...x...x.x.x...', 'x.....x.x.....x.'];
+    const rh = rhythms[Math.floor(r() * rhythms.length)], out = [];
+    let d = 0;
+    for (let s = 0; s < 16; s++) {
+      if (rh[s] !== 'x') { out.push(null); continue; }
+      out.push(d);
+      d += [-2, -1, -1, 0, 1, 1, 2, 3, 4, -3][Math.floor(r() * 10)];
+      d = Math.max(-4, Math.min(5, d));
+    }
+    const last = out.map((x, i) => (x != null ? i : -1)).filter((i) => i >= 0).pop();
+    out[last] = r() < 0.5 ? 0 : -1;
+    return out;
+  },
+  // The answer to a riff: the same shape, the first half lifted a step or two, the end pulled somewhere new.
+  vary(riff, r) {
+    const up = r() < 0.5 ? 1 : 2;
+    return riff.map((x, i) => (x == null ? null : i < 8 ? x + up : i >= 12 ? x - (r() < 0.5 ? 1 : 0) : x));
+  },
+
+  // The song's shape after the four-bar intro, looping: a run of sections, each with its own drums, bass rhythm
+  // and parts, and a fill (or a drop-out) into the next. Several orders, so no two tracks are built the same.
+  plan(P, r, cfg) {
+    const pick = (a) => a[Math.floor(r() * a.length)];
+    const sec = (type, bars, o) => Object.assign({ type, bars, drums: 'none', bass: 'hold', fill: pick(P.fills) }, o);
+    const A1 = sec('A', 8, { drums: pick(P.drA), bass: pick(P.bassA) });
+    const A2 = sec('A', pick([4, 8]), { drums: pick(P.drA), bass: pick(P.bassA), lead2: r() < 0.4 });
+    const B1 = sec('B', 8, { drums: pick(P.drB), bass: pick(P.bassB), riff: 0 });
+    const B2 = sec('B', 8, { drums: pick(P.drB), bass: pick(P.bassB), riff: 1 });
+    const B3 = sec('B', 8, { drums: pick(['gallopK', 'dbl', 'four16', ...P.drB]), bass: pick(P.bassB), riff: pick([0, 1]), peak: true }); // the drop
+    const brk = sec('brk', 4, { fill: null });
+    const bridge = sec('bridge', pick([4, 8]), { drums: pick(P.drBridge), bass: pick(P.bassBridge) });
+    const orders = [
+      [A1, B1, brk, A2, B2, bridge, B3],
+      [A1, A2, B1, brk, B2, bridge],
+      [A1, B1, bridge, B2, brk, A2, B3],
+      [A1, B1, A2, B2, brk, B3],
+      [A1, bridge, B1, brk, A2, B3],
+    ];
+    const plan = pick(orders);
+    plan.barMap = [];
+    plan.forEach((S, i) => { for (let b = 0; b < S.bars; b++) plan.barMap.push([i, b]); });
+    return plan;
+  },
+
+  // The drum patterns, a row per voice over sixteen steps: x hit, X accent, g ghost, r roll, o open hat.
+  DRUMS: {
+    none: {},
+    four: { k: 'x...x...x...x...', s: '....x.......x...', h: '..x...x...x...x.' },
+    four16: { k: 'x...x...x...x...', s: '....x.......x...', h: 'xxXxxxXxxxXxxxXo' },
+    syncA: { k: 'x..x..x...x..x..', s: '....x.......x...', h: '..x...x...x...x.' },
+    syncB: { k: 'x..x..x.x.x..x..', s: '....x.......x..g', h: 'x.x.x.x.x.x.x.xo' },
+    broken: { k: 'x.....x...x.....', s: '....x.......x..g', h: 'x.x.x.x.x.x.x.x.' },
+    breaks: { k: 'x.........x.x...', s: '....x..g.g..x...', h: 'x.xxx.xxx.xxx.xx' },
+    gallopK: { k: 'x.xxx.xxx.xxx.xx', s: '....X.......X...', h: '..x...x...x...x.' },
+    dbl: { k: 'x...x...x...x...', s: '..x...x...x...x.', h: 'xxxxxxxxxxxxxxxx' },
+    drive: { k: 'x...x...x...x.x.', s: '....x.......x...', h: 'xxxxxxxxxxxxxxxx', m: '..x...x...x...x.' },
+    stomp: { k: 'x...x...x...x...', s: 'x...X...x...X...', h: '', m: '..x.x.x...x.x.xx' },
+    half: { k: 'x.........x.....', s: '........X.......', h: 'x...x...x...x...' },
+    halfTrap: { k: 'x......x..x.....', s: '........X.......', h: 'x.x.x.xrx.x.rrx.' },
+    tribal: { k: 'x..x..x.x..x..x.', s: '', h: 'x...x...x...x...', t: '..x...x...x..x.x' },
+  },
+  // The bass rhythms (offsets from the root, null a rest) and how long each note holds, in steps.
+  BASS: {
+    roll8: [[0, null, 0, null, 0, null, 0, null, 0, null, 0, null, 0, null, 12, null], 1.8],
+    gallop: [[0, 0, 12, 0, 0, 12, 0, 0, 0, 0, 12, 0, 0, 12, 0, 12], 0.9],
+    syncop: [[0, null, null, 0, null, null, 0, null, 0, null, null, 0, null, null, 12, null], 2.7], // three, three, two
+    offbeat: [[null, null, 0, null, null, null, 0, null, null, null, 0, null, null, null, 12, null], 1.8],
+    octaves: [[0, 12, 0, 12, 0, 12, 0, 12, 0, 12, 0, 12, 0, 12, 0, 12], 0.9],
+    stab: [[0, null, null, null, null, null, null, null, 0, null, 0, null, null, null, null, null], 1.6],
+    wobble: [[0, null, null, null, null, null, null, null, 0, null, null, null, null, null, 12, null], 6],
+    hold: [[0, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null], 15.5],
+  },
+
+  // Each step: the intro, then wherever the plan has got to.
   playRace(bar, s, t, dt) {
-    const C = this.cfg, ch = bar % 4, intro = bar < 4, loop = intro ? -1 : (bar - 4) % 20;
-    const B = loop >= 8 && loop < 16, brk = loop >= 16, A = !intro && !B && !brk;
-    const chord = C.chords[ch], root = C.roots[ch];
-    // The bass filter opens across a phrase: through the intro, up the A, wide on the B, shut for the breakdown.
-    const cut = intro ? 160 + ((bar * 16 + s) / 64) * 700 : A ? 500 + (loop / 8) * 500 : B ? 1300 : 300;
+    const C = this.cfg, ch = bar % 4, chord = C.chords[ch], root = C.roots[ch];
+    let S, inBar;
+    if (bar < 4) { S = { type: 'intro', bars: 4, drums: 'none', bass: 'hold' }; inBar = bar; }
+    else { const m = C.plan.barMap[(bar - 4) % C.plan.barMap.length]; S = C.plan[m[0]]; inBar = m[1]; }
+    const lastBar = inBar === S.bars - 1, B = S.type === 'B', A = S.type === 'A', brk = S.type === 'brk', bridge = S.type === 'bridge';
+    const fillNow = lastBar && S.fill && s >= 8;
+    // The bass filter opens through the intro and the A, wide in the B, shut in the breakdown, half open on a bridge.
+    const pos = (inBar * 16 + s) / (S.bars * 16);
+    const cut = S.type === 'intro' ? 160 + pos * 700 : A ? 500 + pos * 600 : B ? (S.peak ? 1600 : 1300) : bridge ? 650 : 300;
     if (s === 0) {
       if (C.drone) this.darkPad(t, [chord[0] - 12, chord[0], chord[2]], dt * 16, C.drone * (B ? 0.8 : 1));
-      if (C.choir && (B || brk || C.act3)) this.choir(t, C.choirs[ch], dt * 16, C.choir * (B ? 1 : 0.75), ch % 2 ? 'oo' : 'ah');
+      if (C.choir && (B || brk || bridge || C.act3)) this.choir(t, C.choirs[ch], dt * 16, C.choir * (B ? 1 : 0.75), ch % 2 ? 'oo' : 'ah');
       if (C.toll && ch === 0) this.toll(t, root + 12);
-      // Horror brass: a swell across each bar of the B (and the A, in the late acts), the breakdown's last two
-      // bars rising into the drop.
-      if (C.brass && (B || (C.brassA && A) || (brk && loop >= 18))) this.brass(t, [chord[0] - 12, chord[0], chord[1], chord[2]], dt * 16, C.brass * (B ? 1 : 0.65), brk ? 'rise' : 'swell');
-      if (C.cellos && !intro) this.cellos(t, [root + 12, chord[0]], dt * 16, C.cellos);
+      if (C.brass && (B || (C.brassA && A) || (brk && inBar >= S.bars - 2) || (bridge && inBar % 2 === 0))) this.brass(t, [chord[0] - 12, chord[0], chord[1], chord[2]], dt * 16, C.brass * (B ? 1 : 0.65), brk ? 'rise' : 'swell');
+      if (C.cellos && S.type !== 'intro') this.cellos(t, [root + 12, chord[0]], dt * 16, C.cellos);
+      if (inBar === 0 && S.type !== 'intro' && !brk) { this.crash(t); if (C.taiko || C.stabs || S.peak) this.taiko(t, 1); }
     }
     if (C.stabs && B && (s === 0 || s === 6 || s === 10)) this.brass(t, [chord[0] - 12, chord[0], chord[2]], dt * 2.5, 1.2, 'stab');
-    // The lead: on the B, gliding.
-    if (C.lead && B && C.lead[s] != null) this.darkLead(t, C.leadNote(C.lead[s]), dt * 2.2);
-    // The reese bass, under everything from the first bar.
-    const P = {
-      roll: [0, null, 0, null, 0, null, 0, null, 0, null, 0, null, 0, null, 12, null], // eighths, an octave flick at the end of the bar
-      gallop: [0, 0, 12, 0, 0, 12, 0, 0, 0, 0, 12, 0, 0, 12, 0, 12],
-      wobble: [0, null, null, null, null, null, null, null, 0, null, null, null, null, null, 12, null], // held, the filter wobbling
-      hold: [0, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null],
-    }[C.bassPat];
-    const len = { roll: 1.8, gallop: 0.9, wobble: 6, hold: 15.5 }[C.bassPat];
-    const wob = C.bassPat === 'wobble' || C.bassPat === 'hold' ? (60 / C.bpm) * (C.bassPat === 'hold' ? 2 : 1) : 0;
-    if (P && P[s] != null && !(brk && C.bassPat === 'gallop' && s % 2)) this.growl(t, root + P[s], dt * len, cut, s % 4 === 0, C.dist, wob);
-    if (intro || brk) {
-      if (brk && loop === 19 && s === 0) this.riser(t, dt * 16);
-      if (brk && loop === 19 && C.taiko && s >= 8 && s % 2 === 0) this.taiko(t, 0.5 + (s - 8) * 0.07);
+    // The lead: its riff in the big sections, the answer in the second, now and then low in a later A.
+    const riff = B ? C.riffs[S.riff || 0] : A && S.lead2 ? C.riffs[1] : null;
+    if (C.lead && riff && riff[s] != null && !(fillNow && S.fill === 'stop')) this.darkLead(t, C.leadNote(riff[s]) - (A ? 12 : 0), dt * 2.2);
+    // The reese, in the section's rhythm (silent through a stop).
+    const [bp, blen] = this.BASS[S.bass] || this.BASS.hold;
+    const wob = S.bass === 'wobble' || S.bass === 'hold' ? (60 / C.bpm) * (S.bass === 'hold' ? 2 : 1) : 0;
+    if (bp[s] != null && !(fillNow && S.fill === 'stop' && s >= 12)) this.growl(t, root + bp[s], dt * blen, cut, s % 4 === 0, C.dist, wob);
+    if (brk) {
+      if (lastBar && s === 0) this.riser(t, dt * 16);
+      if (lastBar && C.taiko && s >= 8 && s % 2 === 0) this.taiko(t, 0.5 + (s - 8) * 0.07);
       return;
     }
-    if ((loop === 0 || loop === 8 || (C.crashEvery && loop % 4 === 0)) && s === 0) { this.crash(t); if (C.taiko || C.stabs) this.taiko(t, 1); }
-    // Drums.
-    const four = C.drums === 'four' || C.drums === 'drive' || (C.fourClimax && B);
-    if (four) {
-      if (s % 4 === 0) this.kick(t);
-      if (C.drums === 'drive' && (s === 14 || (ch === 3 && s === 10))) this.kick(t);
-      if (s === 4 || s === 12) this.snare(t);
-    } else { // half time: kick on one, the big snare on three, a pickup kick
-      if (s === 0 || (s === 10 && ch % 2) || (B && s === 7)) this.kick(t);
-      if (s === 8) this.snare(t);
-    }
-    if (C.metal && s % 4 === 2) this.metal(t, B ? 0.09 : 0.06);
-    if (C.taiko && B && (s === 0 || s === 8 || (s === 14 && ch === 3))) this.taiko(t, s === 0 ? 0.9 : 0.6);
-    if (s % 2 === 0) this.hat(t, s % 4 === 2 ? 0.06 : 0.03, B && s === 14);
-    if (C.toms && ch === 3 && loop % 8 === 7 && s >= 12) this.tom(t, 45 - (s - 12) * 3);
+    if (S.type === 'intro') { if (bar === 3 && s % 4 === 2) this.hat(t, 0.03, false); return; }
+    // The drums: the section's pattern, then its fill.
+    if (fillNow) return this.fill(S.fill, s, t, dt, C);
+    const D = this.DRUMS[S.drums] || {}, at = (row) => (row && row[s] !== '.' ? row[s] : null);
+    const k = at(D.k), sn = at(D.s), h = at(D.h), mt = at(D.m), tm = at(D.t);
+    if (k) this.kick(t);
+    if (sn) { if (sn === 'g') this.noise(t, 0.07, 'bandpass', 1500, 0.6, 0.12, 0.4); else this.snare(t, sn === 'X'); }
+    if (h) { if (h === 'r') { for (let i = 0; i < 3; i++) this.hat(t + (dt / 3) * i, 0.035, false); } else this.hat(t, h === 'X' ? 0.07 : 0.04, h === 'o'); }
+    if (mt || (C.metal && !D.m && s % 4 === 2)) this.metal(t, B ? 0.09 : 0.06);
+    if (tm) this.tom(t, 45 - (s % 8) * 1.5, 0.7);
+    if (C.taiko && B && (s === 0 || s === 8)) this.taiko(t, s === 0 ? 0.9 : 0.6);
     if (C.intensity >= 2 && s % 4 === 2 && B) this.tom(t, 36, 0.55); // boss races: a pounding off-beat floor tom
+  },
+
+  // The last half bar of a section: a snare roll building, toms tumbling down, the kick stuttering, everything
+  // stopping dead (the drop lands harder for the silence), or a swell of noise.
+  fill(kind, s, t, dt, C) {
+    if (kind === 'snareRoll') { const n = s >= 12 ? 2 : 1; for (let i = 0; i < n; i++) this.noise(t + (dt / n) * i, 0.09, 'bandpass', 1400, 0.6, 0.12 + (s - 8) * 0.035, 0.8); if (s === 8 || s === 12) this.kick(t); }
+    else if (kind === 'toms') { if (s % 2 === 0 || s >= 12) this.tom(t, 50 - (s - 8) * 2.2, 0.8); if (s === 8) this.kick(t); }
+    else if (kind === 'stutter') { if (s >= 12 || s % 2 === 0) this.kick(t); if (s === 12) this.snare(t, true); }
+    else if (kind === 'stop') { if (s === 8) { this.kick(t); this.snare(t, true); } }
+    else if (kind === 'swell') { if (s === 8) this.riser(t, dt * 8); if (s % 4 === 0) this.kick(t); }
   },
 
   // ---------- The darksynth instruments ----------
