@@ -40,37 +40,12 @@ const Sound = {
     // The bed: the engine, the music and the weather, which dip under your own shots (Sound.duck).
     this.bed = c.createGain(); this.bed.connect(this.master);
 
-    this.engFilter = c.createBiquadFilter();
-    this.engFilter.type = 'lowpass';
-    this.engFilter.frequency.value = 900;
-    this.engGain = c.createGain();
-    this.engGain.gain.value = 0;
-    this.engFilter.connect(this.engGain);
-    this.engGain.connect(this.bed);
-    this.osc1 = c.createOscillator();
-    this.osc1.type = 'sawtooth';
-    this.osc2 = c.createOscillator();
-    this.osc2.type = 'square';
-    const g2 = c.createGain();
-    g2.gain.value = 0.35;
-    this.osc1.connect(this.engFilter);
-    this.osc2.connect(g2);
-    g2.connect(this.engFilter);
-    this.osc1.start();
-    this.osc2.start();
-
     const len = c.sampleRate * 0.5;
     this.noise = c.createBuffer(1, len, c.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
 
-    // The engine's grit: filtered noise riding the same filter as the oscillators, and a detuned third voice.
-    this.osc3 = c.createOscillator(); this.osc3.type = 'sawtooth';
-    const g3 = c.createGain(); g3.gain.value = 0.3; this.osc3.connect(g3); g3.connect(this.engFilter); this.osc3.start();
-    const rum = c.createBufferSource(); rum.buffer = this.noise; rum.loop = true;
-    const rf = c.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 220;
-    this.rumble = c.createGain(); this.rumble.gain.value = 0;
-    rum.connect(rf); rf.connect(this.rumble); this.rumble.connect(this.engGain); rum.start();
+    this.buildEngine(c);
 
     // The reverb: a stereo impulse of decaying noise with an early reflection, like a shot off a wall of concrete.
     const rl = Math.floor(c.sampleRate * 1.3), ir = c.createBuffer(2, rl, c.sampleRate);
@@ -193,23 +168,115 @@ const Sound = {
     return this.muted;
   },
 
-  // The engine through a four-speed box: revs climb through each gear and drop at the shift (with a moment off
-  // the throttle), so you hear the car working rather than one rising whine.
+  // The engine: a big supercharged V8 with straight-through pipes. One whole engine cycle (two turns of the crank,
+  // eight firings) is drawn as a waveform and played at the cycle's rate, so the pitch follows the revs and the
+  // character comes with it: the cross-plane crank fires each bank unevenly (that's the lope, the burble), and each
+  // bank has its own pipe, left and right. It goes through a fuzz (harder on the throttle) and an exhaust filter that
+  // opens up with the revs. On top: the blower's whine (it screams with the nitro in), the intake roaring under
+  // load, the road, and pops and crackles out of the pipes when the throttle's snapped shut at speed.
+  buildEngine(c) {
+    // One cycle per bank: firing order 1-8-4-3-6-5-7-2 every 90 degrees; odd cylinders are the left bank.
+    const ORDER = [1, 8, 4, 3, 6, 5, 7, 2], N = 2048, H = 80;
+    const wave = (bank, seed) => {
+      let r = seed; const rnd = () => { r = (r * 16807) % 2147483647; return r / 2147483647; };
+      const x = new Float32Array(N);
+      ORDER.forEach((cyl, k) => {
+        if ((cyl % 2 === 1 ? 0 : 1) !== bank) return;
+        const at = (k / 8 + (rnd() - 0.5) * 0.04) * N, amp = 0.5 + rnd() * 0.5; // no two cylinders alike: worn, mistimed, one or two running lean
+        for (let i = 0; i < N * 0.45; i++) {
+          const t = i / N, j = Math.floor(at + i) % N;
+          x[j] += amp * Math.exp(-t * 22) * (Math.sin(TAU * t * 12) + 0.6 * Math.sin(TAU * t * 5)) * Math.min(1, t * 300); // a pressure pulse thudding down the pipe
+        }
+      });
+      const re = new Float32Array(H), im = new Float32Array(H);
+      for (let h = 1; h < H; h++) { let a = 0, b = 0; for (let i = 0; i < N; i++) { const w = TAU * h * i / N; a += x[i] * Math.cos(w); b += x[i] * Math.sin(w); } re[h] = a / N; im[h] = b / N; }
+      return c.createPeriodicWave(re, im);
+    };
+    // The lope: one swell per firing, each cylinder its own strength, as a level that rides on everything.
+    const lopeWave = () => {
+      const amps = [1, 0.55, 0.85, 0.4, 0.95, 0.6, 0.75, 0.45], re = new Float32Array(H), im = new Float32Array(H), x = new Float32Array(N);
+      for (let i = 0; i < N; i++) { const k = Math.floor(i / N * 8), ph = (i / N * 8) % 1; x[i] = amps[k] * Math.pow(Math.sin(Math.PI * ph), 2); }
+      for (let h = 1; h < 24; h++) { let a = 0, b = 0; for (let i = 0; i < N; i++) { const w = TAU * h * i / N; a += x[i] * Math.cos(w); b += x[i] * Math.sin(w); } re[h] = a / N; im[h] = b / N; }
+      return c.createPeriodicWave(re, im, { disableNormalization: true });
+    };
+    const shaper = (k) => { const n = 1024, cv = new Float32Array(n); for (let i = 0; i < n; i++) { const v = i / (n - 1) * 2 - 1; cv[i] = Math.tanh(v * k) / Math.tanh(k); } return cv; };
+    const E = this.eng = {};
+    this.engGain = c.createGain(); this.engGain.gain.value = 0; this.engGain.connect(this.bed);
+    // The pipes: a bank each, panned apart, through the fuzz and the exhaust filter, with a lift in the low end.
+    E.drive = c.createGain(); E.drive.gain.value = 1;
+    E.fuzz = c.createWaveShaper(); E.fuzz.curve = shaper(1.7); E.fuzz.oversample = '2x';
+    E.lp = c.createBiquadFilter(); E.lp.type = 'lowpass'; E.lp.frequency.value = 500; E.lp.Q.value = 1.4;
+    E.chest = c.createBiquadFilter(); E.chest.type = 'peaking'; E.chest.frequency.value = 90; E.chest.Q.value = 0.8; E.chest.gain.value = 9;
+    // After the fuzz (which would flatten it), the lope again: the level swings with the right bank's uneven pulses.
+    E.lope = c.createGain(); E.lope.gain.value = 0.35;
+    E.drive.connect(E.fuzz); E.fuzz.connect(E.lope); E.lope.connect(E.lp); E.lp.connect(E.chest); E.chest.connect(this.engGain);
+    // The growl under it all: a fat low tone at half the firing rate, fuzzed, felt in the seat.
+    E.growl = c.createOscillator(); E.growl.type = 'sawtooth'; E.growl.frequency.value = 28;
+    E.growlLp = c.createBiquadFilter(); E.growlLp.type = 'lowpass'; E.growlLp.frequency.value = 160; E.growlLp.Q.value = 0.9;
+    E.growlG = c.createGain(); E.growlG.gain.value = 0;
+    E.growl.connect(E.growlLp); E.growlLp.connect(E.growlG); E.growlG.connect(E.drive); E.growl.start();
+    E.banks = [0, 1].map((bank) => {
+      const o = c.createOscillator(); o.setPeriodicWave(wave(bank, 7 + bank * 31)); o.frequency.value = 7;
+      const pan = c.createStereoPanner ? c.createStereoPanner() : c.createGain(); if (pan.pan) pan.pan.value = bank ? 0.35 : -0.35;
+      o.connect(pan); pan.connect(E.drive); o.start(); return o;
+    });
+    // The growl lurches with the firings (the left bank's uneven pulses swing its level), so it lopes instead of humming.
+    E.lopeOsc = c.createOscillator(); E.lopeOsc.setPeriodicWave(lopeWave()); E.lopeOsc.frequency.value = 7; E.lopeOsc.start();
+    E.growlMod = c.createGain(); E.growlMod.gain.value = 1.2; E.lopeOsc.connect(E.growlMod); E.growlMod.connect(E.growlG.gain);
+    E.lopeMod = c.createGain(); E.lopeMod.gain.value = 1.0; E.lopeOsc.connect(E.lopeMod); E.lopeMod.connect(E.lope.gain);
+    // The blower: a whine geared to the crank.
+    E.blower = c.createOscillator(); E.blower.type = 'triangle'; E.blower.frequency.value = 300;
+    E.blowBp = c.createBiquadFilter(); E.blowBp.type = 'bandpass'; E.blowBp.Q.value = 6; E.blowBp.frequency.value = 300;
+    E.blowG = c.createGain(); E.blowG.gain.value = 0;
+    E.blower.connect(E.blowBp); E.blowBp.connect(E.blowG); E.blowG.connect(this.engGain); E.blower.start();
+    // The intake roaring under load, and the road under the tyres.
+    const noise = (f, type, q) => { const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true; const bp = c.createBiquadFilter(); bp.type = type; bp.frequency.value = f; bp.Q.value = q; const g = c.createGain(); g.gain.value = 0; src.connect(bp); bp.connect(g); g.connect(this.engGain); src.start(); return { bp, g }; };
+    E.intake = noise(700, 'bandpass', 0.9);
+    E.road = noise(160, 'lowpass', 0.7);
+    this.gear = 0; this.revs = 0.12; this.lastThrottle = 0;
+  },
+
+  // Each frame: the revs from the speed through a four-speed box (they climb through each gear and drop at the
+  // shift, with a moment off the throttle), and everything that follows from them.
   engine(speedFrac, throttle, nitro, on) {
-    if (!this.ctx) return;
-    const t = this.ctx.currentTime, gears = [0, 0.22, 0.45, 0.7, 1.45];
+    if (!this.ctx || !this.eng) return;
+    const c = this.ctx, t = c.currentTime, E = this.eng, gears = [0, 0.22, 0.45, 0.7, 1.45];
     let g = 0;
     while (g < 3 && speedFrac > gears[g + 1]) g++;
     if (g !== this.gear) { if (g > this.gear && on) this.shiftT = t; this.gear = g; }
-    const rpm = Math.min(1.15, (speedFrac - gears[g]) / (gears[g + 1] - gears[g]) * (g === 3 ? 1.6 : 1));
-    const lift = this.shiftT && t - this.shiftT < 0.12 ? 0.4 : 1; // off the throttle for the shift
-    const f = (38 + rpm * 95 + g * 9 + (nitro ? 18 : 0)) * (0.85 + 0.15 * throttle * lift);
-    this.osc1.frequency.setTargetAtTime(f, t, 0.04);
-    this.osc2.frequency.setTargetAtTime(f * 0.5, t, 0.04);
-    this.osc3.frequency.setTargetAtTime(f * 1.007, t, 0.04);
-    this.engFilter.frequency.setTargetAtTime(380 + rpm * 1100 + throttle * lift * 500 + (nitro ? 800 : 0), t, 0.06);
-    this.engGain.gain.setTargetAtTime(on ? (0.08 + throttle * lift * 0.06) : 0, t, 0.08);
-    this.rumble.gain.setTargetAtTime(on ? 0.5 + throttle * 0.6 : 0, t, 0.1);
+    const inGear = Math.min(1.1, (speedFrac - gears[g]) / (gears[g + 1] - gears[g]) * (g === 3 ? 1.6 : 1));
+    const lift = this.shiftT && t - this.shiftT < 0.14 ? 0.25 : 1, thr = throttle * lift;
+    // Revs, 0 (idle, about 850) to 1 (the limiter, about 7000): standing still, a blip with the throttle.
+    const want = speedFrac < 0.03 ? 0.08 + thr * 0.3 : 0.2 + inGear * 0.72 + (g === 0 ? thr * 0.08 : 0);
+    this.revs += (want - this.revs) * (want > this.revs ? 0.25 : 0.12);
+    const rev = this.revs, rpm = 850 + rev * 6150, cyc = rpm / 120; // engine cycles a second (eight firings each)
+    const wander = 1 + Math.sin(t * 2.3) * 0.008 + Math.sin(t * 5.1) * 0.005; // never quite steady
+    for (const o of E.banks) o.frequency.setTargetAtTime(cyc * wander, t, 0.03);
+    E.growl.frequency.setTargetAtTime(cyc * 4 * wander, t, 0.03);
+    E.lopeOsc.frequency.setTargetAtTime(cyc * wander, t, 0.03);
+    E.growlG.gain.setTargetAtTime(0.35 + thr * 0.45, t, 0.06);
+    // Harder on the throttle: more fuzz and a brighter, more open pipe; off it, a low burble.
+    E.drive.gain.setTargetAtTime(0.6 + thr * 0.9 + (nitro ? 0.4 : 0), t, 0.05);
+    E.lp.frequency.setTargetAtTime(150 + rev * 650 + thr * 450 + (nitro ? 350 : 0), t, 0.05);
+    this.engGain.gain.setTargetAtTime(on ? 0.26 + thr * 0.1 + rev * 0.06 : 0, t, 0.08);
+    // The blower: always there, louder with the boost; the nitro's in, it screams.
+    const bf = rpm / 60 * 22 * (nitro ? 1.12 : 1);
+    E.blower.frequency.setTargetAtTime(bf, t, 0.05); E.blowBp.frequency.setTargetAtTime(bf, t, 0.05);
+    E.blowG.gain.setTargetAtTime(on ? (0.0015 + thr * rev * 0.006 + (nitro ? 0.03 : 0)) : 0, t, 0.08);
+    E.intake.bp.frequency.setTargetAtTime(400 + rev * 1200, t, 0.06);
+    E.intake.g.gain.setTargetAtTime(on ? thr * (0.05 + rev * 0.12) : 0, t, 0.06);
+    E.road.g.gain.setTargetAtTime(on ? Math.min(1, speedFrac) * 0.5 : 0, t, 0.1);
+    // Snapped off the throttle at speed: the pipes pop and crackle.
+    if (on && this.lastThrottle > 0.6 && throttle < 0.2 && rev > 0.45 && !(this.shiftT && t - this.shiftT < 0.2)) this.crackle(rev);
+    this.lastThrottle = throttle;
+  },
+  crackle(rev) {
+    const n = 3 + Math.floor(Math.random() * 4 + rev * 4);
+    for (let i = 0; i < n; i++) {
+      const at = 0.04 + Math.random() * 0.7 * (0.5 + rev * 0.5), v = 0.06 + Math.random() * 0.12;
+      this.layer({ f: 1200 + Math.random() * 1800, dur: 0.02 + Math.random() * 0.03, vol: v, at, q: 1.2, wet: 0.3 });
+      if (Math.random() < 0.5) this.thump(160 + Math.random() * 80, 60, 0.05, v * 1.4, 0.2, at);
+    }
   },
 
   tone(freq, dur, type, vol) {

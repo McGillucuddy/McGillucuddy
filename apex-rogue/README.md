@@ -312,6 +312,18 @@ volume and looks for overlaps.
 - **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
   turning in place inside your own neck.
 
+### The engine (prototype)
+
+A big supercharged V8 with straight-through pipes, synthesized (`buildEngine` / `engine` in js/audio.js). One whole
+engine cycle (two turns of the crank, eight firings in the cross-plane order 1-8-4-3-6-5-7-2) is drawn as a
+waveform per bank and played at the cycle's rate, so the pitch follows the revs (about 850 to 7000) and the
+character comes with it: each bank has its own pipe (left and right), no two cylinders fire quite alike, and a
+lope swells and sags through each cycle (strong at idle and off the throttle, smoothing into a roar flat out).
+Under it, a fuzzed growl at half the firing rate; through it all, a fuzz that bites harder on the throttle and an
+exhaust filter that opens with the revs. On top: the blower's whine (faint until the nitro's in, then it
+screams), the intake roaring under load, the road, and pops and crackles out of the pipes when the throttle's
+snapped shut at speed. It all sits on the bed that ducks under your gunfire.
+
 ### Guns that hit hard (prototype)
 
 - **In your hands** (`FIRE_KICK` and `RECOIL` in js/cockpit3d.js): every gun kicks harder, and part of the kick
