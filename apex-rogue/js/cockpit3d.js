@@ -474,6 +474,20 @@ class CockpitView {
         ? Models.car(Object.assign({ color: car.color, accent: car.accent, weapon: car.weapon, number: 1, crew: { gunner: !!car.weapon, seed: k * 13 + 5, helmet: true } }, car.bossLook, { tyreArmor: !!car.armorTyres }))
         : Models.car(car.look3d);
       if (car.bossLook) model.scale.setScalar(1.08);
+      // The Turnkey's lifers, one at each barred window, turned to face out of it (js/bosses.js).
+      const BK = car.isBoss && bossKit(this.race.boss);
+      if (BK && BK.cons && car.bossLook) {
+        const st = CAR_STYLES[car.bossLook.style] || CAR_STYLES.bus, ch = model.getObjectByName('chassis'), lift = ch ? ch.position.y : 0;
+        const hipY = Math.max(st.cabin[0][1] - 3.8, st.cabin[1][1] - 7.2) + lift;
+        model.userData.cons = CON_SEATS.slice(0, BK.cons).map(([x, side], i) => {
+          const f = Models.crewFigure('gunner', 300 + i * 17, false);
+          f.position.set(x, hipY, side * 5.4);
+          f.rotation.y = -side * Math.PI / 2;
+          f.scale.setScalar(0.88);
+          model.add(f);
+          return f;
+        });
+      }
       g.add(model);
       const box = new THREE.Box3().setFromObject(model);
       const tag = canvasTex(256, 64);
@@ -1119,6 +1133,7 @@ class CockpitView {
       bullet: pool(80, () => new THREE.Mesh(new THREE.BoxGeometry(16, 0.5, 0.5), new THREE.MeshBasicMaterial({ color: '#ffe680' }))),
       rocket: pool(24, () => Models.rocket()),
       mine: pool(40, () => Models.mine()),
+      coffin: pool(12, () => Models.coffin()),
       nade: pool(10, () => {
         const g = Models.grenade(); g.scale.setScalar(2.4);
         // The fuse fizzing out of the top: a hot spark that flickers (you can see a live one in flight).
@@ -1303,6 +1318,16 @@ class CockpitView {
 
   onEvent(ev) {
     if (ev.type === 'eject') this.eject(ev);
+    if (ev.type === 'conDown') { // a lifer shot through the bars falls out of the bus
+      const m = this.carMeshes && this.carMeshes.get(ev.car), f = m && m.model.userData.cons && m.model.userData.cons[ev.i];
+      if (f && f.visible) { m.g.updateMatrixWorld(true); this.ragdolls.spawn(f, { x: ev.car.vx, y: ev.car.vy }, ev.car.heading, { power: 0.5, kind: 'bullet', role: 'gunner' }); f.visible = false; }
+    }
+    if (ev.type === 'coffinBreak') { this.burst(ev.x, ev.y, false, false); if (ev.car === this.race.player) this.shake = Math.max(this.shake, 1.1); }
+    if (ev.type === 'bossRevive') { // the Apex gets up: his bolt-ons go flying and the hearse shakes itself off
+      const m = this.carMeshes && this.carMeshes.get(ev.car);
+      if (m) { const loose = []; m.model.traverse((o) => { if (o.userData.kit && !o.userData.loose) loose.push(o); }); for (const o of loose) this.shedPart(o, ev.car); m.dmg.shed = true; }
+      this.burst(ev.car.x, ev.car.y, true, false);
+    }
     if (ev.type === 'emote') this.emoteAnim = { id: ev.id, t: 0 };
     if (ev.type === 'deflect') this.sparkAt(ev.x, ev.y, 5);
     if (ev.type === 'impact') this.impact(ev);
@@ -1731,6 +1756,14 @@ class CockpitView {
   // and a hop-and-spin the moment a car is wrecked. Damaged cars smoke; exhausts puff under hard throttle.
   // The crew through the glass: glancing about, jolting when hit, slumped over once they're dead.
   animateCrew(car, m, dt, t) {
+    const cons = m.model.userData.cons;
+    if (cons && car.cons) cons.forEach((f, i) => { // the lifers: glancing about, ducking when hit, leaning to the bars to fire
+      const cn = car.cons[i], u = f.userData;
+      if (!cn || !f.visible || !u.torso) return;
+      const fl = cn.flinch > 0 ? cn.flinch : 0;
+      u.torso.rotation.set(0, 0, (cn.burst > 0 ? -0.25 : 0) + (fl > 0 ? Math.sin(fl * 38) * 0.15 : 0));
+      u.head.rotation.set(Math.sin(t * 1.3 + i * 2.1) * 0.25, 0, 0);
+    });
     const crew = m.model.userData.crew;
     if (!crew) return;
     for (const role of ['driver', 'gunner']) {
@@ -2375,7 +2408,11 @@ class CockpitView {
       o.userData.body.material.color.set(q.owner === p ? '#5ad8ff' : '#ff5a3c');
       if (this.puffs.length < this.pools.puff.length) this.puffs.push({ x: q.x, y: q.y, t: 0 });
     });
-    show(this.pools.mine, c.mines, (o, m) => {
+    show(this.pools.coffin, c.mines.filter((m) => m.kind === 'coffin'), (o, m) => {
+      o.position.set(m.x, 0, m.y);
+      o.rotation.set(0, -m.rot, 0);
+    });
+    show(this.pools.mine, c.mines.filter((m) => !m.kind), (o, m) => {
       o.position.set(m.x, 0, m.y);
       o.userData.led.visible = m.t < m.arm || Math.floor(t * 4) % 2 === 0;
     });
@@ -2414,7 +2451,17 @@ class CockpitView {
     { // the harpoon line: from your car to the bolt in flight, or to whoever's hooked
       const pts = [];
       for (const q of c.projectiles) if (q.type === 'harpoon') pts.push([q.owner, q]);
-      for (const car of this.race.cars) if (car.hookT > 0 && car.hookBy) pts.push([car.hookBy, car]);
+      for (const car of this.race.cars) if (car.hookT > 0 && car.hookBy && !(car === p && car.hookBy.isBoss)) pts.push([car.hookBy, car]);
+      // Sal's tow cable (js/bosses.js): a steel cable from the wrecker's hook to your front bumper.
+      const towing = p.hookT > 0 && p.hookBy && p.hookBy.isBoss;
+      if (towing && !this.towCable) { this.towCable = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1, 8).translate(0, 0.5, 0).rotateX(Math.PI / 2), LP.mat('#b8b4a8', { metalness: 0.6, roughness: 0.35 })); this.towCable.frustumCulled = false; this.scene.add(this.towCable); }
+      if (this.towCable) {
+        this.towCable.visible = !!towing;
+        if (towing) {
+          const [hx, hy] = hookPos(p.hookBy), a = new THREE.Vector3(hx, 9.2, hy), b2 = new THREE.Vector3(p.x + Math.cos(p.heading) * 19, 2.6, p.y + Math.sin(p.heading) * 19);
+          this.towCable.position.copy(a); this.towCable.lookAt(b2); this.towCable.scale.set(1, 1, a.distanceTo(b2));
+        }
+      }
       if (!this.hookLines) { this.hookLines = []; for (let k = 0; k < 4; k++) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: '#d8cfb8' })); l.frustumCulled = false; this.scene.add(l); this.hookLines.push(l); } }
       this.hookLines.forEach((l, k) => {
         l.visible = k < pts.length;

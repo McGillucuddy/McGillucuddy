@@ -3828,6 +3828,18 @@ const Models = {
     return g;
   },
 
+  // A coffin out of the Apex's hearse: a dark wooden toe-pincher with a lighter lid, a cross and brass handles.
+  coffin() {
+    const g = new THREE.Group(), wood = LP.mat('#4a2a18', { roughness: 0.6 }), lid = LP.mat('#6a3a20', { roughness: 0.5 }), brass = LP.mat('#b8963a', { metalness: 0.8, roughness: 0.35 });
+    const plan = (k) => { const sh = new THREE.Shape(); [[-7, -1.5], [3, -2.3], [7, -1.7], [7, 1.7], [3, 2.3], [-7, 1.5]].forEach(([x, z], i) => (i ? sh.lineTo(x * k, z * k) : sh.moveTo(x * k, z * k))); return sh; };
+    const box = new THREE.ExtrudeGeometry(plan(1), { depth: 2.4, bevelEnabled: true, bevelThickness: 0.15, bevelSize: 0.15, bevelSegments: 1 }).rotateX(Math.PI / 2).translate(0, 2.5, 0);
+    const top = new THREE.ExtrudeGeometry(plan(0.92), { depth: 0.3, bevelEnabled: false }).rotateX(Math.PI / 2).translate(0, 2.85, 0);
+    g.add(new THREE.Mesh(box, wood), new THREE.Mesh(top, lid));
+    g.add(LP.box(6.5, 0.15, 0.5, brass, 0.5, 2.95, 0), LP.box(0.5, 0.15, 2.4, brass, 2.0, 2.95, 0)); // the cross
+    for (const s of [-1, 1]) for (const x of [-4, 0, 3.6]) g.add(LP.box(1.2, 0.25, 0.25, brass, x, 1.3, s * (Math.abs(x - 3) < 1 ? 2.45 : 1.9 + (x + 7) * 0.04))); // handles
+    return g;
+  },
+
   mine() {
     const g = new THREE.Group();
     g.name = 'mine';

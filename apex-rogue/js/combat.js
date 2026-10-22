@@ -912,7 +912,8 @@ class Combat {
           if (m.dead) continue;
           if ((m.x - pr.x) ** 2 + (m.y - pr.y) ** 2 < 16 * 16) {
             pr.dead = true;
-            if (--m.hp <= 0) {
+            if (--m.hp <= 0 && m.kind === 'coffin') { m.dead = true; this.events.push({ type: 'coffinBreak', x: m.x, y: m.y }); }
+            else if (m.hp <= 0) {
               m.dead = true;
               this.explode(m.x, m.y, 60, 16, pr.owner, 'mine');
               if (pr.owner === p) this.stats.shotDown++;
@@ -1049,7 +1050,24 @@ class Combat {
   updateMines(dt) {
     for (const m of this.mines) {
       m.t += dt;
+      if (m.kind === 'coffin') { // skidding to a stop, turning as it goes
+        const k = Math.max(0, 1 - dt * 1.6);
+        m.x += m.vx * dt; m.y += m.vy * dt; m.vx *= k; m.vy *= k; m.rot += m.spin * dt * k;
+      }
       if (m.t < m.arm || m.dead) continue;
+      if (m.kind === 'coffin') {
+        for (const c of this.race.cars) {
+          if (c === m.owner || (c.z || 0) > 10 || (c.x - m.x) ** 2 + (c.y - m.y) ** 2 > 18 * 18) continue;
+          m.dead = true; // it bursts on the car: a wall's worth of hit and a sideways kick
+          const sp = Math.hypot(c.vx, c.vy);
+          this.hitCar(c, 6 + sp * 0.03, m.owner, Math.atan2(m.y - c.y, m.x - c.x), 0.55, 'ram');
+          c.spinT = Math.max(c.spinT || 0, 0.35); c.spinDir = Math.random() < 0.5 ? -1 : 1;
+          this.events.push({ type: 'coffinBreak', x: m.x, y: m.y, car: c });
+          break;
+        }
+        if (m.t > 30) m.dead = true;
+        continue;
+      }
       for (const c of this.race.cars) {
         if (c === m.owner && m.t < 3) continue;
         if ((c.x - m.x) ** 2 + (c.y - m.y) ** 2 < 20 * 20) {
@@ -1162,6 +1180,11 @@ class Combat {
   crewHit(c, pr) {
     if (c === this.player || c.hp <= 0 && c.driverDead || !['bullet', 'harpoon'].includes(pr.type)) return null;
     const sp = Math.hypot(pr.vx, pr.vy) || 1, dx = pr.vx / sp, dy = pr.vy / sp, ch = Math.cos(c.heading), sh = Math.sin(c.heading);
+    if (c.cons) for (let i = 0; i < c.cons.length; i++) { // the Turnkey's lifers at the bus windows (js/bosses.js)
+      if (c.cons[i].dead) continue;
+      const [sx, sy] = conPos(c, c.cons[i]), rx = sx - pr.x, ry = sy - pr.y, along = rx * dx + ry * dy;
+      if (along > -CAR_RADIUS && along < CAR_RADIUS * 2 && Math.abs(rx * dy - ry * dx) < 3.4) return 'con' + i;
+    }
     for (const role of ['driver', 'gunner']) {
       if (role === 'driver' ? c.driverDead : !c.weapon || c.gunnerDead) continue;
       const side = role === 'driver' ? -4.2 : 4.2, sx = c.x - ch * 1.5 - sh * side, sy = c.y - sh * 1.5 + ch * side;
@@ -1176,7 +1199,16 @@ class Combat {
   // is out (it coasts on, steering itself into a wall); kill the gunner and its weapon falls silent.
   woundCrew(c, role, dmg, owner) {
     const p = this.player;
-    if (!c.crewHp) c.crewHp = { driver: c.isBoss ? 45 : 16, gunner: c.isBoss ? 30 : 10 }; // bosses wear helmets
+    if (role.startsWith('con')) { // one of the lifers on the bus
+      const cn = c.cons[+role.slice(3)], left = () => c.cons.filter((o) => !o.dead).length;
+      cn.hp -= dmg; cn.flinch = 0.5; cn.burst = 0;
+      if (cn.hp > 0) { this.events.push({ type: 'crewHit', role: 'con' }); return; }
+      cn.dead = true;
+      this.events.push({ type: 'crewKill', role: 'con' }, { type: 'conDown', car: c, i: +role.slice(3) });
+      if (owner === p) { this.race.message(left() ? `Lifer down! ${left()} still shooting` : 'The bus has gone quiet', '#ffd23f', true); if (this.fame) this.fame(INFAMY.clean, 'LIFER DOWN'); }
+      return;
+    }
+    if (!c.crewHp) c.crewHp = { driver: c.isBoss ? (c.openCrew ? 26 : 45) : 16, gunner: c.isBoss ? (c.openCrew ? 18 : 30) : 10 }; // bosses wear helmets (but ride in the open in the buggy)
     c.crewHp[role] -= dmg;
     if (role === 'driver') { c.flinchT = 0.5; c.spinT = Math.max(c.spinT, 0.16); c.spinDir = Math.random() < 0.5 ? -1 : 1; }
     else { c.gFlinchT = 0.5; if (c.wpn) c.wpn.lock = 0; }

@@ -213,8 +213,9 @@ You pick your path through it (`js/runmap.js`), on a TV:
 | 📦 Stash | Pick one of two items, no race. |
 | 👑 Qualifier | A named boss in a signature car. Finish ahead of them to move up an act (+150 scrap and a **driver trait**: Getaway Veteran, Ghost or Showboat, each with a downside). Lose, and you take a strike and must face them again. |
 
-The bosses are The Turnkey (an armoured prison van with a gunner), Smokestack Sal (a mine layer), Augustin Vale (a gold
-rocket supercar) and Vex "The Apex" Marlowe at the Crown. Against Marlowe, only an outright win sets you free.
+The bosses are The Turnkey (a prison bus full of armed lifers), Smokestack Sal (a wrecker that lays mines), Augustin Vale
+(a gold rocket buggy with a security detail) and Vex "The Apex" Marlowe at the Crown, in a hearse. Each one drives the body
+you win for beating them. Against Marlowe, only an outright win sets you free.
 Three strikes and the run is over.
 
 **Boss fights** (`js/bosses.js`; the graffiti is painted in `js/garage3d.js`):
@@ -229,6 +230,11 @@ Three strikes and the run is over.
   - **Smokestack Sal:** **Smokestack.** He belches clouds of smog that break locks and close the world in round you (the fog thickens in the cockpit), and keeps laying mines.
   - **Augustin Vale:** **Sponsor Barrage.** A fan of three rockets after a laser warning. Slam the hatch on the first to bat it back.
   - **Vex Marlowe:** rockets, then **Apex Barrage** salvos.
+- **Gimmicks** (`js/bosses.js`). Each boss also has a trick of their own:
+  - **The Turnkey: the lifers.** Four armed lifers sit at the bus's barred windows. They fire bursts out of whichever side you're on, faster once he's angry. Shoot them through the bars one by one (each kill is worth Infamy) and they fall out of the bus. With all four down, "The bus has gone quiet".
+  - **Smokestack Sal: the tow hook.** Get close and he calls "TOW HOOK!", then hooks you with the wrecker. A steel cable runs from his boom to your bumper, dragging you back and bleeding your speed while he floors it. Shoot the cable a few times to cut yourself loose, or it tears free after a few seconds. The blast hatch, shut in time, makes it clang off.
+  - **Augustin Vale: the security detail.** The two cars nearest him on the grid are his security: gold fastbacks with bull bars, more hull and a gunner each. Get near Vale and they turn on you and ram. His buggy has no glass, so his own crew is far easier to shoot than other bosses' helmeted crews.
+  - **Vex Marlowe: the hearse.** Once he's angry he drops coffins out of the back door. They skid along the road and hit like a wall, kicking you sideways, but a few rounds break them apart. Wreck the hearse and it gets up again, once: "THE APEX WON'T STAY DOWN". His bolt-ons go flying, and he comes back with 45% of his hull and a burst of nitro. Shooting his driver dead still puts him down for good.
 - **Rage at half health.** Every boss loses their temper: the Turnkey rams more often, Sal fills the air and lays mines in pairs, Vale fires five-rocket fans, and Marlowe adds nitro bursts.
 - **Briefing.** The race briefing explains each boss's move.
 

@@ -21,26 +21,26 @@ const NODE_TYPES_RUN = {
 const BOSSES = [
   {
     name: 'The Turnkey', title: "The warden's enforcer",
-    desc: 'An armoured prison van with a gunner in the back. Slow off the line, impossible to push around.',
-    color: '#1e1f22', look: { style: 'brick', bumper: 'plow', roof: 'cage', livery: 'none', finish: 'matte', grime: 'filthy' },
+    desc: 'A prison bus full of lifers at the barred windows, every one of them armed and keen to earn a pardon. Slow off the line, impossible to push around.',
+    color: '#1e1f22', look: { style: 'bus', bumper: 'plow', roof: 'none', livery: 'stencil', finish: 'matte', grime: 'filthy' },
     weapon: 'gun', hp: 230, skill: 0.03, mass: 1.6,
   },
   {
     name: 'Smokestack Sal', title: 'King of the Stacks',
-    desc: 'Lays mines all race long and knows every shortcut through the smog.',
-    color: '#6a3a22', look: { style: 'phantom', roof: 'rack', exhaust: 'side', livery: 'stencil', finish: 'rusty', grime: 'dirty' },
+    desc: 'Runs the wrecker. Lays mines, chokes the track with smog, and gets close enough to hook you and drag you backwards.',
+    color: '#6a3a22', look: { style: 'tow', exhaust: 'side', livery: 'stencil', finish: 'rusty', grime: 'dirty' },
     weapon: 'mine', hp: 170, skill: 0.06, mass: 1.1,
   },
   {
     name: 'Augustin Vale', title: "The sponsors' golden boy",
-    desc: 'A gold supercar, rocket pods and the best engine money can buy. He has never lost to a prisoner.',
-    color: '#c9a443', look: { style: 'wasp', spoiler: 'bigwing', livery: 'stripes', finish: 'gloss', grime: 'clean', underglow: '#ffd86a' },
+    desc: 'A gold dune buggy, rocket pods and a security detail paid to keep prisoners off him. He has never lost to a prisoner.',
+    color: '#c9a443', look: { style: 'buggy', livery: 'stripes', finish: 'gloss', grime: 'clean', underglow: '#ffd86a' },
     weapon: 'rocket', hp: 150, skill: 0.09, mass: 0.9,
   },
   {
     name: 'Vex "The Apex" Marlowe', title: 'Champion of the Crown',
-    desc: 'Undefeated. Only an outright win sets you free.',
-    color: '#141414', look: { style: 'phantom', spoiler: 'wing', livery: 'flames', finish: 'gloss', grime: 'clean', rims: 'black' },
+    desc: 'Undefeated, and drives his own hearse. Wreck it and it gets up again. Only an outright win sets you free.',
+    color: '#141414', look: { style: 'hearse', livery: 'flames', finish: 'gloss', grime: 'clean', rims: 'black' },
     weapon: 'rocket', hp: 210, skill: 0.11, mass: 1.2, mustWin: true,
   },
 ];

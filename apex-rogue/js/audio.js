@@ -411,6 +411,9 @@ const Sound = {
       case 'tyrePop': this.noiseBurst(0.12, 2600, ev.mine ? 0.55 : 0.4, 400); this.noiseBurst(0.6, 300, 0.18, 120); break; // the bang, then the rubber flapping
       case 'bossTell': [0, 0.22].forEach((d) => setTimeout(() => { this.tone(392, 0.18, 'sawtooth', 0.07); this.tone(370, 0.18, 'square', 0.04); }, d * 1000)); break; // a two-blast klaxon
       case 'bossRage': this.tone(55, 1.2, 'sawtooth', 0.12); this.noiseBurst(1.0, 200, 0.3, 80); break;
+      case 'coffin': this.noiseBurst(0.25, 300, 0.25, 90); break; // the back door bangs open, the box hits the road
+      case 'coffinBreak': this.noiseBurst(0.35, 1400, 0.3, 300); this.noiseBurst(0.2, 200, 0.25, 70); break;
+      case 'bossRevive': this.tone(41, 1.6, 'sawtooth', 0.14); this.noiseBurst(1.2, 400, 0.35, 60); break;
       case 'smog': this.noiseBurst(0.9, 160, 0.3, 60); this.noiseBurst(0.4, 900, 0.08, 200); break;
       case 'hatchShut': this.clang(0.5); break;
       case 'hatchUp': for (let k = 0; k < 4; k++) setTimeout(() => this.noiseBurst(0.03, 2600, 0.06), k * 55); this.tone(180, 0.25, 'sawtooth', 0.03); break;

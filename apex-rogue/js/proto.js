@@ -97,6 +97,7 @@ const Proto = {
       for (const id of Object.keys(WEAPONS)) Models.gunKit(Models.weapon(id), id, this.cos.gunKit[id], this.cos.patchSeed[id]); // your welded-on junk
       for (const style of Object.keys(CAR_STYLES).filter((k) => CAR_STYLES[k].prize == null)) Models.car({ style, color: '#888888' }); // the rivals' bodies (prize bodies are only ever yours)
       Models.car(Object.assign({}, carLook(this.cos, this.build), { shell: true })); // your own car, seen from inside
+      for (const B of BOSSES) Models.car(Object.assign({ color: B.color, weapon: B.weapon }, B.look)); // the bosses drive the prize bodies
       Models.interior('#888888', {});
       Models.rocketPod(); Models.mineDropper(); Models.gunner(); Models.grenade(); Models.rocket(); Models.mine(); Models.grenadeCrate();
       for (const id of Object.keys(TRINKET_MOUNT)) Models.trinket(id);
@@ -967,12 +968,25 @@ const Proto = {
       bc.stats.maxHp = bc.hp = boss.hp;
       bc.stats.mass = boss.mass;
       bc.bossLook = boss.look;
+      bc.openCrew = !!(CAR_STYLES[boss.look.style] || {}).open; // the buggy: no glass between you and his crew
       this.race.bossCar = bc;
+      // Vale's security detail: the two cars nearest him on the grid, in his gold, built heavier (js/bosses.js).
+      const K = bossKit(boss);
+      if (K && K.escort) {
+        const near = this.race.cars.filter((c) => c !== player && !c.isBoss).sort((a, c) => Math.hypot(a.x - bc.x, a.y - bc.y) - Math.hypot(c.x - bc.x, c.y - bc.y));
+        this.race.escorts = near.slice(0, K.escort);
+        this.race.escorts.forEach((c, i) => {
+          Object.assign(c, { escort: bc, name: `Vale Security ${i + 1}`, nick: 'Security', last: 'Security', color: '#b8963a', accent: '#1a1a1a' });
+          c.vendLook = { style: 'phantom', finish: 'gloss', livery: 'stripes', grime: 'clean', bumper: 'bullbar', roof: 'lightbar', rims: 'black', exhaust: 'twin', crew: { gunner: true, seed: 50 + i * 13, helmet: true } };
+          c.stats.maxHp = c.hp = Math.round(c.hp * 1.6);
+          c.stats.mass *= 1.3;
+        });
+      }
     }
     // A vendetta: someone you put out of an earlier race is back, in place of an ordinary rival.
     const vend = Vendetta.pick(run, rng, node);
     if (vend) {
-      const field = this.race.cars.filter((c) => c !== player && !c.isBoss && !c.bounty);
+      const field = this.race.cars.filter((c) => c !== player && !c.isBoss && !c.bounty && !c.escort);
       const vc = field[Math.floor(rng() * field.length)];
       Vendetta.apply(vc, vend, player);
       this.race.vendetta = { car: vc, v: vend };
@@ -993,6 +1007,7 @@ const Proto = {
     this.driver = driver;
     this.combat = new Combat(this.race, { driver, build: b, elite: node.type === 'elite', boss, disarm: !!run.flags.disarm, weather: wx, act: node.tutorial ? 0 : run.act });
     run.flags.disarm = false;
+    for (const c of this.race.escorts || []) { c.weapon = 'gun'; c.wpn = c.wpn || { cd: randRange(rng, 3, 5), lock: 0 }; } // security carries
     if (vend) { const vc = this.race.vendetta.car; if (!vc.weapon || vend.how === 'tyres') vc.weapon = 'gun'; vc.wpn = vc.wpn || { cd: randRange(rng, 2, 4), lock: 0 }; } // they come armed
     this.combat.pace = PACE;
     this.combat.tutorial = !!node.tutorial;
