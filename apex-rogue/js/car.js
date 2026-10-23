@@ -79,7 +79,7 @@ class Car {
     if (this.offroad) top *= 1 - (1 - this.offroadTop) * s.offroadMul;
     if (this.nitroOn) { top *= 1 + 0.25 * s.nitroPower; acc *= 1 + 0.9 * s.nitroPower; }
     if (this.boostT > 0) { top *= 1.3; acc *= 2.4; this.boostT -= dt; }
-    if (this.launchT > 0) { top *= 1.15; acc *= 2.2; this.launchT -= dt; }
+    if (this.launchT > 0) { top *= 1.1; acc *= 1.6; this.launchT -= dt; }
     if (this.draftT > 0) { top *= 1.08; this.draftT -= dt; }
     if (this.wheelspinT > 0) { acc *= 0.25; this.wheelspinT -= dt; }
     if (this.rubber) top *= this.rubber;
@@ -101,7 +101,7 @@ class Car {
 
     // Steering: needs speed to turn; slightly less authority at top speed. Weight transfer: braking loads the
     // front tyres for a sharper turn-in, hard throttle lightens them.
-    const sf = clamp(vF / 130, -1, 1);
+    const sf = clamp(vF / (s.steerV || 130), -1, 1); // (steerV comes down with the game speed, so the tightest turn stays as tight)
     const hi = 1 - 0.28 * clamp(Math.abs(vF) / s.top, 0, 1);
     const load = 1 + 0.16 * (inp.brake || 0) * clamp(vF / 200, 0, 1) - 0.08 * (inp.throttle || 0) * clamp(vF / s.top, 0, 1);
     let turn = inp.steer * s.handling * sf * hi * load;

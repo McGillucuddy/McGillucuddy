@@ -884,6 +884,21 @@ Progress between runs is saved in `localStorage`: reaching race 4 and race 6 unl
 | Pause | Esc / P | Start |
 | Mute | M | |
 
+**Game speed** (Settings: Relaxed, Normal or Fast; `PACE_LEVELS` in js/proto.js). This scales every car's top speed: 50%, 60% or 72% of raw. All three settings also:
+- cut acceleration by a further 45%, and soften the launch boost;
+- scale the turn rate and the speed under which steering weakens with the pace, so the lines stay the same but the corners come at you slower;
+- scale the AI's cornering grip with the square of the pace, so rivals brake for corners in proportion.
+
+Measured on one track with nobody shooting:
+
+| Setting | Average speed | Yaw (95th percentile) | Lap |
+| --- | --- | --- | --- |
+| Fast | about 162 km/h | 107°/s | 26 s |
+| Normal | about 136 km/h | 95°/s | 29 s |
+| Relaxed | about 113 km/h | 77°/s | 36 s |
+
+Getting up to 80% of top speed takes about 3.4 s, where it used to take under 1 s. Normal is the default; Fast is the old top speed with the gentler acceleration.
+
 **Mouse:** Settings opens on the controls. They cover mouse sensitivity (0.1x to 4x), a separate sensitivity for aiming down the sights, and invert Y. The pause menu has a sensitivity slider too, so you can tune it mid-race.
 
 **Keeping track in a race:**

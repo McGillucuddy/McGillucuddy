@@ -11,7 +11,12 @@ const ACTS = [
   { biome: 'terraces', name: 'Act III', title: 'The Gilded Terraces' },
   { biome: 'crown', name: 'Act IV', title: 'The Crown' },
 ];
-const PACE = 0.72; // global speed scale for the gunner races
+// Game speed (Settings): the scale on every car's top speed. Acceleration comes down a further quarter, and the
+// turning rate and the AI's cornering grip come down with the speed (the turn rate in proportion, the grip with its
+// square), so the lines stay the same and the corners come at you as much slower as the straights.
+const PACE_LEVELS = { relaxed: 0.5, normal: 0.6, fast: 0.72 }; // (fast was the old and only pace)
+const PACE_REF = 0.72; // the pace the handling and cornering numbers were tuned at
+const paceNow = () => PACE_LEVELS[Settings.data.speed] || PACE_LEVELS.normal;
 // Rival skill rises through the run: d = act * 4 + row on the route sheet (0..15).
 const RIVAL_SKILL = (d) => Math.min(1.08, 0.97 + d * 0.007);
 const ACT_LUXURY = (act) => act >= 2;
@@ -1004,11 +1009,13 @@ const Proto = {
     // Weather: the forecast for this stop (the tutorial is always clear).
     const wxId = node.tutorial || node.id == null ? 'clear' : weatherFor(run.seed || 0, run.act, node.id), wx = wxOf(wxId);
     this.race.weather = wxId;
+    const PACE = paceNow(), turnK = PACE / PACE_REF;
     for (const c of this.race.cars) {
       c.stats.grip *= wx.grip || 1;
       c.stats.top *= PACE;
-      c.stats.accel *= PACE;
-      c.stats.aLat *= 0.88;
+      c.stats.accel *= PACE * 0.55; // and a much slower build-up to it
+      c.stats.handling *= turnK; c.stats.steerV = 130 * turnK; // the same lines, taken that much slower
+      c.stats.aLat *= 0.88 * turnK * turnK; // the AI's corner speeds come down with the straights
     }
     this.race.rubberCfg = { dist: 2200, ahead: -0.07, behind: 0.12 };
     this.driver = driver;
@@ -1251,6 +1258,7 @@ const Proto = {
         if (k === 'quality') { Settings.data.quality = v; Settings.save(); this.resize(); } // the render size changes now; tower counts from the next race
         if (k === 'fps') Settings.data.showFps = !Settings.data.showFps;
         if (k === 'invert') Settings.data.invertY = !Settings.data.invertY;
+        if (k === 'speed') Settings.data.speed = v;
         if (k === 'slowmo') Settings.data.slowmo = !Settings.data.slowmo;
         if (k === 'flicker') Settings.data.flicker = !Settings.data.flicker;
         if (k === 'ff') Settings.data.friendlyFire = !Settings.data.friendlyFire;
@@ -1274,6 +1282,9 @@ const Proto = {
     el.innerHTML = `<div class="settings-card clipboard">
       <div class="clip"></div>
       <h2 class="g-title">Settings</h2>
+      <h3>Game speed</h3>
+      <p class="muted small">How fast every car drives, accelerates and corners. Takes effect from the next race.</p>
+      <div class="opts">${[['relaxed', 'Relaxed'], ['normal', 'Normal'], ['fast', 'Fast']].map(([k, n]) => `<button class="opt ${(d.speed || 'normal') === k ? 'on' : ''}" data-set="speed:${k}">${n}</button>`).join('')}</div>
       <h3>Mouse sensitivity <small data-val="setSens">${d.sens.toFixed(2)}x</small></h3>
       <input type="range" id="setSens" min="0.1" max="4" step="0.05" value="${d.sens}">
       <h3>Aiming down sights <small data-val="setAds">${(d.adsSens ?? 0.7).toFixed(2)}x</small></h3>
