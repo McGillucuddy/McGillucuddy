@@ -13,9 +13,9 @@ const BOND = {
 };
 // The levels, what each is called, and what it adds (all cumulative).
 const BOND_LEVELS = [
-  { name: 'Stranger', xp: 0, perk: 'Does what they\'re told, slowly.' },
-  { name: 'Cellmate', xp: 60, perk: 'Acts on your orders faster.' },
-  { name: 'Partner', xp: 170, perk: 'Drives tighter: better lines, more grip in the corners.' },
+  { name: 'Stranger', xp: 0, perk: 'Does what they\'re told, slowly. Dodges late, and misses things.' },
+  { name: 'Cellmate', xp: 60, perk: 'Acts on your orders faster, and dodges sooner.' },
+  { name: 'Partner', xp: 170, perk: 'Drives tighter: better lines, more grip in the corners. Spots more of what\'s coming.' },
   { name: 'Ride or Die', xp: 330, perk: 'Holds your orders longer, and doesn\'t flinch when hit.' },
   { name: 'Family', xp: 540, perk: 'Watches your back: calls out rockets and locks before they land.' },
 ];

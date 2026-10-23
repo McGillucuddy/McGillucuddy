@@ -131,7 +131,7 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
 `Esc` backs out of a menu panel, or returns to your run. `prototype.html?run` skips the menu and starts a run straight away.
 
 - The car's AI drives. You aim with the mouse and fire whatever's on your rack, starting with the **pistol**,
-  throw **grenades** (look higher to throw further), slam the **blast hatch**, and order the driver to **swerve**.
+  throw **grenades** (look higher to throw further), slam the **blast hatch**, and press **Shift** to **focus** (slow motion, sparingly). Swerving is your driver's job.
 - **Driver orders** (`js/orders.js`). You don't drive, but you can shout. **Middle mouse**: "Ram them!" at the car
   under your crosshair (the driver lines up on it at full throttle, braking late, nitro when there's room, and calls
   it when you make contact). **Hold C** for the order wheel: **Get alongside** (pull level with your target for a
@@ -141,7 +141,7 @@ You can reach the menu from the route sheet and garage (`☰ Menu`), the pause s
   to act, and gives up after 6-8 seconds or when the target's wrecked or dropped well behind. The order in force
   shows under your place, and its target is marked ▼ on its name tag. Your driver's habit changes how orders are taken:
   the **Hothead** rams at once and harder but only half-eases; the **Cautious** driver hesitates, rams and floors it
-  timidly; the **Daredevil** floors it harder. A/D swerves stay instant.
+  timidly; the **Daredevil** floors it harder.
 - Some rivals are armed: **rocket gunners** paint you with a red laser before firing homing rockets,
   and a **mine layer** drops mines when you're behind it. Shoot rockets and mines out of the air, or
   slam the hatch just as a rocket hits to **parry** it back at the shooter.
@@ -418,6 +418,16 @@ snapped shut at speed. It all sits on the bed that ducks under your gunfire.
   for (so they don't swerve for a mine the bend takes them past anyway). A homing rocket turns faster than a
   car can get out of its way, so they don't try: yours shouts that it's locked on, your cue to shoot it down or
   slam the hatch. Rivals dodge too, less well (the better the driver, the likelier; bosses most of all).
+- **Weaving out of gunfire**: when a rival gunner winds up on you, your driver weaves out of the burst, away from the
+  shooter. The chance is three quarters of the chance they'd spot a rocket. There's no swerve key any more: dodging
+  is all your driver.
+- **They get better the longer they live**: the bond level sets how fast they react and how much they spot. On top
+  of that, every race they survive with you adds 2% to the chance of spotting a threat (up to 10%) and takes 3% off
+  their reaction time. The St. Christopher Medal makes them react 30% faster and makes you untouchable through
+  each dodge. The Ghost chip spots 15% more and reacts 20% faster.
+- **Focus** (`FOCUS` in js/dodge.js, Shift or X): the world slows to 38% for 3.2 seconds of real time while your aim
+  stays at full speed. A cold blue edge comes in round the screen and the sound drops away. You get one charge per
+  race, each wreck you make earns half a charge, and you can hold at most two. The loadout panel shows the charges.
   Measured (40 shots, 3 seeds, nobody else near): mines on your line 30/120 hits without dodging, 11/120 with;
   straight rockets 86/120 without, 66/120 with.
 - **Leaning out** (`LEAN` in js/lean.js, `L`): your seat is on the right (the driver's on the left), so you hang
@@ -644,7 +654,7 @@ strike; three strikes ends the run. Places and wreck bounties pay **scrap**.
     or the Signed Mugshot (double Infamy for taunts and humiliations, tilts last 50% longer).
 - **A quiet HUD.** Place and lap small in the top-left (the dash carries them too, with hull). The loadout panel
   (bottom right) shows your guns and grenades, and the rest only when it matters: a fitted ability, the hatch once
-  it's damaged or shut, swerve while it recharges, a failing part, a spare to fit. The ammo count by the crosshair
+  it's damaged or shut, your focus charges, a failing part, a spare to fit. The ammo count by the crosshair
   appears only when the magazine runs low. Name tags show only for rivals close by or under your crosshair (the one
   you aim at shows its bounty), never stacked. The briefing's controls fold away after your first two races.
 - **Pop-ups stay out of your sightline.** Wrecks, bounties, kills and Infamy share a small kill feed in the top-right

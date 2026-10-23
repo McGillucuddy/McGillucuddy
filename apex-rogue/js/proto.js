@@ -1194,7 +1194,7 @@ const Proto = {
           <div class="ctl"><kbd>T</kbd> Flip off a rival (hold for the emote wheel)</div>
           <div class="ctl"><kbd>Space</kbd> (hold) Blast hatch · <kbd>E</kbd> / <kbd>F</kbd> Abilities · <kbd>B</kbd> Fit your spare part</div>
           ${this.build.roof && this.build.roof.gun ? `<div class="ctl"><kbd>V</kbd> Up to the ${WEAPONS[this.build.roof.gun.id].name} on the roof, and back down</div>` : ''}
-          <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Order the driver to swerve · <kbd>MMB</kbd> "Ram them!" at the car you're aiming at</div>
+          <div class="ctl"><kbd>Shift</kbd> Focus: slow motion for a few seconds (one charge a race, more for wrecks) · <kbd>MMB</kbd> "Ram them!" at the car you're aiming at</div>
           <div class="ctl"><kbd>C</kbd> (hold) Orders: get alongside, tail them, floor it, ease off (a steadier aim). Tap to repeat.</div>
           <div class="ctl"><kbd>Esc</kbd> Pause · <kbd>M</kbd> Mute</div>
           <p class="muted small">Shoot rockets and mines out of the air with bullets. Red laser = a gunner is locking on to you.</p>
@@ -1712,9 +1712,10 @@ const Proto = {
       else if (this.view === 'cockpit' && !this.locked && !this.noLock) Sound.engine(0, 0, false, false); // wait for a click
       else {
         // A big moment (js/infamy.js) slows the race for a beat; real time keeps running out the slow motion.
-        const C = this.combat, slow = C && C.slowT > 0;
+        const C = this.combat, slow = C && C.slowT > 0, focus = C && C.focusT > 0;
         if (slow) C.slowT -= dt;
-        this.updateRace(slow ? dt * BIG.slow : dt);
+        if (focus) C.focusT -= dt; // your focus runs out in real time
+        this.updateRace(dt * (slow ? BIG.slow : focus ? FOCUS.scale : 1));
       }
     }
     if (this.tutorial) this.tutorial.update(dt);
@@ -1754,8 +1755,7 @@ const Proto = {
     if (Input.consume('KeyK') && this.cockpit) this.cockpit.kickGlass(); // boot the windshield out
     if (Input.consume('KeyL')) combat.toggleLean(); // lean out of the window (js/lean.js)
     if (Input.consume('KeyV') || Input.consume('Digit4')) combat.toggleRoof(); // up into the roof hatch to the mounted gun, or back down
-    if (Input.consume('KeyA') || Input.consume('ArrowLeft')) combat.swerve(-1);
-    if (Input.consume('KeyD') || Input.consume('ArrowRight')) combat.swerve(1);
+    if (Input.consume('ShiftLeft') || Input.consume('ShiftRight') || Input.consume('KeyX')) combat.startFocus(); // slow motion, while it lasts (js/dodge.js)
     if (Input.consume('KeyG')) combat.cookGrenade(); // hold G to cook it, let go to throw
     if (combat.cook && !Input.keys.has('KeyG')) this.throwGrenade();
     // Aiming down the sights (hold the right button): not while your hands are busy or the hatch is shut.
@@ -1949,7 +1949,7 @@ function drawWeaponPanel(ctx, P, W, H) {
     const def = ABILITIES[a.id];
     rows.push([false, `${i === 0 ? 'E' : 'F'} ${def.name}`, a.cd > 0 ? `${a.cd.toFixed(1)}s` : 'READY', a.cd > 0 ? 1 - a.cd / def.cooldown : null, '#7cfc00']);
   });
-  if (c.swerveCd > 0) rows.push([false, 'Swerve', `${c.swerveCd.toFixed(1)}s`, null]);
+  if (c.focus) rows.push([false, 'Focus [Shift]', c.focusT > 0 ? 'NOW' : '◆'.repeat(Math.floor(c.focus.n)) + (c.focus.n % 1 ? '◇' : '') || '—', c.focusT > 0 ? c.focusT / FOCUS.time : (c.focus.n % 1) || null, '#9fd0ff']);
   if (Crew.gunnerHp(b) < GUNNER.hp) rows.push([false, 'You', c.gunnerOut ? 'OUT' : `${Math.round((100 * Crew.gunnerHp(b)) / GUNNER.hp)}%`, Crew.gunnerHp(b) / GUNNER.hp, '#ff8a5a']);
   if (Crew.hp(b) < DRIVER.hp) rows.push([false, `Driver: ${(c.crew || Crew.current(b)).short}`, c.ownDriverDead ? 'DEAD' : `${Math.round((100 * Crew.hp(b)) / DRIVER.hp)}%`, Crew.hp(b) / DRIVER.hp, '#ff5a3a']);
   const failing = PART_SLOTS.map((slot, i) => {
@@ -2124,6 +2124,12 @@ function drawCockpitHUD(ctx, P, W, H, t) {
   const race = P.race, c = P.combat, p = race.player;
   const viewAng = P.cockpit.aimAngle();
   drawDamageVignette(ctx, P, W, H, viewAng);
+  if (c.focusT > 0) { // focus: a cold edge round the screen while the world slows
+    const k = Math.min(1, c.focusT * 3, (FOCUS.time - c.focusT) * 6);
+    const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.7);
+    g.addColorStop(0, 'rgba(90,170,255,0)'); g.addColorStop(1, `rgba(60,130,220,${(0.38 * k).toFixed(3)})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
   drawBossBar(ctx, P, W, H, t);
   if (Settings.data.showFps) { // the frame-rate readout (Settings)
     const f = Math.round(Playtest.fps.now || 0);

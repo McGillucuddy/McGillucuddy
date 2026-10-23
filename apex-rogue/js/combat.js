@@ -83,6 +83,7 @@ class Combat {
     // The blast hatch (see HATCH in build.js): pos 0 is up, 1 is shut.
     this.hatch = { want: false, closing: false, pos: 0, downT: 0, shutAge: 9, jammed: ensureHatch(b).hp <= 0 };
     this.swerveCd = 0;
+    this.focus = { n: FOCUS.start }; this.focusT = 0; // your slow motion (js/dodge.js)
     this.invulnT = 0;
     this.fitT = 0;
     this.footUsed = false;
@@ -1235,6 +1236,7 @@ class Combat {
     if (has(this.build, 'bobblehead')) this.stats.scrapBonus += 40;
     this.cloverRefill();
     if (!c.downed) c.downed = { how };
+    if (how !== 'crowd' && this.earnFocus) this.earnFocus(FOCUS.wreck); // a wreck steadies your nerve: half a focus charge
     if (how !== 'crowd' && this.voiceHook && (this.yellCd || 0) <= 0 && this.voiceHook('kill')) this.yellCd = 1.5; // your driver saw that (js/voice.js)
     if (how !== 'crowd' && this.fame) { // Infamy (js/infamy.js): a clean kill is the better show, and more so from up on the roof
       let n = this.fame(how === 'driver' ? INFAMY.clean : INFAMY.wreck, how === 'driver' ? 'CLEAN KILL' : 'WRECK');

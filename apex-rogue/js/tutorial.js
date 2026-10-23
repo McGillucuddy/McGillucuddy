@@ -13,7 +13,7 @@ const TUTORIAL_STEPS = [
   { id: 'grenade', title: 'Grenade', text: 'Press <kbd>G</kbd> to lob a grenade out of the window. Look higher to throw further.', done: (t) => t.n.throw >= 1 },
   { id: 'hatch', title: 'Blast hatch', text: 'Hold <kbd>Space</kbd> to slam the steel hatch down over the glass. It stops bullets and most of a blast, but you can\'t shoot through it. Let go to haul it back up.', done: (t) => t.n.hatchShut >= 1 },
   { id: 'parry', title: 'Bat it back', text: 'Slam the hatch just as a rocket hits and the plate bats it back at whoever fired it. Every hit dents the hatch: dent it through and it jams open until the garage beats it straight.', time: 8 },
-  { id: 'threats', title: 'Know the threats', text: 'In real races some rivals carry rockets, mines and guns. A <b class="bad">red laser</b> on you means a lock: swerve, slam the hatch, or shoot the rocket down.', time: 9 },
+  { id: 'threats', title: 'Know the threats', text: 'In real races some rivals carry rockets, mines and guns. A <b class="bad">red laser</b> on you means a lock: your driver will try to dodge, but slam the hatch or shoot the rocket down.', time: 9 },
   { id: 'finish', title: 'Finish the race', text: 'That is the job. Finish in the <b>top 3</b> to qualify. Miss the cut three times and you go back to your cell.', final: true },
 ];
 

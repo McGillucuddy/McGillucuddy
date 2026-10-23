@@ -89,7 +89,7 @@ const TRINKETS = {
   rosary: { name: 'Burnt Rosary', desc: 'Explosions near you knock 2s off your ability cooldowns.' },
   bobblehead: { name: 'Bobblehead', desc: '+40 scrap for every rival you wreck.' },
   freshener: { name: 'Pine Air Freshener', desc: 'Your parts are 25% more durable.' },
-  medal: { name: 'St. Christopher Medal', desc: 'Swerve cooldown halved; swerving makes you untouchable for 0.4s.' },
+  medal: { name: 'St. Christopher Medal', desc: 'Your driver reacts faster, and each dodge makes you untouchable for 0.4s.' },
   lighter: { name: 'Zippo Lighter', desc: 'Your bullets have a 12% chance to set the car they hit alight.' },
   photo: { name: 'Polaroid from Home', desc: 'Repairs in the workshop cost 30% less.' },
   smokes: { name: 'Pack of Smokes', desc: 'Prison currency: everything in the commissary costs 15% less.' },
@@ -121,7 +121,7 @@ const CHIPS = {
   gun_nut: { name: 'Gun Nut', desc: 'Weapons reload 40% faster, but your driver wobbles while you shoot.' },
   // Driver traits won from bosses.
   veteran: { name: 'Getaway Veteran', desc: 'Your driver takes corners 6% faster, but your car takes 25% more damage from rams.' },
-  ghost: { name: 'Ghost', desc: 'Swerves recharge twice as fast, but nitro is 30% weaker.' },
+  ghost: { name: 'Ghost', desc: 'Spots every threat and dodges sooner, but nitro is 30% weaker.' },
   showboat: { name: 'Showboat', desc: '+50% scrap from placings and wrecks, but rival gunners lock on 25% faster.' },
 };
 
