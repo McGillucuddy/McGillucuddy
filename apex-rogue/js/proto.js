@@ -141,9 +141,10 @@ const Proto = {
         E.x = clamp(E.x + e.movementX, -120, 120); E.y = clamp(E.y + e.movementY, -120, 120);
       } else if (this.locked && this.cockpit) {
         const l = this.cockpit.look;
-        const sens = LOOK_SENS * Settings.data.sens * (1 - 0.3 * ((this.cockpit && this.cockpit.adsK) || 0)); // slower down the sights, with the zoom
+        const ak = (this.cockpit && this.cockpit.adsK) || 0, sd = Settings.data;
+        const sens = LOOK_SENS * sd.sens * (1 - (1 - (sd.adsSens ?? 0.7)) * ak); // down the sights: its own multiplier (Settings)
         l.yaw = wrapAngle(l.yaw + e.movementX * sens);
-        l.pitch = clamp(l.pitch - e.movementY * sens, -1.0, 0.6); // (far enough down to see what's on your chest)
+        l.pitch = clamp(l.pitch - e.movementY * sens * (sd.invertY ? -1 : 1), -1.0, 0.6); // (far enough down to see what's on your chest)
       }
     });
     this.c2d.addEventListener('mousedown', (e) => {
@@ -170,6 +171,11 @@ const Proto = {
       Sound.resume();
       this.action(el.dataset.action, el.dataset.arg);
       if (this.state === 'garage') this.saveRun(); // purchases, fittings, tuning
+    });
+    this.ui.addEventListener('input', (e) => { // the pause menu's sensitivity slider
+      if (e.target.id !== 'pauseSens') return;
+      Settings.data.sens = +e.target.value; Settings.save();
+      const v = document.getElementById('pauseSensVal'); if (v) v.textContent = Settings.data.sens.toFixed(2) + 'x';
     });
     this.ui.addEventListener('change', (e) => {
       if (e.target.id === 'plateInput') this.action('cosmetic', 'plate:' + e.target.value);
@@ -929,7 +935,8 @@ const Proto = {
     this.dealer = null; // he's gone by the time you're back
     const boss = node.type === 'boss' ? BOSSES[run.act] : null;
     const d = run.act * 4 + Math.round((Math.min(node.row, MAP_ROWS - 1) * 3) / (MAP_ROWS - 1)) + (node.type === 'elite' ? 2 : 0);
-    const track = generateTrack(this.seed, biome, { hazardLevel: 1, features: 1 + Math.min(2, run.act) }); // ramps and obstacles, more each act
+    const layout = node.tutorial || node.id == null ? 'circuit' : layoutFor(run.seed || 0, run.act, node.id, !!boss); // the kind of course (js/track.js)
+    const track = generateTrack(this.seed, biome, { hazardLevel: 1, features: 1 + Math.min(2, run.act) + (layout === 'oval' ? 1 : 0), layout }); // ramps and obstacles, more each act
     renderTrack(track);
     const base = CARS.comet;
     // Stats come from the parts you have fitted; the driver chip changes how the AI drives.
@@ -1219,6 +1226,8 @@ const Proto = {
     this.setUI(`<div class="screen pause">
       <h1>Paused</h1>
       <button class="btn primary big" data-action="resume">${this.view === 'cockpit' ? 'Click to resume aiming' : 'Resume'}</button>
+      <label class="pause-sens">Mouse sensitivity <b id="pauseSensVal">${Settings.data.sens.toFixed(2)}x</b>
+        <input type="range" id="pauseSens" min="0.1" max="4" step="0.05" value="${Settings.data.sens}"></label>
       <button class="btn" data-action="settings">Settings</button>
       <button class="btn" data-action="feedback">Send feedback</button>
       ${this.tutorial ? '<button class="btn ghost" data-action="menu">Leave tutorial</button>' : `<button class="btn" data-action="menu">Main menu</button>
@@ -1241,6 +1250,7 @@ const Proto = {
         if (k === 'sway') Settings.data.cabinSway = v;
         if (k === 'quality') { Settings.data.quality = v; Settings.save(); this.resize(); } // the render size changes now; tower counts from the next race
         if (k === 'fps') Settings.data.showFps = !Settings.data.showFps;
+        if (k === 'invert') Settings.data.invertY = !Settings.data.invertY;
         if (k === 'slowmo') Settings.data.slowmo = !Settings.data.slowmo;
         if (k === 'flicker') Settings.data.flicker = !Settings.data.flicker;
         if (k === 'ff') Settings.data.friendlyFire = !Settings.data.friendlyFire;
@@ -1251,18 +1261,25 @@ const Proto = {
       });
       el.addEventListener('input', (e) => {
         if (e.target.id === 'setSens') Settings.data.sens = +e.target.value;
+        if (e.target.id === 'setAds') Settings.data.adsSens = +e.target.value;
         if (e.target.id === 'setVol') Settings.data.volume = +e.target.value;
         if (e.target.id === 'setMusic') Settings.data.music = +e.target.value;
         if (e.target.id === 'setRaceMusic') Settings.data.raceMusic = +e.target.value;
         Settings.save();
         const l = el.querySelector(`[data-val="${e.target.id}"]`);
-        if (l) l.textContent = e.target.id === 'setSens' ? Settings.data.sens.toFixed(2) + 'x' : Math.round(Settings.data[{ setVol: 'volume', setMusic: 'music', setRaceMusic: 'raceMusic' }[e.target.id]] * 100) + '%';
+        if (l) l.textContent = e.target.id === 'setSens' ? Settings.data.sens.toFixed(2) + 'x' : e.target.id === 'setAds' ? Settings.data.adsSens.toFixed(2) + 'x' : Math.round(Settings.data[{ setVol: 'volume', setMusic: 'music', setRaceMusic: 'raceMusic' }[e.target.id]] * 100) + '%';
       });
     }
     const d = Settings.data, opt = (k, v, label) => `<button class="opt ${d.cabinSway === v ? 'on' : ''}" data-set="${k}:${v}">${label}</button>`;
     el.innerHTML = `<div class="settings-card clipboard">
       <div class="clip"></div>
       <h2 class="g-title">Settings</h2>
+      <h3>Mouse sensitivity <small data-val="setSens">${d.sens.toFixed(2)}x</small></h3>
+      <input type="range" id="setSens" min="0.1" max="4" step="0.05" value="${d.sens}">
+      <h3>Aiming down sights <small data-val="setAds">${(d.adsSens ?? 0.7).toFixed(2)}x</small></h3>
+      <p class="muted small">Sensitivity while you're down the sights (right mouse), as a share of the above.</p>
+      <input type="range" id="setAds" min="0.3" max="1.5" step="0.05" value="${d.adsSens ?? 0.7}">
+      <div class="opts" style="margin-top:6px"><button class="opt ${d.invertY ? 'on' : ''}" data-set="invert:1">Invert mouse Y ${d.invertY ? 'on' : 'off'}</button></div>
       <h3>Cabin sway</h3>
       <p class="muted small">How much the cabin rolls and pitches with the car. Turn it down if it makes you queasy.</p>
       <div class="opts">${opt('sway', 'off', 'Off')}${opt('sway', 'subtle', 'Subtle')}${opt('sway', 'full', 'Full')}</div>
@@ -1277,8 +1294,6 @@ const Proto = {
       <h3>Friendly fire</h3>
       <p class="muted small">Your driver sits right beside you. With this on, rounds you fire into them hit them.</p>
       <div class="opts"><button class="opt ${d.friendlyFire !== false ? 'on' : ''}" data-set="ff:1">Friendly fire ${d.friendlyFire !== false ? 'on' : 'off'}</button></div>
-      <h3>Mouse sensitivity <small data-val="setSens">${d.sens.toFixed(2)}x</small></h3>
-      <input type="range" id="setSens" min="0.3" max="2.5" step="0.05" value="${d.sens}">
       <h3>Volume <small data-val="setVol">${Math.round(d.volume * 100)}%</small></h3>
       <input type="range" id="setVol" min="0" max="1" step="0.05" value="${d.volume}">
       <h3>Menu music <small data-val="setMusic">${Math.round(d.music * 100)}%</small></h3>
@@ -2019,25 +2034,36 @@ function drawFitProgress(ctx, P, W, H) {
 // newest first, like a kill feed.
 function drawMessages(ctx, race, W, H, fame) {
   const fade = (t, life) => clamp(Math.min(t * 6, (life - t) * 2.5), 0, 1);
+  const say = (m) => (m.n > 1 ? `${m.text} ×${m.n}` : m.text);
   ctx.textAlign = 'center';
   let y = race.bossCar ? 98 : 40; // under the boss's health bar
-  for (const m of race.messages) {
-    if (!m.center) continue;
+  // At most two calls at once, the newest on top: a pile of shouting is no use to anyone.
+  for (const m of race.messages.filter((q) => q.center).sort((a, b) => a.t - b.t).slice(0, 2)) {
     ctx.globalAlpha = fade(m.t, m.life);
     ctx.font = `bold 26px ${hudFont()}`;
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillText(m.text, W / 2 + 2, y + 2);
+    ctx.fillText(say(m), W / 2 + 2, y + 2);
     ctx.fillStyle = m.color;
-    ctx.fillText(m.text, W / 2, y);
+    ctx.fillText(say(m), W / 2, y);
     y += 32;
   }
+  // Your driver's chatter: one subtitle line, low on the left by the driver's seat, out of the feed.
+  const r = race.messages.find((m) => m.radio);
+  if (r) {
+    ctx.globalAlpha = fade(r.t, r.life);
+    ctx.textAlign = 'left';
+    ctx.font = `italic bold 15px ${hudFont()}`;
+    const w = ctx.measureText(r.text).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(18, H * 0.7 - 17, w + 16, 24);
+    ctx.fillStyle = r.color; ctx.fillText(r.text, 26, H * 0.7);
+  }
   // Infamy earned in the same instant as an event rides on that event's line instead of taking its own.
-  const feed = race.messages.filter((m) => !m.center).map((m) => ({ text: m.text, color: m.color, t: m.t, life: m.life, fame: 0 }));
+  const feed = race.messages.filter((m) => !m.center && !m.radio).map((m) => ({ text: say(m), color: m.color, t: m.t, life: m.life, fame: 0 }));
   for (const f of fame || []) {
     const n = +(/\+(\d+)/.exec(f.text) || [0, 0])[1], host = feed.find((m) => Math.abs(m.t - f.t) < 0.05);
     if (host) host.fame += n; else feed.push({ text: f.text, color: '#ff6ad5', t: f.t, life: 3, fame: 0 });
   }
-  feed.sort((a, b) => a.t - b.t).splice(5);
+  feed.sort((a, b) => a.t - b.t).splice(4);
   ctx.textAlign = 'right';
   ctx.font = `bold 14px ${hudFont()}`;
   y = 28;
@@ -2123,7 +2149,7 @@ function drawCockpitHUD(ctx, P, W, H, t) {
       ctx.fillStyle = '#ff4040';
       ctx.font = `bold 13px ${hudFont()}`;
       ctx.textAlign = 'center';
-      ctx.fillText('LOCK', W / 2 + Math.sin(rel) * (R + 20), H / 2 - Math.cos(rel) * (R + 20) + 4);
+      ctx.fillText(th.car ? `LOCK · ${shortName(th.car).toUpperCase()}` : 'LOCK', W / 2 + Math.sin(rel) * (R + 20), H / 2 - Math.cos(rel) * (R + 20) + 4); // who's about to fire on you
     } else {
       ctx.strokeStyle = `rgba(255,${Math.round(140 - 140 * th.k)},40,1)`;
       ctx.lineWidth = 6 + th.k * 10;

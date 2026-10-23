@@ -18,6 +18,51 @@ const GUN_SOUND = {
   shotgun: { f: 850, d: 0.3, lo: 70, crack: 0.6, body: 0.6, thump: 0.45, sub: 0.6, tail: 0.22, wet: 0.55, duck: 0.65 },
 };
 
+// Each gun's report drawn sample by sample, once, into a buffer (three takes per gun, played back a little faster
+// or slower each shot so automatic fire never loops): a hard crack, the blast of hot gas through a closing filter,
+// a dropping boom with a sub under it, all driven into a soft clipper (that's what makes a gun sound loud on small
+// speakers), the action cycling, then the report slapping back off the buildings and rolling away down the street.
+function renderGun(G, sr, seed) {
+  let r = seed >>> 0 || 1; const rnd = () => { r = (r * 1664525 + 1013904223) >>> 0; return r / 4294967296 * 2 - 1; };
+  const n = Math.floor(sr * (0.55 + (G.tail || 0) * 2)), x = new Float32Array(n), body = new Float32Array(n);
+  const drive = 1.6 + (G.sub || 0) * 4 + (G.body || 0) * 1.5;
+  let hp = 0, prev = 0, l1 = 0, l2 = 0, ph = 0, ph2 = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / sr, w = rnd();
+    // Crack: a millisecond of bright noise.
+    const cr = t < 0.008 ? w * Math.exp(-t / 0.0013) : 0;
+    hp = 0.82 * (hp + cr - prev); prev = cr;
+    // Blast: noise through a two-pole low-pass that closes as the gas cools.
+    const fc = G.f * Math.exp(-t / (G.d * 0.55)) + 180, a = 1 - Math.exp(-TAU * fc / sr);
+    const env = (1 - Math.exp(-t / 0.0004)) * Math.exp(-t / (G.d * 0.32));
+    l1 += a * (w * env - l1); l2 += a * (l1 - l2);
+    body[i] = l2;
+    // Boom: a sine dropping from a punch to a thud; the sub sits under it, longer.
+    ph += TAU * (G.lo * 0.55 + G.lo * 1.9 * Math.exp(-t / 0.011)) / sr;
+    ph2 += TAU * (G.lo * 0.42) / sr;
+    const boom = Math.sin(ph) * (G.thump || 0) * 0.6 * Math.exp(-t / (0.035 + G.d * 0.25)) * Math.min(1, t / 0.0008);
+    const sub = Math.sin(ph2) * (G.sub || 0) * 0.45 * Math.exp(-t / (0.07 + G.d * 0.2)) * Math.min(1, t / 0.003);
+    const mix = hp * (G.crack || 0) * 2.2 + l2 * (G.body || 0) * 11 + boom + sub;
+    x[i] = Math.tanh(mix * drive) / Math.tanh(drive);
+  }
+  // The action: a clack and its echo as the bolt cycles.
+  if (G.mech) for (const [at, f, k] of [[0.032, 2900, 1], [0.05, 1800, 0.6]]) {
+    const s0 = Math.floor((at + rnd() * 0.004) * sr);
+    for (let i = 0; i < sr * 0.012 && s0 + i < n; i++) { const t = i / sr; x[s0 + i] += Math.sin(TAU * f * t) * Math.exp(-t / 0.0022) * G.mech * 3.5 * k; }
+  }
+  // Slapback off the walls: muffled copies of the blast, later and quieter.
+  const slap = 0.22 + (G.tail || 0) * 1.4;
+  for (const [at, k] of [[0.065, 0.42], [0.14, 0.26], [0.24, 0.15], [0.37, 0.08]]) {
+    const s0 = Math.floor((at + rnd() * 0.01) * sr); let lp = 0;
+    for (let i = 0; i + s0 < n && i < sr * 0.15; i++) { lp += 0.12 * (x[i] - lp); x[s0 + i] += lp * slap * k; }
+  }
+  // The roll: low rumble trailing off down the street.
+  if (G.tail) { let lp = 0; for (let i = 0; i < n; i++) { const t = i / sr; lp += 0.03 * (rnd() - lp); x[i] += lp * G.tail * 3.5 * Math.min(1, t / 0.03) * Math.exp(-t / (0.2 + G.tail * 2)); } }
+  let pk = 0; for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(x[i]));
+  for (let i = 0; i < n; i++) { x[i] *= 0.95 / (pk || 1); if (i > n - 400) x[i] *= (n - i) / 400; }
+  return x;
+}
+
 const Sound = {
   ctx: null,
   muted: false,
@@ -103,13 +148,19 @@ const Sound = {
   // A gun going off: the crack (a hard transient), the body of the report, the thump under it, the action cycling,
   // and the slap back off the walls. Each shot is detuned a little so automatic fire doesn't sound like a loop.
   gunshot(w) {
-    const G = GUN_SOUND[w] || GUN_SOUND.smg, k = 0.92 + Math.random() * 0.16;
-    this.layer({ f: 5200 * k, type: 'highpass', dur: 0.012, vol: G.crack, q: 0.5 });
-    this.layer({ f: G.f * k, to: G.f * 0.3, dur: G.d, vol: G.body, q: 0.7, wet: G.wet });
-    this.thump(G.lo * 2.2 * k, G.lo, Math.min(0.18, G.d * 1.2), G.thump, G.wet * 0.6);
-    if (G.sub) this.thump(G.lo * 0.9 * k, 34, 0.12 + G.sub * 0.3, G.sub); // the chest punch
-    if (G.tail) this.layer({ f: 800 * k, to: 140, type: 'lowpass', dur: 0.4 + G.tail * 2.5, vol: G.tail, at: 0.04, atk: 0.03, q: 0.5, wet: 0.7 }); // rolling away down the street
-    if (G.mech) this.layer({ f: 2400, dur: 0.025, vol: G.mech, at: 0.035 + Math.random() * 0.01, q: 3 });
+    const G = GUN_SOUND[w] || GUN_SOUND.smg, c = this.ctx;
+    const bufs = (this.gunBufs = this.gunBufs || {})[w] || (this.gunBufs[w] = [1, 2, 3].map((k) => { // drawn once (renderGun, above)
+      const x = renderGun(G, c.sampleRate, k * 7919 + w.length * 31), b = c.createBuffer(1, x.length, c.sampleRate);
+      b.getChannelData(0).set(x);
+      return b;
+    }));
+    const src = c.createBufferSource(), g = c.createGain();
+    src.buffer = bufs[Math.floor(Math.random() * bufs.length)];
+    src.playbackRate.value = 0.94 + Math.random() * 0.12;
+    g.gain.value = G.level || 0.95;
+    src.connect(g); g.connect(this.master);
+    const s = c.createGain(); s.gain.value = G.wet * 0.45; g.connect(s); s.connect(this.verbIn); // the room it's fired in
+    src.start();
     this.duck(G.duck || 0.1);
   },
   // Everything else dips for a moment under your shot, then swells back.

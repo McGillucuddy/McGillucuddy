@@ -180,6 +180,15 @@ The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor
 
 ### Acts and environments (prototype)
 
+**Track layouts** (`LAYOUTS` in js/track.js). Every race is run on one of five kinds of course. The TV listing names it ahead of time, because the layout is fixed per stop like the weather:
+- **Circuit:** the free-form loop.
+- **Block Run:** city blocks, with right-angle corners, short straights and a narrower road. It comes as an L, U, Z or staircase.
+- **Switchbacks:** three legs stacked up a hill joined by tight hairpins, then a long loop home round the outside.
+- **Flyover:** a few big, wide sweepers, taken flat out.
+- **The Oval:** two long straights and two big bends, sometimes with a kink in the back straight. It gets an extra ramp.
+
+The undercity acts lean towards blocks and hairpins, and the upper city towards sweepers and ovals. Each boss has their own course: the Turnkey's yard (Block Run), Sal's climb (Switchbacks), Vale's motorway (Flyover) and the Crown's Oval.
+
 A run is four acts. Each act is a **route sheet**: seven rows of 2-4 branching stops (the last row before the boss leans towards repairs and shopping) and then a boss qualifier.
 You pick your path through it (`js/runmap.js`), on a TV:
 
@@ -387,9 +396,12 @@ snapped shut at speed. It all sits on the bed that ducks under your gunfire.
   lands on the frame it goes off (a punch, not a push), then settles on springs. The view takes the hit too: a
   snap up, a twist of the head, and on the big guns a split-second widening of the view (the blast filling your
   eyes) and a jolt through the seat. Rifle, shotgun and rocket throw your aim up further.
-- **In your ears** (`GUN_SOUND` in js/audio.js): a sub-bass drop under every report you feel more than hear, the
-  big guns' reports rolling away down the street, and the engine, the music and the rain ducking under each of
-  your shots so they cut through. The rocket, harpoon, flare and nail gun have real launch sounds now (a backblast
+- **In your ears** (`GUN_SOUND` and `renderGun` in js/audio.js): each gun's report is drawn sample by sample once,
+  at load, into three takes, and each shot plays one of them a little faster or slower so automatic fire never
+  sounds like a loop. A report is a hard crack, the blast of hot gas through a closing filter, a dropping boom
+  with a sub under it, all driven into a soft clipper (that's what makes a gun sound loud), the action cycling,
+  and the report slapping back off the buildings and rolling away. The engine, the music and the rain duck under
+  each of your shots so they cut through. The rocket, harpoon, flare and nail gun have real launch sounds now (a backblast
   roar, a spring and a whipping line, a pop and fizz, an air hammer). A compressor on the master keeps it from
   clipping.
 - **On the target**: your rounds throw sparks off the panel where they land, back the way they came and carried
@@ -861,6 +873,15 @@ Progress between runs is saved in `localStorage`: reaching race 4 and race 6 unl
 | Reset car | R | |
 | Pause | Esc / P | Start |
 | Mute | M | |
+
+**Mouse:** Settings opens on the controls. They cover mouse sensitivity (0.1x to 4x), a separate sensitivity for aiming down the sights, and invert Y. The pause menu has a sensitivity slider too, so you can tune it mid-race.
+
+**Keeping track in a race:**
+- A line that repeats while it's still on screen is counted ("×3") instead of stacked.
+- At most two big calls show at once.
+- The kill feed keeps four lines.
+- Your driver's chatter is a single subtitle low on the left, not part of the feed.
+- A lock-on warning names who's locking on to you.
 
 Touch controls appear automatically on touch devices.
 

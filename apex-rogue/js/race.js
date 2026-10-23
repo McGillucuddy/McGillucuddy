@@ -59,8 +59,12 @@ class Race {
 
   // center: race-flow calls (GO, laps, the finish, a wreck, a boss's warning) sit at the top of the screen; everything
   // else goes in the small feed in the corner.
-  message(text, color, big, center) {
-    this.messages.push({ text, color: color || '#fff', t: 0, life: center ? 2.2 : big ? 3.2 : 2.6, big, center });
+  message(text, color, big, center, radio) {
+    // The same line again while it's still up: count it instead of stacking another copy.
+    const same = this.messages.find((m) => m.text === text && !!m.center === !!center && m.t < m.life - 0.3);
+    if (same) { same.n = (same.n || 1) + 1; same.t = Math.min(same.t, 0.2); return; }
+    if (radio) this.messages = this.messages.filter((m) => !m.radio); // one line of chatter at a time
+    this.messages.push({ text, color: color || '#fff', t: 0, life: radio ? 2.8 : center ? 2.2 : big ? 3.2 : 2.6, big, center, radio });
   }
 
   respawn(car) {

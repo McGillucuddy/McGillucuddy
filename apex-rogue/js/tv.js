@@ -28,10 +28,11 @@ const TV = {
     const boss = BOSSES[act], wx = ['race', 'elite', 'bounty', 'boss'].includes(node.type) ? wxOf(weatherFor(run.seed || 0, act, node.id)) : null;
     const lux = ACT_LUXURY(act), purse = `win ${PLACE_PURSE[0][0]}-${PLACE_PURSE[0][1]}, a bounty on every rival`;
     const S = { node, ch: lo + (h % (hi - lo + 1)), tier, kind: node.type, wx, h };
+    const lay = ['race', 'elite', 'bounty', 'boss'].includes(node.type) ? LAYOUTS[layoutFor(run.seed || 0, act, node.id, node.type === 'boss')].name : ''; // the course (js/track.js)
     switch (node.type) {
-      case 'race': Object.assign(S, { name: TV.RACE_SHOWS[act][h % 6], line: `3 laps · 6 rivals · finish top 3`, line2: `Purse: ${purse}` }); break;
-      case 'elite': Object.assign(S, { name: TV.ELITE_SHOWS[h % 4], line: 'Sharper drivers, more guns · a trinket guaranteed', line2: `Pays 40% more · ${purse}` }); break;
-      case 'bounty': Object.assign(S, { name: 'MOST WANTED', amt: 150 + act * 50, line: `The warden's put ${150 + act * 50} scrap on one rival's head`, line2: 'Wreck them for it · still finish top 3' }); break;
+      case 'race': Object.assign(S, { name: TV.RACE_SHOWS[act][h % 6], line: `${lay} · 3 laps · 6 rivals · finish top 3`, line2: `Purse: ${purse}` }); break;
+      case 'elite': Object.assign(S, { name: TV.ELITE_SHOWS[h % 4], line: `${lay} · sharper drivers, more guns · a trinket guaranteed`, line2: `Pays 40% more · ${purse}` }); break;
+      case 'bounty': Object.assign(S, { name: 'MOST WANTED', amt: 150 + act * 50, line: `${lay} · the warden's put ${150 + act * 50} scrap on one rival's head`, line2: 'Wreck them for it · still finish top 3' }); break;
       case 'boss': Object.assign(S, { name: 'SPECIAL PRESENTATION', sub: boss.name.toUpperCase(), line: `${boss.title}. ${boss.desc}`, line2: boss.mustWin ? 'Win it and you walk free' : `Beat ${boss.name} to move up · purse ${BOSS_PURSE[0]}-${BOSS_PURSE[1]}` }); break;
       case 'shop': Object.assign(S, { name: lux ? 'AUREUM SHOPPING NETWORK' : 'C9 HOME SHOPPING', line: 'Legal goods: parts, guns, mods, ammo', line2: 'Opens the commissary in your garage · no race' }); break;
       case 'event': Object.assign(S, { name: TV.NEWS_SHOWS[h % 4], line: "Something's happening in the cell block", line2: 'Tune in and choose how to handle it · no race' }); break;

@@ -739,3 +739,7 @@ body.proto #ui { z-index: 2; }
 .tape-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .tape-crew { list-style: none; padding: 0; margin: 0; }
 @media (max-width: 640px) { .tape-cols { grid-template-columns: 1fr; } .tape-moments { margin-left: 0; } }
+
+/* The pause menu's sensitivity slider. */
+.pause-sens { display: flex; flex-direction: column; gap: 6px; align-items: center; margin: 4px auto 10px; font-size: 14px; width: min(320px, 80vw); }
+.pause-sens input { width: 100%; accent-color: #d9a52a; }

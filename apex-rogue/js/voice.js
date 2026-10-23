@@ -127,7 +127,7 @@ class VoicePlayer {
   // Say it, and put it on screen as theirs.
   speak(kind) {
     const line = this.say(kind);
-    if (line && this.combat) this.combat.race.message(`${((this.combat.crew && this.combat.crew.short) || 'Driver').toUpperCase()}: "${line}"`, '#9fd0ff');
+    if (line && this.combat) this.combat.race.message(`${((this.combat.crew && this.combat.crew.short) || 'Driver').toUpperCase()}: "${line}"`, '#9fd0ff', false, false, true); // a subtitle, not the feed
     return line;
   }
 }

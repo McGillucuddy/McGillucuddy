@@ -1214,7 +1214,6 @@ class Combat {
     else { c.gFlinchT = 0.5; if (c.wpn) c.wpn.lock = 0; }
     if (c.crewHp[role] > 0) {
       this.events.push({ type: 'crewHit', role });
-      if (owner === p) this.race.message(role === 'driver' ? 'Driver hit!' : 'Gunner hit!', '#ff8a6a');
       return;
     }
     this.events.push({ type: 'crewKill', role });
@@ -1276,7 +1275,7 @@ class Combat {
   threats() {
     const p = this.player, out = [];
     for (const c of this.race.cars) {
-      if (c.wpn && c.wpn.lock > 0) out.push({ x: c.x, y: c.y, kind: 'lock', k: c.wpn.lock / this.lockTime });
+      if (c.wpn && c.wpn.lock > 0) out.push({ x: c.x, y: c.y, kind: 'lock', k: c.wpn.lock / this.lockTime, car: c });
     }
     for (const pr of this.projectiles) {
       if (pr.type !== 'rocket' || pr.owner === p) continue;

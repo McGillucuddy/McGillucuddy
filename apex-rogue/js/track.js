@@ -149,26 +149,124 @@ function validateLayout(pts, step, clearance, minRadius) {
   return true;
 }
 
+// Layouts: what kind of course a race is run on. Each draws its control points its own way; hw widens or narrows the
+// road. circuit is the old free-form loop; the rest have a character you can feel from the first corner.
+const LAYOUTS = {
+  circuit: { name: 'Circuit', hw: 1 },
+  blocks: { name: 'Block Run', hw: 0.9, blurb: 'City blocks: right-angle corners, short straights' }, // street grid
+  switchback: { name: 'Switchbacks', hw: 0.95, blurb: 'Hairpin after hairpin, then a long run home' },
+  flyover: { name: 'Flyover', hw: 1.15, blurb: 'Fast sweepers, wide road, flat out' },
+  oval: { name: 'The Oval', hw: 1.12, blurb: 'Two long straights, two big bends: a slugfest' },
+};
+// Which layouts turn up where: the undercity is all blocks and hairpins, the upper city all sweepers and ovals.
+const ACT_LAYOUTS = [
+  [['blocks', 4], ['switchback', 2], ['circuit', 3], ['oval', 1]],
+  [['switchback', 3], ['blocks', 3], ['circuit', 3], ['flyover', 1]],
+  [['flyover', 4], ['circuit', 3], ['oval', 2], ['switchback', 1]],
+  [['oval', 3], ['flyover', 3], ['circuit', 3], ['blocks', 1]],
+];
+const BOSS_LAYOUT = ['blocks', 'switchback', 'flyover', 'oval']; // the Turnkey's yard, Sal's climb, Vale's motorway, the Crown's oval
+
+// The layout for a stop: fixed per run, act and stop (like the weather), so the TV listing can name it.
+function layoutFor(runSeed, act, nodeId, boss) {
+  if (boss) return BOSS_LAYOUT[Math.min(act, BOSS_LAYOUT.length - 1)];
+  const r = mulberry32(((runSeed | 0) * 53 + act * 1931 + (nodeId | 0) * 4099) >>> 0);
+  r(); r();
+  return weightedPick(r, ACT_LAYOUTS[Math.min(act, ACT_LAYOUTS.length - 1)], (p) => p[1])[0];
+}
+
+// A right-angled outline turned into control points: points along each edge, and the corners left out so the
+// spline rounds them off (c: how far back from a corner the rounding starts).
+function roundedPolygon(V, c, gap) {
+  const out = [];
+  for (let i = 0; i < V.length; i++) {
+    const A = V[i], B = V[(i + 1) % V.length], L = dist(A, B), ux = (B.x - A.x) / L, uy = (B.y - A.y) / L;
+    const k = Math.min(c, L * 0.4), m = Math.max(1, Math.round((L - 2 * k) / gap));
+    for (let j = 0; j <= m; j++) { const d = k + ((L - 2 * k) * j) / m; out.push({ x: A.x + ux * d, y: A.y + uy * d }); }
+  }
+  return out;
+}
+
+const LAYOUT_CTRL = {
+  // The old free-form loop.
+  circuit(rng, S) {
+    const n = randInt(rng, 8, 14), R = randRange(rng, 1100, 1500) * S, sx = randRange(rng, 0.95, 1.5), sy = randRange(rng, 0.8, 1.05), ctrl = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + randRange(rng, -0.3, 0.3) * (TAU / n), r = R * randRange(rng, 0.42, 1.0);
+      ctrl.push({ x: Math.cos(a) * r * sx, y: Math.sin(a) * r * sy });
+    }
+    return ctrl;
+  },
+  // A few big, wide sweepers.
+  flyover(rng, S) {
+    const n = randInt(rng, 5, 7), R = randRange(rng, 1350, 1600) * S, sx = randRange(rng, 1.0, 1.35), ctrl = [];
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + randRange(rng, -0.2, 0.2) * (TAU / n), r = R * randRange(rng, 0.72, 1.0);
+      ctrl.push({ x: Math.cos(a) * r * sx, y: Math.sin(a) * r });
+    }
+    return ctrl;
+  },
+  // Two long straights and two big bends, sometimes with a kink in the back straight.
+  oval(rng, S) {
+    const Rr = randRange(rng, 500, 640) * S, Ls = randRange(rng, 1700, 2300) * S, kink = rng() < 0.5 ? randRange(rng, 160, 280) : 0, ctrl = [];
+    for (let k = 0; k <= 4; k++) ctrl.push({ x: -Ls / 2 + (Ls * k) / 4, y: -Rr - (k === 2 ? kink : 0) });
+    for (let k = 1; k < 7; k++) { const a = -Math.PI / 2 + (Math.PI * k) / 7; ctrl.push({ x: Ls / 2 + Math.cos(a) * Rr, y: Math.sin(a) * Rr }); }
+    for (let k = 0; k <= 4; k++) ctrl.push({ x: Ls / 2 - (Ls * k) / 4, y: Rr });
+    for (let k = 1; k < 7; k++) { const a = Math.PI / 2 + (Math.PI * k) / 7; ctrl.push({ x: -Ls / 2 + Math.cos(a) * Rr, y: Math.sin(a) * Rr }); }
+    return ctrl;
+  },
+  // City blocks: an L, U, Z or staircase of streets, square corners rounded just enough to take at speed.
+  blocks(rng, S) {
+    const SHAPES = [
+      [[0, 0], [3, 0], [3, 1], [1, 1], [1, 2], [0, 2]],
+      [[0, 0], [3, 0], [3, 2], [2, 2], [2, 1], [1, 1], [1, 2], [0, 2]],
+      [[0, 0], [2, 0], [2, 1], [3, 1], [3, 2], [1, 2], [1, 1], [0, 1]],
+      [[0, 0], [3, 0], [3, 1], [2, 1], [2, 2], [1, 2], [1, 3], [0, 3]],
+      [[0, 0], [4, 0], [4, 2], [3, 2], [3, 1], [1, 1], [1, 2], [0, 2]],
+    ];
+    const cw = randRange(rng, 720, 900) * S, ch = randRange(rng, 720, 900) * S, rot = randInt(rng, 0, 3), flip = rng() < 0.5 ? -1 : 1;
+    const V = SHAPES[randInt(rng, 0, SHAPES.length - 1)].map(([x, y]) => {
+      let X = x * cw * flip, Y = y * ch;
+      for (let k = 0; k < rot; k++) [X, Y] = [-Y, X];
+      return { x: X, y: Y };
+    });
+    return roundedPolygon(V, randRange(rng, 130, 170) * S, 260 * S);
+  },
+  // A serpentine: three legs stacked up the hill joined by tight hairpins, then a long loop home round the outside.
+  // Drawn straight from arcs and lines (a spline pinches hairpins too tight), so it's returned dense.
+  switchback(rng, S) {
+    const rh = randRange(rng, 185, 210) * S, L = randRange(rng, 1050, 1300) * S, R2 = 540 * S, R3 = 400 * S, R4 = 215 * S, out = [];
+    const line = (x, y) => { const a = out[out.length - 1], n = Math.max(1, Math.ceil(Math.hypot(x - a.x, y - a.y) / 20)); for (let k = 1; k <= n; k++) out.push({ x: a.x + ((x - a.x) * k) / n, y: a.y + ((y - a.y) * k) / n }); };
+    const arc = (cx, cy, r, a0, a1) => { const n = Math.ceil((Math.abs(a1 - a0) * r) / 20); for (let k = 1; k <= n; k++) { const a = a0 + ((a1 - a0) * k) / n; out.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }); } };
+    out.push({ x: 0, y: 0 });
+    line(L, 0); arc(L, -rh, rh, Math.PI / 2, -Math.PI / 2); // up the hill, hairpin right
+    line(0, -2 * rh); arc(0, -3 * rh, rh, Math.PI / 2, Math.PI * 1.5); // back, hairpin left
+    line(L, -4 * rh); // the top leg
+    arc(L, -4 * rh + R2, R2, -Math.PI / 2, 0); // over the crest and down the far side
+    line(L + R2, 2 * R4 - R3); arc(L + R2 - R3, 2 * R4 - R3, R3, 0, Math.PI / 2); // down the outside and round the bottom
+    line(0, 2 * R4); arc(0, R4, R4, Math.PI / 2, Math.PI * 1.5); // back along the bottom, and up into the start
+    out.pop(); // (that last point is the first)
+    out.dense = true;
+    return out;
+  },
+};
+
 function generateTrack(seed, biomeKey, opts = {}) {
   const biome = BIOMES[biomeKey];
   const rng = mulberry32(seed);
-  const hw = biome.hw, runoff = biome.runoff;
+  const lay = LAYOUTS[opts.layout] ? opts.layout : 'circuit';
+  const hw = Math.round(biome.hw * LAYOUTS[lay].hw), runoff = biome.runoff;
   const clearance = hw + runoff + WALL_T;
   const sizeMul = opts.sizeMul || 1;
 
   let layout = null;
-  for (let attempt = 0; attempt < 400 && !layout; attempt++) {
-    const n = randInt(rng, 8, 14);
-    const R = randRange(rng, 1100, 1500) * sizeMul;
-    const sx = randRange(rng, 0.95, 1.5), sy = randRange(rng, 0.8, 1.05);
-    const ctrl = [];
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * TAU + randRange(rng, -0.3, 0.3) * (TAU / n);
-      const r = R * randRange(rng, 0.42, 1.0);
-      ctrl.push({ x: Math.cos(a) * r * sx, y: Math.sin(a) * r * sy });
-    }
-    const res = resampleClosed(catmullClosed(ctrl, 40), TRACK_SPACING);
+  for (let attempt = 0; attempt < 300 && !layout && lay !== 'circuit'; attempt++) {
+    const ctrl = LAYOUT_CTRL[lay](rng, sizeMul), res = resampleClosed(ctrl.dense ? ctrl : catmullClosed(ctrl, 24), TRACK_SPACING);
     if (validateLayout(res.pts, res.step, clearance, hw * 1.15)) layout = res;
+  }
+  for (let attempt = 0; attempt < 400 && !layout; attempt++) { // the free-form loop (and the fallback if a layout won't fit)
+    const res = resampleClosed(catmullClosed(LAYOUT_CTRL.circuit(rng, sizeMul), 40), TRACK_SPACING);
+    if (validateLayout(res.pts, res.step, clearance, hw * 1.15)) { layout = res; layout.lay = 'circuit'; }
   }
   if (!layout) {
     // Fallback: a plain stadium oval that is always valid.
@@ -178,6 +276,7 @@ function generateTrack(seed, biomeKey, opts = {}) {
       ctrl.push({ x: Math.cos(a) * 1500, y: Math.sin(a) * 800 });
     }
     layout = resampleClosed(catmullClosed(ctrl, 40), TRACK_SPACING);
+    layout.lay = 'circuit';
   }
 
   let pts = layout.pts;
@@ -207,7 +306,7 @@ function generateTrack(seed, biomeKey, opts = {}) {
   for (let i = 0; i < N; i++) { nx[i] = -Math.sin(ang[i]); ny[i] = Math.cos(ang[i]); }
 
   const track = {
-    seed, biomeKey, biome, pts, ang, curv, nx, ny, N, step,
+    seed, biomeKey, biome, pts, ang, curv, nx, ny, N, step, layout: layout.lay || lay, layoutName: LAYOUTS[layout.lay || lay].name,
     length: N * step, hw, runoff, wallT: WALL_T, clearance,
     hazards: [], decos: [], ramps: [], obstacles: [],
   };
