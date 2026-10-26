@@ -341,6 +341,15 @@ volume and looks for overlaps.
 - **Your head turns on your neck:** look behind you and your eyes swing round over your shoulder, instead of
   turning in place inside your own neck.
 
+### The low-poly look (prototype)
+
+People are drawn low-poly by default (`People.polyFigure` in js/people.js; Settings → Characters: Low-poly or Detailed). Everyone gets the same treatment: your driver, rival crews, the Turnkey's lifers, garage walkers, the trader, the cold open and the ragdolls.
+- **Build:** faceted six-sided limbs, a tapered slab of a torso with broad shoulders, chunky block hands and boots.
+- **Head:** an oversized block with a wedge nose and block ears. The face is painted on (eyes with a glint, thick brows that scowl, a mouth, a moustache or beard, the tear tattoo, shades). Hair and hats are blocks over the top.
+- **Colour:** bright flat colours with a pale trim band on the collar, zip, pocket, cuffs and hems, and a dark belt with a gold buckle. No grime.
+
+It keeps the sculpted figure's joints, pivots and userData, so the cabin, the vest, the crew animation and the ragdolls work unchanged. The ragdolls and your driver's live arms switch to faceted pieces too. Cars, guns and the world keep their current look for now.
+
 ### Voices (prototype)
 
 Your driver talks, and you grunt (`js/voice.js`). The lines are real speech, made offline by

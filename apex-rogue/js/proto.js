@@ -1258,6 +1258,7 @@ const Proto = {
         if (k === 'quality') { Settings.data.quality = v; Settings.save(); this.resize(); } // the render size changes now; tower counts from the next race
         if (k === 'fps') Settings.data.showFps = !Settings.data.showFps;
         if (k === 'invert') Settings.data.invertY = !Settings.data.invertY;
+        if (k === 'people') { Settings.data.people = v; Settings.save(); location.reload(); return; } // everyone's rebuilt on the reload
         if (k === 'speed') Settings.data.speed = v;
         if (k === 'slowmo') Settings.data.slowmo = !Settings.data.slowmo;
         if (k === 'flicker') Settings.data.flicker = !Settings.data.flicker;
@@ -1298,6 +1299,9 @@ const Proto = {
       <p class="muted small">If the game feels choppy, go down a step. Low draws fewer pixels and fewer buildings.</p>
       <div class="opts">${['low', 'medium', 'high'].map((q) => `<button class="opt ${d.quality === q ? 'on' : ''}" data-set="quality:${q}">${q[0].toUpperCase() + q.slice(1)}</button>`).join('')}
         <button class="opt ${d.showFps ? 'on' : ''}" data-set="fps:1">${d.showFps ? 'FPS shown' : 'Show FPS'}</button></div>
+      <h3>Characters</h3>
+      <p class="muted small">How people are drawn. Low-poly: blocky, faceted, painted faces. Detailed: the sculpted look. Changing it reloads the game.</p>
+      <div class="opts">${[['poly', 'Low-poly'], ['classic', 'Detailed']].map(([k, n]) => `<button class="opt ${(d.people || 'poly') === k ? 'on' : ''}" data-set="people:${k}">${n}</button>`).join('')}</div>
       <h3>Big moments</h3>
       <p class="muted small">A clean kill, a grenade in the cabin, a boss beaten: the broadcast cuts to you. The caption always shows; these are extra.</p>
       <div class="opts"><button class="opt ${d.slowmo !== false ? 'on' : ''}" data-set="slowmo:1">Slow motion ${d.slowmo !== false ? 'on' : 'off'}</button>

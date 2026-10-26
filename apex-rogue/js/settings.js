@@ -11,7 +11,7 @@ const QUALITY = {
 };
 
 const Settings = {
-  data: { cabinSway: 'subtle', speed: 'normal', sens: 1, adsSens: 0.7, invertY: false, volume: 0.8, music: 0.7, raceMusic: 0.6, tutorialDone: false, introSeen: false, quality: 'medium', showFps: false, slowmo: true, flicker: true, friendlyFire: true },
+  data: { cabinSway: 'subtle', speed: 'normal', people: 'poly', sens: 1, adsSens: 0.7, invertY: false, volume: 0.8, music: 0.7, raceMusic: 0.6, tutorialDone: false, introSeen: false, quality: 'medium', showFps: false, slowmo: true, flicker: true, friendlyFire: true },
 
   load() {
     try { Object.assign(this.data, JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}); } catch (e) { /* storage unavailable */ }

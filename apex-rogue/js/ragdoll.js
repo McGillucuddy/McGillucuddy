@@ -48,8 +48,9 @@ class Ragdolls {
     this.scene = scene;
     this.list = [];
     this.acc = 0;
-    this.cyl = new THREE.CylinderGeometry(1, 1, 1, 8, 1);
-    this.ball = new THREE.SphereGeometry(1, 10, 8);
+    const poly = People.poly(); // the low-poly look: six-sided limbs and a block of a head
+    this.cyl = new THREE.CylinderGeometry(1, 1, 1, poly ? 6 : 8, 1);
+    this.ball = poly ? new THREE.BoxGeometry(1.5, 1.7, 1.4) : new THREE.SphereGeometry(1, 10, 8);
     this.cap = new THREE.SphereGeometry(1.04, 10, 6, 0, TAU, 0, Math.PI * 0.42);
     this.box = new THREE.BoxGeometry(1, 1, 1);
   }

@@ -106,6 +106,7 @@ const People = {
     const L = Object.assign(People.looks(o.seed || 1), o.looks || {});
     if (L.beard === true) L.beard = 'full';
     else if (L.beard === false) L.beard = 'none';
+    if (People.poly()) return People.polyFigure(o, L); // the low-poly look (below)
     const mix = (a, b, k) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), k).getHexString();
     const M = {
       skin: LP.mat(L.skin, { roughness: 0.75 }), suit: LP.mat(o.suit || L.suit, { roughness: 0.95 }), hair: LP.mat(L.hair, { roughness: 0.95 }),
@@ -249,8 +250,9 @@ const People = {
   liveArms(parent, mat, n) {
     const arms = [];
     for (let k = 0; k < (n || 2); k++) {
-      const seg = () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 10, 1), mat); parent.add(m); return m; };
-      const ball = (r) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), mat); parent.add(m); return m; };
+      const poly = People.poly(); // (six-sided and faceted in the low-poly look)
+      const seg = () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, poly ? 6 : 10, 1), mat); parent.add(m); return m; };
+      const ball = (r) => { const m = new THREE.Mesh(poly ? new THREE.IcosahedronGeometry(r, 0) : new THREE.SphereGeometry(r, 10, 8), mat); parent.add(m); return m; };
       arms.push({ up: seg(), fore: seg(), elbow: ball(0.42), wrist: ball(0.38) });
     }
     return arms;
@@ -275,3 +277,198 @@ const People = {
     arm.wrist.position.copy(W);
   },
 };
+
+// ---------- The low-poly look (Settings: Characters) ----------
+// The same people, built the way a low-poly game builds them: faceted six-sided limbs, a tapered slab of a torso,
+// a block of a head with the face painted on (eyes, brows, mouth, moustache), bright flat colours with trim on the
+// collar, cuffs and belt, and no grime. Same joints, pivots and userData as the sculpted figure, so the cabin, the
+// ragdolls, the vest and the crew animation all work unchanged.
+Object.assign(People, {
+  poly: () => typeof Settings === 'undefined' || Settings.data.people !== 'classic',
+
+  // Flat-shaded materials, a touch brighter than the sculpted ones.
+  polyMat(c, o) { return LP.mat(c, Object.assign({ flatShading: true, roughness: 0.85, metalness: 0 }, o)); },
+
+  // A six-sided limb from a to b (radius ra at a, rb at b).
+  prism(g, a, b, ra, rb, mat, seg) {
+    const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), v = B.clone().sub(A), len = v.length();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rb, ra, len, seg || 6, 1), mat);
+    m.position.copy(A).add(B).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), v.normalize());
+    g.add(m);
+    return m;
+  },
+  // A box tapering from [x, z] at the bottom to [x, z] at the top, h tall, its base at pos.
+  taper(g, bot, top, h, mat, pos) {
+    const geo = new THREE.BoxGeometry(1, 1, 1), p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) { const up = p.getY(i) > 0, s = up ? top : bot; p.setXYZ(i, p.getX(i) * s[0], p.getY(i) * h + h / 2, p.getZ(i) * s[1]); }
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, mat); m.position.set(...pos); g.add(m);
+    return m;
+  },
+  slab(g, size, mat, pos, rot) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(...size), mat);
+    m.position.set(...pos); if (rot) m.rotation.set(...rot); g.add(m);
+    return m;
+  },
+  // A chunky hand at the wrist, along the forearm.
+  polyHand(g, M, at, dir) {
+    const d = new THREE.Vector3(...dir).normalize(), h = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.62, 0.62), M.glove);
+    h.position.set(at[0] + d.x * 0.32, at[1] + d.y * 0.32, at[2] + d.z * 0.32);
+    h.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), d);
+    g.add(h);
+    return h;
+  },
+
+  // The face, painted on a card: eyes, brows, mouth and facial hair, in flat shapes like the rest.
+  faceTex(L) {
+    const key = [L.beard, L.brow, L.hair, L.skin, L.shades ? 1 : 0, L.tattoo === 'tear' ? 1 : 0].join('|');
+    People.faces = People.faces || {};
+    if (People.faces[key]) return People.faces[key];
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    const c = cv.getContext('2d'), dark = '#1a1410', mix = (a, b, k) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), k).getHexString();
+    const poly = (col, pts) => { c.fillStyle = col; c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.closePath(); c.fill(); };
+    if (L.beard === 'stubble') poly(mix(L.skin, L.hair, 0.35) + '88', [[14, 78], [114, 78], [104, 122], [24, 122]]);
+    if (L.beard === 'full') poly(L.hair, [[10, 70], [118, 70], [108, 124], [20, 124]]);
+    if (L.beard === 'goatee') poly(L.hair, [[50, 104], [78, 104], [74, 126], [54, 126]]);
+    // Eyes: a dark block each with a glint; brows over them (a scowl drops them at the middle).
+    for (const s of [-1, 1]) {
+      const x = 64 + s * 26;
+      if (!L.shades) { poly(dark, [[x - 6, 44], [x + 6, 44], [x + 6, 62], [x - 6, 62]]); poly('#f4efe2', [[x - 4, 46], [x - 1, 46], [x - 1, 50], [x - 4, 50]]); }
+      const inner = L.brow === 'scowl' ? 6 : 0;
+      poly(L.hair, [[x - s * 16, 30], [x + s * 14, 32 + inner], [x + s * 14, 40 + inner], [x - s * 16, 37]]);
+    }
+    if (L.shades) poly('#0e0e10', [[22, 40], [106, 40], [104, 64], [70, 64], [64, 56], [58, 64], [24, 64]]);
+    // Mouth.
+    if (L.beard !== 'full') poly(mix(L.skin, '#5a2a22', 0.6), [[52, 98], [76, 98], [74, 103], [54, 103]]);
+    else poly('#3a1a14', [[52, 96], [76, 96], [74, 101], [54, 101]]);
+    // A moustache (and the moustache of a full beard).
+    if (L.beard === 'moustache' || L.beard === 'full') poly(L.hair, [[34, 92], [52, 84], [64, 88], [76, 84], [94, 92], [86, 96], [64, 92], [42, 96]]);
+    if (L.tattoo === 'tear') poly('#2a3a5a', [[96, 66], [100, 66], [99, 74], [97, 74]]);
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.magFilter = THREE.NearestFilter;
+    return (People.faces[key] = t);
+  },
+
+  polyHead(head, M, L, gear) {
+    const P = People, H = new THREE.Group();
+    H.scale.setScalar(1.22); H.position.y = -0.2; // chunky: the head is the character
+    head.add(H);
+    P.taper(H, [1.4, 1.22], [1.4, 1.36], 1.6, M.skin, [0.05, 0.25, 0]); // the block of the head (x deep, z wide)
+    P.slab(H, [0.42, 0.32, 0.28], M.skin, [0.82, 0.9, 0], [0, 0, -0.35]); // the nose, a wedge
+    for (const s of [-1, 1]) P.slab(H, [0.22, 0.38, 0.14], M.skin, [0.05, 0.95, s * 0.72]); // ears
+    if (L.beard === 'full') P.taper(H, [1.3, 1.1], [1.42, 1.26], 0.55, M.hair, [0.08, 0.2, 0]); // the beard round the jaw
+    if (L.beard === 'goatee') P.slab(H, [0.3, 0.3, 0.32], M.hair, [0.7, 0.28, 0]);
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshBasicMaterial({ map: P.faceTex(L), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    face.position.set(0.76, 1.05, 0); face.rotation.y = Math.PI / 2;
+    face.userData.noGrime = true;
+    H.add(face);
+    // Hair and hats: blocks over the top.
+    if (gear === 'helmet') {
+      P.taper(H, [1.65, 1.6], [1.5, 1.45], 1.05, M.helmet, [0, 1.15, 0]);
+      P.slab(H, [0.12, 0.42, 1.5], M.shades, [0.82, 1.1, 0]); // visor
+    } else if (gear === 'beanie') {
+      P.taper(H, [1.5, 1.44], [1.2, 1.1], 0.7, M.hat, [0, 1.45, 0]);
+      P.taper(H, [1.56, 1.5], [1.56, 1.5], 0.24, M.hatBand, [0, 1.35, 0]); // the rolled brim
+    } else if (gear === 'bandana') {
+      P.taper(H, [1.48, 1.42], [1.3, 1.2], 0.45, M.hat, [0, 1.5, 0]);
+      P.slab(H, [0.3, 0.32, 0.3], M.hat, [-0.82, 1.55, 0]); // the knot
+    } else if (gear === 'cap') {
+      P.taper(H, [1.5, 1.42], [1.3, 1.2], 0.55, M.hat, [-0.02, 1.5, 0]);
+      P.slab(H, [0.8, 0.1, 1.1], M.hat, [0.95, 1.52, 0], [0, 0, -0.1]); // brim
+    } else if (gear === 'hair' || gear === 'buzz') {
+      const tall = gear === 'hair' ? 0.42 : 0.16;
+      P.taper(H, [1.48, 1.42], [1.42, 1.36], tall, M.hair, [-0.02, 1.82, 0]); // on top
+      P.slab(H, [0.4, 1.0, 1.42], M.hair, [-0.6, 1.4, 0]); // down the back
+      if (gear === 'hair') P.slab(H, [0.6, 0.3, 1.0], M.hair, [0.45, 2.2, 0], [0, 0, 0.25]); // a quiff
+    }
+  },
+
+  // The whole person, low-poly. Same options and userData as People.figure.
+  polyFigure(o, L) {
+    const P = People, w = P.BUILD[L.build] || 1, heavy = L.build === 'heavy', mix = (a, b, k) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), k).getHexString();
+    const suitC = o.suit || L.suit;
+    const M = {
+      skin: P.polyMat(L.skin), suit: P.polyMat(suitC), hair: P.polyMat(L.hair), hat: P.polyMat(L.hat),
+      trim: P.polyMat(mix(suitC, '#f2e6c8', 0.45)), hatBand: P.polyMat(mix(L.hat, '#000000', 0.25)), // collar, cuffs and seams: a pale band against the suit
+      belt: P.polyMat('#3a2416'), buckle: P.polyMat('#d9b24a', { metalness: 0.4, roughness: 0.4 }),
+      vest: P.polyMat('#eeeae0'), shades: P.polyMat('#0e0e10'), helmet: P.polyMat('#22232a'),
+      glove: P.polyMat(o.role === 'trader' ? L.skin : '#3a2a20'), boot: P.polyMat('#22180f'), dark: P.polyMat('#1c1c1c'),
+      eye: P.polyMat('#141210'), white: P.polyMat('#eeeae0'), lip: P.polyMat(L.skin), stubble: P.polyMat(L.skin), ink: P.polyMat('#2a3a5a'),
+    };
+    M.seam = M.trim;
+    const walk = o.pose === 'walk', stand = o.pose === 'stand' || walk, vest = L.top === 'vest' && o.role !== 'trader';
+    const top = vest ? M.vest : M.suit, bare = vest ? M.skin : M.suit, fore = vest || L.rolled ? M.skin : M.suit, gear = o.helmet ? 'helmet' : L.gear;
+    const g = new THREE.Group(), torso = new THREE.Group(); g.add(torso);
+    // The torso: a slab from the hips to broad shoulders, a belt, a collar, the zip and a pocket.
+    P.taper(torso, [2.0, 2.55 * w], [1.95, 2.5 * w], 1.45, M.suit, [0, 0.05, 0]); // hips
+    P.taper(torso, [1.95 + (heavy ? 0.35 : 0), 2.5 * w], [2.0, 3.3 * w], 3.2, top, [0.04 + (heavy ? 0.1 : 0), 1.45, 0]); // the chest, widening to the shoulders
+    P.taper(torso, [1.95, 3.2 * w], [1.3, 1.6], 0.45, top, [0.04, 4.62, 0]); // the slope up to the neck
+    P.taper(torso, [2.08, 2.62 * w], [2.08, 2.62 * w], 0.36, M.belt, [0, 1.28, 0]); // belt
+    P.slab(torso, [0.14, 0.4, 0.55], M.buckle, [1.08, 1.46, 0]); // its buckle
+    for (const s of [-1, 1]) P.slab(torso, [1.05, 0.95, 1.0], bare, [0, 4.3, s * 1.72 * w]); // shoulders
+    if (o.head) P.prism(torso, [0.12, 4.7, 0], [0.14, 5.45, 0], 0.5, 0.46, M.skin);
+    if (vest) {
+      P.taper(torso, [1.3, 1.0], [1.3, 1.0], 0.8, M.skin, [0.4, 4.0, 0]); // the scoop of the vest
+      P.taper(torso, [2.2, 2.75 * w], [2.2, 2.75 * w], 0.5, M.suit, [0, 1.1, 0]); // the jumpsuit top tied round the waist
+      P.slab(torso, [0.4, 0.8, 0.4], M.suit, [1.2, 0.85, 0.3]); // the knot
+    } else {
+      P.taper(torso, [1.5, 1.8], [1.35, 1.5], 0.3, M.trim, [0.06, 4.88, 0]); // collar
+      P.slab(torso, [0.06, 3.0, 0.16], M.trim, [1.02, 3.1, 0]); // zip
+      P.slab(torso, [0.08, 0.5, 0.55], M.trim, [1.03, 3.75, 0.75]); // chest pocket
+    }
+    // Arms.
+    const arm = (parent, sh, el, wr, s) => {
+      P.prism(parent, sh, el, 0.48 * w, 0.4, bare);
+      P.prism(parent, el, wr, 0.4, 0.34, fore);
+      if (!vest && !L.rolled) P.prism(parent, wr.map((v, i) => v + (el[i] - v) * 0.12), wr, 0.38, 0.38, M.trim); // cuff
+      if (L.rolled && !vest) P.prism(parent, el.map((v, i) => v + (sh[i] - v) * 0.12), el, 0.46, 0.46, M.suit); // a rolled sleeve
+      P.polyHand(parent, M, wr, [wr[0] - el[0], wr[1] - el[1], wr[2] - el[2]]);
+      void s;
+    };
+    const swing = [];
+    if (o.arms === 'swing') for (const s of [-1, 1]) {
+      const piv = new THREE.Group(); piv.position.set(0.05, 4.25, s * 1.72 * w);
+      arm(piv, [0, 0, 0], [0.15, -2.0, s * 0.28], [0.4, -3.75, s * 0.32], s);
+      torso.add(piv); swing.push(piv);
+    }
+    if (o.arms === 'static') {
+      const A = P.ARM_POSES[o.role] || P.ARM_POSES.driver;
+      for (const s of [-1, 1]) { const [el, wr] = A[s < 0 ? 0 : 1]; arm(torso, [0.05, 4.25, s * 1.72 * w], el, wr, s); }
+      if (o.role === 'driver') { const r = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.16, 4, 10), M.dark); r.position.set(3.75, 3.95, 0); r.rotation.y = Math.PI / 2 - 0.35; torso.add(r); } // their wheel
+      if (o.role === 'gunner') P.slab(torso, [2.8, 0.5, 0.4], M.dark, [3.3, 3.6, 0.2]); // their gun
+    }
+    // Legs.
+    const LEG = stand ? [[0.05, -0.1], [0.35, -3.8], [0.05, -7.5]] : o.leg ? [[0.3, 0.55], o.leg.knee, o.leg.ankle] : [[0.3, 0.55], [4.1, 0.9], [4.7, -3.3]];
+    const strides = [];
+    for (const s of [-1, 1]) {
+      const sp = walk ? 0.02 : stand ? 0.15 : 0;
+      let hip = [LEG[0][0], LEG[0][1], s * 0.85 * w], knee = [LEG[1][0], LEG[1][1], s * (1.0 + sp) * w], ank = [LEG[2][0], LEG[2][1], s * (1.05 + sp * 2)];
+      let parent = g, piv = null;
+      if (walk) {
+        piv = new THREE.Group(); piv.position.set(...hip);
+        const rel = (v) => [v[0] - hip[0], v[1] - hip[1], v[2] - hip[2]];
+        [hip, knee, ank] = [rel(hip), rel(knee), rel(ank)];
+        parent = piv;
+      }
+      P.prism(parent, hip, knee, 0.9 * w, 0.66, M.suit);
+      P.prism(parent, knee, ank, 0.62, 0.5, M.suit);
+      P.prism(parent, ank.map((v, i) => v + (knee[i] - v) * 0.1), ank.map((v, i) => v + (knee[i] - v) * 0.22), 0.5, 0.5, M.trim); // the hem band
+      P.slab(parent, [2.1, 0.95, 1.05], M.boot, [ank[0] + 0.55, ank[1] - 0.35, ank[2]]); // boot
+      P.slab(parent, [2.2, 0.22, 1.1], M.dark, [ank[0] + 0.55, ank[1] - 0.85, ank[2]]); // sole
+      if (piv) { g.add(piv); strides.push(piv); }
+    }
+    // Head on its pivot.
+    const head = new THREE.Group(); head.position.set(0.15, 5.4, 0); torso.add(head);
+    if (o.head) P.polyHead(head, M, Object.assign({}, L, { shades: L.shades && o.role !== 'trader' }), gear);
+    // The number on the chest.
+    let patch = null;
+    if (!vest) {
+      patch = LP.mesh(new THREE.PlaneGeometry(1.3, 0.55), new THREE.MeshStandardMaterial({ map: P.patch(o.number || L.number), roughness: 0.9, transparent: true }), 1.06, 3.05, -0.65);
+      patch.rotation.y = Math.PI / 2;
+      torso.add(patch);
+    }
+    g.traverse((m) => { if (m.isMesh) m.userData.noGrime = true; });
+    g.userData = { torso, head, patch, looks: L, M, legs: strides, arms: swing, helmet: !!o.helmet, armMat: vest ? M.skin : M.suit, shoulders: [[0.05, 4.25, -1.72 * w], [0.05, 4.25, 1.72 * w]], poly: true };
+    return g;
+  },
+});

@@ -730,9 +730,9 @@ class CockpitView {
     // Fists on the rim at ten to two (in the wheel's own frame its +x is the driver's left), riding the wheel.
     const M = d.M, fists = [];
     for (const [a, side] of [[0.55, -1], [Math.PI - 0.55, 1]]) {
-      const f = new THREE.Group(), sc = new Sculpt('person:fist:' + side, 0.05);
-      People.fist(sc, M, [0, 0, -0.15], [0, 0, 1], side);
-      sc.build(f);
+      const f = new THREE.Group();
+      if (People.poly()) People.polyHand(f, M, [0, 0, -0.45], [0, 0, 1]); // a block of a hand, like the rest of them
+      else { const sc = new Sculpt('person:fist:' + side, 0.05); People.fist(sc, M, [0, 0, -0.15], [0, 0, 1], side); sc.build(f); }
       f.position.set(Math.cos(a) * 2.6, Math.sin(a) * 2.6, 0);
       this.wheel.add(f);
       fists.push(f);
