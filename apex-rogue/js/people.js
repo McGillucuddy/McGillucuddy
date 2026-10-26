@@ -416,7 +416,7 @@ Object.assign(People, {
   },
   // A surface over the head: th from th0 to th1 (a full turn closes it), heights from yA(th) to yB(th), n x m facets.
   headSurf(H, mat, o) {
-    const n = o.n || 20, m = o.m || 16, full = o.th1 - o.th0 >= TAU - 1e-6, cols = full ? n : n + 1, pos = [], idx = [];
+    const n = o.n || 24, m = o.m || 18, full = o.th1 - o.th0 >= TAU - 1e-6, cols = full ? n : n + 1, pos = [], idx = [];
     for (let j = 0; j <= m; j++) for (let i = 0; i < cols; i++) {
       const th = o.th0 + ((o.th1 - o.th0) * (i + (full ? 0.5 : 0))) / n, t = j / m;
       const u = o.ease ? 0.5 - 0.5 * Math.cos(Math.PI * t) : t, y = o.yA(th) + (o.yB(th) - o.yA(th)) * u;
@@ -466,14 +466,14 @@ Object.assign(People, {
     if (beard !== 'full') P.slab(H, [0.03, 0.035, 0.22], M.mouth, [face(0.55, 0) + 0.005, 0.55, 0]);
     if (L.tattoo === 'tear') P.slab(H, [0.02, 0.07, 0.035], M.ink, [face(0.88, 0.3) + 0.01, 0.88, 0.3]);
     // Hair and hats: shells over the skull, following it, the hairline lifted over the brow.
-    const shell = (mat, off, hair) => P.headSurf(H, mat, { th0: 0, th1: TAU, n: 20, m: 8, yA: hair, yB: K(1.99), off, capTop: true });
+    const shell = (mat, off, hair) => P.headSurf(H, mat, { th0: 0, th1: TAU, n: 24, m: 9, yA: hair, yB: K(1.99), off, capTop: true });
     const hairline = (front, side, back) => (th) => { const c = Math.cos(th); return c >= 0 ? side + (front - side) * c : side + (side - back) * c; };
     if (gear === 'helmet') {
       P.lump(H, [0.98, 0.92, 0.85], M.helmet, [-0.02, 1.3, 0], 14);
       P.slab(H, [0.1, 0.32, 1.2], M.shades, [0.86, 1.06, 0]); // visor
     } else if (gear === 'beanie') {
       shell(M.hat, (th, t) => 0.07 + 0.06 * Math.sin(Math.PI * t), hairline(1.3, 1.22, 1.0));
-      P.headSurf(H, M.hatBand, { th0: 0, th1: TAU, n: 20, m: 2, yA: hairline(1.24, 1.16, 0.94), yB: hairline(1.46, 1.38, 1.16), off: 0.12 }); // the rolled brim
+      P.headSurf(H, M.hatBand, { th0: 0, th1: TAU, n: 24, m: 2, yA: hairline(1.24, 1.16, 0.94), yB: hairline(1.46, 1.38, 1.16), off: 0.12 }); // the rolled brim
     } else if (gear === 'bandana') {
       shell(M.hat, 0.05, hairline(1.38, 1.28, 1.05));
       P.lump(H, [0.14, 0.16, 0.2], M.hat, [-0.84, 1.3, 0], 7); // the knot
@@ -492,15 +492,16 @@ Object.assign(People, {
   // The whole person, low-poly. Same options and userData as People.figure.
   polyFigure(o, L) {
     const P = People, w = P.BUILD[L.build] || 1, heavy = L.build === 'heavy', mix = (a, b, k) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), k).getHexString();
-    const suitC = o.suit || L.suit;
+    const suitC = o.suit || L.suit, SMOOTH = { flatShading: false };
     const M = {
-      skin: P.polyMat(L.skin), suit: P.polyMat(suitC), hair: P.polyMat(L.hair), hat: P.polyMat(L.hat), hatBand: P.polyMat(mix(L.hat, '#000000', 0.25)),
+      // Skin, hair and hats are smooth-shaded (the head's facets blend into one surface); clothes stay faceted.
+      skin: P.polyMat(L.skin, SMOOTH), suit: P.polyMat(suitC), hair: P.polyMat(L.hair, SMOOTH), hat: P.polyMat(L.hat, SMOOTH), hatBand: P.polyMat(mix(L.hat, '#000000', 0.25), SMOOTH),
       trim: P.polyMat(mix(suitC, '#f2e6c8', 0.45)), // collar, cuffs and hems: a pale band against the suit
       belt: P.polyMat('#3a2416'), pouch: P.polyMat('#5a4028'), leather: P.polyMat('#4a3020'), buckle: P.polyMat('#d9b24a', { metalness: 0.4, roughness: 0.4 }),
-      vest: P.polyMat('#eeeae0'), shades: P.polyMat('#0e0e10'), helmet: P.polyMat('#22232a'),
+      vest: P.polyMat('#eeeae0'), shades: P.polyMat('#0e0e10'), helmet: P.polyMat('#22232a', Object.assign({ roughness: 0.4 }, SMOOTH)),
       glove: P.polyMat(o.role === 'trader' ? L.skin : '#3a2a20'), boot: P.polyMat('#22180f'), dark: P.polyMat('#1c1c1c'),
-      eye: P.polyMat('#2a1c14'), eyeSet: P.polyMat(mix(L.skin, '#2a1810', 0.35)), brow: P.polyMat(mix(L.hair, L.skin, 0.2)), hairD: P.polyMat(L.hair, { side: THREE.DoubleSide }), shadesD: P.polyMat('#0e0e10', { side: THREE.DoubleSide, roughness: 0.3, metalness: 0.4 }), white: P.polyMat('#f4efe2'), mouth: P.polyMat(mix(L.skin, '#4a1a14', 0.4)),
-      stubble: P.polyMat(mix(L.skin, L.hair, 0.35)), ink: P.polyMat('#2a3a5a'),
+      eye: P.polyMat('#2a1c14'), eyeSet: P.polyMat(mix(L.skin, '#2a1810', 0.35)), brow: P.polyMat(mix(L.hair, L.skin, 0.2)), hairD: P.polyMat(L.hair, Object.assign({ side: THREE.DoubleSide }, SMOOTH)), shadesD: P.polyMat('#0e0e10', Object.assign({ side: THREE.DoubleSide, roughness: 0.3, metalness: 0.4 }, SMOOTH)), white: P.polyMat('#f4efe2'), mouth: P.polyMat(mix(L.skin, '#4a1a14', 0.4)),
+      stubble: P.polyMat(mix(L.skin, L.hair, 0.35), SMOOTH), ink: P.polyMat('#2a3a5a'),
     };
     M.seam = M.trim; M.lip = M.mouth;
     const walk = o.pose === 'walk', stand = o.pose === 'stand' || walk, vest = L.top === 'vest' && o.role !== 'trader';
