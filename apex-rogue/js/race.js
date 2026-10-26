@@ -1,0 +1,620 @@
+'use strict';
+// A single race: cars, collisions, laps, positions, effects and rendering.
+
+class Race {
+  // cfg: { track, laps, playerCar, opponents:[{name,color,skill,isBoss}], rng, qualify, headless }
+  constructor(cfg) {
+    this.cfg = cfg;
+    this.track = cfg.track;
+    this.laps = cfg.laps;
+    this.qualify = cfg.qualify;
+    this.rng = cfg.rng;
+    this.time = 0;
+    this.state = 'countdown';
+    this.countdown = 3.6;
+    this.cars = [];
+    this.particles = [];
+    this.messages = [];
+    this.finishOrder = [];
+    this.overtakes = 0;
+    this.overtakeCash = 0;
+    this.events = []; // for audio: {type, ...}
+    this.blasts = []; // barrels that blew this frame, for the combat layer to turn into explosions
+    this.endTimer = 0;
+    this.throttleHeldEarly = false;
+    this.launchArmed = true;
+
+    const bio = this.track.biome;
+    const all = [];
+    for (const o of cfg.opponents) {
+      const car = new Car({
+        name: o.name, color: o.color, accent: o.accent || '#222', isBoss: o.isBoss,
+        stats: aiStats(o.skill, bio.grip),
+      });
+      car.ai = new AIDriver(car, o.skill, this.rng);
+      all.push(car);
+    }
+    // Player starts towards the back of the grid; worse grid in later races.
+    const playerSlot = Math.min(all.length, cfg.playerGrid != null ? cfg.playerGrid : all.length);
+    all.splice(playerSlot, 0, cfg.playerCar);
+    this.player = cfg.playerCar;
+
+    all.forEach((car, g) => {
+      const slot = gridSlot(this.track, g);
+      car.placeAt(slot.x, slot.y, slot.ang);
+      car.offroadTop = bio.offroadTop;
+      car.offroadDrag = bio.offroadDrag;
+      const q = trackQuery(this.track, car.x, car.y, slot.idx, 4);
+      car.idx = q.idx;
+      car.steps = q.idx - this.track.N;
+      car.progress = car.steps + q.frac;
+      car.place = g + 1;
+      this.cars.push(car);
+    });
+    if (this.player.perks.has('rocketstart')) this.player.nitro = this.player.stats.nitroCap;
+    this.rankCars();
+  }
+
+  get playerPlace() { return this.player.place; }
+
+  // center: race-flow calls (GO, laps, the finish, a wreck, a boss's warning) sit at the top of the screen; everything
+  // else goes in the small feed in the corner.
+  message(text, color, big, center, radio) {
+    // The same line again while it's still up: count it instead of stacking another copy.
+    const same = this.messages.find((m) => m.text === text && !!m.center === !!center && m.t < m.life - 0.3);
+    if (same) { same.n = (same.n || 1) + 1; same.t = Math.min(same.t, 0.2); return; }
+    if (radio) this.messages = this.messages.filter((m) => !m.radio); // one line of chatter at a time
+    this.messages.push({ text, color: color || '#fff', t: 0, life: radio ? 2.8 : center ? 2.2 : big ? 3.2 : 2.6, big, center, radio });
+  }
+
+  respawn(car) {
+    const tr = this.track;
+    const q = trackQuery(tr, car.x, car.y, car.idx, 40);
+    const i = q.idx;
+    car.placeAt(tr.pts[i].x + tr.nx[i] * clamp(q.lat, -tr.hw * 0.5, tr.hw * 0.5),
+      tr.pts[i].y + tr.ny[i] * clamp(q.lat, -tr.hw * 0.5, tr.hw * 0.5), tr.ang[i]);
+    car.spinT = 0; car.oilT = 0;
+    car.air = false; car.z = 0; car.vz = 0; car.onRamp = null; car.jp = car.vjp = car.jr = car.vjr = car.sq = car.vsq = car.groundPitch = 0;
+  }
+
+  rankCars() {
+    const sorted = this.cars.slice().sort((a, b) => {
+      if (a.finished && b.finished) return a.finishTime - b.finishTime;
+      if (a.finished) return -1;
+      if (b.finished) return 1;
+      if (a.dnf !== b.dnf) return a.dnf ? 1 : -1; // a car out of the race is last
+      return b.progress - a.progress;
+    });
+    sorted.forEach((c, k) => { c.place = k + 1; });
+    this.ranking = sorted;
+  }
+
+  update(dt, playerInput) {
+    this.events.length = 0;
+    if (this.state === 'countdown') {
+      const before = Math.ceil(this.countdown);
+      this.countdown -= dt;
+      const after = Math.ceil(this.countdown);
+      if (after !== before && after > 0) this.events.push({ type: 'beep', hi: false });
+      // Launch timing: throttle held too early = wheelspin; pressed late in the count = rocket launch.
+      const win = this.player.perks.has('rocketstart') ? 0.55 : 0.3;
+      if (playerInput.throttle > 0 && this.countdown > win) this.throttleHeldEarly = true;
+      if (this.countdown <= 0) {
+        this.state = 'racing';
+        this.events.push({ type: 'beep', hi: true });
+        this.message('GO!', '#7CFC00', true, true);
+        if (playerInput.throttle > 0) {
+          if (this.throttleHeldEarly) {
+            this.player.wheelspinT = 0.8;
+            this.message('Wheelspin!', '#ff6b6b');
+          } else {
+            this.player.launchT = this.player.perks.has('rocketstart') ? 2.2 : 1.1;
+            this.message('Perfect launch!', '#ffd23f');
+            this.events.push({ type: 'boost' });
+          }
+        }
+        for (const c of this.cars) {
+          if (c.ai && this.rng() < 0.5 * c.ai.skill) c.launchT = 0.6;
+        }
+      }
+      return;
+    }
+
+    this.time += dt;
+    const tr = this.track;
+    const bio = tr.biome;
+
+    for (const car of this.cars) {
+      let inp;
+      if (car === this.player && !car.finished) inp = playerInput;
+      else if (car.ai && !car.wrecked) inp = car.ai.update(this, dt); // (a wreck's driver isn't driving: see below)
+      else {
+        // Player car after finishing: hand it to an autopilot.
+        if (!car.autopilot) car.autopilot = new AIDriver(car, 0.85, this.rng);
+        car.stats.aLat = car.stats.aLat || 1000;
+        inp = car.autopilot.update(this, dt);
+        inp.throttle *= 0.6;
+      }
+      // Wrecked means out, for everyone: a rival at zero hull skids to a stop and burns where it stands, a hulk the
+      // others have to drive round (the player's own wreck is handled by the game: see Proto.updateRace).
+      if (car !== this.player && car.hp <= 0 && !car.finished) {
+        if (!car.wrecked) { car.wrecked = true; car.dnf = true; car.wreckT = 0; car.deadSteer = car.deadSteer ?? (this.rng() - 0.5) * 0.6; }
+        car.wreckT += dt;
+        const v = Math.hypot(car.vx, car.vy);
+        if (!car.hulk && v < 30) { car.hulk = true; car.stats.mass *= 4; }
+        const drag = Math.max(0, 1 - (car.hulk ? 6 : 1.2) * dt); // scraping along on its rims, then dead still
+        car.vx *= drag; car.vy *= drag;
+        inp = car.hulk ? { throttle: 0, brake: 0, steer: 0, handbrake: true, nitro: false } : { throttle: 0, brake: 0.55, steer: car.deadSteer, handbrake: car.wreckT > 0.6, nitro: false };
+      } else if (car.driverDead) inp = { throttle: 0, brake: 0.2, steer: car.deadSteer, handbrake: false, nitro: false }; // nobody at the wheel
+      else if (car.flinchT > 0) { // the driver's been hit: a jerk of the wheel, a lift off the throttle
+        car.flinchT -= dt;
+        inp = Object.assign({}, inp, { steer: clamp(inp.steer + Math.sin(car.flinchT * 30) * 0.8, -1, 1), throttle: inp.throttle * 0.4 });
+      }
+      car.input = inp;
+      if (tr.ramps && tr.ramps.length) this.rampCheck(car);
+      car.step(inp, dt, bio.grip);
+      if (car.landImpact) this.landed(car);
+    }
+
+    this.collideCars();
+
+    for (const car of this.cars) this.trackInteraction(car, dt);
+
+    // Slipstream perk.
+    const p = this.player;
+    if (p.perks.has('slipstream') && !p.finished) {
+      for (const o of this.cars) {
+        if (o === p) continue;
+        const dx = o.x - p.x, dy = o.y - p.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 170 && d > 30) {
+          const fwd = (dx * Math.cos(p.heading) + dy * Math.sin(p.heading)) / d;
+          if (fwd > 0.92 && p.speed > 250) {
+            p.draftT = 0.3;
+            p.nitro = Math.min(p.stats.nitroCap, p.nitro + 10 * dt);
+          }
+        }
+      }
+    }
+    if (p.perks.has('driftking') && p.drifting) p.nitro = Math.min(p.stats.nitroCap, p.nitro + 20 * dt);
+
+    const prevPlace = p.place;
+    this.rankCars();
+    this.rubberBand();
+    if (!p.finished && this.time > 2) {
+      if (p.place < prevPlace) {
+        this.overtakes += prevPlace - p.place;
+        if (p.perks.has('overtaker')) {
+          this.overtakeCash += 20 * (prevPlace - p.place);
+          p.nitro = Math.min(p.stats.nitroCap, p.nitro + 15);
+          this.message('Overtake! +$20', '#7CFC00');
+        }
+      } else if (p.place > prevPlace && p.perks.has('slingshot')) {
+        p.boostT = Math.max(p.boostT, 1.0);
+        this.message('Slingshot!', '#5ad8ff');
+      }
+    }
+
+    this.updateEffects(dt);
+    for (const m of this.messages) m.t += dt;
+    this.messages = this.messages.filter((m) => m.t < m.life);
+
+    if (p.finished) {
+      this.endTimer += dt;
+      if (this.endTimer > 3 || this.finishOrder.length === this.cars.length) this.state = 'done';
+    }
+    if (this.time > 600) this.state = 'done'; // safety net
+  }
+
+  rubberBand() {
+    // Mild catch-up so the pack stays together without feeling unfair.
+    const p = this.player;
+    for (const c of this.cars) {
+      if (!c.ai) continue;
+      const gap = (c.progress - p.progress) * this.track.step; // + means AI ahead
+      const rb = this.rubberCfg || { dist: 4000, ahead: -0.05, behind: 0.06 };
+      c.rubber = 1 + clamp(-gap / rb.dist, rb.ahead, rb.behind);
+    }
+  }
+
+  trackInteraction(car, dt) {
+    const tr = this.track;
+    const q = trackQuery(tr, car.x, car.y, car.idx, 25);
+    let delta = q.idx - car.idx;
+    if (delta > tr.N / 2) delta -= tr.N;
+    if (delta < -tr.N / 2) delta += tr.N;
+    const oldLap = Math.floor(car.progress / tr.N);
+    car.idx = q.idx;
+    car.steps += delta; // whole samples travelled since the grid (negative behind the line)
+    car.progress = car.steps + q.frac;
+    car.lat = q.lat;
+
+    const newLap = Math.floor(car.progress / tr.N);
+    if (newLap > oldLap && newLap >= 1 && !car.finished) {
+      car.lapsDone = newLap;
+      if (newLap >= this.laps) {
+        car.finished = true;
+        car.finishTime = this.time;
+        this.finishOrder.push(car);
+        if (car === this.player) {
+          this.events.push({ type: 'finish' });
+          this.message(`Finished ${ordinal(this.finishOrder.length)}!`, '#ffd23f', true, true);
+        }
+      } else if (car === this.player) {
+        this.message(newLap === this.laps - 1 ? 'Final lap!' : `Lap ${newLap + 1}/${this.laps}`, '#fff', true, true);
+        if (car.perks.has('pitcrew') && car.hp < car.stats.maxHp) {
+          car.hp = Math.min(car.stats.maxHp, car.hp + 15);
+          this.message('Pit crew: +15 HP', '#7CFC00');
+        }
+      }
+    }
+
+    const absLat = Math.abs(q.lat);
+    car.offroad = absLat > tr.hw + 4;
+    const limit = tr.hw + tr.runoff - CAR_RADIUS + 4;
+    if (absLat > limit) {
+      const i = q.idx, sgn = Math.sign(q.lat);
+      const nx = tr.nx[i] * sgn, ny = tr.ny[i] * sgn; // outward normal
+      const push = absLat - limit;
+      car.x -= nx * push;
+      car.y -= ny * push;
+      const vn = car.vx * nx + car.vy * ny;
+      if (vn > 0) {
+        const bumpers = car.perks.has('bumpers');
+        car.vx -= nx * vn * 1.3;
+        car.vy -= ny * vn * 1.3;
+        const keep = bumpers ? 0.97 : 0.88;
+        car.vx *= keep;
+        car.vy *= keep;
+        if (vn > 70) {
+          const dmg = bumpers ? 0 : (vn - 70) * 0.05;
+          this.damage(car, dmg, { kind: 'wall', ang: Math.atan2(ny, nx) });
+          car.wallHits++;
+          this.spark(car.x + nx * CAR_RADIUS, car.y + ny * CAR_RADIUS, vn);
+          if (car === this.player) this.events.push({ type: 'hit', power: vn });
+          if (vn > 150) this.crash(car, car.x + nx * CAR_RADIUS, car.y + ny * CAR_RADIUS, vn);
+        }
+      }
+    }
+
+    // Obstacles: solid (or soft) things to steer round; jump high enough and you clear them.
+    for (const o of tr.obstacles || []) {
+      if (!o.alive) continue;
+      const def = OBSTACLES[o.kind], dx = car.x - o.x, dy = car.y - o.y, rr = o.r + CAR_RADIUS, d2 = dx * dx + dy * dy;
+      if (d2 >= rr * rr || (car.z || 0) > def.h) continue;
+      const d = Math.sqrt(d2) || 1, nx = dx / d, ny = dy / d;
+      car.x += nx * (rr - d); car.y += ny * (rr - d);
+      const vn = car.vx * nx + car.vy * ny;
+      if (vn >= 0) continue;
+      const imp = -vn;
+      car.vx -= nx * vn * (1 + def.bounce); car.vy -= ny * vn * (1 + def.bounce);
+      if (imp > 40) { car.vx *= 0.82; car.vy *= 0.82; } // a scrape just slides you off it; a real hit costs speed
+      car.obHits = (car.obHits || 0) + 1;
+      if (imp > 140) { car.spinT = Math.max(car.spinT, Math.min(0.4, imp / 900)); car.spinDir = Math.sign(dx * Math.sin(car.heading) - dy * Math.cos(car.heading)) || 1; }
+      if (imp > 50) {
+        this.damage(car, (imp - 50) * 0.06 * def.dmg, { kind: 'wall', ang: Math.atan2(-ny, -nx) });
+        this.spark(o.x + nx * o.r, o.y + ny * o.r, imp);
+        if (car === this.player) this.events.push({ type: 'hit', power: imp });
+        if (imp > 150) this.crash(car, o.x + nx * o.r, o.y + ny * o.r, imp);
+      }
+      if (o.kind === 'barrels' && imp > 70) this.blowBarrel(o, null);
+      else if (o.kind === 'tyres' && imp > 160) { o.alive = false; this.events.push({ type: 'scatter', x: o.x, y: o.y }); } // a hard hit scatters the stack
+    }
+
+    // Hazards
+    for (const h of tr.hazards) {
+      const d2 = (h.x - car.x) ** 2 + (h.y - car.y) ** 2;
+      if (d2 > h.r * h.r) continue;
+      if (h.type === 'boost') {
+        const junkie = car.perks.has('boostjunkie');
+        if (car.boostT <= 0.1 && car === this.player) {
+          this.events.push({ type: 'boost' });
+          if (junkie) car.nitro = Math.min(car.stats.nitroCap, car.nitro + 30);
+        }
+        car.boostT = junkie ? 2.0 : 1.0;
+      } else if (h.type === 'oil' && car.oilT <= 0) {
+        car.oilT = 0.9;
+        car.spinT = 0.35 * (car.oilMul || 1);
+        car.spinDir = this.rng() < 0.5 ? -1 : 1;
+        if (car === this.player) this.message('Oil!', '#ccc');
+      }
+    }
+  }
+
+  // Ramps: ride up the wedge (height follows it); leave over the lip with speed and you're airborne.
+  rampCheck(car) {
+    if (car.air) return;
+    let on = null;
+    for (const r of this.track.ramps) {
+      const dx = car.x - r.x, dy = car.y - r.y, c = Math.cos(r.ang), s = Math.sin(r.ang);
+      const d = dx * c + dy * s, l = -dx * s + dy * c;
+      if (Math.abs(l) < r.w / 2 && d >= 0 && d <= r.len) { on = { r, d }; break; }
+    }
+    if (on) { car.z = (on.r.h * on.d) / on.r.len; car.onRamp = on.r; car.rampD = on.d; car.groundPitch = -Math.atan2(on.r.h, on.r.len); return; } // up the wedge, nose up
+    const r = car.onRamp;
+    car.onRamp = null;
+    const fs = car.forwardSpeed;
+    car.groundPitch = 0;
+    if (r && car.rampD > r.len * 0.75 && fs > 90) {
+      // Off the lip: thrown up by the slope at the speed you hit it, nose up at the ramp's angle and tipping over
+      // as it flies (the rear wheels leave last), rolling a little if the wheel was turned.
+      const vz = fs * (r.h / r.len) * JUMP.launch, ang = Math.atan2(r.h, r.len), flight = 2 * vz / JUMP.g;
+      car.jp = -ang;
+      car.launch(vz, (ang * JUMP.tip + 0.04) / Math.max(0.3, flight) * (0.85 + Math.random() * 0.3), ((car.input && car.input.steer) || 0) * JUMP.steerRoll + (Math.random() - 0.5) * 0.12, true);
+      if (car === this.player) { this.events.push({ type: 'jump' }); if (fs > 300) this.message('Airborne!', '#ffd23f'); }
+    } else car.z = 0;
+  }
+
+  // Touchdown: a hard one rattles the car (and its parts).
+  landed(car) {
+    const imp = car.landImpact;
+    car.landImpact = 0;
+    if (car === this.player) this.events.push({ type: 'land', power: imp });
+    if (imp > 240) {
+      this.damage(car, (imp - 240) * 0.05, { kind: 'wall', ang: car.heading + Math.PI });
+      this.spark(car.x, car.y, imp);
+    }
+  }
+
+  blowBarrel(o, owner) {
+    if (!o.alive) return;
+    o.alive = false;
+    this.blasts.push({ x: o.x, y: o.y, r: OBSTACLES.barrels.blast, dmg: 24, owner });
+    if (this.blasts.length > 12) this.blasts.shift();
+  }
+
+  // info: { kind: 'wall'|'ram'|'bullet'|'blast', ang: world angle toward the source }
+  damage(car, amount, info) {
+    if (car.damageFilter) amount = car.damageFilter(amount, info || {});
+    if (amount <= 0) return;
+    const wasAlive = car.hp > 0;
+    car.hp = Math.max(0, car.hp - amount);
+    car.hitFlash = 0.25;
+    car.lastHit = { kind: (info && info.kind) || 'ram', t: this.time }; // what finished it, for ejections (js/ragdoll.js)
+    // Where it was hit, for the 3D view to dent the bodywork (kept short; nothing reads it headless).
+    if (info && info.ang != null) {
+      if (!car.hits) car.hits = [];
+      if (car.hits.length < 12) car.hits.push({ ang: info.ang, amt: amount, kind: info.kind });
+      // Your own car keeps its scars (js/history.js): a heavy hit leaves one where it landed.
+      if (car === this.player && amount >= 4 && (car.scarLog || (car.scarLog = [])).length < 24) car.scarLog.push({ rel: wrapAngle(info.ang - car.heading), kind: info.kind });
+    }
+    if (wasAlive && car.hp <= 0 && car === this.player && !this.wreckOut) this.message('Engine wrecked! Limp mode', '#ff4040', true, true);
+  }
+
+  collideCars() {
+    const cars = this.cars;
+    const R2 = (CAR_RADIUS * 2) ** 2;
+    for (let a = 0; a < cars.length; a++) {
+      for (let b = a + 1; b < cars.length; b++) {
+        const A = cars[a], B = cars[b];
+        const ghost = (A.isPlayer && A.perks.has('ghost')) || (B.isPlayer && B.perks.has('ghost'));
+        if (ghost || Math.abs((A.z || 0) - (B.z || 0)) > 14) continue; // one sailing over the other
+        const dx = B.x - A.x, dy = B.y - A.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= R2 || d2 === 0) continue;
+        const d = Math.sqrt(d2);
+        const nx = dx / d, ny = dy / d;
+        const overlap = CAR_RADIUS * 2 - d;
+        const mA = A.stats.mass, mB = B.stats.mass;
+        const tot = mA + mB;
+        A.x -= nx * overlap * (mB / tot); A.y -= ny * overlap * (mB / tot);
+        B.x += nx * overlap * (mA / tot); B.y += ny * overlap * (mA / tot);
+        const rel = (A.vx - B.vx) * nx + (A.vy - B.vy) * ny;
+        if (rel <= 0) continue;
+        const e = 0.4;
+        let j = ((1 + e) * rel) / (1 / mA + 1 / mB);
+        let shoveA = 1, shoveB = 1;
+        if (A.isPlayer && A.perks.has('ramplates')) shoveB = 1.6;
+        if (B.isPlayer && B.perks.has('ramplates')) shoveA = 1.6;
+        A.vx -= (j / mA) * nx * shoveA; A.vy -= (j / mA) * ny * shoveA;
+        B.vx += (j / mB) * nx * shoveB; B.vy += (j / mB) * ny * shoveB;
+        if (rel > 90) {
+          const base = (rel - 90) * 0.05;
+          const dmgA = base * (mB / tot) * 2, dmgB = base * (mA / tot) * 2;
+          const ramA = A.isPlayer && A.perks.has('ramplates');
+          const ramB = B.isPlayer && B.perks.has('ramplates');
+          const toB = Math.atan2(B.y - A.y, B.x - A.x);
+          this.damage(A, dmgA * (ramA ? 0.5 : 1) * (ramB ? 3 : 1) * (B.ramMul || 1) * (A.ramTakenMul || 1), { kind: 'ram', ang: toB });
+          this.damage(B, dmgB * (ramB ? 0.5 : 1) * (ramA ? 3 : 1) * (A.ramMul || 1) * (B.ramTakenMul || 1), { kind: 'ram', ang: toB + Math.PI });
+          this.spark((A.x + B.x) / 2, (A.y + B.y) / 2, rel);
+          if (A.isPlayer || B.isPlayer) this.events.push({ type: 'hit', power: rel * 0.8 });
+          if (rel > 160) this.crash(A.isPlayer ? A : B.isPlayer ? B : A, (A.x + B.x) / 2, (A.y + B.y) / 2, rel);
+        }
+      }
+    }
+  }
+
+  // ---------- Effects ----------
+
+  // A hard crash anywhere on the track: the 3D view throws sparks and torn panels, and you hear the crunch (louder
+  // the closer it is; your own the loudest).
+  crash(car, x, y, power) {
+    if (this.cfg.headless) return;
+    const d = Math.hypot(x - this.player.x, y - this.player.y);
+    const vol = car === this.player ? 1 : clamp(1 - d / 800, 0, 1) * 0.6;
+    this.events.push({ type: 'crash', car, x, y, power, vol });
+  }
+
+  spark(x, y, power) {
+    if (this.cfg.headless) return;
+    const n = Math.min(14, 3 + power / 40);
+    for (let k = 0; k < n; k++) {
+      const a = Math.random() * TAU, s = 80 + Math.random() * power;
+      this.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.35, t: 0, size: 2.5, color: '#ffd27a', type: 'spark' });
+    }
+  }
+
+  updateEffects(dt) {
+    if (this.cfg.headless) return;
+    const tr = this.track;
+    for (const car of this.cars) {
+      const wheels = car.wheelPositions();
+      const marking = (car.drifting || car.braking || car.spinT > 0) && !car.offroad;
+      if (marking && car.lastWheels) {
+        const ctx = tr.ctx;
+        ctx.save();
+        ctx.translate(-tr.bounds.minX, -tr.bounds.minY);
+        ctx.strokeStyle = tr.biome.night ? 'rgba(0,0,0,0.35)' : 'rgba(20,20,20,0.28)';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        for (let w = 0; w < 2; w++) {
+          ctx.beginPath();
+          ctx.moveTo(car.lastWheels[w].x, car.lastWheels[w].y);
+          ctx.lineTo(wheels[w].x, wheels[w].y);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+      car.lastWheels = wheels;
+
+      const sp = car.speed;
+      if ((car.drifting || (car.offroad && sp > 120)) && Math.random() < 0.6) {
+        const w = wheels[Math.random() < 0.5 ? 0 : 1];
+        const col = car.offroad ? (tr.biomeKey === 'tundra' ? '#ffffff' : tr.biomeKey === 'desert' ? '#e8cf9b' : '#8a6b45') : '#d8d8d8';
+        this.particles.push({ x: w.x, y: w.y, vx: (Math.random() - 0.5) * 40, vy: (Math.random() - 0.5) * 40, life: 0.7, t: 0, size: 6 + Math.random() * 5, color: col, type: 'smoke' });
+      }
+      if (car.hp < car.stats.maxHp * 0.3 && Math.random() < (car.hp <= 0 ? 0.7 : 0.25)) {
+        this.particles.push({ x: car.x, y: car.y, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, life: 1.1, t: 0, size: 7 + Math.random() * 6, color: car.hp <= 0 ? '#222' : '#777', type: 'smoke' });
+      }
+    }
+    for (const pt of this.particles) {
+      pt.t += dt;
+      pt.x += pt.vx * dt;
+      pt.y += pt.vy * dt;
+      pt.vx *= 0.94;
+      pt.vy *= 0.94;
+    }
+    this.particles = this.particles.filter((pt) => pt.t < pt.life);
+    if (this.particles.length > 500) this.particles.splice(0, this.particles.length - 500);
+  }
+
+  // ---------- Rendering ----------
+
+  render(ctx, cam, W, H, t) {
+    const tr = this.track;
+    const bio = tr.biome;
+    ctx.fillStyle = bio.bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(cam.zoom, cam.zoom);
+    ctx.translate(-cam.x, -cam.y);
+
+    ctx.drawImage(tr.canvas, tr.bounds.minX, tr.bounds.minY);
+
+    // Ramps and obstacles (simple shapes for the top-down fallback view).
+    for (const r of tr.ramps || []) {
+      ctx.save(); ctx.translate(r.x, r.y); ctx.rotate(r.ang);
+      ctx.fillStyle = '#6a4a32'; ctx.fillRect(0, -r.w / 2, r.len, r.w);
+      ctx.fillStyle = '#e8b81a'; ctx.fillRect(r.len - 4, -r.w / 2, 4, r.w);
+      ctx.restore();
+    }
+    for (const o of tr.obstacles || []) {
+      if (!o.alive) continue;
+      ctx.fillStyle = { barrier: '#8a8680', tyres: '#1c1c1c', wreck: '#3a2a20', barrels: '#a8221a' }[o.kind];
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, TAU); ctx.fill();
+    }
+
+    for (const h of tr.hazards) {
+      ctx.save();
+      ctx.translate(h.x, h.y);
+      ctx.rotate(h.ang);
+      if (h.type === 'boost') {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        roundRect(ctx, -h.r, -h.r * 0.8, h.r * 2, h.r * 1.6, 6);
+        ctx.fill();
+        for (let k = 0; k < 3; k++) {
+          const ph = (t * 2 + k / 3) % 1;
+          ctx.strokeStyle = `rgba(90,216,255,${0.35 + 0.65 * (1 - ph)})`;
+          ctx.lineWidth = 5;
+          const x0 = -h.r * 0.7 + k * 12;
+          ctx.beginPath();
+          ctx.moveTo(x0, -h.r * 0.55); ctx.lineTo(x0 + 10, 0); ctx.lineTo(x0, h.r * 0.55);
+          ctx.stroke();
+        }
+      } else {
+        ctx.fillStyle = 'rgba(10,10,15,0.85)';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, h.r, h.r * 0.7, 0.4, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(120,80,200,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(-6, -4, h.r * 0.5, h.r * 0.3, 0.4, 0, TAU);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    for (const pt of this.particles) {
+      if (pt.type !== 'smoke') continue;
+      const k = pt.t / pt.life;
+      ctx.globalAlpha = 0.45 * (1 - k);
+      ctx.fillStyle = pt.color;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.size * (1 + k * 1.5), 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    for (const car of this.cars) car.draw(ctx, t);
+
+    for (const pt of this.particles) {
+      if (pt.type !== 'spark') continue;
+      ctx.fillStyle = pt.color;
+      ctx.globalAlpha = 1 - pt.t / pt.life;
+      ctx.fillRect(pt.x - 1.5, pt.y - 1.5, pt.size, pt.size);
+    }
+    ctx.globalAlpha = 1;
+
+    if (this.onRenderWorld) this.onRenderWorld(ctx, t);
+
+    // Name tags
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    for (const car of this.cars) {
+      if (car === this.player) continue;
+      const d = Math.hypot(car.x - this.player.x, car.y - this.player.y);
+      if (d > 600) continue;
+      ctx.fillStyle = car.isBoss ? '#ffd23f' : 'rgba(255,255,255,0.8)';
+      ctx.fillText(`${car.place}. ${shortName(car)}`, car.x, car.y - 22);
+    }
+    ctx.restore();
+
+    if (bio.night) this.renderNight(ctx, cam, W, H);
+  }
+
+  renderNight(ctx, cam, W, H) {
+    if (!this.lightCanvas || this.lightCanvas.width !== W || this.lightCanvas.height !== H) {
+      this.lightCanvas = document.createElement('canvas');
+      this.lightCanvas.width = W;
+      this.lightCanvas.height = H;
+    }
+    const lc = this.lightCanvas.getContext('2d');
+    lc.globalCompositeOperation = 'source-over';
+    lc.clearRect(0, 0, W, H);
+    lc.fillStyle = 'rgba(5,4,20,0.62)';
+    lc.fillRect(0, 0, W, H);
+    lc.globalCompositeOperation = 'destination-out';
+    for (const car of this.cars) {
+      const sx = W / 2 + (car.x - cam.x) * cam.zoom, sy = H / 2 + (car.y - cam.y) * cam.zoom;
+      if (sx < -400 || sy < -400 || sx > W + 400 || sy > H + 400) continue;
+      const len = 260 * cam.zoom;
+      const hx = sx + Math.cos(car.heading) * len * 0.55, hy = sy + Math.sin(car.heading) * len * 0.55;
+      const g = lc.createRadialGradient(hx, hy, 0, hx, hy, len * 0.6);
+      g.addColorStop(0, 'rgba(0,0,0,0.9)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.fillStyle = g;
+      lc.beginPath();
+      lc.arc(hx, hy, len * 0.6, 0, TAU);
+      lc.fill();
+      const g2 = lc.createRadialGradient(sx, sy, 0, sx, sy, 50 * cam.zoom);
+      g2.addColorStop(0, 'rgba(0,0,0,0.8)');
+      g2.addColorStop(1, 'rgba(0,0,0,0)');
+      lc.fillStyle = g2;
+      lc.beginPath();
+      lc.arc(sx, sy, 50 * cam.zoom, 0, TAU);
+      lc.fill();
+    }
+    ctx.drawImage(this.lightCanvas, 0, 0);
+  }
+}
