@@ -327,6 +327,37 @@ Object.assign(People, {
     g.add(m);
     return m;
   },
+  // A limb as one continuous faceted tube through points (no joints showing): radii per point, and the material
+  // for each stretch between them (mats[segMat[i]]), so a sleeve can end at the elbow without a seam.
+  tube(g, pts, radii, mats, segMat, seg) {
+    const n = seg || 7, V = pts.map((q) => new THREE.Vector3(...q)), pos = [];
+    let N = null;
+    V.forEach((Pt, i) => {
+      const T = (i === 0 ? V[1].clone().sub(V[0]) : i === V.length - 1 ? Pt.clone().sub(V[i - 1]) : V[i + 1].clone().sub(V[i - 1])).normalize();
+      if (!N) { const ref = Math.abs(T.z) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1); N = new THREE.Vector3().crossVectors(T, ref).normalize(); }
+      else N = N.clone().sub(T.clone().multiplyScalar(N.dot(T))).normalize(); // carried along the limb, so the facets don't twist
+      const B = new THREE.Vector3().crossVectors(T, N), r = radii[i];
+      for (let k = 0; k < n; k++) { const a = (k / n) * TAU, c = Math.cos(a), sn = Math.sin(a); pos.push(Pt.x + (N.x * c + B.x * sn) * r, Pt.y + (N.y * c + B.y * sn) * r, Pt.z + (N.z * c + B.z * sn) * r); }
+    });
+    const byMat = mats.map(() => []);
+    for (let i = 0; i < V.length - 1; i++) for (let k = 0; k < n; k++) {
+      const a = i * n + k, b = i * n + ((k + 1) % n), c = a + n, d = b + n;
+      byMat[segMat ? segMat[i] : 0].push(a, b, c, b, d, c);
+    }
+    const ends = (i, start) => {
+      const ci = pos.length / 3; pos.push(V[i].x, V[i].y, V[i].z);
+      const out = byMat[segMat ? segMat[start ? 0 : V.length - 2] : 0];
+      for (let k = 0; k < n; k++) { const a = i * n + k, b = i * n + ((k + 1) % n); if (start) out.push(ci, b, a); else out.push(ci, a, b); }
+    };
+    ends(0, true); ends(V.length - 1, false);
+    const geo = new THREE.BufferGeometry(), idx = [];
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    byMat.forEach((list, m) => { geo.addGroup(idx.length, list.length, m); idx.push(...list); });
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, mats); g.add(mesh);
+    return mesh;
+  },
   // A faceted ball (a joint, a hand, an ear): radii [x, y, z].
   lump(g, r, mat, pos, seg) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(1, seg || 8, Math.max(4, Math.round((seg || 8) * 0.7))), mat);
@@ -369,7 +400,7 @@ Object.assign(People, {
 
   polyHead(head, M, L, gear) {
     const P = People, H = new THREE.Group(), fx = (y) => P.faceX(y);
-    H.position.y = -0.1; H.scale.setScalar(0.92); // a touch smaller, sat a little lower on the neck
+    H.position.y = -0.28; // sat down on the neck: a short neck, not a stalk
     head.add(H);
     P.loft(H, P.HEAD_RINGS, M.skin);
     for (const s of [-1, 1]) P.lump(H, [0.12, 0.24, 0.08], M.skin, [0.02, 0.95, s * 0.66], 6); // ears
@@ -383,11 +414,11 @@ Object.assign(People, {
     if (beard === 'stubble') P.loft(H, P.HEAD_RINGS.slice(0, 3).map((r) => Object.assign({}, r, { rx: r.rx + 0.012, rz: r.rz + 0.012 })), M.stubble);
     for (const s of [-1, 1]) {
       if (!L.shades) {
-        P.slab(H, [0.04, 0.12, 0.15], M.eyeSet, [fx(1.0) + 0.005, 1.0, s * 0.25]); // the socket, a shade darker than the skin
-        P.slab(H, [0.04, 0.09, 0.08], M.eye, [fx(1.0) + 0.02, 0.99, s * 0.25]);
+        P.slab(H, [0.05, 0.16, 0.11], M.eye, [fx(1.0) + 0.01, 1.0, s * 0.24]);
+        P.slab(H, [0.05, 0.045, 0.04], M.white, [fx(1.0) + 0.03, 1.045, s * 0.24 - 0.025]); // the glint: what makes them look alive
       }
       const tilt = L.brow === 'scowl' ? s * 0.32 : s * 0.08;
-      P.slab(H, [0.06, 0.05, 0.25], M.brow, [fx(1.15) + 0.02, 1.15, s * 0.26], [tilt, 0, 0]); // brow
+      P.slab(H, [0.07, 0.07, 0.26], M.brow, [fx(1.16) + 0.02, 1.16, s * 0.25], [tilt * 0.7, 0, 0]); // brow
     }
     if (L.shades) P.slab(H, [0.08, 0.18, 0.95], M.shades, [fx(1.0) + 0.03, 1.0, 0]);
     P.slab(H, [0.05, 0.045, 0.26], M.mouth, [fx(0.56) + 0.01, 0.56, 0]);
@@ -454,7 +485,7 @@ Object.assign(People, {
       { y: 1.44, rx: 0.9 + hb, rz: 1.14 * w, x: hb * 0.6 }, { y: 2.3, rx: 0.98 + hb, rz: 1.3 * w, x: 0.02 + hb * 0.6 }, { y: 3.3, rx: 1.06, rz: 1.56 * w, x: 0.06 },
       { y: 4.2, rx: 0.95, rz: 1.72 * w, x: 0.02 }, { y: 4.7, rx: 0.75, rz: 1.28 * w }, { y: 5.05, rx: 0.56, rz: 0.6 },
     ], top);
-    for (const s of [-1, 1]) P.lump(torso, [0.56, 0.5, 0.52], bare, [0, 4.25, s * 1.6 * w]); // shoulder caps
+    for (const s of [-1, 1]) P.lump(torso, [0.46, 0.4, 0.44], bare, [0, 4.3, s * 1.5 * w], 7); // rounding the shoulders off
     if (o.head) P.prism(torso, [0.12, 4.85, 0], [0.14, 5.55, 0], 0.54, 0.5, M.skin);
     P.loft(torso, [{ y: 1.27, rx: 0.97 + hb, rz: 1.22 * w, x: hb * 0.6 }, { y: 1.6, rx: 0.97 + hb, rz: 1.22 * w, x: hb * 0.6 }], M.belt); // belt
     P.slab(torso, [0.12, 0.34, 0.46], M.buckle, [0.99 + hb * 1.2, 1.44, 0]);
@@ -470,9 +501,10 @@ Object.assign(People, {
     }
     // Arms.
     const arm = (parent, sh, el, wr) => {
-      P.prism(parent, sh, el, 0.42 * w, 0.34, bare);
-      P.lump(parent, [0.36, 0.36, 0.36], L.rolled && !vest ? M.suit : fore, el, 6); // elbow (a rolled sleeve)
-      P.prism(parent, el, wr, 0.34, 0.27, fore);
+      const lerp3 = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k), side = Math.sign(sh[2]) || 1;
+      const inside = [sh[0], sh[1] + 0.15, sh[2] - side * 0.4]; // the arm grows out of the shoulder, not stuck on it
+      P.tube(parent, [inside, sh, lerp3(sh, el, 0.45), el, lerp3(el, wr, 0.4), wr], [0.42 * w, 0.44 * w, 0.42 * w, 0.33, 0.32, 0.26], [bare, fore], [0, 0, 0, 1, 1]);
+      if (L.rolled && !vest) P.prism(parent, lerp3(el, sh, 0.16), lerp3(el, wr, 0.06), 0.38, 0.36, M.suit); // the rolled sleeve
       if (vest || L.rolled) P.prism(parent, wr.map((v, i) => v + (el[i] - v) * 0.45), wr.map((v, i) => v + (el[i] - v) * 0.05), 0.33, 0.3, M.leather); // a leather bracer
       if (!vest && !L.rolled) P.prism(parent, wr.map((v, i) => v + (el[i] - v) * 0.14), wr.map((v, i) => v + (el[i] - v) * 0.02), 0.37, 0.35, M.trim); // cuff
       P.polyHand(parent, M, wr, [wr[0] - el[0], wr[1] - el[1], wr[2] - el[2]]);
@@ -480,7 +512,7 @@ Object.assign(People, {
     const swing = [];
     if (o.arms === 'swing') for (const s of [-1, 1]) {
       const piv = new THREE.Group(); piv.position.set(0.05, 4.25, s * 1.72 * w);
-      arm(piv, [0, 0, 0], [0.15, -2.0, s * 0.28], [0.4, -3.75, s * 0.32]);
+      arm(piv, [0, 0, 0], [0.2, -1.95, s * 0.42], [0.6, -3.65, s * 0.58]);
       torso.add(piv); swing.push(piv);
     }
     if (o.arms === 'static') {
@@ -502,9 +534,8 @@ Object.assign(People, {
         [hip, knee, ank] = [rel(hip), rel(knee), rel(ank)];
         parent = piv;
       }
-      P.prism(parent, hip, knee, 0.76 * w, 0.54, M.suit);
-      P.lump(parent, [0.5, 0.5, 0.52], M.suit, [knee[0] + 0.1, knee[1], knee[2]], 6);
-      P.prism(parent, knee, ank, 0.52, 0.4, M.suit);
+      const lerp3 = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+      P.tube(parent, [[hip[0], hip[1] + 0.4, hip[2] * 0.7], hip, lerp3(hip, knee, 0.5), knee, lerp3(knee, ank, 0.45), ank], [0.8 * w, 0.8 * w, 0.7 * w, 0.54, 0.5, 0.4], [M.suit]); // one piece, hip to ankle
       P.prism(parent, [ank[0], ank[1] - 0.5, ank[2]], ank.map((v, i) => v + (knee[i] - v) * 0.3), 0.6, 0.52, M.boot, 7); // the boot, up the shin
       P.prism(parent, ank.map((v, i) => v + (knee[i] - v) * 0.24), ank.map((v, i) => v + (knee[i] - v) * 0.34), 0.58, 0.58, M.leather, 7); // its cuff
       P.lump(parent, [0.72, 0.42, 0.52], M.boot, [ank[0] + 0.95, ank[1] - 0.48, ank[2]], 7); // its toe
