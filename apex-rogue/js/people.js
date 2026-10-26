@@ -380,83 +380,113 @@ Object.assign(People, {
     return h;
   },
 
-  // The head's rings: chin to crown, the front flattened into the face.
-  HEAD_RINGS: [
-    { y: 0.22, rx: 0.3, rz: 0.27, x: 0.42 },
-    { y: 0.45, rx: 0.6, rz: 0.5, x: 0.22, flat: 0.92 },
-    { y: 0.63, rx: 0.72, rz: 0.59, x: 0.12, flat: 0.88 },
-    { y: 0.9, rx: 0.79, rz: 0.65, x: 0.06, flat: 0.86 },
-    { y: 1.18, rx: 0.81, rz: 0.67, x: 0.04, flat: 0.88 },
-    { y: 1.5, rx: 0.76, rz: 0.63, x: 0.01, flat: 0.92 },
-    { y: 1.8, rx: 0.56, rz: 0.5, x: -0.03 },
-    { y: 1.97, rx: 0.22, rz: 0.2, x: -0.05 },
-  ],
-  // How far forward the face is at height y (for putting things on it).
-  faceX(y) {
-    const R = People.HEAD_RINGS, fx = (r) => (r.x || 0) + r.rx * (r.flat || 1) * 0.98;
-    for (let i = 0; i < R.length - 1; i++) if (y >= R[i].y && y <= R[i + 1].y) { const k = (y - R[i].y) / (R[i + 1].y - R[i].y); return fx(R[i]) + (fx(R[i + 1]) - fx(R[i])) * k; }
-    return fx(R[3]);
+  // The head as one faceted surface: a profile of rings, chin to crown, with the face shaped into it (nose, brow
+  // ridge, eye hollows, cheekbones, chin). Twenty sides by sixteen rings: still flat facets, but enough of them that
+  // it reads as a head, not a box. HEAD_P: [y, depth, width, centre x].
+  HEAD_P: [[0.16, 0.12, 0.1, 0.44], [0.27, 0.34, 0.27, 0.37], [0.42, 0.55, 0.47, 0.24], [0.62, 0.7, 0.58, 0.13], [0.9, 0.78, 0.65, 0.06],
+    [1.18, 0.8, 0.67, 0.04], [1.5, 0.76, 0.63, 0.01], [1.74, 0.6, 0.53, -0.02], [1.9, 0.38, 0.34, -0.04], [1.99, 0.08, 0.07, -0.05]],
+  headProfile(y) {
+    const P = People.HEAD_P;
+    if (y <= P[0][0]) return P[0];
+    for (let i = 0; i < P.length - 1; i++) if (y <= P[i + 1][0]) {
+      const a = P[i], b = P[i + 1], k = (y - a[0]) / (b[0] - a[0]), e = k * k * (3 - 2 * k); // eased, so the outline curves
+      return [y, a[1] + (b[1] - a[1]) * e, a[2] + (b[2] - a[2]) * e, a[3] + (b[3] - a[3]) * e];
+    }
+    return P[P.length - 1];
   },
+  // A point on the head at angle th (0 = straight ahead) and height y, pushed out by off.
+  headPt(th, y, off) {
+    const [, rx, rz, cx] = People.headProfile(y), c = Math.cos(th), s = Math.sin(th);
+    let x = c >= 0 ? rx * Math.pow(c, 0.72) : rx * 0.96 * c; // a flatter face at the front, a round skull behind
+    let z = rz * s;
+    if (c > 0) { // the face, shaped in
+      const g = (v, m, w) => Math.exp(-((v - m) ** 2) / (2 * w * w));
+      const zz = z / Math.max(0.3, rz);
+      x += 0.17 * g(y, 0.82, 0.09) * g(zz, 0, 0.13) * c; // the nose
+      x += 0.06 * g(y, 1.0, 0.13) * g(zz, 0, 0.09) * c; // its bridge
+      x += 0.05 * g(y, 1.17, 0.05) * g(Math.abs(zz), 0.38, 0.28) * c; // the brow ridge
+      x -= 0.045 * g(y, 1.0, 0.07) * g(Math.abs(zz), 0.38, 0.14) * c; // eye hollows
+      x += 0.04 * g(y, 0.3, 0.08) * g(zz, 0, 0.3) * c; // the chin
+      x -= 0.015 * g(y, 0.55, 0.03) * g(zz, 0, 0.25) * c; // the line of the mouth
+      const cheek = 0.05 * g(y, 0.86, 0.1) * g(Math.abs(zz), 0.62, 0.15); // cheekbones, out to the sides
+      z += Math.sign(z) * cheek;
+    }
+    if (off) { const L = Math.hypot(x, z) || 1; x += (x / L) * off; z += (z / L) * off; }
+    return [x + cx, y, z];
+  },
+  // A surface over the head: th from th0 to th1 (a full turn closes it), heights from yA(th) to yB(th), n x m facets.
+  headSurf(H, mat, o) {
+    const n = o.n || 20, m = o.m || 16, full = o.th1 - o.th0 >= TAU - 1e-6, cols = full ? n : n + 1, pos = [], idx = [];
+    for (let j = 0; j <= m; j++) for (let i = 0; i < cols; i++) {
+      const th = o.th0 + ((o.th1 - o.th0) * (i + (full ? 0.5 : 0))) / n, t = j / m;
+      const u = o.ease ? 0.5 - 0.5 * Math.cos(Math.PI * t) : t, y = o.yA(th) + (o.yB(th) - o.yA(th)) * u;
+      pos.push(...People.headPt(th, y, typeof o.off === 'function' ? o.off(th, t) : o.off || 0));
+    }
+    for (let j = 0; j < m; j++) for (let i = 0; i < (full ? n : n); i++) {
+      const a = j * cols + i, b = j * cols + ((i + 1) % cols), c = a + cols, d = b + cols;
+      idx.push(a, c, b, b, c, d); // (outward, like the lofts)
+    }
+    if (o.capTop) { const ci = pos.length / 3, top = People.headPt(0, o.yB(0), 0); pos.push(top[0] * 0 + People.headProfile(o.yB(0))[3], o.yB(0) + 0.01, 0); for (let i = 0; i < n; i++) idx.push(ci, (m * cols) + ((i + 1) % cols), m * cols + i); }
+    if (o.capBottom) { const ci = pos.length / 3; pos.push(People.headProfile(o.yA(0))[3], o.yA(0) - 0.01, 0); for (let i = 0; i < n; i++) idx.push(ci, i, (i + 1) % cols); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const mesh = new THREE.Mesh(geo, mat);
+    if (!full) mesh.material = mat.side === THREE.DoubleSide ? mat : (o.dbl || mat);
+    H.add(mesh);
+    return mesh;
+  },
+  // How far forward the face is at height y, a little to one side (for laying the eyes and brows on it).
+  faceX(y, z) { const [, rx, rz] = People.headProfile(y); return People.headPt(Math.asin(Math.max(-1, Math.min(1, (z || 0) / rz))), y, 0)[0] + 0 * rx; },
 
   polyHead(head, M, L, gear) {
-    const P = People, H = new THREE.Group(), fx = (y) => P.faceX(y);
-    H.position.y = -0.28; // sat down on the neck: a short neck, not a stalk
+    const P = People, H = new THREE.Group(), K = (v) => () => v;
+    H.position.y = -0.28; // sat down on a short neck
     head.add(H);
-    P.loft(H, P.HEAD_RINGS, M.skin);
-    for (const s of [-1, 1]) P.lump(H, [0.12, 0.24, 0.08], M.skin, [0.02, 0.95, s * 0.66], 6); // ears
-    // The face, in flat shapes on the front.
-    const nose = new THREE.Mesh(new THREE.CylinderGeometry(0, 0.14, 0.34, 4), M.skin); // a little pyramid
-    nose.position.set(fx(0.86) + 0.06, 0.86, 0); nose.rotation.set(0, Math.PI / 4, 0); nose.rotateX(0); nose.rotation.z = -0.35;
-    H.add(nose);
-    const beard = L.beard === true ? 'full' : L.beard;
-    if (beard === 'full') P.loft(H, P.HEAD_RINGS.slice(0, 3).map((r) => Object.assign({}, r, { rx: r.rx + 0.07, rz: r.rz + 0.05, flat: r.flat ? r.flat + 0.02 : 0 })), M.hair);
-    if (beard === 'goatee') P.lump(H, [0.1, 0.16, 0.16], M.hair, [fx(0.32) - 0.02, 0.3, 0], 6);
-    if (beard === 'stubble') P.loft(H, P.HEAD_RINGS.slice(0, 3).map((r) => Object.assign({}, r, { rx: r.rx + 0.012, rz: r.rz + 0.012 })), M.stubble);
+    P.headSurf(H, M.skin, { th0: 0, th1: TAU, yA: K(0.16), yB: K(1.99), capTop: true, capBottom: true, ease: true });
+    for (const s of [-1, 1]) { const e = P.lump(H, [0.1, 0.22, 0.07], M.skin, [0.0, 0.95, s * 0.68], 7); e.rotation.x = s * 0.2; } // ears
+    const beard = L.beard === true ? 'full' : L.beard, face = (y, z) => P.faceX(y, z);
+    // Facial hair laid on the jaw, following it.
+    const jaw = (mat, top, off) => P.headSurf(H, mat, { th0: -1.75, th1: 1.75, n: 14, m: 6, yA: K(0.15), yB: (th) => top + (1 - Math.cos(th)) * 0.32, off, dbl: mat });
+    if (beard === 'full') jaw(M.hairD, 0.5, 0.06);
+    if (beard === 'stubble') jaw(M.stubble, 0.5, 0.012);
+    if (beard === 'goatee') P.headSurf(H, M.hairD, { th0: -0.42, th1: 0.42, n: 4, m: 3, yA: K(0.16), yB: K(0.48), off: 0.05 });
+    if (beard === 'moustache' || beard === 'full') P.headSurf(H, M.hairD, { th0: -0.62, th1: 0.62, n: 6, m: 2, yA: (th) => 0.6 - Math.abs(th) * 0.12, yB: K(0.69), off: 0.05 });
+    // Eyes, brows and the mouth, set on the surface.
     for (const s of [-1, 1]) {
       if (!L.shades) {
-        P.slab(H, [0.05, 0.16, 0.11], M.eye, [fx(1.0) + 0.01, 1.0, s * 0.24]);
-        P.slab(H, [0.05, 0.045, 0.04], M.white, [fx(1.0) + 0.03, 1.045, s * 0.24 - 0.025]); // the glint: what makes them look alive
+        P.slab(H, [0.03, 0.14, 0.1], M.eye, [face(1.0, s * 0.24) + 0.005, 1.0, s * 0.24]);
+        P.slab(H, [0.03, 0.04, 0.035], M.white, [face(1.03, s * 0.22) + 0.02, 1.035, s * 0.22]); // the glint
       }
-      const tilt = L.brow === 'scowl' ? s * 0.32 : s * 0.08;
-      P.slab(H, [0.07, 0.07, 0.26], M.brow, [fx(1.16) + 0.02, 1.16, s * 0.25], [tilt * 0.7, 0, 0]); // brow
+      const tilt = L.brow === 'scowl' ? s * 0.25 : s * 0.06;
+      P.slab(H, [0.05, 0.06, 0.24], M.brow, [face(1.15, s * 0.25) + 0.02, 1.15, s * 0.25], [tilt, s * -0.25, 0]);
     }
-    if (L.shades) P.slab(H, [0.08, 0.18, 0.95], M.shades, [fx(1.0) + 0.03, 1.0, 0]);
-    P.slab(H, [0.05, 0.045, 0.26], M.mouth, [fx(0.56) + 0.01, 0.56, 0]);
-    if (beard === 'moustache' || beard === 'full') {
-      P.slab(H, [0.1, 0.09, 0.4], M.hair, [fx(0.68) + 0.04, 0.68, 0]);
-      for (const s of [-1, 1]) P.slab(H, [0.09, 0.2, 0.09], M.hair, [fx(0.6) + 0.03, 0.6, s * 0.22], [s * 0.25, 0, 0]); // its ends, drooping
-    }
-    if (L.tattoo === 'tear') P.slab(H, [0.03, 0.08, 0.04], M.ink, [fx(0.86) + 0.01, 0.86, 0.3]);
-    // Hair and hats: shells over the top, the hairline lifted at the front.
-    const shell = (mat, y0, grow, front) => P.loft(H, [
-      { y: y0, rx: 0.83 + grow, rz: 0.69 + grow, x: 0.03, dy: (c) => Math.max(0, c) * front },
-      { y: 1.5, rx: 0.79 + grow, rz: 0.66 + grow, x: 0.01, flat: 0.95 },
-      { y: 1.82, rx: 0.59 + grow, rz: 0.53 + grow, x: -0.03 },
-      { y: 1.99 + grow, rx: 0.25, rz: 0.23, x: -0.05 },
-    ], mat);
+    if (L.shades) P.headSurf(H, M.shadesD, { th0: -1.05, th1: 1.05, n: 12, m: 2, yA: K(0.92), yB: K(1.09), off: 0.04 }); // wrapping round the face
+    if (beard !== 'full') P.slab(H, [0.03, 0.035, 0.22], M.mouth, [face(0.55, 0) + 0.005, 0.55, 0]);
+    if (L.tattoo === 'tear') P.slab(H, [0.02, 0.07, 0.035], M.ink, [face(0.88, 0.3) + 0.01, 0.88, 0.3]);
+    // Hair and hats: shells over the skull, following it, the hairline lifted over the brow.
+    const shell = (mat, off, hair) => P.headSurf(H, mat, { th0: 0, th1: TAU, n: 20, m: 8, yA: hair, yB: K(1.99), off, capTop: true });
+    const hairline = (front, side, back) => (th) => { const c = Math.cos(th); return c >= 0 ? side + (front - side) * c : side + (side - back) * c; };
     if (gear === 'helmet') {
-      P.lump(H, [0.98, 0.9, 0.84], M.helmet, [-0.02, 1.32, 0], 10);
-      P.slab(H, [0.12, 0.34, 1.25], M.shades, [0.84, 1.05, 0]); // visor
+      P.lump(H, [0.98, 0.92, 0.85], M.helmet, [-0.02, 1.3, 0], 14);
+      P.slab(H, [0.1, 0.32, 1.2], M.shades, [0.86, 1.06, 0]); // visor
     } else if (gear === 'beanie') {
-      shell(M.hat, 1.22, 0.05, 0.1);
-      P.lump(H, [0.52, 0.24, 0.46], M.hat, [-0.06, 1.98, 0], 8); // the crown of it
-      P.loft(H, [{ y: 1.16, rx: 0.9, rz: 0.76, x: 0.03 }, { y: 1.4, rx: 0.9, rz: 0.76, x: 0.03 }], M.hatBand); // the rolled brim
+      shell(M.hat, (th, t) => 0.07 + 0.06 * Math.sin(Math.PI * t), hairline(1.3, 1.22, 1.0));
+      P.headSurf(H, M.hatBand, { th0: 0, th1: TAU, n: 20, m: 2, yA: hairline(1.24, 1.16, 0.94), yB: hairline(1.46, 1.38, 1.16), off: 0.12 }); // the rolled brim
     } else if (gear === 'bandana') {
-      shell(M.hat, 1.3, 0.04, 0.15);
-      P.lump(H, [0.16, 0.18, 0.2], M.hat, [-0.82, 1.3, 0], 6); // the knot
-      P.prism(H, [-0.86, 1.24, 0], [-1.12, 0.72, 0.14], 0.1, 0.04, M.hat, 5);
+      shell(M.hat, 0.05, hairline(1.38, 1.28, 1.05));
+      P.lump(H, [0.14, 0.16, 0.2], M.hat, [-0.84, 1.3, 0], 7); // the knot
+      P.prism(H, [-0.88, 1.24, 0], [-1.12, 0.74, 0.14], 0.1, 0.04, M.hat, 6);
     } else if (gear === 'cap') {
-      shell(M.hat, 1.28, 0.04, 0.12);
-      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.06, 10, 1, false, -Math.PI / 2, Math.PI), M.hat);
-      brim.position.set(0.55, 1.36, 0); brim.rotation.z = -0.12; brim.scale.set(1, 1, 1.15);
+      shell(M.hat, 0.05, hairline(1.36, 1.3, 1.1));
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.05, 14, 1, false, -Math.PI / 2, Math.PI), M.hat);
+      brim.position.set(0.62, 1.38, 0); brim.rotation.z = -0.14; brim.scale.set(1, 1, 1.15);
       H.add(brim);
     } else if (gear === 'hair') {
-      shell(M.hair, 1.12, 0.05, 0.32);
-      // Chunky faceted locks over it, swept back, and one falling over the brow.
-      for (const [x, y, z, sx, sy, sz, r] of [[0.35, 1.9, 0.18, 0.4, 0.2, 0.3, 0.4], [0.3, 1.92, -0.22, 0.38, 0.2, 0.28, -0.3], [-0.1, 2.0, 0.05, 0.5, 0.2, 0.4, 0.1], [-0.55, 1.75, 0.3, 0.35, 0.3, 0.25, 0.6], [-0.6, 1.72, -0.3, 0.35, 0.3, 0.25, -0.6], [0.62, 1.62, 0.32, 0.2, 0.26, 0.2, 0.9]]) {
-        const lock = P.lump(H, [sx, sy, sz], M.hair, [x, y, z], 5); lock.rotation.set(r * 0.4, r, r * 0.3);
-      }
-    } else if (gear === 'buzz') shell(M.hair, 1.1, 0.02, 0.36);
+      shell(M.hair, (th, t) => 0.06 + 0.1 * Math.sin(Math.PI * Math.min(1, t * 1.4)), hairline(1.5, 1.08, 0.78));
+      for (const [x, y, z, sx, sy, sz, r] of [[0.32, 1.9, 0.18, 0.36, 0.17, 0.27, 0.4], [0.28, 1.92, -0.2, 0.34, 0.17, 0.25, -0.3], [-0.12, 2.0, 0.05, 0.44, 0.17, 0.36, 0.1]]) { const lock = P.lump(H, [sx, sy, sz], M.hair, [x, y, z], 7); lock.rotation.set(r * 0.4, r, r * 0.3); } // locks, swept back
+    } else if (gear === 'buzz') shell(M.hair, 0.025, hairline(1.48, 1.1, 0.8));
   },
 
   // The whole person, low-poly. Same options and userData as People.figure.
@@ -469,7 +499,7 @@ Object.assign(People, {
       belt: P.polyMat('#3a2416'), pouch: P.polyMat('#5a4028'), leather: P.polyMat('#4a3020'), buckle: P.polyMat('#d9b24a', { metalness: 0.4, roughness: 0.4 }),
       vest: P.polyMat('#eeeae0'), shades: P.polyMat('#0e0e10'), helmet: P.polyMat('#22232a'),
       glove: P.polyMat(o.role === 'trader' ? L.skin : '#3a2a20'), boot: P.polyMat('#22180f'), dark: P.polyMat('#1c1c1c'),
-      eye: P.polyMat('#2a1c14'), eyeSet: P.polyMat(mix(L.skin, '#2a1810', 0.35)), brow: P.polyMat(mix(L.hair, L.skin, 0.2)), white: P.polyMat('#f4efe2'), mouth: P.polyMat(mix(L.skin, '#4a1a14', 0.4)),
+      eye: P.polyMat('#2a1c14'), eyeSet: P.polyMat(mix(L.skin, '#2a1810', 0.35)), brow: P.polyMat(mix(L.hair, L.skin, 0.2)), hairD: P.polyMat(L.hair, { side: THREE.DoubleSide }), shadesD: P.polyMat('#0e0e10', { side: THREE.DoubleSide, roughness: 0.3, metalness: 0.4 }), white: P.polyMat('#f4efe2'), mouth: P.polyMat(mix(L.skin, '#4a1a14', 0.4)),
       stubble: P.polyMat(mix(L.skin, L.hair, 0.35)), ink: P.polyMat('#2a3a5a'),
     };
     M.seam = M.trim; M.lip = M.mouth;
