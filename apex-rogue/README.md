@@ -346,7 +346,8 @@ volume and looks for overlaps.
 People are drawn low-poly by default (`People.polyFigure` in js/people.js; Settings → Characters: Low-poly or Detailed). Everyone gets the same treatment: your driver, rival crews, the Turnkey's lifers, garage walkers, the trader, the cold open and the ragdolls.
 - **Build:** organic shapes cut into flat facets, not boxes. The torso and head are lofted through stacks of ten-sided rings, so a torso keeps its hips, waist, chest and shoulders, and a head its chin, jaw, cheeks and brow. The front of the head is flattened into a face. Limbs are eight-sided with faceted elbows and knees; the hands are mittens with thumbs.
 - **Face:** eyes with a glint, brows that can scowl, a pyramid nose, a mouth, moustaches and beards, all as flat shapes on the face. Hair and hats are faceted shells with the hairline lifted at the front.
-- **Colour:** bright flat colours, raised pale trim on the collar, zip, pocket, cuffs and hems, and a dark belt with a gold buckle. No grime.
+- **Kit and proportions** (after The Bloodline): slim builds with smaller heads, tall boots with leather cuffs, leather bracers on bare or rolled-up forearms, and pouches on the belt. Hair is chunky faceted locks, and the faces are quieter: eyes set in darker sockets, brows a shade off the hair.
+- **Colour:** bright flat colours, raised pale trim on the collar, zip, pocket and cuffs, and a dark belt with a gold buckle. No grime.
 
 It keeps the sculpted figure's joints, pivots and userData, so the cabin, the vest, the crew animation and the ragdolls work unchanged. The ragdolls and your driver's live arms switch to faceted pieces too. Cars, guns and the world keep their current look for now.
 
