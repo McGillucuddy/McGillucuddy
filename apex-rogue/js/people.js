@@ -456,10 +456,11 @@ Object.assign(People, {
     // Eyes, brows and the mouth, set on the surface.
     for (const s of [-1, 1]) {
       if (!L.shades) {
-        P.slab(H, [0.03, 0.14, 0.1], M.eye, [face(1.0, s * 0.24) + 0.005, 1.0, s * 0.24]);
-        P.slab(H, [0.03, 0.04, 0.035], M.white, [face(1.03, s * 0.22) + 0.02, 1.035, s * 0.22]); // the glint
+        P.slab(H, [0.02, 0.1, 0.17], M.sclera, [face(1.0, s * 0.24) + 0.003, 1.0, s * 0.24]); // the white of the eye: what lets the face read on any skin
+        P.slab(H, [0.03, 0.12, 0.085], M.eye, [face(1.0, s * 0.24) + 0.012, 1.0, s * 0.24]);
+        P.slab(H, [0.03, 0.035, 0.03], M.white, [face(1.03, s * 0.22) + 0.025, 1.03, s * 0.22]); // the glint
       }
-      const tilt = L.brow === 'scowl' ? s * 0.25 : s * 0.06;
+      const tilt = L.brow === 'scowl' ? s * 0.14 : s * 0.05; // a frown, not a glare
       P.slab(H, [0.05, 0.06, 0.24], M.brow, [face(1.15, s * 0.25) + 0.02, 1.15, s * 0.25], [tilt, s * -0.25, 0]);
     }
     if (L.shades) P.headSurf(H, M.shadesD, { th0: -1.05, th1: 1.05, n: 12, m: 2, yA: K(0.92), yB: K(1.09), off: 0.04 }); // wrapping round the face
@@ -493,14 +494,15 @@ Object.assign(People, {
   polyFigure(o, L) {
     const P = People, w = P.BUILD[L.build] || 1, heavy = L.build === 'heavy', mix = (a, b, k) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), k).getHexString();
     const suitC = o.suit || L.suit, SMOOTH = { flatShading: false };
+    const skinC = mix(L.skin, '#c89a78', Math.max(0, 0.5 - new THREE.Color(L.skin).getHSL({}).l) * 0.5); // the darkest skins lifted a shade, so the face's shape shows
     const M = {
       // Skin, hair and hats are smooth-shaded (the head's facets blend into one surface); clothes stay faceted.
-      skin: P.polyMat(L.skin, SMOOTH), suit: P.polyMat(suitC), hair: P.polyMat(L.hair, SMOOTH), hat: P.polyMat(L.hat, SMOOTH), hatBand: P.polyMat(mix(L.hat, '#000000', 0.25), SMOOTH),
+      skin: P.polyMat(skinC, Object.assign({ roughness: 0.62 }, SMOOTH)), suit: P.polyMat(suitC), hair: P.polyMat(L.hair, SMOOTH), hat: P.polyMat(L.hat, SMOOTH), hatBand: P.polyMat(mix(L.hat, '#000000', 0.25), SMOOTH),
       trim: P.polyMat(mix(suitC, '#f2e6c8', 0.45)), // collar, cuffs and hems: a pale band against the suit
       belt: P.polyMat('#3a2416'), pouch: P.polyMat('#5a4028'), leather: P.polyMat('#4a3020'), buckle: P.polyMat('#d9b24a', { metalness: 0.4, roughness: 0.4 }),
       vest: P.polyMat('#eeeae0'), shades: P.polyMat('#0e0e10'), helmet: P.polyMat('#22232a', Object.assign({ roughness: 0.4 }, SMOOTH)),
       glove: P.polyMat(o.role === 'trader' ? L.skin : '#3a2a20'), boot: P.polyMat('#22180f'), dark: P.polyMat('#1c1c1c'),
-      eye: P.polyMat('#2a1c14'), eyeSet: P.polyMat(mix(L.skin, '#2a1810', 0.35)), brow: P.polyMat(mix(L.hair, L.skin, 0.2)), hairD: P.polyMat(L.hair, Object.assign({ side: THREE.DoubleSide }, SMOOTH)), shadesD: P.polyMat('#0e0e10', Object.assign({ side: THREE.DoubleSide, roughness: 0.3, metalness: 0.4 }, SMOOTH)), white: P.polyMat('#f4efe2'), mouth: P.polyMat(mix(L.skin, '#4a1a14', 0.4)),
+      eye: P.polyMat('#2a1c14'), eyeSet: P.polyMat(mix(L.skin, '#2a1810', 0.35)), brow: P.polyMat(mix(L.hair, L.skin, 0.2)), hairD: P.polyMat(L.hair, Object.assign({ side: THREE.DoubleSide }, SMOOTH)), shadesD: P.polyMat('#0e0e10', Object.assign({ side: THREE.DoubleSide, roughness: 0.3, metalness: 0.4 }, SMOOTH)), white: P.polyMat('#f4efe2'), sclera: P.polyMat('#e6ddd0', SMOOTH), mouth: P.polyMat(mix(L.skin, '#4a1a14', 0.4)),
       stubble: P.polyMat(mix(L.skin, L.hair, 0.35), SMOOTH), ink: P.polyMat('#2a3a5a'),
     };
     M.seam = M.trim; M.lip = M.mouth;
