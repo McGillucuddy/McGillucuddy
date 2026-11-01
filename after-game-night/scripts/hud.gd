@@ -51,6 +51,25 @@ func _ready() -> void:
 	root.theme = th
 	add_child(root)
 
+	# Soft dark edges, like lamplight falling off.
+	var vig := TextureRect.new()
+	var gt := GradientTexture2D.new()
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	grad.colors = PackedColorArray([Color(0.05, 0.02, 0.02, 0.0), Color(0.05, 0.02, 0.02, 0.08), Color(0.05, 0.02, 0.02, 0.6)])
+	gt.gradient = grad
+	gt.fill = GradientTexture2D.FILL_RADIAL
+	gt.fill_from = Vector2(0.5, 0.5)
+	gt.fill_to = Vector2(1.08, 1.08)
+	gt.width = 256
+	gt.height = 256
+	vig.texture = gt
+	vig.stretch_mode = TextureRect.STRETCH_SCALE
+	vig.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(vig)
+
 	_crosshair = Crosshair.new()
 	_crosshair.set_anchors_preset(Control.PRESET_CENTER)
 	_crosshair.custom_minimum_size = Vector2(30, 30)

@@ -132,8 +132,14 @@ func _update_hover() -> void:
 			text = "Shelf spot for %s" % (c as ShelfSlot).game_name
 	else:
 		if held.kind != "box" and c is GameBox and not (c as GameBox).complete:
-			text = "Put in the %s box" % (c as GameBox).game_name
-			(c as GameBox).set_highlight(true)
+			var gb := c as GameBox
+			if held.game_id == gb.game_id and held.kind == "board" and not gb.insert_full():
+				text = "The board goes on top, after the pieces and cards"
+			elif held.game_id == gb.game_id and held.kind == "rules" and not gb.board_in:
+				text = "The rulebook goes in last, on top of the board"
+			else:
+				text = "Put in the %s box" % gb.game_name
+			gb.set_highlight(true)
 		elif held.kind == "box" and c is ShelfSlot and not (c as ShelfSlot).filled:
 			text = "Shelve it in the %s spot" % (c as ShelfSlot).game_name
 		else:
@@ -155,12 +161,13 @@ func primary() -> void:
 		var it := held
 		var box := c as GameBox
 		held = null
-		if box.try_accept(it):
+		var why := box.try_accept(it)
+		if why == "":
 			acted.emit("placed", it)
 		else:
 			it.on_release(-cam.global_basis.z * 0.6 + Vector3.UP * 0.8)
 			box.shake()
-			acted.emit("wrong_box", box)
+			acted.emit("wrong_box" if why == "wrong_game" else why, box)
 		return
 	if held.kind == "box" and c is ShelfSlot:
 		var slot := c as ShelfSlot
@@ -192,7 +199,7 @@ func _update_held(dt: float) -> void:
 	var offset := Vector3(0.0, -0.17, -0.6)
 	if held.kind == "box":
 		offset = Vector3(0.0, -0.36, -0.72)
-	elif held.kind == "board":
+	elif held.kind == "board" or held.kind == "rules":
 		offset = Vector3(0.0, -0.28, -0.62)
 	var target := cam.global_transform * offset
 	var t := held.global_transform

@@ -9,7 +9,8 @@ const LAYER_ITEMS := 2
 const LAYER_SLOTS := 4
 
 var game_id := ""
-var kind := "piece"  # "piece", "board" or "box"
+var kind := "piece"  # "piece", "cards", "board", "rules" or "box"
+var card_count := 0
 var piece_type := ""
 var label := ""
 var held := false
