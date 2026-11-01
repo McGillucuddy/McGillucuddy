@@ -4,22 +4,28 @@ A cozy first-person tidying game made in Godot 4. Game night is over. Six board 
 
 ## The collection
 
-There are six game lines. Each has a base game and one or two expansions, and every one comes in its own box. That makes 15 boxes, about 1,330 pieces and 1,370 cards. The volume is modeled on real big-box games: *Slay the Spire: The Board Game* ships with 650+ cards and 113 tokens, and a Warhammer 40,000 starter set has about 40 miniatures.
+There are six game lines. Each has a base game and one or two expansions, and every one comes in its own box. That makes 15 boxes holding about 4,000 pieces and 4,100 cards: roughly 8,000 things to sort. Real big-box games set the starting point (*Slay the Spire: The Board Game* ships with 650+ cards and 113 tokens; a Warhammer 40,000 starter set has about 40 miniatures), and then everything is tripled. Some of every game has also spilled onto the floor beside its table.
 
 | Game line | Boxes | What's in them |
 | --- | --- | --- |
-| Mossy Crowns (miniatures war game) | base, Thornwood Host, Knights of the Fen | about 100 knight and goblin miniatures, castle towers, crowns, 20 dice, coins, order cards |
-| Plum Parlor (deck-building card game) | base, Midnight Tea | about 610 cards in 9 sets, hero miniatures, coins, gems, cubes, teacups, cake slices |
-| Starfall Atlas (space exploration) | base, Comet Season, Deep Sky | star tokens, ringed planets, explorer pawns, gems, hex tiles, 260 cards |
-| Lantern Harbor (trading game) | base, Stormwatch, Deep Tides | boats, glowing lanterns, lighthouse towers, coins, cargo cubes, pearls |
-| Honeycomb Hustle (tile laying) | base, Wildflower Fields | 90 hex tiles, bees, honey drops, cubes, flower gems |
-| Orchard Hollow (farming) | base, Cider Press | 78 apples, baskets, farmers, cider drops, teacups |
+| Mossy Crowns (miniatures war game) | base, Thornwood Host, Knights of the Fen | about 300 knight and goblin miniatures, castle towers, crowns, 60 dice, coins, order cards (1,024 things) |
+| Plum Parlor (deck-building card game) | base, Midnight Tea | about 1,830 cards in 9 sets, hero miniatures, coins, gems, cubes, teacups, cake slices (2,598 things) |
+| Starfall Atlas (space exploration) | base, Comet Season, Deep Sky | star tokens, ringed planets, explorer pawns, gems, hex tiles, 780 cards (1,339 things) |
+| Lantern Harbor (trading game) | base, Stormwatch, Deep Tides | boats, glowing lanterns, lighthouse towers, coins, cargo cubes, pearls (1,225 things) |
+| Honeycomb Hustle (tile laying) | base, Wildflower Fields | 270 hex tiles, bees, honey drops, cubes, flower gems (933 things) |
+| Orchard Hollow (farming) | base, Cider Press | 234 apples, baskets, farmers, cider drops, teacups (945 things) |
 
 Each line was played with its expansions mixed in, so the pieces from every box in a line are jumbled together on one table. You can tell them apart by color: base game pieces are the line's own color, the first expansion's are darker with gold accents, and the second expansion's are lighter with cream accents. Card sets have their own colored stripe on the back.
 
 ## Packing a box
 
-Click a piece to scoop up a handful of matching pieces nearby. Click more of the same kind to add to your handful (up to 40), then click the right box. They click into their spots one after another.
+- **Scoop:** click a piece to scoop up a handful of the same kind nearby. The pieces you'd get are outlined before you click.
+- **Sweep:** hold the button and drag across a pile to gather everything under the crosshair, up to 80 pieces.
+- **Sift:** handfuls can be mixed. Pour one into a box and it takes only its own pieces; the rest stay in your hand for the next box. The prompt tells you how many of your handful belong in the box you're aiming at.
+- **Pour:** pieces hop over the rim and drop into their spots one after another, each with a woody click, rising notes and little glints.
+- **Card piles:** pick up one pile, then click more piles to carry up to eight at once. They sift into boxes the same way.
+
+Rewards along the way: a full compartment chimes and sparkles, a packed box closes with a thunk and a puff of light, a streak counter climbs while you sort without mix-ups, and the room tidiness meter at the top celebrates every 10%.
 
 Every box has a fitted insert with a compartment for each piece type. Flat things like coins and tiles stack in their compartments. Faint outlines show where everything goes. Packing order works like the real thing:
 
@@ -37,7 +43,8 @@ All the boxes in a line share a footprint, so they stack together in that line's
 | Mouse | Look |
 | Shift | Hurry |
 | C / Ctrl | Crouch (for pieces on the floor) |
-| Left click / E | Scoop up pieces or pick something up, put in a box, shelve a box, set down |
+| Left click / E | Scoop up pieces or pick something up, pour into a box, shelve a box, set down |
+| Hold left click | Sweep up a pile |
 | Right click / Q | Toss what you're holding (pieces scatter) |
 | H | Hint: an arrow points at something that can go in next |
 | Esc / P | Pause |
@@ -61,7 +68,7 @@ Each new game shuffles where pieces sit, how they're piled, and the order of the
 
 ### Tweaking
 
-`STRAY_CHANCE` and `PIECE_SCALE` at the top of `scripts/main.gd` control how messy the room is and how big the pieces are. Edit `LINES` in `scripts/game_data.gd` to change what's in each box; the inserts and boxes resize themselves. `HANDFUL` sets how many of each piece one click scoops up.
+`VOLUME` at the top of `scripts/main.gd` multiplies every piece and card count (3.0 by default). `SPILL`, `STRAY_CHANCE` and `PIECE_SCALE` control how much ends up on the floor, how much wanders to other tables, and how big pieces are. Edit `LINES` in `scripts/game_data.gd` to change what's in each box; the inserts and boxes resize themselves. `HANDFUL` sets how many of each piece one click scoops up.
 
 The lighting is designed for Godot's default Forward+ renderer, which adds the warm haze and soft bounce light.
 
@@ -71,4 +78,4 @@ The lighting is designed for Godot's default Forward+ renderer, which adds the w
 godot --headless --path . -- --autotest
 ```
 
-This checks that handfuls only scoop matching pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, then packs and shelves all 15 boxes and confirms the game ends.
+This checks that handfuls only scoop matching pieces, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, then packs and shelves all 15 boxes and confirms the game ends.

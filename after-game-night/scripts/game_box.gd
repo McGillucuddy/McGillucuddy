@@ -5,13 +5,14 @@ extends Item
 ## the board folds in on top and the rulebook goes in last.
 
 signal progress_changed(box: GameBox, n: int, group_done: bool)
-signal piece_landed(box: GameBox, k: int)
+signal piece_landed(box: GameBox, k: int, at: Vector3)
+signal compartment_filled(box: GameBox, at: Vector3)
 signal packed(box: GameBox)
 signal bounced(box: GameBox, reason: String)
 
 const T := 0.012
 const IW := 0.76
-const MAX_ID := 0.46
+const MAX_ID := 0.48
 const GAP := 0.007
 const TOP_SPACE := 0.05   # room above the insert for the folded board and rulebook
 
@@ -93,13 +94,13 @@ static func plan(entries: Array) -> Dictionary:
 	var f := 0.8
 	for attempt in 8:
 		var wh := 0.04
-		while wh <= 0.2001:
+		while wh <= 0.2601:
 			var l := layout(entries, f, wh)
 			if l.depth <= MAX_ID:
 				return l
 			wh += 0.01
 		f *= 0.9
-	return layout(entries, f, 0.2)
+	return layout(entries, f, 0.26)
 
 
 # ---------------------------------------------------------------- building
@@ -361,11 +362,35 @@ func check_pieces(list: Array) -> String:
 
 
 ## Packs a handful of pieces; each flies from its stand-in to its own spot, one after another.
+## Takes whatever in a mixed handful belongs in this box; returns the indices it took.
+## Everything else stays in the player's hand for the next box.
+func sift(list: Array, proxies: Array) -> Array:
+	var took := []
+	if complete:
+		return took
+	var mine := []
+	var nodes := []
+	var room := _left.duplicate()
+	for k in list.size():
+		var p: Pieces.P = list[k]
+		if p.g.ed == ed_id and room.get(p.g.key, 0) > 0:
+			room[p.g.key] -= 1
+			took.append(k)
+			mine.append(p)
+			nodes.append(proxies[k])
+	if not mine.is_empty():
+		accept_pieces(mine, nodes)
+	return took
+
+
+## Packs pieces; each one flies from its stand-in to its own spot, one after another, like pouring.
 func accept_pieces(list: Array, proxies: Array) -> String:
 	var why := check_pieces(list)
 	if why != "":
 		return why
 	var group_done := false
+	var done_keys := []
+	var gap := clampf(1.6 / maxf(list.size(), 1), 0.022, 0.05)
 	for k in list.size():
 		var p: Pieces.P = list[k]
 		var proxy: Node3D = proxies[k]
@@ -382,15 +407,28 @@ func accept_pieces(list: Array, proxies: Array) -> String:
 		_left[p.g.key] -= 1
 		if _left[p.g.key] == 0:
 			group_done = true
+			done_keys.append(p.g.key)
 		proxy.reparent(contents)
+		# Hop up over the rim, then drop into the spot with a little bounce.
+		var above := Transform3D(spot.xf.basis, spot.xf.origin + Vector3(0, H + 0.06, 0))
 		var tw := create_tween()
-		tw.tween_interval(k * 0.045)
-		tw.tween_property(proxy, "transform", spot.xf, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(k * gap)
+		tw.tween_property(proxy, "transform", above, 0.16).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tw.tween_property(proxy, "transform", spot.xf, 0.17).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tw.tween_callback(_land.bind(p.g.key, spot, proxy, k))
 	units += list.size()
 	items_in += list.size()
 	progress_changed.emit(self, list.size(), group_done)
-	_check_done(list.size() * 0.045 + 0.35)
+	var end := list.size() * gap + 0.35
+	for key in done_keys:
+		var c := Vector3.ZERO
+		for s in _spots[key]:
+			c += s.xf.origin
+		c /= maxf(1.0, _spots[key].size())
+		var t := create_tween()
+		t.tween_interval(end)
+		t.tween_callback(func(): compartment_filled.emit(self, contents.to_global(c)))
+	_check_done(end)
 	return ""
 
 
@@ -398,8 +436,9 @@ func _land(key: String, spot: Dictionary, proxy: Node3D, k: int) -> void:
 	(_stored[key] as MultiMesh).set_instance_transform(spot.idx, spot.xf)
 	if spot.ghost >= 0:
 		(_ghost_mm[key] as MultiMesh).set_instance_transform(spot.ghost, _hidden)
+	var at := proxy.global_position
 	proxy.queue_free()
-	piece_landed.emit(self, k)
+	piece_landed.emit(self, k, at)
 
 
 ## Card piles, the board and the rulebook.
@@ -458,7 +497,7 @@ func try_accept(item: Item) -> String:
 	units += n_units
 	items_in += 1
 	progress_changed.emit(self, n_units, group_done)
-	piece_landed.emit(self, 0)
+	piece_landed.emit(self, 0, to_global(target_pos))
 	_check_done(0.5)
 	return ""
 

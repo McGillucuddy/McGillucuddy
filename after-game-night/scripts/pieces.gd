@@ -67,7 +67,7 @@ func make_group(line: String, ed: String, ed_name: String, type: String, body: C
 	g.rest = parts[3]
 	g.aabb_table = MeshKit.scaled_aabb(MeshKit.visual_aabb(v, Vector3.ZERO), scale)
 	g.aabb_rest = MeshKit.scaled_aabb(MeshKit.visual_aabb(v, g.rest), scale)
-	g.handful = GameData.HANDFUL.get(type, 10)
+	g.handful = int(GameData.HANDFUL.get(type, 10) * 1.5)
 	v.free()
 	groups[key] = g
 	return g

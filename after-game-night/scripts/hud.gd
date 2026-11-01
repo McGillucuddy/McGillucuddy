@@ -23,6 +23,12 @@ var _pause: Control
 var _end: Control
 var _end_stats: Label
 var _crosshair: Control
+var _tidy_fill: ColorRect
+var _tidy_label: Label
+var _tidy_track: Control
+var _streak: Label
+var _streak_tw: Tween
+var _tidy_shown := 0.0
 
 
 class Crosshair extends Control:
@@ -119,6 +125,8 @@ func _ready() -> void:
 	_list = VBoxContainer.new()
 	_list.add_theme_constant_override("separation", 4)
 	lv.add_child(_list)
+
+	_build_meters(root)
 
 	_title = _overlay(root, "After Game Night",
 		"Everyone's gone home and the games are everywhere.\nPut every piece back in its own box, then shelve the boxes.",
@@ -271,3 +279,70 @@ func show_end(stats: String) -> void:
 	_end_stats.text = stats
 	_end.show()
 	(_end.get_meta("first_button") as Button).grab_focus()
+
+
+# ---------------------------------------------------------------- tidiness and streak
+
+func _build_meters(root: Control) -> void:
+	var top := CenterContainer.new()
+	top.anchor_left = 0; top.anchor_right = 1
+	top.offset_top = 92; top.offset_bottom = 140
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(top)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	top.add_child(v)
+	_tidy_label = Label.new()
+	_tidy_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tidy_label.add_theme_font_size_override("font_size", 15)
+	_tidy_label.add_theme_color_override("font_color", CREAM)
+	_tidy_label.add_theme_constant_override("outline_size", 6)
+	v.add_child(_tidy_label)
+	_tidy_track = Control.new()
+	_tidy_track.custom_minimum_size = Vector2(360, 10)
+	_tidy_track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(_tidy_track)
+	var bg := ColorRect.new()
+	bg.color = Color(0.1, 0.05, 0.07, 0.75)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tidy_track.add_child(bg)
+	_tidy_fill = ColorRect.new()
+	_tidy_fill.color = HONEY
+	_tidy_fill.anchor_bottom = 1.0
+	_tidy_fill.anchor_right = 0.0
+	_tidy_track.add_child(_tidy_fill)
+	set_tidy(0.0)
+
+	_streak = Label.new()
+	_streak.anchor_left = 0.5; _streak.anchor_right = 0.5
+	_streak.anchor_top = 0.5; _streak.anchor_bottom = 0.5
+	_streak.offset_left = 40; _streak.offset_top = 10
+	_streak.add_theme_font_size_override("font_size", 26)
+	_streak.add_theme_color_override("font_color", HONEY)
+	_streak.add_theme_constant_override("outline_size", 10)
+	_streak.add_theme_color_override("font_outline_color", Color("3a1f0f"))
+	_streak.modulate.a = 0.0
+	_streak.pivot_offset = Vector2(10, 16)
+	root.add_child(_streak)
+
+
+func set_tidy(frac: float) -> void:
+	_tidy_label.text = "ROOM  %d%% TIDY" % int(floor(frac * 100.0))
+	var tw := create_tween()
+	tw.tween_property(_tidy_fill, "anchor_right", clampf(frac, 0.0, 1.0), 0.35).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+func set_streak(n: int) -> void:
+	if _streak_tw:
+		_streak_tw.kill()
+	_streak_tw = create_tween()
+	if n < 5:
+		_streak_tw.tween_property(_streak, "modulate:a", 0.0, 0.4)
+		return
+	_streak.text = "×%d" % n
+	_streak.modulate.a = 1.0
+	_streak.scale = Vector2(1.35, 1.35)
+	_streak_tw.tween_property(_streak, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_streak_tw.tween_interval(2.5)
+	_streak_tw.tween_property(_streak, "modulate:a", 0.0, 0.8)

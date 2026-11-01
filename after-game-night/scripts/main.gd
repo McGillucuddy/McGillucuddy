@@ -4,6 +4,10 @@ extends Node3D
 
 const PENTA := [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1174.66, 1318.51, 1567.98, 1760.0]
 const STRAY_CHANCE := 0.08
+## Multiplies every piece and card count in GameData. 3.0 gives about 4,000 pieces and 4,100 cards.
+const VOLUME := 3.0
+## Share of each game that has spilled onto the floor beside its table.
+const SPILL := 0.22
 const PIECE_SCALE := 0.9
 const CARD_SCALE := 1.0
 ## Which surface each game line is played on.
@@ -33,6 +37,11 @@ var _flicker: Array = []
 var _flames: Array = []
 var _noise := FastNoiseLite.new()
 var _last_note_ms := 0
+var streak := 0
+var _last_sort_ms := 0
+var _tidy_step := 0
+var _spark_mat: StandardMaterial3D
+var _spark_mesh: SphereMesh
 
 
 ## A height map over a play surface, so pieces pile on top of each other instead of overlapping.
@@ -117,6 +126,7 @@ func _ready() -> void:
 	hud.restart_pressed.connect(_restart)
 	hud.quit_pressed.connect(func(): get_tree().quit())
 	_refresh_hud()
+	_update_tidy()
 	hud.show_title(true)
 	_quiet_until = Time.get_ticks_msec() / 1000.0 + 3.0
 
@@ -194,18 +204,18 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 			var g := pieces.make_group(line.id, ed_key, ed_name, part[0], style.body, style.accent, PIECE_SCALE)
 			groups.append(g)
 			where[g.key] = part[2]
-			for n in part[1]:
+			for n in int(round(part[1] * VOLUME)):
 				pieces.add(g, Transform3D(), spot)
 		var card_piles := {}
 		var card_items: Array[Item] = []
 		for si in ed.cards.size():
 			var set_name: String = ed.cards[si][0]
-			var total: int = ed.cards[si][1]
+			var total: int = int(round(ed.cards[si][1] * VOLUME))
 			var stripe: Color = GameData.SET_COLORS[si % GameData.SET_COLORS.size()]
 			var left := total
 			var piles := 0
 			while left > 0:
-				var n := mini(left, rng.randi_range(5, 30))
+				var n := mini(left, rng.randi_range(4, 6) if rng.randf() < 0.18 else rng.randi_range(12, 48))
 				if left - n < 4:
 					n = left
 				card_items.append(_make_cards(ed_key, ed_name, style.body, stripe, set_name, n, n <= 6))
@@ -237,6 +247,7 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 		boxes.append(box)
 		box.progress_changed.connect(_on_box_progress)
 		box.piece_landed.connect(_on_piece_landed)
+		box.compartment_filled.connect(_on_compartment_filled)
 		box.packed.connect(_on_box_packed)
 		box.bounced.connect(_on_box_bounced)
 
@@ -287,11 +298,20 @@ func _free_point(spot: Dictionary, r: float) -> Vector3:
 	return best
 
 
-func _place_piece(p: Pieces.P, spot: Dictionary, x: float, z: float, yaw: float) -> void:
+## Sets a piece down on top of whatever is already there. If the pile would get taller than
+## max_pile, it goes somewhere less crowded instead, so heaps spread out rather than tower.
+func _place_piece(p: Pieces.P, spot: Dictionary, x: float, z: float, yaw: float, max_pile := 0.07) -> void:
 	var hm: HMap = spot.hmap
 	var bb := p.g.aabb_table
 	var r := maxf(bb.size.x, bb.size.z) * 0.42
 	var y := hm.top(x, z, r)
+	var tries := 0
+	while y + bb.size.y - (spot.center as Vector3).y > max_pile and tries < 6:
+		var q := _free_point(spot, r * 2.0)
+		x = q.x + rng.randf_range(-r, r)
+		z = q.z + rng.randf_range(-r, r)
+		y = hm.top(x, z, r)
+		tries += 1
 	hm.raise(x, z, r, y + bb.size.y)
 	p.xf = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, y - bb.position.y + 0.0005, z))
 	p.home = spot
@@ -301,6 +321,19 @@ func _lay_out_group(g: Pieces.Group, how: String, spot: Dictionary) -> void:
 	var list := g.members.duplicate()
 	var bb := g.aabb_table
 	var step := maxf(bb.size.x, bb.size.z) + 0.006
+	# Some of every game has spilled off the table onto the floor beside it.
+	if spot.has("spill") and how != "board":
+		var spill: Dictionary = spots[spot.spill]
+		var n := int(list.size() * SPILL)
+		if n > 0:
+			var fell := list.slice(0, n)
+			list = list.slice(n)
+			var c := _free_point(spill, step * 2.0)
+			for k in fell.size():
+				var a := k * 2.4
+				var rr := step * 0.5 * sqrt(float(k))
+				var q := c + Vector3(cos(a) * rr, 0, sin(a) * rr) if rng.randf() < 0.7 else _free_point(spill, step)
+				_place_piece(fell[k], spill, q.x, q.z, rng.randf_range(0, TAU))
 	# A few strays wander off to other tables or the couch.
 	for p: Pieces.P in list.duplicate():
 		if rng.randf() < STRAY_CHANCE:
@@ -335,15 +368,15 @@ func _lay_out_group(g: Pieces.Group, how: String, spot: Dictionary) -> void:
 			while i < list.size():
 				var c := _free_point(spot, step)
 				for k in mini(rng.randi_range(5, 10), list.size() - i):
-					_place_piece(list[i], spot, c.x + rng.randf_range(-0.002, 0.002), c.z + rng.randf_range(-0.002, 0.002), rng.randf_range(0, TAU))
+					_place_piece(list[i], spot, c.x + rng.randf_range(-0.002, 0.002), c.z + rng.randf_range(-0.002, 0.002), rng.randf_range(0, TAU), 0.1)
 					i += 1
 		"heap":
 			var i := 0
 			while i < list.size():
 				var c := _free_point(spot, step * 2.0)
-				for k in mini(rng.randi_range(8, 16), list.size() - i):
+				for k in mini(rng.randi_range(10, 22), list.size() - i):
 					var a := k * 2.4
-					var rr := step * 0.45 * sqrt(float(k))
+					var rr := step * 0.7 * sqrt(float(k))
 					_place_piece(list[i], spot, c.x + cos(a) * rr, c.z + sin(a) * rr, rng.randf_range(0, TAU))
 					i += 1
 		_:
@@ -426,15 +459,22 @@ func _on_player_acted(kind: String, data: Variant) -> void:
 			_clear_hint(it)
 		"scoop":
 			var n: int = data
-			for i in mini(n, 6):
-				sfx.ui("tick", -9.0, 1.1 + i * 0.07, i * 0.025)
+			for i in mini(n, 5):
+				sfx.ui("tick", -10.0, 1.15 + i * 0.08 + randf() * 0.05, i * 0.022)
 			_clear_hint(null)
+		"poured", "placed":
+			var d: Dictionary = data
+			var box: GameBox = d.box
+			_float_text(box.global_position + Vector3(0, box.H + 0.15, 0), "+%d" % d.n if kind == "poured" else "+%d" % d.n)
+			if d.left > 0:
+				hud.toast("%d left in your hand belong somewhere else." % d.left, 1.6)
 		"wrong_box":
 			var b := data as GameBox
 			mixups += 1
 			combo = 0
+			_set_streak(0)
 			sfx.at("low", b.global_position, -2.0)
-			hud.toast("Those don't belong in %s." % b.game_name, 2.4)
+			hud.toast("Nothing you're holding belongs in %s." % b.game_name, 2.4)
 		"pieces_first":
 			sfx.ui("tick", -6.0, 0.8)
 			hud.toast("Every piece and card goes in first. The board folds in on top.", 2.6)
@@ -447,32 +487,129 @@ func _on_player_acted(kind: String, data: Variant) -> void:
 			hud.toast("This cubby is for %s boxes." % s.game_name, 2.2)
 
 
-func _on_box_progress(box: GameBox, _n: int, group_done: bool) -> void:
-	if group_done and box.items_in < box.items_needed:
-		sfx.chord([PENTA[4], PENTA[7]], 0.07, -12.0, 0.4)
-	_refresh_hud()
-
-
-func _on_piece_landed(box: GameBox, k: int) -> void:
-	# A soft cascade of clicks that climbs the scale as a handful settles in.
+func _on_box_progress(_box: GameBox, n: int, _group_done: bool) -> void:
 	var now := Time.get_ticks_msec()
-	if now - _last_note_ms > 1500:
+	if now - _last_sort_ms > 9000:
+		streak = 0
+	_last_sort_ms = now
+	_set_streak(streak + n)
+	_refresh_hud()
+	_update_tidy()
+
+
+func _on_piece_landed(box: GameBox, k: int, at: Vector3) -> void:
+	# A soft cascade of woody clicks that climbs the scale as a handful pours in.
+	var now := Time.get_ticks_msec()
+	if now - _last_note_ms > 1200:
 		combo = 0
 	_last_note_ms = now
-	sfx.at("clack", box.global_position + Vector3.UP * 0.1, -6.0, 0.95 + k * 0.03)
-	if k % 2 == 0:
-		sfx.note(PENTA[mini(combo, PENTA.size() - 1)], -13.0)
-		combo = mini(combo + 1, PENTA.size() - 1)
+	sfx.at("clack", at, -7.0, 0.92 + randf() * 0.12 + k * 0.012)
+	if k % 3 == 0:
+		sfx.note(PENTA[combo % PENTA.size()] * (2.0 if combo >= PENTA.size() else 1.0), -14.0)
+		combo = mini(combo + 1, PENTA.size() * 2 - 1)
+	if k % 4 == 0:
+		_sparkle(at, 5, 0.35, Color("ffd98a"))
+
+
+func _on_compartment_filled(box: GameBox, at: Vector3) -> void:
+	sfx.chord([PENTA[4], PENTA[7], PENTA[9]], 0.06, -11.0)
+	_sparkle(at + Vector3(0, 0.03, 0), 22, 0.8, Color("ffe7a8"))
+	_float_text(at + Vector3(0, 0.12, 0), "Full!")
 
 
 func _on_box_packed(box: GameBox) -> void:
 	sfx.at("thunk", box.global_position, 2.0)
-	sfx.chord([PENTA[0], PENTA[2], PENTA[4], PENTA[5]], 0.08, -9.0, 0.05)
+	sfx.chord([PENTA[0], PENTA[2], PENTA[4], PENTA[5], PENTA[7]], 0.08, -9.0, 0.05)
+	_sparkle(box.global_position + Vector3(0, box.H, 0), 40, 1.2, Color("fff1d0"))
+	_float_text(box.global_position + Vector3(0, box.H + 0.2, 0), "Packed!")
 	hud.toast("%s is packed. Take it to the shelf." % box.game_name, 3.0)
 	_refresh_hud()
+	_update_tidy()
+
+
+func _set_streak(n: int) -> void:
+	var before := streak
+	streak = n
+	hud.set_streak(n)
+	# Every 50 in a row gets its own little fanfare.
+	if n / 50 > before / 50 and n >= 50:
+		sfx.chord([PENTA[5], PENTA[7], PENTA[9]], 0.05, -10.0, 0.2)
+
+
+func _update_tidy() -> void:
+	var u := 0
+	var un := 0
+	for b in boxes:
+		u += b.units
+		un += b.units_needed
+	var frac := float(u) / maxf(1.0, un)
+	hud.set_tidy(frac)
+	var step := int(frac * 10.0)
+	if step > _tidy_step:
+		_tidy_step = step
+		if step < 10:
+			sfx.chord([PENTA[2], PENTA[4], PENTA[7]], 0.09, -9.0, 0.5)
+			hud.toast("The room is %d%% tidy." % (step * 10), 2.4)
+
+
+## A puff of warm glints: used when pieces land, compartments fill and lids close.
+func _sparkle(at: Vector3, amount: int, strength: float, color: Color) -> void:
+	if _spark_mat == null:
+		_spark_mat = StandardMaterial3D.new()
+		_spark_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_spark_mat.vertex_color_use_as_albedo = true
+		_spark_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_spark_mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		_spark_mesh = SphereMesh.new()
+		_spark_mesh.radius = 0.005
+		_spark_mesh.height = 0.01
+		_spark_mesh.radial_segments = 6
+		_spark_mesh.rings = 3
+		_spark_mesh.material = _spark_mat
+	var p := CPUParticles3D.new()
+	p.mesh = _spark_mesh
+	p.amount = amount
+	p.lifetime = 0.7
+	p.one_shot = true
+	p.explosiveness = 0.95
+	p.direction = Vector3.UP
+	p.spread = 70.0
+	p.initial_velocity_min = 0.4 * strength
+	p.initial_velocity_max = 1.1 * strength
+	p.gravity = Vector3(0, -2.2, 0)
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.6
+	var grad := Gradient.new()
+	grad.set_color(0, Color(color, 1.0))
+	grad.set_color(1, Color(color, 0.0))
+	p.color_ramp = grad
+	world.add_child(p)
+	p.global_position = at
+	p.emitting = true
+	get_tree().create_timer(1.2).timeout.connect(p.queue_free)
+
+
+func _float_text(at: Vector3, text: String) -> void:
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = 64
+	l.pixel_size = 0.0012
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.modulate = Hud.HONEY
+	l.outline_size = 14
+	l.outline_modulate = Color("3a1f0f")
+	world.add_child(l)
+	l.global_position = at
+	var tw := l.create_tween().set_parallel(true)
+	tw.tween_property(l, "global_position", at + Vector3(0, 0.22, 0), 1.0).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(l, "modulate:a", 0.0, 1.0).set_delay(0.35)
+	tw.chain().tween_callback(l.queue_free)
 
 
 func _on_box_bounced(box: GameBox, reason: String) -> void:
+	if not started or Time.get_ticks_msec() / 1000.0 < _quiet_until:
+		return
 	_on_player_acted("wrong_box" if reason == "wrong_game" else reason, box)
 
 
@@ -480,9 +617,11 @@ func _on_shelved(slot: ShelfSlot, box: GameBox) -> void:
 	sfx.at("thunk", slot.anchor, 0.0, 1.25)
 	sfx.chord([PENTA[2], PENTA[4], PENTA[5], PENTA[7]], 0.07, -9.0, 0.25)
 	_refresh_hud()
+	_sparkle(slot.anchor + Vector3(0, 0.3, 0.2), 18, 0.7, Color("ffe7a8"))
 	if boxes.all(func(b: GameBox): return b.shelved):
 		get_tree().create_timer(1.4).timeout.connect(_finish)
 	elif slot.filled():
+		sfx.chord([PENTA[0], PENTA[4], PENTA[7], PENTA[9]], 0.12, -8.0, 0.6)
 		hud.toast("All of %s is home." % slot.game_name, 2.5)
 
 
@@ -982,7 +1121,7 @@ func _build_extra_lights() -> void:
 	spot.position = Vector3(0.4, 2.06, -2.3)
 	spot.rotation.x = -PI / 2
 	spot.light_color = Color(1.0, 0.72, 0.45)
-	spot.light_energy = 3.6
+	spot.light_energy = 5.0
 	spot.spot_range = 3.5
 	spot.spot_angle = 50.0
 	spot.shadow_enabled = true
@@ -997,7 +1136,7 @@ func _build_shelf(order: Array) -> void:
 	var back := MeshKit.mat(Color("3a2216"), 0.8)
 	var cols := 3
 	var cw := 0.9
-	var ch := 0.56
+	var ch := 0.82
 	var bt := 0.05
 	var depth := 0.55
 	var z := -4.72
@@ -1085,13 +1224,19 @@ func _define_spots() -> void:
 	# center = point on the play surface, ext = how far a game spreads,
 	# row_start / rot = where its open boxes wait (in a row, fronts facing the room).
 	var defs := {
-		"dining": {"center": Vector3(-3.0, 0.76, -1.5), "ext": Vector2(0.9, 0.46), "row_start": Vector3(-3.55, 0.0, -0.4), "rot": 0.0},
+		"dining": {"center": Vector3(-3.0, 0.76, -1.5), "ext": Vector2(0.9, 0.46), "row_start": Vector3(-3.55, 0.0, -0.4), "rot": 0.0, "spill": "floor_dining"},
 		"rug": {"center": Vector3(-2.4, 0.022, 2.5), "ext": Vector2(0.98, 0.98), "row_start": Vector3(-0.55, 0.0, 3.25), "rot": PI / 2},
-		"gametable": {"center": Vector3(0.4, 0.743, -2.3), "ext": Vector2(0.7, 0.48), "row_start": Vector3(-0.45, 0.0, -1.15), "rot": 0.0},
-		"cardtable": {"center": Vector3(3.6, 0.74, -2.6), "ext": Vector2(0.47, 0.47), "row_start": Vector3(2.45, 0.0, -3.5), "rot": -PI / 2},
-		"coffee": {"center": Vector3(3.0, 0.44, 1.0), "ext": Vector2(0.57, 0.3), "row_start": Vector3(1.75, 0.0, 0.55), "rot": -PI / 2},
-		"bench": {"center": Vector3(-5.65, 0.5, 0.5), "ext": Vector2(0.29, 1.02), "row_start": Vector3(-4.8, 0.0, 1.45), "rot": PI / 2},
+		"gametable": {"center": Vector3(0.4, 0.743, -2.3), "ext": Vector2(0.7, 0.48), "row_start": Vector3(-0.45, 0.0, -1.15), "rot": 0.0, "spill": "floor_game"},
+		"cardtable": {"center": Vector3(3.6, 0.74, -2.6), "ext": Vector2(0.47, 0.47), "row_start": Vector3(2.45, 0.0, -3.5), "rot": -PI / 2, "spill": "floor_card"},
+		"coffee": {"center": Vector3(3.0, 0.44, 1.0), "ext": Vector2(0.57, 0.3), "row_start": Vector3(1.75, 0.0, 0.55), "rot": -PI / 2, "spill": "floor_coffee"},
+		"bench": {"center": Vector3(-5.65, 0.5, 0.5), "ext": Vector2(0.29, 1.02), "row_start": Vector3(-4.8, 0.0, 1.45), "rot": PI / 2, "spill": "floor_bench"},
 		"couch": {"center": Vector3(3.0, 0.44, 2.92), "ext": Vector2(0.95, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		# Floor patches where each game has spilled over.
+		"floor_dining": {"center": Vector3(-4.55, 0.0, -0.75), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_game": {"center": Vector3(1.65, 0.0, -2.55), "ext": Vector2(0.3, 0.35), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_card": {"center": Vector3(3.95, 0.0, -1.45), "ext": Vector2(0.45, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_coffee": {"center": Vector3(3.0, 0.0, 1.95), "ext": Vector2(0.85, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_bench": {"center": Vector3(-5.25, 0.0, -1.35), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
 	}
 	for k in defs:
 		var s: Dictionary = defs[k]
@@ -1142,7 +1287,7 @@ func _autotest() -> void:
 		for b in boxes:
 			if b.line_id == s.line_id:
 				h += b.H
-		print("  shelf stack %-18s %.2f m (cubby 0.56)" % [s.game_name, h])
+		print("  shelf stack %-18s %.2f m (cubby 0.82)" % [s.game_name, h])
 	# Pieces from an expansion must not go in the base game's box, and vice versa.
 	var base := boxes[0]
 	var other: Pieces.P = pieces.all.filter(func(p: Pieces.P): return p.g.line == base.line_id and p.g.ed != base.ed_id)[0]
@@ -1152,6 +1297,19 @@ func _autotest() -> void:
 	var p0: Pieces.P = pieces.all[100]
 	var hand := pieces.handful(p0)
 	print("handful of ", p0.g.key, ": ", hand.size(), " all same kind: ", hand.all(func(q: Pieces.P): return q.g == p0.g))
+	# Sifting: pour a mixed handful from two boxes; the box keeps only its own.
+	var line_ps := pieces.all.filter(func(p: Pieces.P): return p.g.line == base.line_id and p.state == Pieces.LOOSE)
+	var mixed := line_ps.filter(func(p: Pieces.P): return p.g.ed == base.ed_id).slice(0, 7) + line_ps.filter(func(p: Pieces.P): return p.g.ed != base.ed_id).slice(0, 5)
+	var mixed_nodes := []
+	for p: Pieces.P in mixed:
+		mixed_nodes.append(pieces.proxy(p))
+		pieces.take(p)
+	var took := base.sift(mixed, mixed_nodes)
+	print("sift: poured ", mixed.size(), " mixed pieces, box took ", took.size(), " (expected 7)")
+	for i in mixed.size():
+		if not took.has(i):
+			(mixed_nodes[i] as Node).queue_free()
+			pieces.set_loose(mixed[i], (mixed[i] as Pieces.P).xf)
 	var t0 := Time.get_ticks_msec()
 	for b in boxes:
 		_pack_all(b)
@@ -1197,9 +1355,24 @@ func _screenshots() -> void:
 	await _shot(dir, "dining")
 	await _view(Vector3(0.4, 0.05, -1.0), 0.0, -0.85)
 	await _shot(dir, "gametable")
+	# A mixed handful being poured: the box takes its own, the rest stay in hand.
+	var cb: GameBox = boxes.filter(func(x: GameBox): return x.line_id == "crowns")[0]
+	var line_ps := pieces.all.filter(func(p: Pieces.P): return p.g.line == "crowns" and p.state == Pieces.LOOSE)
+	line_ps.shuffle()
+	var cfwd := cb.global_transform.basis.z
+	await _view(cb.global_position + cfwd * 0.9 + Vector3(0, 0, 0), atan2(cfwd.x, cfwd.z), -0.95)
+	player._scoop(line_ps.slice(0, 40))
+	await get_tree().create_timer(0.8).timeout
+	await _shot(dir, "hand")
+	player._pour_into(cb)
+	await get_tree().create_timer(0.55).timeout
+	await _shot(dir, "pour")
+	await get_tree().create_timer(2.0).timeout
+	player._drop_hand(Vector3.ZERO)
 	# Half-pack the first Mossy Crowns box to show its insert.
 	var b: GameBox = boxes.filter(func(x: GameBox): return x.line_id == "crowns")[0]
 	var mine := pieces.all.filter(func(p: Pieces.P): return p.g.ed == b.ed_id)
+	mine = mine.filter(func(p: Pieces.P): return p.state == Pieces.LOOSE)
 	var half := mine.slice(0, mine.size() * 2 / 3)
 	var nodes := []
 	for p: Pieces.P in half:
