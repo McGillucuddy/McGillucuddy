@@ -3,7 +3,7 @@ extends RefCounted
 ## Builds every model in the game from code: pieces, cards, boards, rulebooks, textures and materials.
 
 const BOARD_SIZE := 0.5
-const CARD := Vector3(0.075, 0.002, 0.105)
+const CARD := Vector3(0.075, 0.0012, 0.105)
 
 static var _mats := {}
 
@@ -186,10 +186,14 @@ static func _sphere_shape(r: float) -> SphereShape3D:
 
 ## Returns [visual: Node3D, shape: Shape3D, shape_offset: Vector3, rest_rotation: Vector3].
 ## rest_rotation is how the piece lies in its box compartment.
-static func piece(type: String, c: Color) -> Array:
+static func piece(type: String, c: Color, accent := Color(0, 0, 0, 0)) -> Array:
+	if accent.a == 0.0:
+		accent = c.lightened(0.45)
 	var v := Node3D.new()
 	var body := mat(c, 0.42)
-	var light := mat(c.lightened(0.45), 0.5)
+	var light := mat(accent, 0.5)
+	var dark_base := mat(Color("2a2420"), 0.7)
+	var skin := mat(Color("e8c39e"), 0.6)
 	var white := mat(Color("fff6ea"), 0.4)
 	var wood := mat(Color("8a5a34"), 0.7)
 	var gold := mat(Color("e8b84a"), 0.3)
@@ -337,6 +341,42 @@ static func piece(type: String, c: Color) -> Array:
 			v.add_child(mesh_node(torus(0.006, 0.0095), body, Vector3(0.026, 0.002, 0), Vector3(PI / 2, 0, 0)))
 			shape = _cyl_shape(0.033, 0.04)
 			offset = Vector3(0, -0.001, 0)
+		"knight":
+			v.add_child(mesh_node(cyl(0.017, 0.018, 0.005, 16), dark_base, Vector3(0, -0.028, 0)))
+			var prof := [Vector2(0, -0.0255), Vector2(0.011, -0.0255), Vector2(0.012, -0.006), Vector2(0.009, 0.011),
+				Vector2(0.012, 0.015), Vector2(0.0, 0.017)]
+			v.add_child(mesh_node(lathe(prof, 10), body))
+			v.add_child(mesh_node(sphere(0.0075, 8), skin, Vector3(0, 0.024, 0)))
+			v.add_child(mesh_node(cyl(0.0055, 0.0085, 0.008, 10), body, Vector3(0, 0.029, 0)))
+			v.add_child(mesh_node(box(Vector3(0.003, 0.019, 0.014)), light, Vector3(0.013, 0.001, 0.0)))
+			v.add_child(mesh_node(cyl(0.0012, 0.0012, 0.062, 6), wood, Vector3(-0.012, 0.004, 0.0)))
+			v.add_child(mesh_node(cyl(0.0, 0.003, 0.008, 6), light, Vector3(-0.012, 0.039, 0.0)))
+			shape = _cyl_shape(0.018, 0.064)
+			offset = Vector3(0, 0.002, 0)
+			rest = Vector3(0, 0, PI / 2)
+		"goblin":
+			v.add_child(mesh_node(cyl(0.017, 0.018, 0.005, 16), dark_base, Vector3(0, -0.02, 0)))
+			var bod := mesh_node(sphere(0.011, 8), body, Vector3(0, -0.008, 0))
+			bod.scale = Vector3(1, 1.15, 1)
+			v.add_child(bod)
+			v.add_child(mesh_node(sphere(0.0095, 8), mat(c.lightened(0.25), 0.6), Vector3(0, 0.01, 0)))
+			for sx in [-1.0, 1.0]:
+				v.add_child(mesh_node(cyl(0.0, 0.004, 0.012, 6), mat(c.lightened(0.25), 0.6), Vector3(sx * 0.011, 0.013, 0), Vector3(0, 0, -sx * 1.25)))
+			v.add_child(mesh_node(cyl(0.002, 0.0045, 0.03, 6), wood, Vector3(0.013, -0.003, 0), Vector3(0, 0, -0.4)))
+			v.add_child(mesh_node(box(Vector3(0.012, 0.004, 0.008)), light, Vector3(0, -0.006, 0.009)))
+			shape = _cyl_shape(0.018, 0.046)
+			offset = Vector3(0, -0.002, 0)
+		"hero":
+			v.add_child(mesh_node(cyl(0.023, 0.024, 0.006, 18), dark_base, Vector3(0, -0.034, 0)))
+			var prof := [Vector2(0, -0.031), Vector2(0.016, -0.031), Vector2(0.014, -0.004), Vector2(0.01, 0.017), Vector2(0.0, 0.019)]
+			v.add_child(mesh_node(lathe(prof, 12), body))
+			v.add_child(mesh_node(box(Vector3(0.026, 0.042, 0.003)), light, Vector3(0, -0.006, -0.012), Vector3(0.12, 0, 0)))
+			v.add_child(mesh_node(sphere(0.009, 10), skin, Vector3(0, 0.027, 0)))
+			v.add_child(mesh_node(cyl(0.004, 0.013, 0.009, 12), mat(Color("2a1e24"), 0.6), Vector3(0, 0.037, 0)))
+			v.add_child(mesh_node(cyl(0.006, 0.006, 0.006, 10), mat(Color("2a1e24"), 0.6), Vector3(0, 0.044, 0)))
+			shape = _cyl_shape(0.024, 0.08)
+			offset = Vector3(0, 0.005, 0)
+			rest = Vector3(0, 0, PI / 2)
 		"cake":
 			var wedge := PackedVector2Array([Vector2(-0.03, 0.0), Vector2(0.03, -0.024), Vector2(0.03, 0.024)])
 			v.add_child(mesh_node(extrude(wedge, 0.028), mat(Color("e9c48f"), 0.8), Vector3.ZERO, Vector3(-PI / 2, 0, 0)))
@@ -360,23 +400,24 @@ static func _pips(n: int) -> Array:
 
 # ---------------------------------------------------------------- cards and books
 
-static func _card(c: Color) -> Node3D:
+static func _card(c: Color, stripe: Color) -> Node3D:
 	var n := Node3D.new()
 	n.add_child(mesh_node(box(CARD), mat(Color("fbf1e1"), 0.6)))
-	n.add_child(mesh_node(box(Vector3(0.069, 0.0005, 0.099)), mat(c, 0.5), Vector3(0, 0.00105, 0)))
-	n.add_child(mesh_node(box(Vector3(0.048, 0.0005, 0.076)), mat(c.lightened(0.35), 0.5), Vector3(0, 0.0012, 0)))
-	n.add_child(mesh_node(cyl(0.011, 0.011, 0.0005, 12), mat(Color("e8b84a"), 0.3), Vector3(0, 0.0014, 0)))
+	n.add_child(mesh_node(box(Vector3(0.069, 0.0005, 0.099)), mat(c, 0.5), Vector3(0, 0.0008, 0)))
+	n.add_child(mesh_node(box(Vector3(0.048, 0.0005, 0.076)), mat(c.lightened(0.3), 0.5), Vector3(0, 0.0009, 0)))
+	n.add_child(mesh_node(box(Vector3(0.069, 0.0006, 0.014)), mat(stripe, 0.4), Vector3(0, 0.001, -0.036)))
+	n.add_child(mesh_node(cyl(0.011, 0.011, 0.0005, 12), mat(stripe, 0.3), Vector3(0, 0.0011, 0)))
 	return n
 
 
 ## A fanned hand of cards, the way a player leaves them face down on the table.
-static func card_hand(c: Color, count: int) -> Array:
+static func card_hand(c: Color, count: int, stripe: Color) -> Array:
 	var v := Node3D.new()
 	for i in count:
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, i * 0.0022, 0.035)
 		pivot.rotation.y = (i - (count - 1) / 2.0) * 0.26
-		var card := _card(c)
+		var card := _card(c, stripe)
 		card.position = Vector3(0, 0, -0.04)
 		pivot.add_child(card)
 		v.add_child(pivot)
@@ -384,11 +425,13 @@ static func card_hand(c: Color, count: int) -> Array:
 
 
 ## A neat stack of cards: a draw pile, or how cards sit once they're put away.
-static func card_stack(c: Color, count: int) -> Array:
+static func card_stack(c: Color, count: int, stripe: Color) -> Array:
 	var v := Node3D.new()
 	var h := count * CARD.y
 	v.add_child(mesh_node(box(Vector3(CARD.x, h, CARD.z)), mat(Color("f4ead8"), 0.7), Vector3(0, h / 2, 0)))
-	var top := _card(c)
+	# Stripes down the side of the stack so you can tell sets apart from any angle.
+	v.add_child(mesh_node(box(Vector3(CARD.x + 0.001, h * 0.9, 0.012)), mat(stripe.darkened(0.15), 0.6), Vector3(0, h / 2, -0.036)))
+	var top := _card(c, stripe)
 	top.position = Vector3(0, h, 0)
 	v.add_child(top)
 	return [v, _box_shape(Vector3(CARD.x, h + 0.002, CARD.z)), Vector3(0, h / 2, 0), Vector3.ZERO]
@@ -436,6 +479,57 @@ static func board(c: Color, seed_val: int) -> Array:
 	plane.size = Vector2(s - 0.012, s - 0.012)
 	v.add_child(mesh_node(plane, top, Vector3(0, 0.0065, 0)))
 	return [v, _box_shape(Vector3(s, 0.012, s)), Vector3.ZERO, Vector3.ZERO]
+
+
+## Merges a model into one mesh with one surface per material, so it can be drawn in batches.
+static func bake(v: Node3D, s: float) -> ArrayMesh:
+	var tools := {}
+	var order: Array = []
+	var todo := [[v, Transform3D(Basis.from_scale(Vector3.ONE * s))]]
+	while not todo.is_empty():
+		var e: Array = todo.pop_back()
+		var node: Node = e[0]
+		var xf: Transform3D = e[1]
+		for c in node.get_children():
+			if not (c is Node3D):
+				continue
+			var cx: Transform3D = xf * (c as Node3D).transform
+			if c is MeshInstance3D and (c as MeshInstance3D).mesh:
+				var m: Material = (c as MeshInstance3D).material_override
+				if not tools.has(m):
+					var st := SurfaceTool.new()
+					st.begin(Mesh.PRIMITIVE_TRIANGLES)
+					tools[m] = st
+					order.append(m)
+				_append(tools[m], (c as MeshInstance3D).mesh, cx)
+			todo.append([c, cx])
+	var out := ArrayMesh.new()
+	for m in order:
+		(tools[m] as SurfaceTool).commit(out)
+		out.surface_set_material(out.get_surface_count() - 1, m)
+	return out
+
+
+static func _append(st: SurfaceTool, mesh: Mesh, xf: Transform3D) -> void:
+	var nb := xf.basis.inverse().transposed()
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL] if arr[Mesh.ARRAY_NORMAL] != null else PackedVector3Array()
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		var has_n := norms.size() == verts.size()
+		if idx.is_empty():
+			for i in verts.size():
+				st.set_normal((nb * norms[i]).normalized() if has_n else Vector3.UP)
+				st.add_vertex(xf * verts[i])
+		else:
+			for i in idx:
+				st.set_normal((nb * norms[i]).normalized() if has_n else Vector3.UP)
+				st.add_vertex(xf * verts[i])
+
+
+static func scaled_aabb(bb: AABB, s: float) -> AABB:
+	return AABB(bb.position * s, bb.size * s)
 
 
 ## Turns any model into a see-through outline of where it belongs.
