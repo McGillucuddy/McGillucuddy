@@ -815,7 +815,7 @@ class Garage3D {
     if (this.mode === 'vest') {
       // You, stood on the lift in your vest (the car's out of the way).
       const cab = look.cabin || {}, inmate = String(cab.inmate || '4471'), seed = (parseInt(inmate, 10) || 4471) * 3 + 11;
-      const me = People.figure({ seed: seed + 1, role: 'passenger', pose: 'stand', arms: 'swing', cell: 0.08, number: inmate, looks: { suit: '#a8521e' } });
+      const me = People.figure({ seed: seed + 1, role: 'passenger', pose: 'stand', arms: 'swing', cell: 0.08, number: inmate, looks: Object.assign({ suit: '#a8521e' }, look.me || {}) }); // (look.me: the "You" tab)
       const w = People.BUILD[(me.userData.looks || {}).build] || 1;
       (me.userData.torso || me).add(Vest.build(cab.vest, look.rack || [], inmate, w));
       if (me.userData.patch) me.userData.patch.visible = false; // (the vest carries your number now)

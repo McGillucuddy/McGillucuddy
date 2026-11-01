@@ -703,7 +703,7 @@ class CockpitView {
     const drv = People.figure({ seed: who.seed, role: 'driver', arms: 'none', cell: 0.08, number: who.number, leg: { knee: [3.6, 0.35], ankle: [6.84, -2.0] } });
     drv.position.set(-1.9, 4.45, -4.5);
     I.add(drv);
-    const me = People.figure({ seed: seed + 1, role: 'passenger', head: false, arms: 'none', cell: 0.08, number: inmate, looks: { suit: '#a8521e' }, leg: { knee: [3.79, 1.43], ankle: [4.45, -2.0] } });
+    const me = People.figure({ seed: seed + 1, role: 'passenger', head: false, arms: 'none', cell: 0.08, number: inmate, looks: Object.assign({ suit: '#a8521e' }, (this.look3d && this.look3d.me) || {}), leg: { knee: [3.79, 1.43], ankle: [4.45, -2.0] } }); // (you: the "You" tab)
     me.position.set(EYE.x - 0.95, 4.45, EYE.z);
     I.add(me);
     // The collar: a steel band round the neck with a box on the side and a red light.
@@ -2520,13 +2520,13 @@ class CockpitView {
     });
     this.updateParticles(dt);
     for (const [car, line] of this.lockLines) {
-      const lock = car.wpn && car.wpn.lock > 0;
+      const lock = car.wpn && car.wpn.lock > 0, T = (car.wpn && car.wpn.target) || p;
       line.visible = lock;
       if (!lock) continue;
       const k = car.wpn.lock / this.combat.lockTime;
       const pos = line.geometry.attributes.position;
       pos.setXYZ(0, car.x, 18, car.y);
-      pos.setXYZ(1, p.x, 8, p.y);
+      pos.setXYZ(1, T.x, 8, T.y); // (the laser goes to whoever they're painting)
       pos.needsUpdate = true;
       line.material.opacity = Math.floor(t * (6 + k * 14)) % 2 ? 1 : 0.3;
     }
@@ -2573,7 +2573,7 @@ class CockpitView {
     for (const car of race.cars) {
       if (car === p) continue;
       const [x, y] = toR(car.x, car.y);
-      const locking = car.wpn && car.wpn.lock > 0;
+      const locking = this.combat.lockOnYou(car); // (flashing only for a lock on you)
       ctx.fillStyle = locking ? (Math.floor(t * 10) % 2 ? '#ff2020' : '#ffffff') : car.weapon ? '#ff9f1c' : '#3cff78';
       ctx.beginPath(); ctx.arc(x, y, car.weapon ? 6 : 5, 0, TAU); ctx.fill();
       if (car.vendetta && car.hp > 0) { ctx.strokeStyle = '#ff2020'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 10, 0, TAU); ctx.stroke(); } // a vendetta: ringed in red

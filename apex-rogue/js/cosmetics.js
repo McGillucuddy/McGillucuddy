@@ -116,6 +116,32 @@ const COSMETICS = {
   ],
 };
 
+// You: how you look (the garage's vest view, and your own arms and legs in the cabin). See People.figure.
+Object.assign(COSMETICS, {
+  meSkin: [{ id: 'pale', name: 'Pale', color: '#f0cdb0' }, { id: 'fair', name: 'Fair', color: '#e0b89a' }, { id: 'tan', name: 'Tan', color: '#c48a64' },
+    { id: 'brown', name: 'Brown', color: '#a06a46' }, { id: 'dark', name: 'Dark', color: '#7a4a2e' }, { id: 'deep', name: 'Deep', color: '#5a3a26' }],
+  meBuild: [{ id: 'slim', name: 'Slim' }, { id: 'avg', name: 'Average' }, { id: 'heavy', name: 'Heavy' }],
+  meGear: [{ id: 'shaved', name: 'Shaved' }, { id: 'buzz', name: 'Buzz cut' }, { id: 'hair', name: 'Swept back' }, { id: 'beanie', name: 'Beanie' }, { id: 'cap', name: 'Cap' }, { id: 'bandana', name: 'Bandana' }],
+  meHair: [{ id: 'black', name: 'Black', color: '#1a1410' }, { id: 'darkbrown', name: 'Dark brown', color: '#3a2a1a' }, { id: 'brown', name: 'Brown', color: '#6a4a2a' },
+    { id: 'ginger', name: 'Ginger', color: '#9a4a1e' }, { id: 'blond', name: 'Blond', color: '#c8a050' }, { id: 'grey', name: 'Grey', color: '#8a8070' }],
+  meHat: [{ id: 'black', name: 'Black', color: '#2a2a2e' }, { id: 'red', name: 'Red', color: '#7a1e1a' }, { id: 'blue', name: 'Blue', color: '#2a4a6a' },
+    { id: 'olive', name: 'Olive', color: '#3a4a2a' }, { id: 'brown', name: 'Brown', color: '#5a4a3a' }, { id: 'orange', name: 'Orange', color: '#c8601a' }],
+  meBeard: [{ id: 'none', name: 'Clean shaven' }, { id: 'stubble', name: 'Stubble' }, { id: 'moustache', name: 'Moustache' }, { id: 'goatee', name: 'Goatee' }, { id: 'full', name: 'Full beard' }],
+  meBrow: [{ id: 'flat', name: 'Calm' }, { id: 'scowl', name: 'Frowning' }],
+  meShades: [{ id: 'no', name: 'No glasses' }, { id: 'yes', name: 'Sunglasses' }],
+  meTattoo: [{ id: 'none', name: 'None' }, { id: 'tear', name: 'Teardrop' }, { id: 'neck', name: 'Neck band' }, { id: 'arms', name: 'Sleeves' }],
+  meSleeves: [{ id: 'down', name: 'Down' }, { id: 'rolled', name: 'Rolled up' }],
+});
+const ME_KEYS = ['meSkin', 'meBuild', 'meGear', 'meHair', 'meHat', 'meBeard', 'meBrow', 'meShades', 'meTattoo', 'meSleeves'];
+// Your look as People.figure's looks.
+function meLooks(c) {
+  const col = (k) => (cosOption(k, c[k]) || COSMETICS[k][0]).color;
+  return {
+    skin: col('meSkin'), build: c.meBuild, gear: c.meGear, hair: col('meHair'), hat: col('meHat'), beard: c.meBeard, brow: c.meBrow,
+    shades: c.meShades === 'yes', tattoo: c.meTattoo === 'none' ? null : c.meTattoo, rolled: c.meSleeves === 'rolled', top: 'suit', suit: '#a8521e',
+  };
+}
+
 // Junk welded onto each gun.
 COSMETICS.gunKit = [
   { id: 'none', name: 'Clean', rep: 0 }, { id: 'chains', name: 'Hanging Chains', rep: 25 }, { id: 'barbed', name: 'Barbed Wire', rep: 55 },
@@ -124,7 +150,7 @@ COSMETICS.gunKit = [
 ];
 
 const COSMETIC_KEY = 'apexrogue_cosmetics_v1';
-const LOOK_KEYS = ['style', 'paint', 'paint2', 'twoTone', 'finish', 'grime', 'livery', 'number', 'rims', 'bumper', 'roof', 'spoiler', 'exhaust', 'underglow', 'seats', 'wheelWrap', 'dash', 'bulb', 'ornament', 'vest', 'gunFinish', 'gunKit', 'patchSeed', 'inmate', 'plate'];
+const LOOK_KEYS = ['meSkin', 'meBuild', 'meGear', 'meHair', 'meHat', 'meBeard', 'meBrow', 'meShades', 'meTattoo', 'meSleeves', 'style', 'paint', 'paint2', 'twoTone', 'finish', 'grime', 'livery', 'number', 'rims', 'bumper', 'roof', 'spoiler', 'exhaust', 'underglow', 'seats', 'wheelWrap', 'dash', 'bulb', 'ornament', 'vest', 'gunFinish', 'gunKit', 'patchSeed', 'inmate', 'plate'];
 
 function loadCosmetics() {
   const def = {
@@ -133,6 +159,7 @@ function loadCosmetics() {
     seats: 'vinyl', wheelWrap: 'tape', dash: 'black', bulb: 'warm', ornament: 'none', vest: 'canvas',
     gunFinish: {}, gunKit: {}, patchSeed: {},
     inmate: '4471', plate: 'INM 4471', rep: 0, presets: [null, null, null],
+    meSkin: 'fair', meBuild: 'avg', meGear: 'buzz', meHair: 'darkbrown', meHat: 'black', meBeard: 'stubble', meBrow: 'flat', meShades: 'no', meTattoo: 'none', meSleeves: 'down',
     beaten: [], // the acts whose boss you've ever beaten: they unlock the prize bodies
   };
   let c;
@@ -185,6 +212,7 @@ function carLook(c, b) {
       bulb: (cosOption('bulb', c.bulb) || COSMETICS.bulb[0]).color, ornament: c.ornament, inmate: c.inmate, vest: c.vest,
     },
     gunFinish: c.gunFinish, gunKit: c.gunKit, patchSeed: c.patchSeed,
+    me: meLooks(c), // you (the "You" tab)
     history: b && typeof CarHistory !== 'undefined' ? CarHistory.look(b) : null, // what the run has done to the car (js/history.js)
   };
 }

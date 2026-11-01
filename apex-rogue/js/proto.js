@@ -279,7 +279,7 @@ const Proto = {
       case 'abandon': this.gameOver(false); break;
       case 'after-results': this.afterResults(); break;
       // Garage & shop
-      case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns', vest: 'vest' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
+      case 'tab': this.tab = arg; if (this.preview) this.preview.setMode(arg === 'paint' ? ({ cabin: 'interior', guns: 'guns', vest: 'vest', you: 'vest' }[this.paintTab] || 'car') : 'car'); this.showGarage(); break;
       case 'patch-gunner': { const c = Crew.gunnerPatchCost(b); if (c > 0 && buy(c)) b.gunnerHp = GUNNER.hp; this.showGarage(); break; }
       case 'patch-driver': { const c = Crew.patchCost(b); if (c > 0 && buy(c)) b.driverHp = DRIVER.hp; this.showGarage(); break; }
       case 'car-reroll': CarHistory.reroll(b); this.showGarage(); break;
@@ -347,7 +347,7 @@ const Proto = {
       case 'tune': { const [slot, v] = arg.split(':'), R = tuneRange(b, slot), n = Math.round(+v * 2); if (n >= R.lo && n <= R.hi) b.parts[slot].tune = +v; this.showGarage(); break; }
       case 'weld': { const [slot, dir] = arg.split(':'); if (weldNotch(b, slot, +dir)) Sound.play({ type: 'buy' }); this.showGarage(); break; }
       // Paint shop (saved between runs)
-      case 'paint-tab': this.paintTab = arg; if (this.preview) this.preview.setMode({ cabin: 'interior', guns: 'guns', vest: 'vest' }[arg] || 'car'); this.showGarage(); break;
+      case 'paint-tab': this.paintTab = arg; if (this.preview) this.preview.setMode({ cabin: 'interior', guns: 'guns', vest: 'vest', you: 'vest' }[arg] || 'car'); this.showGarage(); break;
       case 'preset-save': savePreset(this.cos, +arg); saveCosmetics(this.cos); this.showGarage(); break;
       case 'preset-load': loadPreset(this.cos, +arg); saveCosmetics(this.cos); if (this.preview) this.preview.setLook(carLook(this.cos, this.build)); this.showGarage(); break;
       case 'cosmetic': {
@@ -1260,6 +1260,7 @@ const Proto = {
         if (k === 'invert') Settings.data.invertY = !Settings.data.invertY;
         if (k === 'people') { Settings.data.people = v; Settings.save(); location.reload(); return; } // everyone's rebuilt on the reload
         if (k === 'speed') Settings.data.speed = v;
+        if (k === 'difficulty') Settings.data.difficulty = v;
         if (k === 'slowmo') Settings.data.slowmo = !Settings.data.slowmo;
         if (k === 'flicker') Settings.data.flicker = !Settings.data.flicker;
         if (k === 'ff') Settings.data.friendlyFire = !Settings.data.friendlyFire;
@@ -1283,6 +1284,9 @@ const Proto = {
     el.innerHTML = `<div class="settings-card clipboard">
       <div class="clip"></div>
       <h2 class="g-title">Settings</h2>
+      <h3>Difficulty</h3>
+      <p class="muted small">Easy: rivals hit softer, lock on slower, one fewer is armed, and they mostly fight each other. Hard: they hit harder, lock faster, one more is armed, and most of the fire comes your way. Takes effect from the next race.</p>
+      <div class="opts">${['easy', 'normal', 'hard'].map((k) => `<button class="opt ${(d.difficulty || 'normal') === k ? 'on' : ''}" data-set="difficulty:${k}">${DIFFICULTY[k].name}</button>`).join('')}</div>
       <h3>Game speed</h3>
       <p class="muted small">How fast every car drives, accelerates and corners. Takes effect from the next race.</p>
       <div class="opts">${[['relaxed', 'Relaxed'], ['normal', 'Normal'], ['fast', 'Fast']].map(([k, n]) => `<button class="opt ${(d.speed || 'normal') === k ? 'on' : ''}" data-set="speed:${k}">${n}</button>`).join('')}</div>
@@ -1670,6 +1674,12 @@ const Proto = {
       cabin: () => row('Seat covers', opt('seats', L.seats)) + row('Wheel wrap', opt('wheelWrap', L.wheelWrap)) + row('Dash', opt('dash', L.dash, sw))
         + row('Cabin bulb', opt('bulb', L.bulb, sw)) + row('Dash ornament', opt('ornament', L.ornament))
         + `<h3>Inmate number</h3><input id="inmateInput" class="plate-input" maxlength="6" value="${c.inmate}"><p class="muted small">Stencilled on the glovebox.</p>`,
+      you: () => `<p class="muted small">How you look: in the garage, and your own arms and legs from the gunner's seat.</p>`
+        + row('Skin', opt('meSkin', L.meSkin, sw)) + row('Build', opt('meBuild', L.meBuild)) + row('Hair or hat', opt('meGear', L.meGear))
+        + (['hair', 'buzz'].includes(c.meGear) || c.meBeard !== 'none' ? row('Hair colour', opt('meHair', L.meHair, sw)) : '')
+        + (['beanie', 'cap', 'bandana'].includes(c.meGear) ? row('Hat colour', opt('meHat', L.meHat, sw)) : '')
+        + row('Facial hair', opt('meBeard', L.meBeard)) + row('Brows', opt('meBrow', L.meBrow)) + row('Glasses', opt('meShades', L.meShades))
+        + row('Tattoos', opt('meTattoo', L.meTattoo)) + row('Sleeves', opt('meSleeves', L.meSleeves)),
       vest: () => row('Ammo vest', opt('vest', L.vest))
         + `<p class="muted small">What you wear over the jumpsuit. The ammo you carry rides in the loops across its front, and reloads come off it first. You see it when you look down.</p>`,
       guns: () => Object.keys(SHORT_WEAPON).map((w) => row(SHORT_WEAPON[w] + ': finish', opt('gunFinish', L.gunFinish, (o) => (o.color ? sw(o) : ''), c.gunFinish[w], 'gun.' + w))
@@ -1680,12 +1690,12 @@ const Proto = {
           <button class="opt" data-action="preset-save" data-arg="${i}">Save</button>
           <button class="opt" ${p ? '' : 'disabled'} data-action="preset-load" data-arg="${i}">Load</button></div>`).join(''),
     };
-    const tabs = [['body', 'Body'], ['kit', 'Kit'], ['cabin', 'Cabin'], ['vest', 'Vest'], ['guns', 'Guns'], ['presets', 'Presets']]
+    const tabs = [['body', 'Body'], ['kit', 'Kit'], ['cabin', 'Cabin'], ['you', 'You'], ['vest', 'Vest'], ['guns', 'Guns'], ['presets', 'Presets']]
       .map(([id, n]) => `<button class="opt ${sub === id ? 'on' : ''}" data-action="paint-tab" data-arg="${id}">${n}</button>`).join('');
     return `<div class="paint-opts">
       <p class="muted small">Your look is kept between runs. Every finish, paint and part of the kit is yours to choose; the prize bodies are yours once you've beaten their boss.</p>
       <div class="opts subtabs">${tabs}</div>
-      ${sub === 'cabin' || sub === 'body' || sub === 'kit' || sub === 'vest' ? `<p class="muted small">Drag the view to look ${sub === 'cabin' ? 'round the cabin' : sub === 'vest' ? 'round yourself' : 'round the car'}${sub === 'body' || sub === 'kit' ? ' · scroll to zoom' : ''}.</p>` : ''}${pages[sub]()}</div>`;
+      ${sub === 'cabin' || sub === 'body' || sub === 'kit' || sub === 'vest' || sub === 'you' ? `<p class="muted small">Drag the view to look ${sub === 'cabin' ? 'round the cabin' : sub === 'vest' || sub === 'you' ? 'round yourself' : 'round the car'}${sub === 'body' || sub === 'kit' ? ' · scroll to zoom' : ''}.</p>` : ''}${pages[sub]()}</div>`;
   },
 
   showReward() {
@@ -1827,6 +1837,17 @@ const Proto = {
       p.hp = 30;
       race.message('The rosary burns in your fist. Not today.', '#c9a0ff', true, true);
       Sound.play({ type: 'bossTell' });
+    }
+    // The first wreck of a race doesn't put you out: the engine's blown, but it limps on (60% power, a quarter of
+    // the hull back). The second one does.
+    if (race.state === 'racing' && p.hp <= 0 && !p.finished && !this.tutorial && !race.limped) {
+      race.limped = true;
+      p.limpMode = true;
+      p.hp = Math.round(p.stats.maxHp * 0.25);
+      race.message('ENGINE BLOWN: LIMPING ON', '#ff6b3a', true, true);
+      race.message("One more wreck and you're out", '#ffb070', true);
+      Sound.play({ type: 'explode', big: true });
+      if (this.cockpit) this.cockpit.shake = Math.max(this.cockpit.shake || 0, 1.2);
     }
     if (race.state === 'racing' && p.hp <= 0 && !p.finished && !this.tutorial) {
       if (!this.wreckT) {

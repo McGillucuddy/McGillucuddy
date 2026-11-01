@@ -50,6 +50,14 @@ const RIVAL_TYRE = 0.15; // a stray rival round that happens to land by a wheel
 const TYRE_HUNT = { on: false, rate: 2.0, burst: 8, spread: 0.025, range: 320, start: 25, gap: 12, chance: 0.6 };
 
 // What hurt you, in words (for the playtest report).
+// Difficulty (Settings): how hard rivals hit you, how fast their locks build, how many carry weapons, and how much
+// of their fire is aimed at you (the rest goes at whoever wronged them, or the car in front).
+const DIFFICULTY = {
+  easy: { name: 'Easy', dmg: 0.6, lock: 1.35, armed: -1, focus: 0.3 },
+  normal: { name: 'Normal', dmg: 1, lock: 1, armed: 0, focus: 0.5 },
+  hard: { name: 'Hard', dmg: 1.25, lock: 0.8, armed: 1, focus: 0.75 },
+};
+const RIVAL_ON_RIVAL = 0.35; // a rival's fire into another rival does this share of its damage
 const HURT_KIND = { exposed: 'hits on you at the roof gun', bullet: 'gunfire', rocket: 'rockets', blast: 'explosions', flame: 'fire', mine: 'mines', harpoon: 'harpoons', boss: 'the boss' };
 
 class Combat {
@@ -91,7 +99,8 @@ class Combat {
     // Suppressed guns keep you off the rivals' radar: they take longer to lock on.
     this.quiet = b.rack.some((w) => weaponStats(w).quiet);
     this.weather = opts.weather || {};
-    this.lockTime = LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1) * (b.chip === 'showboat' ? 0.75 : 1) * (this.weather.lock || 1) * (has(b, 'deadrosary') ? 0.85 : 1);
+    this.diff = DIFFICULTY[typeof Settings !== 'undefined' && Settings.data.difficulty] || DIFFICULTY.normal;
+    this.lockTime = this.diff.lock * LOCK_TIME * (has(b, 'keys') ? 0.75 : 1) * (this.quiet ? 1.4 : 1) * (b.chip === 'showboat' ? 0.75 : 1) * (this.weather.lock || 1) * (has(b, 'deadrosary') ? 0.85 : 1);
     this.buffs = null; // contraband taken at the briefing (js/blackmarket.js), set when the race starts
     this.stats = { dealt: 0, parries: 0, shotDown: 0, taken: 0, wrecked: 0, scrapBonus: 0 };
 
@@ -105,7 +114,7 @@ class Combat {
 
     // Arm the field: two rocket gunners, a mine layer and a gunner; elites bring an extra gun of each kind.
     // The boss always carries their own weapon. A snitch tip-off leaves everyone else unarmed.
-    const loadout = opts.elite ? ['rocket', 'rocket', 'mine', 'gun', 'gun', 'rocket'] : ['rocket', 'rocket', 'mine', 'gun'];
+    const loadout = (opts.elite ? ['rocket', 'rocket', 'mine', 'gun', 'gun', 'rocket'] : ['rocket', 'rocket', 'mine', 'gun', 'gun']).slice(0, (opts.elite ? 6 : 4) + this.diff.armed); // (one fewer armed on Easy, one more on Hard)
     const rivals = shuffle(this.rng, race.cars.filter((c) => c !== this.player && !c.isBoss));
     rivals.forEach((c, i) => { if (!opts.disarm && loadout[i]) c.weapon = loadout[i]; });
     const bossCar = race.cars.find((c) => c.isBoss);
@@ -115,7 +124,7 @@ class Combat {
     // bosses past the first act always do.
     const armour = [0, 0.25, 0.6, 0.9][opts.act || 0] || 0;
     // Rival guns hit softer early on: a wreck puts you out of the race, so Act I has to be survivable with a pistol.
-    this.rivalMul = [0.6, 0.8, 0.95, 1.05][opts.act || 0] || 1;
+    this.rivalMul = ([0.6, 0.8, 0.95, 1.05][opts.act || 0] || 1) * this.diff.dmg;
     this.player.ramTakenMul *= this.rivalMul; // rams too
     // Tyre hunters: some rival gunners (none in Act I, more each act after) will go for your tyres, but only once the
     // race has settled, from close beside or behind you, one at a time, and never straight away. See rivalGuns.
@@ -191,6 +200,29 @@ class Combat {
   }
   // Should this tyre hunter go for a wheel this time, and which? Only when the race has settled, from close beside or
   // behind you (never head-on from in front), one attempt at a time across the whole field, and only some of the time.
+  // Is this car's gun laid on you (not on someone else)?
+  lockOnYou(c) { return !!(c.wpn && c.wpn.lock > 0 && (!c.wpn.target || c.wpn.target === this.player)); }
+
+  // Who a rival lines up on: you (more so on Hard), whoever last hit them, or a car just ahead. Bosses, Vale's
+  // security and vendettas are only here for you.
+  pickTarget(c) {
+    const p = this.player, now = this.race.time, opts = [];
+    if (c.isBoss || c.escort || c.vendetta || this.tutorial) return p;
+    const add = (o, wt) => { if (o && o !== c && o.hp > 0 && !o.finished && !o.wrecked && Math.hypot(o.x - c.x, o.y - c.y) < 650) opts.push([o, wt]); };
+    add(p, this.diff.focus);
+    if (c.lastHitBy && now - c.lastHitT < 10) add(c.lastHitBy, 1.1);
+    const fx = Math.cos(c.heading), fy = Math.sin(c.heading);
+    for (const o of this.race.cars) {
+      if (o === p || o === c || o.isBoss) continue;
+      const f = (o.x - c.x) * fx + (o.y - c.y) * fy;
+      if (f > 20 && f < 420) add(o, 0.22); // in the way
+    }
+    if (!opts.length) return p;
+    let r = this.rng() * opts.reduce((a, o) => a + o[1], 0);
+    for (const [o, wt] of opts) if ((r -= wt) <= 0) return o;
+    return opts[0][0];
+  }
+
   tyreTarget(c, d) {
     const p = this.player;
     if (!c.tyreHunter || this.race.time < this.tyreHuntCd || d > TYRE_HUNT.range || p.tyres.every((h) => h <= 0)) return null;
@@ -805,9 +837,12 @@ class Combat {
     for (const c of this.race.cars) {
       if (!c.weapon || c === p || c.gunnerDead) continue; // a dead gunner fires no more
       const w = c.wpn;
-      const disabled = c.hp <= 0 || c.finished || p.finished || c.empT > 0 || c.blindT > 0;
+      // Who they're shooting at: picked as they line up (see pickTarget), dropped once it's out of the race.
+      if (w.target && (w.target.hp <= 0 || w.target.finished || w.target.wrecked)) { w.target = null; w.lock = 0; w.burst = 0; }
+      const T = w.target || p, onYou = T === p;
+      const disabled = c.hp <= 0 || c.finished || T.finished || c.empT > 0 || c.blindT > 0;
       w.cd -= dt;
-      const dx = p.x - c.x, dy = p.y - c.y;
+      const dx = T.x - c.x, dy = T.y - c.y;
       const d = Math.hypot(dx, dy);
       if (c.weapon === 'rocket') {
         if (w.lock > 0) {
@@ -821,14 +856,18 @@ class Combat {
             w.lock = 0;
             w.cd = randRange(this.rng, 5, 8);
             const lead = d / ROCKET_SPEED;
-            const tx = p.x + p.vx * lead * 0.6, ty = p.y + p.vy * lead * 0.6;
+            const tx = T.x + T.vx * lead * 0.6, ty = T.y + T.vy * lead * 0.6;
             const a = Math.atan2(ty - c.y, tx - c.x);
-            this.spawn('rocket', c, a, ROCKET_SPEED, 0.3, { dmg: 18, radius: 50, life: 3, target: p, turn: 1.5 });
+            this.spawn('rocket', c, a, ROCKET_SPEED, 0.3, { dmg: 18, radius: 50, life: 3, target: T, turn: 1.5 });
             this.events.push({ type: 'enemyRocket', x: c.x, y: c.y });
+            w.target = null;
           }
-        } else if (!disabled && w.cd <= 0 && d > 150 && d < 650) {
-          w.lock = 1e-4;
-          this.events.push({ type: 'lock', car: c });
+        } else if (!disabled && w.cd <= 0) {
+          const P2 = this.pickTarget(c), dd = Math.hypot(P2.x - c.x, P2.y - c.y);
+          if (dd > 150 && dd < 650) {
+            w.target = P2; w.lock = 1e-4;
+            if (P2 === p) this.events.push({ type: 'lock', car: c });
+          }
         }
       } else if (c.weapon === 'gun') {
         // Gunner: winds up (shown like a lock), then rakes you with a burst.
@@ -839,15 +878,15 @@ class Combat {
             w.burst--;
             w.bt = 0.09;
             if (w.wheel != null) { // a tyre burst: at the wheel nearest them, tighter, rounds that chew rubber
-              const f = w.wheel < 2 ? 11 : -11, sd = w.wheel % 2 ? 7.3 : -7.3, hx = Math.cos(p.heading), hy = Math.sin(p.heading), lead = d / 1500;
-              const tx = p.x + hx * f - hy * sd + p.vx * lead, ty = p.y + hy * f + hx * sd + p.vy * lead; // the wheel itself
+              const f = w.wheel < 2 ? 11 : -11, sd = w.wheel % 2 ? 7.3 : -7.3, hx = Math.cos(T.heading), hy = Math.sin(T.heading), lead = d / 1500;
+              const tx = T.x + hx * f - hy * sd + T.vx * lead, ty = T.y + hy * f + hx * sd + T.vy * lead; // the wheel itself
               const a = Math.atan2(ty - c.y, tx - c.x) + randRange(this.rng, -TYRE_HUNT.spread, TYRE_HUNT.spread);
               this.spawn('bullet', c, a, 1500, 1, { dmg: 2.5, life: 0.45, tyre: TYRE_HUNT.rate });
               if (w.burst <= 0) w.wheel = null;
               this.events.push({ type: 'enemyShot', x: c.x, y: c.y });
               continue;
             }
-            const a = Math.atan2(dy + p.vy * d / 1500, dx + p.vx * d / 1500) + randRange(this.rng, -0.07, 0.07);
+            const a = Math.atan2(dy + T.vy * d / 1500, dx + T.vx * d / 1500) + randRange(this.rng, -0.07, 0.07);
             this.spawn('bullet', c, a, 1500, 1, { dmg: 2.5, life: 0.45 });
             this.events.push({ type: 'enemyShot', x: c.x, y: c.y });
           }
@@ -855,10 +894,14 @@ class Combat {
           if (disabled || d > 520 || c.spinT > 0) { w.lock = 0; w.wheel = null; w.cd = 2; continue; }
           w.lock += dt * (w.wheel != null ? 1.4 : 2); // half a rocket lock; a tyre shot takes longer to line up
           if (w.lock >= this.lockTime) { w.lock = 0; w.burst = w.wheel != null ? TYRE_HUNT.burst : 6; w.bt = 0; w.cd = randRange(this.rng, 4, 6); }
-        } else if (!disabled && w.cd <= 0 && d > 60 && d < 450) {
-          w.lock = 1e-4;
-          w.wheel = this.tyreTarget(c, d);
-          this.events.push({ type: 'lock', car: c });
+        } else if (w.burst <= 0 && w.target && !(w.lock > 0)) w.target = null; // burst done: free to pick again
+        else if (!disabled && w.cd <= 0 && !(w.burst > 0)) {
+          const P2 = this.pickTarget(c), dd = Math.hypot(P2.x - c.x, P2.y - c.y);
+          if (dd > 60 && dd < 450) {
+            w.target = P2; w.lock = 1e-4;
+            w.wheel = P2 === p ? this.tyreTarget(c, dd) : null; // (they only hunt your tyres)
+            if (P2 === p) this.events.push({ type: 'lock', car: c });
+          }
         }
       } else if (c.weapon === 'mine' && !disabled && w.cd <= 0) {
         const fwd = dx * Math.cos(c.heading) + dy * Math.sin(c.heading);
@@ -1252,6 +1295,8 @@ class Combat {
     if (c.plate && c.plate[kind || 'bullet']) dmg *= c.plate[kind || 'bullet'];
     if (c === p && owner && owner !== p) dmg *= this.rivalMul || 1; // a vendetta car, plated against what beat it last time
     if (c !== p) dmg = this.bossArmour(c, dmg, ang, kind);
+    if (owner && owner !== c) { c.lastHitBy = owner; c.lastHitT = this.race.time; } // a grudge: they'll want to pay it back
+    if (owner && owner !== p && c !== p && kind !== 'ram') dmg *= RIVAL_ON_RIVAL; // rivals wound each other; finishing them off is your job
     const before = c.hp;
     this.race.damage(c, dmg, { kind: kind || 'bullet', ang });
     c.vx *= slow;
@@ -1277,7 +1322,7 @@ class Combat {
   threats() {
     const p = this.player, out = [];
     for (const c of this.race.cars) {
-      if (c.wpn && c.wpn.lock > 0) out.push({ x: c.x, y: c.y, kind: 'lock', k: c.wpn.lock / this.lockTime, car: c });
+      if (this.lockOnYou(c)) out.push({ x: c.x, y: c.y, kind: 'lock', k: c.wpn.lock / this.lockTime, car: c });
     }
     for (const pr of this.projectiles) {
       if (pr.type !== 'rocket' || pr.owner === p) continue;
@@ -1292,7 +1337,7 @@ class Combat {
   render2D(ctx, t) {
     const p = this.player;
     for (const c of this.race.cars) {
-      if (!c.wpn || !(c.wpn.lock > 0)) continue;
+      if (!this.lockOnYou(c)) continue;
       const k = c.wpn.lock / this.lockTime;
       ctx.strokeStyle = `rgba(255,40,40,${0.35 + 0.6 * k})`;
       ctx.lineWidth = 1 + k * 3;

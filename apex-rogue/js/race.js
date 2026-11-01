@@ -146,6 +146,19 @@ class Race {
         car.vx *= drag; car.vy *= drag;
         inp = car.hulk ? { throttle: 0, brake: 0, steer: 0, handbrake: true, nitro: false } : { throttle: 0, brake: 0.55, steer: car.deadSteer, handbrake: car.wreckT > 0.6, nitro: false };
       } else if (car.driverDead) inp = { throttle: 0, brake: 0.2, steer: car.deadSteer, handbrake: false, nitro: false }; // nobody at the wheel
+      // Stuck in a pile-up or nosed into a wall: after a couple of seconds going nowhere, they back out (the race
+      // puts them back on the road, facing the right way, and lets them drive through the others for a moment).
+      if (!car.wrecked && !car.finished && !car.driverDead && !car.air && this.state === 'racing' && car.hp > 0) {
+        car.stuckT = Math.hypot(car.vx, car.vy) < 35 && this.time > 6 ? (car.stuckT || 0) + dt : 0;
+        if (car.stuckT > 2.5) {
+          car.stuckT = 0; car.ghostT = 1.5;
+          const q = trackQuery(tr, car.x, car.y, car.idx, 40), i = (q.idx + 3) % tr.N, lat = clamp(q.lat, -tr.hw * 0.3, tr.hw * 0.3); // a little way on, near the middle (clear of whatever stopped them)
+          this.respawn(car);
+          car.placeAt(tr.pts[i].x + tr.nx[i] * lat, tr.pts[i].y + tr.ny[i] * lat, tr.ang[i]);
+          if (car === this.player) this.message('Your driver backs out of the pile-up', '#9fd0ff');
+        }
+      }
+      if (car.ghostT > 0) car.ghostT -= dt;
       else if (car.flinchT > 0) { // the driver's been hit: a jerk of the wheel, a lift off the throttle
         car.flinchT -= dt;
         inp = Object.assign({}, inp, { steer: clamp(inp.steer + Math.sin(car.flinchT * 30) * 0.8, -1, 1), throttle: inp.throttle * 0.4 });
@@ -387,7 +400,7 @@ class Race {
     for (let a = 0; a < cars.length; a++) {
       for (let b = a + 1; b < cars.length; b++) {
         const A = cars[a], B = cars[b];
-        const ghost = (A.isPlayer && A.perks.has('ghost')) || (B.isPlayer && B.perks.has('ghost'));
+        const ghost = (A.isPlayer && A.perks.has('ghost')) || (B.isPlayer && B.perks.has('ghost')) || A.ghostT > 0 || B.ghostT > 0; // (ghostT: just backed out of a pile-up)
         if (ghost || Math.abs((A.z || 0) - (B.z || 0)) > 14) continue; // one sailing over the other
         const dx = B.x - A.x, dy = B.y - A.y;
         const d2 = dx * dx + dy * dy;

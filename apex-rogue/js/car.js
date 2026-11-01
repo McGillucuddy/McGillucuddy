@@ -49,7 +49,7 @@ class Car {
 
   get speed() { return Math.hypot(this.vx, this.vy); }
   get forwardSpeed() { return this.vx * Math.cos(this.heading) + this.vy * Math.sin(this.heading); }
-  get limp() { return this.hp <= 0; }
+  get limp() { return this.hp <= 0 || !!this.limpMode; } // (limpMode: the engine blown once already this race)
 
   placeAt(x, y, heading) {
     this.x = x; this.y = y; this.heading = heading;

@@ -346,6 +346,7 @@ volume and looks for overlaps.
 People are drawn low-poly by default (`People.polyFigure` in js/people.js; Settings → Characters: Low-poly or Detailed). Everyone gets the same treatment: your driver, rival crews, the Turnkey's lifers, garage walkers, the trader, the cold open and the ragdolls.
 - **Build:** organic shapes cut into flat facets, not boxes. The torso and head are lofted through stacks of ten-sided rings, so a torso keeps its hips, waist, chest and shoulders, and a head its chin, jaw, cheeks and brow. The front of the head is flattened into a face. Each arm and leg is one continuous faceted tube (shoulder to wrist, hip to ankle), not jointed pieces, so nobody looks like a mannequin. Arms hang a little out and bent, the head sits down on a short neck, and the hands are mittens with thumbs.
 - **Head:** one faceted surface, twenty sides by sixteen rings (`People.headSurf`). Skin, hair and hats are smooth-shaded, so the facets blend into one surface with no squares showing; clothes stay faceted. The face is shaped into the surface: a nose, its bridge, a brow ridge, eye hollows, cheekbones, a chin and the line of the mouth.
+- **Sunglasses** (now 15% of inmates, down from 40%) are real glasses: tinted lenses in a black frame, a bridge, and arms back to the ears.
 - **On the head:** eyes (a soft white, the dark eye and a glint, so they read on every skin tone), brows (a frown at most, never a glare) and a mouth are set on the surface. The darkest skin tones are lifted a shade and skin catches the light a little, so the face's shape shows. Beards, stubble and moustaches, the hair and every hat are shells laid over the head's own surface, so they sit flush; shades wrap round the face.
 - **Kit and proportions** (after The Bloodline): slim builds with smaller heads, tall boots with leather cuffs, leather bracers on bare or rolled-up forearms, and pouches on the belt. Hair is chunky faceted locks, and the faces are quieter: clear dark eyes with a glint, brows a shade off the hair.
 - **Colour:** bright flat colours, raised pale trim on the collar, zip, pocket and cuffs, and a dark belt with a gold buckle. No grime.
@@ -909,6 +910,24 @@ Measured on one track with nobody shooting:
 | Relaxed | about 113 km/h | 77°/s | 36 s |
 
 Getting up to 80% of top speed takes about 3.4 s, where it used to take under 1 s. Normal is the default; Fast is the old top speed with the gentler acceleration.
+
+**Difficulty** (Settings: Easy, Normal or Hard; `DIFFICULTY` in js/combat.js). It sets how hard rivals hit you, how fast their locks build, how many of them are armed, and how much of their fire comes your way.
+
+| Setting | Damage to you | Lock time | Armed rivals | Fire aimed at you |
+| --- | --- | --- | --- | --- |
+| Easy | 60% | +35% | one fewer | about 30% |
+| Normal | 100% | normal | normal | about 50% |
+| Hard | 125% | −20% | one more | about 75% |
+
+**Rivals fight each other** (`pickTarget` in js/combat.js). Each time an armed rival lines up a shot it picks a target: you, whoever last hit it (a grudge that lasts 10 seconds), or a car just ahead of it. Bosses, Vale's security and vendettas only ever hunt you.
+- A rival's fire into another rival does 35% of its damage, so they wound each other and the finishing is left to you.
+- The lock warning, the laser, the radar flash and your driver's weave only react to locks on you; a laser painting someone else points at them.
+
+**One wreck to spare.** Your first wreck in a race blows the engine, but you limp on at 60% power with a quarter of your hull back ("ENGINE BLOWN: LIMPING ON"). The second wreck puts you out. The Dead Man's Rosary still saves you first.
+
+**Nobody gets stranded.** A car going nowhere for 2.5 seconds is put back on the road a little way on, near the middle, and can drive through the others for a moment while it rejoins. This replaces the AI's old reverse-then-reset routine, which could loop and leave a car a lap behind.
+
+**You** (the paint booth's You tab; `meLooks` in js/cosmetics.js). Choose your skin, build, hair or hat, hair and hat colour, facial hair, brows, sunglasses, tattoos and sleeves. Your look shows on your figure in the garage and on your own arms and legs from the gunner's seat. It's kept between runs and saved in presets.
 
 **Mouse:** Settings opens on the controls. They cover mouse sensitivity (0.1x to 4x), a separate sensitivity for aiming down the sights, and invert Y. The pause menu has a sensitivity slider too, so you can tune it mid-race.
 

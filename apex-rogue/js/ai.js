@@ -163,12 +163,7 @@ class AIDriver {
 
     if (this.orderSpeed) ({ throttle, brake, nitro } = this.orderSpeed({ throttle, brake, nitro }, speed, target)); // floor it, ease off...
 
-    // Unstick: reverse briefly, then reset onto the track if still stuck.
-    if (speed < 40 && race.state === 'racing') this.stuckT += dt; else this.stuckT = Math.max(0, this.stuckT - dt);
-    if (this.stuckT > 1.2 && this.stuckT < 2.2) {
-      return { throttle: 0, brake: 1, steer: -steer, handbrake: false, nitro: false };
-    }
-    if (this.stuckT >= 3) { race.respawn(car); this.stuckT = 0; }
+    // (Stuck cars are put back on the road by the race itself: see Race.update.)
 
     if (this.jinkT > 0 && this.jinkBrake) { throttle = 0; brake = Math.max(brake, this.jinkBrake); } // (stab of the brakes)
     return { throttle, brake, steer, handbrake: false, nitro };

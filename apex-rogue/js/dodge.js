@@ -38,7 +38,7 @@ Object.assign(Combat.prototype, {
     for (const c of this.race.cars) {
       const w = c.wpn;
       if (!w || c === p || c.weapon !== 'gun' || this.ownDriverDead) continue;
-      if (!(w.lock > 0) && !(w.burst > 0)) { w.weaveSeen = false; continue; }
+      if ((!(w.lock > 0) && !(w.burst > 0)) || (w.target && w.target !== p)) { w.weaveSeen = false; continue; } // (only guns laid on you)
       if (w.weaveSeen || p.finished) continue;
       w.weaveSeen = true;
       if (this.rng() > mySees * DODGE.gun) continue;
