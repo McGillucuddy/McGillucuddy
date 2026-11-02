@@ -1190,7 +1190,7 @@ func _build_room() -> void:
 	var floor_m := TexKit.pbr("wood_floor", 0.45, Color("d8b89a"))
 	var wall_m := TexKit.pbr("plastered_wall_04", 0.35, Color("e2b48c"))
 	var ceil_m := TexKit.pbr("roof_planks", 0.4, Color("8a6a52"))
-	var trim := TexKit.wood(Color("4a2a18"), 0.6)
+	var trim := TexKit.pbr("dark_wood", 1.2, Color("9a7258"))
 	var wainscot := TexKit.panels(Color("2e4637"), 0.65)
 	# The living room runs from the game shelf (z -5) to the front wall (z 7.7), with doorways
 	# to the card room (west), the dragon's den (east) and the hobby studio (front).
@@ -1203,8 +1203,8 @@ func _build_room() -> void:
 	# A reading corner where the old hobby nook was.
 	_armchair(Vector3(-4.6, 0, 6.9), PI, TexKit.fabric(Color("5f7f76")))
 	_armchair(Vector3(4.4, 0, 6.9), PI, TexKit.fabric(Color("8f4636")))
-	_bookcase(Vector3(-2.6, 0, 7.38), PI, 1.5, 2.1, MeshKit.mat(Color("5e3620"), 0.6))
-	_bookcase(Vector3(2.6, 0, 7.38), PI, 1.5, 2.1, MeshKit.mat(Color("5e3620"), 0.6))
+	_bookcase(Vector3(-2.6, 0, 7.38), PI, 1.5, 2.1, TexKit.pbr("dark_wood", 1.2, Color("c8a080")))
+	_bookcase(Vector3(2.6, 0, 7.38), PI, 1.5, 2.1, TexKit.pbr("dark_wood", 1.2, Color("c8a080")))
 	_floor_lamp(Vector3(-5.5, 0, 7.15), Color("ffd2a0"), 1.2, false)
 
 	# Night window on the left wall: cool moonlight against all the warm lamps.
@@ -1242,7 +1242,7 @@ func _build_fireplace() -> void:
 	var brick := TexKit.pbr("large_red_bricks", 0.9)
 	var stone := MeshKit.mat(Color("5d544c"), 0.9)
 	var soot := TexKit.fabric(Color("1a1210"), 5.0)
-	var wood := TexKit.wood(Color("4a2a18"), 0.6)
+	var wood := TexKit.pbr("wood_table_001", 1.0, Color("8a6248"))
 	var z := 0.2
 	_solid(Vector3(0.7, 0.06, 2.0), Vector3(5.65, 0.03, z), stone)
 	_solid(Vector3(0.4, 1.25, 0.35), Vector3(5.82, 0.625, z - 0.65), brick)
@@ -1407,7 +1407,7 @@ func _build_furniture() -> void:
 	var fabric2 := TexKit.fabric(Color("a2563f"))
 	_seat("Sofa_01", Vector3(3.0, 0, 3.0), PI, 2.2)
 	_prop("throw_pillows_01", Vector3(3.0, 0.42, 3.2), PI, Vector3(1.1, 0, 0))
-	_prop("Ottoman_01", Vector3(1.55, 0, 2.6), 0.4, Vector3(0.7, 0, 0))
+	_prop("Ottoman_01", Vector3(1.85, 0, 2.15), 0.4, Vector3(0.6, 0, 0))
 
 	# Round rug under the floor game, a rectangular one by the fire.
 	var rug := StaticBody3D.new()
@@ -1415,9 +1415,9 @@ func _build_furniture() -> void:
 	var rcs := CollisionShape3D.new()
 	rcs.shape = MeshKit._cyl_shape(1.45, 0.02)
 	rug.add_child(rcs)
-	rug.add_child(MeshKit.mesh_node(MeshKit.cyl(1.45, 1.45, 0.02, 48), TexKit.fabric(Color("6b3350"), 5.0)))
-	rug.add_child(MeshKit.mesh_node(MeshKit.cyl(1.25, 1.25, 0.022, 48), TexKit.fabric(Color("c8913a"), 5.0)))
-	rug.add_child(MeshKit.mesh_node(MeshKit.cyl(1.17, 1.17, 0.024, 48), TexKit.fabric(Color("7a3c5c"), 5.0)))
+	rug.add_child(MeshKit.mesh_node(MeshKit.cyl(1.45, 1.45, 0.02, 48), TexKit.pbr("velour_velvet", 2.0, Color("8a3a5a"))))
+	rug.add_child(MeshKit.mesh_node(MeshKit.cyl(1.25, 1.25, 0.022, 48), TexKit.pbr("velour_velvet", 2.0, Color("d8a050"))))
+	rug.add_child(MeshKit.mesh_node(MeshKit.cyl(1.17, 1.17, 0.024, 48), TexKit.pbr("fabric_pattern_05", 1.4, Color("e0a8b8"))))
 	rug.position = Vector3(-2.4, 0.01, 2.5)
 	world.add_child(rug)
 	_solid(Vector3(3.2, 0.012, 2.4), Vector3(3.0, 0.006, 1.6), TexKit.fabric(Color("34505e"), 5.0), false)
@@ -1520,8 +1520,8 @@ func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: 
 	world.add_child(rack)
 	rack.position = at
 	rack.rotation.y = rot
-	var wood := TexKit.wood(Color("5e3620"), 0.6)
-	var back := TexKit.wood(Color("3a2216"), 0.8)
+	var wood := TexKit.pbr("dark_wood", 1.2, Color("c8a080"))
+	var back := TexKit.pbr("dark_wood", 1.2, Color("7a5a44"))
 	var cw := 0.9
 	var ch := 0.82
 	var bt := 0.05
@@ -1808,7 +1808,7 @@ func _build_card_room() -> void:
 	_room(-13.3, -6.1, 1.9, 7.7, floor_m, wall_m, ceil_m, panel, gilt, [["e", 4.9]], 1.1)
 	# A deep red carpet with a gold border.
 	_solid(Vector3(5.0, 0.004, 3.8), Vector3(-9.7, 0.002, 4.8), TexKit.fabric(Color("8a6a2a"), 5.0), false)
-	_solid(Vector3(4.84, 0.005, 3.64), Vector3(-9.7, 0.0025, 4.8), TexKit.fabric(Color("3e1218"), 5.0), false)
+	_solid(Vector3(4.84, 0.005, 3.64), Vector3(-9.7, 0.0025, 4.8), TexKit.pbr("velour_velvet", 2.0, Color("6a2028")), false)
 	var wood := TexKit.wood(Color("3a1f12"), 0.45)
 	var leather := TexKit.felt(Color("7a2a22"), 6.0)
 	# The oval felt poker table under a green banker's lamp.
@@ -1864,7 +1864,7 @@ func _build_den() -> void:
 	var floor_m := TexKit.pbr("wood_floor_worn", 0.4, Color("a88a72"))
 	var wall_m := TexKit.pbr("medieval_blocks_02", 0.3)
 	var ceil_m := TexKit.pbr("roof_planks", 0.4, Color("4a382c"))
-	var timber := TexKit.wood(Color("2e1c12"), 0.7)
+	var timber := TexKit.pbr("dark_wood", 0.8, Color("6a5040"))
 	_room(6.1, 14.3, -0.3, 7.7, floor_m, wall_m, ceil_m, timber, timber, [["w", 4.9]], 0.0)
 	for x in [7.6, 9.6, 11.6, 13.4]:
 		_solid(Vector3(0.24, 0.24, 7.8), Vector3(x, 2.88, 3.7), timber, false)
@@ -1873,7 +1873,7 @@ func _build_den() -> void:
 	# A round rug in deep red under the round table.
 	_solid(Vector3(0.1, 0.1, 0.1), Vector3(9.6, -1.0, 3.6), wood, false)
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(1.55, 1.55, 0.004, 48), TexKit.fabric(Color("c49a3a"), 5.0), Vector3(9.6, 0.002, 3.6)))
-	world.add_child(MeshKit.mesh_node(MeshKit.cyl(1.45, 1.45, 0.005, 48), TexKit.fabric(Color("5a1420"), 5.0), Vector3(9.6, 0.0025, 3.6)))
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(1.45, 1.45, 0.005, 48), TexKit.pbr("velour_velvet", 2.0, Color("9a2430")), Vector3(9.6, 0.0025, 3.6)))
 	# The round table for Wyrmlight Tales, under an iron candle chandelier.
 	var top := StaticBody3D.new()
 	top.collision_layer = Item.LAYER_WORLD

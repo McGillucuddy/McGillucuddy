@@ -55,3 +55,5 @@ Each model is the 1K glTF version (`models/<name>/<name>_1k.gltf` plus its `.bin
 - [velour_velvet](https://polyhaven.com/a/velour_velvet)
 - [wood_floor](https://polyhaven.com/a/wood_floor)
 - [wood_floor_worn](https://polyhaven.com/a/wood_floor_worn)
+- [dark_wood](https://polyhaven.com/a/dark_wood)
+- [wood_table_001](https://polyhaven.com/a/wood_table_001)
