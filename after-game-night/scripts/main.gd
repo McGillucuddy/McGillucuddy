@@ -13,10 +13,19 @@ const FACE_UP := 0.7
 const PIECE_SCALE := 0.9
 const CARD_SCALE := 1.5
 ## Which surface each game line is played on.
-const PLAYED_ON := {"crowns": "rug", "plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench", "wyrm": "round", "hoard": "ottoman",
-	"casino": "poker", "ccg": "ccgtable", "caverns": "curio", "marbles": "ring", "paints": "paintdesk"}
-## Game lines that live on the second shelf, by the hobby nook.
-const HOBBY_LINES := ["casino", "ccg", "caverns", "marbles", "paints"]
+const PLAYED_ON := {"plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench",
+	"casino": "poker", "ccg": "ccgtable",
+	"wyrm": "round", "hoard": "dicetable", "caverns": "curio", "crowns": "war",
+	"paints": "paintdesk", "marbles": "ring"}
+## Every room has its own shelf for the games played in it: [line ids, position, turn, columns, sign].
+const ROOM_SHELVES := [
+	[["plum", "atlas", "harbor", "honey", "orchard"], Vector3(0, 0, -4.72), 0.0, 3, "Game Shelf"],
+	[["casino", "ccg"], Vector3(-12.9, 0, 4.8), PI / 2, 1, "Card Room"],
+	[["wyrm", "hoard", "caverns", "crowns"], Vector3(7.6, 0, 0.1), 0.0, 2, "Dragon's Den"],
+	[["paints", "marbles"], Vector3(1.6, 0, 13.1), PI, 1, "Hobby Studio"],
+]
+const DOOR_W := 1.4
+const DOOR_H := 2.3
 const TOOL_NAMES := [["Hands"], ["Seeker Lantern"], ["Dustpan"], ["Magnet"]]
 
 var player: Player
@@ -124,7 +133,9 @@ func _ready() -> void:
 	_build_furniture()
 	_build_decor()
 	_build_extra_lights()
-	_build_hobby_nook()
+	_build_card_room()
+	_build_den()
+	_build_studio()
 
 	faces_root = Node.new()
 	faces_root.name = "CardFaces"
@@ -134,12 +145,11 @@ func _ready() -> void:
 	pieces.clacked.connect(_on_piece_clack)
 	_define_spots()
 	var lines := GameData.LINES.duplicate()
-	var main_lines := lines.filter(func(l): return not HOBBY_LINES.has(l.id))
-	var hobby_lines := lines.filter(func(l): return HOBBY_LINES.has(l.id))
-	main_lines.shuffle()
-	hobby_lines.shuffle()
-	_build_shelf(main_lines, Vector3(0, 0, -4.72), 0.0, 4, "Game Shelf")
-	_build_shelf(hobby_lines, Vector3(5.68, 0, -3.1), -PI / 2, 3, "Hobby Shelf")
+	for sh in ROOM_SHELVES:
+		var ids: Array = sh[0]
+		var mine := lines.filter(func(l): return ids.has(l.id))
+		mine.shuffle()
+		_build_shelf(mine, sh[1], sh[2], sh[3], sh[4])
 	for line in lines:
 		_deal_line(line, spots[PLAYED_ON[line.id]])
 	pieces.build()
@@ -181,6 +191,8 @@ func _ready() -> void:
 		_screenshots()
 	elif "--map" in args:
 		_render_map(args[args.find("--map") + 1])
+	elif "--rooms" in args:
+		_room_shots(args[args.find("--rooms") + 1])
 
 
 # ---------------------------------------------------------------- input
@@ -347,10 +359,12 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 				_put_item(it, spot, _free_point(spot, 0.14), rng.randf_range(0, TAU))
 
 
+## Somewhere else in the same room, for the odd card pile that wandered off.
 func _stray_spot(spot: Dictionary) -> Dictionary:
-	var names := spots.keys()
-	var pick: Dictionary = spots[names[rng.randi_range(0, names.size() - 1)]]
-	return pick if pick != spot else spots["couch"]
+	var others := spots.values().filter(func(o: Dictionary): return o != spot and o.room == spot.room)
+	if others.is_empty():
+		return spot
+	return others[rng.randi_range(0, others.size() - 1)]
 
 
 func _free_point(spot: Dictionary, r: float) -> Vector3:
@@ -1175,24 +1189,20 @@ func _build_room() -> void:
 	var ceil_m := MeshKit.tex_mat(MeshKit.plank_texture(Color("6e4a33"), 9), 0.35, 0.8)
 	var trim := MeshKit.mat(Color("4a2a18"), 0.6)
 	var wainscot := MeshKit.mat(Color("2e4637"), 0.75)
-	# The room runs from the game shelf (z -5) to the hobby nook at the front (z 7.6).
-	_solid(Vector3(12.4, 0.2, 13.2), Vector3(0, -0.1, 1.3), floor_m)
-	_solid(Vector3(12.4, 0.2, 13.2), Vector3(0, 3.1, 1.3), ceil_m)
-	_solid(Vector3(12.4, 3.2, 0.2), Vector3(0, 1.5, -5.1), wall_m)
-	_solid(Vector3(12.4, 3.2, 0.2), Vector3(0, 1.5, 7.7), wall_m)
-	_solid(Vector3(0.2, 3.2, 13.2), Vector3(-6.1, 1.5, 1.3), wall_m)
-	_solid(Vector3(0.2, 3.2, 13.2), Vector3(6.1, 1.5, 1.3), wall_m)
-	# Painted wainscoting with a wooden rail, all the way round.
-	for z in [-4.985, 7.585]:
-		_solid(Vector3(12.0, 0.95, 0.03), Vector3(0, 0.475, z), wainscot, false)
-		_solid(Vector3(12.0, 0.05, 0.06), Vector3(0, 0.95, z), trim, false)
-		_solid(Vector3(12.0, 0.14, 0.05), Vector3(0, 0.07, z), trim, false)
-	for x in [-5.985, 5.985]:
-		_solid(Vector3(0.03, 0.95, 12.6), Vector3(x, 0.475, 1.3), wainscot, false)
-		_solid(Vector3(0.06, 0.05, 12.6), Vector3(x, 0.95, 1.3), trim, false)
-		_solid(Vector3(0.05, 0.14, 12.6), Vector3(x, 0.07, 1.3), trim, false)
+	# The living room runs from the game shelf (z -5) to the front wall (z 7.7), with doorways
+	# to the card room (west), the dragon's den (east) and the hobby studio (front).
+	_room(-6.1, 6.1, -5.1, 7.7, floor_m, wall_m, ceil_m, wainscot, trim, [["w", 4.9], ["e", 4.9], ["s", 0.0]])
 	for x in [-4.0, -1.3, 1.3, 4.0]:
 		_solid(Vector3(0.22, 0.2, 12.6), Vector3(x, 2.9, 1.3), trim, false)
+	_door_sign("The Card Room", Vector3(-5.985, 2.64, 4.9), PI / 2)
+	_door_sign("The Dragon's Den", Vector3(5.985, 2.64, 4.9), -PI / 2)
+	_door_sign("Hobby Studio", Vector3(0, 2.64, 7.585), PI)
+	# A reading corner where the old hobby nook was.
+	_armchair(Vector3(-4.6, 0, 6.9), PI, MeshKit.mat(Color("5f7f76"), 0.95))
+	_armchair(Vector3(4.4, 0, 6.9), PI, MeshKit.mat(Color("8f4636"), 0.95))
+	_bookcase(Vector3(-2.6, 0, 7.38), PI, 1.5, 2.1, MeshKit.mat(Color("5e3620"), 0.6))
+	_bookcase(Vector3(2.6, 0, 7.38), PI, 1.5, 2.1, MeshKit.mat(Color("5e3620"), 0.6))
+	_floor_lamp(Vector3(-5.5, 0, 7.15), Color("ffd2a0"), 1.2, false)
 
 	# Night window on the left wall: cool moonlight against all the warm lamps.
 	var glass := MeshKit.mat(Color("16224a"), 0.2, 0.7)
@@ -1420,7 +1430,7 @@ func _build_decor() -> void:
 	# A warm light tucked inside the top of the game shelf.
 	_omni(Vector3(0, 1.75, -4.4), Color(1.0, 0.75, 0.48), 0.9, 2.6)
 
-	for p in [Vector3(-5.4, 0, -4.5), Vector3(5.45, 0, -1.3), Vector3(5.5, 0, 4.5)]:
+	for p in [Vector3(-5.4, 0, -4.5), Vector3(5.45, 0, -1.3), Vector3(5.5, 0, 6.4)]:
 		_plant(p)
 
 	# A cup of tea left on the coffee table.
@@ -1446,41 +1456,7 @@ func _plant(pos: Vector3) -> void:
 	world.add_child(p)
 
 
-func _build_rpg_corner() -> void:
-	# A round table for the roleplaying game, under its own little lamp.
-	var wood := MeshKit.mat(Color("5e3620"), 0.55)
-	var top := StaticBody3D.new()
-	top.collision_layer = Item.LAYER_WORLD
-	var tcs := CollisionShape3D.new()
-	tcs.shape = MeshKit._cyl_shape(0.62, 0.05)
-	top.add_child(tcs)
-	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.62, 0.62, 0.05, 40), wood))
-	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.56, 0.56, 0.004, 40), MeshKit.mat(Color("5a1e2c"), 1.0), Vector3(0, 0.026, 0)))
-	top.position = Vector3(0.55, 0.715, 0.75)
-	world.add_child(top)
-	_solid(Vector3(0.12, 0.69, 0.12), Vector3(0.55, 0.345, 0.75), wood)
-	_solid(Vector3(0.5, 0.04, 0.5), Vector3(0.55, 0.02, 0.75), wood)
-	var lamp := SpotLight3D.new()
-	lamp.position = Vector3(0.55, 2.1, 0.75)
-	lamp.rotation.x = -PI / 2
-	lamp.light_color = Color(1.0, 0.7, 0.42)
-	lamp.light_energy = 2.8
-	lamp.spot_range = 3.0
-	lamp.spot_angle = 40.0
-	lamp.shadow_enabled = true
-	world.add_child(lamp)
-	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.006, 0.006, 0.8), MeshKit.mat(Color("222222")), Vector3(0.55, 2.6, 0.75)))
-	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.06, 0.24, 0.2, 24), MeshKit.mat(Color("6b1e2c"), 0.5), Vector3(0.55, 2.15, 0.75)))
-	world.add_child(MeshKit.mesh_node(MeshKit.sphere(0.05), MeshKit.mat(Color("ffe2b0"), 0.5, 6.0), Vector3(0.55, 2.06, 0.75)))
-	# A felt-topped dice ottoman by the fire, for the dice hoard.
-	_solid(Vector3(0.82, 0.38, 1.12), Vector3(4.72, 0.19, 0.35), MeshKit.mat(Color("4a2a3a"), 0.95))
-	_solid(Vector3(0.78, 0.03, 1.08), Vector3(4.72, 0.395, 0.35), MeshKit.mat(Color("2a3f5a"), 1.0))
-	for z in [-0.2, 0.9]:
-		_solid(Vector3(0.82, 0.03, 0.04), Vector3(4.72, 0.425, z), MeshKit.mat(Color("b08d4a"), 0.35), false)
-
-
 func _build_extra_lights() -> void:
-	_build_rpg_corner()
 	# A low pendant over the big game table in the middle of the room.
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.006, 0.006, 0.75), MeshKit.mat(Color("222222")), Vector3(0.4, 2.65, -2.3)))
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.07, 0.3, 0.22, 28), MeshKit.mat(Color("8a4a2a"), 0.5), Vector3(0.4, 2.18, -2.3)))
@@ -1585,29 +1561,34 @@ func _define_spots() -> void:
 	# center = point on the play surface, ext = how far a game spreads,
 	# row_start / rot = where its open boxes wait (in a row, fronts facing the room).
 	var defs := {
-		"dining": {"center": Vector3(-3.0, 0.76, -1.5), "ext": Vector2(0.9, 0.46), "row_start": Vector3(-3.55, 0.0, -0.4), "rot": 0.0, "spill": "floor_dining"},
-		"rug": {"center": Vector3(-2.4, 0.022, 2.5), "ext": Vector2(0.98, 0.98), "row_start": Vector3(-0.55, 0.0, 3.25), "rot": PI / 2},
-		"gametable": {"center": Vector3(0.4, 0.743, -2.3), "ext": Vector2(0.7, 0.48), "row_start": Vector3(-0.45, 0.0, -1.15), "rot": 0.0, "spill": "floor_game"},
-		"cardtable": {"center": Vector3(3.6, 0.74, -2.6), "ext": Vector2(0.47, 0.47), "row_start": Vector3(2.45, 0.0, -3.5), "rot": -PI / 2, "spill": "floor_card"},
-		"coffee": {"center": Vector3(3.0, 0.44, 1.0), "ext": Vector2(0.57, 0.3), "row_start": Vector3(1.75, 0.0, 0.55), "rot": -PI / 2, "spill": "floor_coffee"},
-		"bench": {"center": Vector3(-5.65, 0.5, 0.5), "ext": Vector2(0.29, 1.02), "row_start": Vector3(-4.8, 0.0, 1.45), "rot": PI / 2, "spill": "floor_bench"},
-		"round": {"center": Vector3(0.55, 0.743, 0.75), "ext": Vector2(0.4, 0.4), "row_start": Vector3(-0.3, 0.0, -0.45), "rot": 0.0, "spill": "floor_round"},
-		"ottoman": {"center": Vector3(4.72, 0.41, 0.35), "ext": Vector2(0.36, 0.5), "row_start": Vector3(4.0, 0.0, 4.45), "rot": PI, "spill": "floor_ottoman"},
-		"floor_round": {"center": Vector3(0.55, 0.0, 1.75), "ext": Vector2(0.35, 0.2), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_ottoman": {"center": Vector3(4.75, 0.0, 1.45), "ext": Vector2(0.35, 0.22), "row_start": Vector3.ZERO, "rot": 0.0},
-		# The hobby nook at the front of the room; its boxes line the front wall.
-		"paintdesk": {"center": Vector3(-4.6, 0.763, 5.62), "ext": Vector2(0.7, 0.22), "row_start": Vector3(-3.75, 0.0, 7.12), "rot": PI},
-		"poker": {"center": Vector3(-1.6, 0.763, 5.75), "ext": Vector2(0.5, 0.27), "row_start": Vector3(-0.6, 0.0, 7.12), "rot": PI},
-		"ccgtable": {"center": Vector3(0.9, 0.746, 5.75), "ext": Vector2(0.4, 0.38), "row_start": Vector3(2.0, 0.0, 7.12), "rot": PI},
-		"curio": {"center": Vector3(3.3, 0.706, 5.75), "ext": Vector2(0.33, 0.33), "row_start": Vector3(3.73, 0.0, 7.12), "rot": PI},
-		"ring": {"center": Vector3(5.0, 0.014, 5.75), "ext": Vector2(0.38, 0.38), "row_start": Vector3(5.45, 0.0, 7.12), "rot": PI},
-		"couch": {"center": Vector3(3.0, 0.44, 2.92), "ext": Vector2(0.95, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
-		# Floor patches where each game has spilled over.
-		"floor_dining": {"center": Vector3(-4.55, 0.0, -0.75), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_game": {"center": Vector3(1.65, 0.0, -2.55), "ext": Vector2(0.3, 0.35), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_card": {"center": Vector3(3.95, 0.0, -1.45), "ext": Vector2(0.45, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_coffee": {"center": Vector3(3.0, 0.0, 1.95), "ext": Vector2(0.85, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_bench": {"center": Vector3(-5.25, 0.0, -1.35), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
+		# The living room.
+		"dining": {"room": "living", "center": Vector3(-3.0, 0.76, -1.5), "ext": Vector2(0.9, 0.46), "row_start": Vector3(-3.55, 0.0, -0.4), "rot": 0.0, "spill": "floor_dining"},
+		"gametable": {"room": "living", "center": Vector3(0.4, 0.743, -2.3), "ext": Vector2(0.7, 0.48), "row_start": Vector3(-0.45, 0.0, -1.15), "rot": 0.0, "spill": "floor_game"},
+		"cardtable": {"room": "living", "center": Vector3(3.6, 0.74, -2.6), "ext": Vector2(0.47, 0.47), "row_start": Vector3(2.45, 0.0, -3.5), "rot": -PI / 2, "spill": "floor_card"},
+		"coffee": {"room": "living", "center": Vector3(3.0, 0.44, 1.0), "ext": Vector2(0.57, 0.3), "row_start": Vector3(1.75, 0.0, 0.55), "rot": -PI / 2, "spill": "floor_coffee"},
+		"bench": {"room": "living", "center": Vector3(-5.65, 0.5, 0.5), "ext": Vector2(0.29, 1.02), "row_start": Vector3(-4.8, 0.0, 1.45), "rot": PI / 2, "spill": "floor_bench"},
+		"couch": {"room": "living", "center": Vector3(3.0, 0.44, 2.92), "ext": Vector2(0.95, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_dining": {"room": "living", "center": Vector3(-4.55, 0.0, -0.75), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_game": {"room": "living", "center": Vector3(1.65, 0.0, -2.55), "ext": Vector2(0.3, 0.35), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_card": {"room": "living", "center": Vector3(3.95, 0.0, -1.45), "ext": Vector2(0.45, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_coffee": {"room": "living", "center": Vector3(3.0, 0.0, 1.95), "ext": Vector2(0.85, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_bench": {"room": "living", "center": Vector3(-5.25, 0.0, -1.35), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
+		# The card room, through the west doorway.
+		"poker": {"room": "card", "center": Vector3(-10.6, 0.763, 4.0), "ext": Vector2(0.5, 0.27), "row_start": Vector3(-12.0, 0.0, 2.5), "rot": 0.0, "spill": "floor_poker"},
+		"ccgtable": {"room": "card", "center": Vector3(-8.3, 0.746, 6.0), "ext": Vector2(0.4, 0.38), "row_start": Vector3(-10.3, 0.0, 7.15), "rot": PI, "spill": "floor_ccg"},
+		"floor_poker": {"room": "card", "center": Vector3(-10.6, 0.0, 5.3), "ext": Vector2(0.45, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_ccg": {"room": "card", "center": Vector3(-7.45, 0.0, 3.3), "ext": Vector2(0.35, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		# The dragon's den, through the east doorway.
+		"round": {"room": "den", "center": Vector3(9.6, 0.743, 3.6), "ext": Vector2(0.4, 0.4), "row_start": Vector3(10.3, 0.0, 0.35), "rot": 0.0, "spill": "floor_round"},
+		"curio": {"room": "den", "center": Vector3(12.3, 0.706, 2.0), "ext": Vector2(0.33, 0.33), "row_start": Vector3(12.2, 0.0, 0.35), "rot": 0.0},
+		"dicetable": {"room": "den", "center": Vector3(12.4, 0.624, 4.1), "ext": Vector2(0.34, 0.34), "row_start": Vector3(13.75, 0.0, 1.1), "rot": -PI / 2, "spill": "floor_dice"},
+		"war": {"room": "den", "center": Vector3(10.9, 0.763, 6.45), "ext": Vector2(0.9, 0.48), "row_start": Vector3(13.75, 0.0, 4.75), "rot": -PI / 2, "spill": "floor_war"},
+		"floor_round": {"room": "den", "center": Vector3(8.4, 0.0, 2.6), "ext": Vector2(0.35, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_dice": {"room": "den", "center": Vector3(11.3, 0.0, 5.0), "ext": Vector2(0.35, 0.28), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_war": {"room": "den", "center": Vector3(8.9, 0.0, 6.9), "ext": Vector2(0.35, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		# The hobby studio, through the front doorway.
+		"paintdesk": {"room": "studio", "center": Vector3(-1.6, 0.763, 12.77), "ext": Vector2(0.7, 0.22), "row_start": Vector3(-2.95, 0.0, 11.6), "rot": PI / 2},
+		"ring": {"room": "studio", "center": Vector3(1.0, 0.014, 10.4), "ext": Vector2(0.38, 0.38), "row_start": Vector3(2.95, 0.0, 8.6), "rot": -PI / 2},
 	}
 	for k in defs:
 		var s: Dictionary = defs[k]
@@ -1616,40 +1597,150 @@ func _define_spots() -> void:
 		spots[k] = s
 
 
-# ---------------------------------------------------------------- the hobby nook
+# ---------------------------------------------------------------- rooms
 
-func _build_hobby_nook() -> void:
-	var wood := MeshKit.mat(Color("5e3620"), 0.55)
-	var dark := MeshKit.mat(Color("2a1a12"), 0.6)
-	# The painting desk, with a cutting mat, a rack of paints and a bright task lamp.
-	var desk := _solid(Vector3(1.6, 0.05, 0.75), Vector3(-4.6, 0.735, 5.8), wood)
-	for sx in [-1, 1]:
-		for sz in [-1, 1]:
-			_solid(Vector3(0.06, 0.71, 0.06), Vector3(-4.6 + sx * 0.72, 0.355, 5.8 + sz * 0.3), wood)
-	_solid(Vector3(1.0, 0.004, 0.45), Vector3(-4.75, 0.762, 5.66), MeshKit.mat(Color("2f5a46"), 0.9), false)
-	_solid(Vector3(1.5, 0.22, 0.12), Vector3(-4.6, 0.87, 6.1), dark)
-	var pot_colors := [Color("c8323a"), Color("e8742a"), Color("f2c94e"), Color("4f9e3a"), Color("2a6fb5"), Color("6a3fa0"), Color("f2efe6"), Color("1d1d22"), Color("8a5a34"), Color("e05a9a"), Color("2fb8a8"), Color("e8b84a")]
-	for row in 2:
-		for i in 12:
-			var x := -5.28 + i * 0.12
-			world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.016, 0.016, 0.03, 10), MeshKit.mat(pot_colors[(i + row * 5) % pot_colors.size()], 0.4), Vector3(x, 0.996 - row * 0.1 + 0.015, 6.06 - row * 0.05)))
-	var lamp := SpotLight3D.new()
-	lamp.position = Vector3(-4.3, 1.45, 5.75)
-	lamp.rotation = Vector3(-PI / 2 + 0.25, 0, 0)
-	lamp.light_color = Color(1.0, 0.92, 0.8)
-	lamp.light_energy = 4.5
-	lamp.spot_range = 2.0
-	lamp.spot_angle = 45.0
-	lamp.shadow_enabled = true
-	world.add_child(lamp)
-	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.012, 0.6), MeshKit.mat(Color("2a2a2a"), 0.4), Vector3(-3.95, 1.07, 6.05)))
-	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.04, 0.08, 0.1, 16), MeshKit.mat(Color("2f5a46"), 0.4), Vector3(-4.2, 1.47, 5.85), Vector3(0.6, 0, 0.5)))
-	var sign_root := Node3D.new()
-	sign_root.position = Vector3(-4.6, 1.17, 6.17)
-	sign_root.rotation.y = PI
-	world.add_child(sign_root)
-	_sign(sign_root, "Hobby Desk", Vector3.ZERO, Vector2(0.62, 0.13))
-	# An oval felt poker table under a green banker's lamp.
+## A room's floor, ceiling and four walls. Each wall is 0.1 thick and sits just inside the room's
+## rectangle, so two rooms can share a wall line, each with its own wallpaper. A doorway is
+## [side, centre along that wall]; side is "n" (min z), "s" (max z), "w" (min x) or "e" (max x).
+## Doorways get a lintel above and a painted casing round them.
+func _room(x0: float, x1: float, z0: float, z1: float, floor_m: Material, wall_m: Material, ceil_m: Material,
+		wainscot: Material, trim: Material, doors: Array, panel_h := 0.95) -> void:
+	var cx := (x0 + x1) / 2.0
+	var cz := (z0 + z1) / 2.0
+	_solid(Vector3(x1 - x0, 0.2, z1 - z0), Vector3(cx, -0.1, cz), floor_m)
+	_solid(Vector3(x1 - x0, 0.2, z1 - z0), Vector3(cx, 3.1, cz), ceil_m)
+	for side in ["n", "s", "w", "e"]:
+		var along_x: bool = side == "n" or side == "s"
+		var a0 := x0 if along_x else z0
+		var a1 := x1 if along_x else z1
+		var fixed: float = {"n": z0, "s": z1, "w": x0, "e": x1}[side]
+		var inward: float = 1.0 if (side == "n" or side == "w") else -1.0
+		var place := func(length: float, along: float, h: float, y: float, depth: float, off: float, m: Material, collide: bool) -> void:
+			if along_x:
+				_solid(Vector3(length, h, depth), Vector3(along, y, fixed + inward * off), m, collide)
+			else:
+				_solid(Vector3(depth, h, length), Vector3(fixed + inward * off, y, along), m, collide)
+		var gaps := []
+		for d in doors:
+			if d[0] == side:
+				gaps.append(float(d[1]))
+		gaps.sort()
+		var cur := a0
+		var segs := []
+		for g: float in gaps:
+			segs.append(Vector2(cur, g - DOOR_W / 2.0))
+			cur = g + DOOR_W / 2.0
+		segs.append(Vector2(cur, a1))
+		for sg: Vector2 in segs:
+			if sg.y - sg.x < 0.01:
+				continue
+			place.call(sg.y - sg.x, (sg.x + sg.y) / 2.0, 3.2, 1.5, 0.1, 0.05, wall_m, true)
+			# Panelling, a rail and a skirting board, stopping short of the walls at the corners.
+			var s0 := sg.x + (0.1 if absf(sg.x - a0) < 0.001 else 0.0)
+			var s1 := sg.y - (0.1 if absf(sg.y - a1) < 0.001 else 0.0)
+			if panel_h > 0.0:
+				place.call(s1 - s0, (s0 + s1) / 2.0, panel_h, panel_h / 2.0, 0.03, 0.115, wainscot, false)
+				place.call(s1 - s0, (s0 + s1) / 2.0, 0.05, panel_h, 0.06, 0.13, trim, false)
+			place.call(s1 - s0, (s0 + s1) / 2.0, 0.14, 0.07, 0.05, 0.125, trim, false)
+		for g: float in gaps:
+			place.call(DOOR_W, g, 3.1 - DOOR_H, (DOOR_H + 3.1) / 2.0, 0.1, 0.05, wall_m, true)
+			for sd in [-1.0, 1.0]:
+				place.call(0.09, g + sd * (DOOR_W / 2.0 + 0.045), DOOR_H + 0.09, (DOOR_H + 0.09) / 2.0, 0.035, 0.117, trim, false)
+			place.call(DOOR_W + 0.18, g, 0.09, DOOR_H + 0.045, 0.035, 0.117, trim, false)
+
+
+## A gilded sign over a doorway, facing into the room it's in.
+func _door_sign(text: String, at: Vector3, rot: float) -> void:
+	var root := Node3D.new()
+	root.position = at
+	root.rotation.y = rot
+	world.add_child(root)
+	_sign(root, text, Vector3.ZERO, Vector2(1.1, 0.22))
+
+
+func _armchair(pos: Vector3, rot: float, fabric: Material) -> void:
+	var root := Node3D.new()
+	root.position = pos
+	root.rotation.y = rot
+	world.add_child(root)
+	_solid(Vector3(0.8, 0.42, 0.8), Vector3(0, 0.21, 0), fabric, true, 0.0, root)
+	_solid(Vector3(0.8, 0.62, 0.18), Vector3(0, 0.72, -0.31), fabric, true, 0.0, root)
+	for sx in [-1.0, 1.0]:
+		_solid(Vector3(0.14, 0.26, 0.8), Vector3(sx * 0.33, 0.55, 0), fabric, true, 0.0, root)
+	root.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.52, 0.1, 0.6)), MeshKit.mat((fabric as StandardMaterial3D).albedo_color.lightened(0.12), 0.95), Vector3(0, 0.47, 0.04)))
+
+
+## A tall bookcase full of books, built facing +z, then turned and placed against a wall.
+func _bookcase(pos: Vector3, rot: float, width: float, height: float, wood: Material) -> void:
+	var root := Node3D.new()
+	root.position = pos
+	root.rotation.y = rot
+	world.add_child(root)
+	var depth := 0.34
+	_solid(Vector3(width, height, 0.03), Vector3(0, height / 2, -depth / 2 + 0.015), MeshKit.mat(Color("2e1a10"), 0.8), true, 0.0, root)
+	for sx in [-1.0, 1.0]:
+		_solid(Vector3(0.04, height, depth), Vector3(sx * (width / 2 - 0.02), height / 2, 0), wood, true, 0.0, root)
+	var shelves := int(height / 0.42)
+	var spines := [Color("8e3b2c"), Color("2e5a4a"), Color("c49a3a"), Color("3a4a7a"), Color("6b3a5a"), Color("d9c8ae"), Color("4a6a2a")]
+	for i in shelves + 1:
+		var y := 0.04 + i * (height - 0.06) / shelves
+		_solid(Vector3(width - 0.06, 0.03, depth - 0.02), Vector3(0, y, 0), wood, true, 0.0, root)
+		if i == shelves:
+			break
+		var x := -width / 2 + 0.07
+		while x < width / 2 - 0.1:
+			var bw := rng.randf_range(0.025, 0.05)
+			var bh := rng.randf_range(0.22, 0.32)
+			var lean := 0.0 if rng.randf() < 0.85 else rng.randf_range(0.1, 0.25)
+			root.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(bw, bh, rng.randf_range(0.18, 0.24))), MeshKit.mat(spines[rng.randi_range(0, spines.size() - 1)], 0.8),
+				Vector3(x + bw / 2, y + 0.015 + bh / 2, 0.02), Vector3(0, 0, lean)))
+			x += bw + 0.004 + (0.06 if rng.randf() < 0.08 else 0.0)
+
+
+## A wall sconce: a brass back plate, an arm and a little glowing shade.
+func _sconce(pos: Vector3, facing: Vector3, shade: Color, energy := 0.7) -> void:
+	var brass := MeshKit.mat(Color("b08d4a"), 0.35)
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.05, 0.05, 0.015, 16), brass, pos, Vector3(PI / 2, 0, 0) if absf(facing.z) > 0.5 else Vector3(0, 0, PI / 2)))
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.07, 0.11, 0.14, 18), MeshKit.mat(shade, 0.9, 1.6), pos + facing * 0.12 + Vector3(0, 0.08, 0)))
+	_omni(pos + facing * 0.2 + Vector3(0, 0.05, 0), Color(1.0, 0.7, 0.42), energy, 3.2)
+
+
+## A wall torch: an iron bracket, a wooden haft and a flickering flame.
+func _torch(pos: Vector3, facing: Vector3) -> void:
+	var iron := MeshKit.mat(Color("2a2522"), 0.5)
+	world.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.08, 0.16, 0.08)), iron, pos))
+	var haft := MeshKit.mesh_node(MeshKit.cyl(0.02, 0.014, 0.32, 8), MeshKit.mat(Color("4a2e1a"), 0.9), pos + facing * 0.09 + Vector3(0, 0.12, 0))
+	haft.rotation = Vector3(facing.z * 0.35, 0, -facing.x * 0.35)
+	world.add_child(haft)
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.04, 0.03, 0.06, 10), iron, pos + facing * 0.14 + Vector3(0, 0.26, 0)))
+	_flame(pos + facing * 0.15 + Vector3(0, 0.36, 0), 0.16, 0.035, false)
+	_flame(pos + facing * 0.15 + Vector3(0, 0.33, 0), 0.08, 0.022, true)
+	_omni(pos + facing * 0.3 + Vector3(0, 0.4, 0), Color(1.0, 0.55, 0.25), 1.1, 4.2, false, 2.6)
+
+
+## A framed picture on a wall: art is a material for the canvas.
+func _frame(pos: Vector3, facing: Vector3, size: Vector2, art: Material, frame_c := Color("b08d4a")) -> void:
+	var rot := Vector3(0, atan2(facing.x, facing.z), 0)
+	world.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(size.x + 0.08, size.y + 0.08, 0.03)), MeshKit.mat(frame_c, 0.35), pos, rot))
+	var canvas := MeshKit.mesh_node(MeshKit.box(Vector3(size.x, size.y, 0.01)), art, pos + facing * 0.012, rot)
+	world.add_child(canvas)
+
+
+# ---- the card room: a velvet lounge for the casino set and the trading card game
+
+func _build_card_room() -> void:
+	var floor_m := MeshKit.tex_mat(MeshKit.plank_texture(Color("5a3020"), 5), 0.4, 0.45)
+	var wall_m := MeshKit.tex_mat(MeshKit.damask_texture(Color("1d4434"), Color("2b5a45"), Color("9c7a3a")), 0.7, 0.9)
+	var ceil_m := MeshKit.tex_mat(MeshKit.plank_texture(Color("3a2216"), 9), 0.35, 0.8)
+	var panel := MeshKit.mat(Color("3a1c12"), 0.4)
+	var gilt := MeshKit.mat(Color("b08d4a"), 0.3)
+	_room(-13.3, -6.1, 1.9, 7.7, floor_m, wall_m, ceil_m, panel, gilt, [["e", 4.9]], 1.1)
+	# A deep red carpet with a gold border.
+	_solid(Vector3(5.8, 0.004, 4.6), Vector3(-9.7, 0.002, 4.8), MeshKit.mat(Color("c49a3a"), 1.0), false)
+	_solid(Vector3(5.6, 0.005, 4.4), Vector3(-9.7, 0.0025, 4.8), MeshKit.mat(Color("6b1420"), 1.0), false)
+	var wood := MeshKit.mat(Color("3a1f12"), 0.45)
+	var leather := MeshKit.mat(Color("7a2a22"), 0.55)
+	# The oval felt poker table under a green banker's lamp.
 	var poker := StaticBody3D.new()
 	poker.collision_layer = Item.LAYER_WORLD
 	var pcs := CollisionShape3D.new()
@@ -1661,16 +1752,111 @@ func _build_hobby_nook() -> void:
 	var rail := MeshKit.mesh_node(MeshKit.torus(0.66, 0.76), MeshKit.mat(Color("3a1f12"), 0.4), Vector3(0, 0.02, 0))
 	rail.scale = Vector3(1, 0.6, 0.68)
 	poker.add_child(rail)
-	poker.position = Vector3(-1.6, 0.735, 5.75)
+	poker.position = Vector3(-10.6, 0.735, 4.0)
 	world.add_child(poker)
-	_solid(Vector3(0.14, 0.71, 0.14), Vector3(-1.6, 0.355, 5.75), wood)
-	_solid(Vector3(0.6, 0.04, 0.4), Vector3(-1.6, 0.02, 5.75), wood)
-	_pendant(Vector3(-1.6, 0, 5.75), Color("2f6b4a"), 4.0)
-	# A square card table with a playmat, for the card game.
-	_table(Vector3(0.9, 0, 5.75), Vector3(0.95, 0.72, 0.9), wood)
-	_solid(Vector3(0.85, 0.003, 0.8), Vector3(0.9, 0.7215, 5.75), MeshKit.mat(Color("1d2a4a"), 1.0), false)
-	_pendant(Vector3(0.9, 0, 5.75), Color("6b1e4a"), 3.6)
-	# A round curio table in black velvet for the crystals.
+	_solid(Vector3(0.14, 0.71, 0.14), Vector3(-10.6, 0.355, 4.0), wood)
+	_solid(Vector3(0.6, 0.04, 0.4), Vector3(-10.6, 0.02, 4.0), wood)
+	_pendant(Vector3(-10.6, 0, 4.0), Color("1f6b46"), 3.0)
+	_chair(Vector3(-11.6, 0, 4.0), PI / 2, leather)
+	_chair(Vector3(-9.6, 0, 4.0), -PI / 2, leather)
+	# A square card table with a playmat for the trading card game.
+	_table(Vector3(-8.3, 0, 6.0), Vector3(0.95, 0.72, 0.9), wood)
+	_solid(Vector3(0.85, 0.003, 0.8), Vector3(-8.3, 0.7215, 6.0), MeshKit.mat(Color("1d2a4a"), 1.0), false)
+	_pendant(Vector3(-8.3, 0, 6.0), Color("6b1e4a"), 2.6)
+	_chair(Vector3(-8.3, 0, 5.1), 0.0, leather)
+	# A brass bar cart with decanters and glasses.
+	var cart := Vector3(-6.95, 0, 2.55)
+	_solid(Vector3(0.7, 0.03, 0.4), cart + Vector3(0, 0.75, 0), gilt)
+	_solid(Vector3(0.7, 0.03, 0.4), cart + Vector3(0, 0.3, 0), gilt, false)
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			_solid(Vector3(0.025, 0.75, 0.025), cart + Vector3(sx * 0.33, 0.375, sz * 0.18), gilt, false)
+	var bottles := [Color("6b2a1a"), Color("c49a3a"), Color("2a4a2a")]
+	for i in 3:
+		var bp := cart + Vector3(-0.22 + i * 0.13, 0.765, -0.06)
+		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.035, 0.04, 0.18, 14), MeshKit.glass_mat(bottles[i]), bp + Vector3(0, 0.09, 0)))
+		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.014, 0.06, 10), MeshKit.glass_mat(bottles[i]), bp + Vector3(0, 0.21, 0)))
+	for i in 2:
+		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.03, 0.025, 0.07, 14), MeshKit.glass_mat(), cart + Vector3(0.18 + i * 0.08, 0.8, 0.08)))
+	# A leather armchair and a lamp in the corner.
+	_armchair(Vector3(-7.0, 0, 7.0), PI, leather)
+	_floor_lamp(Vector3(-6.62, 0, 6.35), Color("e8c48a"), 1.0, false)
+	# Sconces and framed playing cards on the walls.
+	for x in [-8.4, -12.2]:
+		_sconce(Vector3(x, 1.9, 2.0), Vector3(0, 0, 1), Color("f0d2a0"))
+	_sconce(Vector3(-11.0, 1.9, 7.6), Vector3(0, 0, -1), Color("f0d2a0"))
+	var faces := FaceKit.faces(self, "casino", "Royal Flush", Color("7a1420"), Color("c49a3a"), "casino")
+	for i in 4:
+		var art: Material = faces[(i * 2) % faces.size()]
+		_frame(Vector3(-10.4 + i * 0.42, 1.75, 2.0), Vector3(0, 0, 1), Vector2(0.26, 0.36), art)
+	# Velvet drapes framing the shelf.
+	for z in [3.9, 5.7]:
+		_solid(Vector3(0.12, 2.6, 0.34), Vector3(-13.12, 1.4, z), MeshKit.mat(Color("6b1420"), 0.95), false)
+	_solid(Vector3(0.05, 0.05, 2.4), Vector3(-13.1, 2.72, 4.8), gilt, false)
+	_omni(Vector3(-9.7, 2.5, 4.8), Color(1.0, 0.7, 0.45), 0.45, 5.0)
+
+
+# ---- the dragon's den: stone walls, torches and banners for the roleplaying games
+
+func _build_den() -> void:
+	var floor_m := MeshKit.tex_mat(MeshKit.plank_texture(Color("4a2e1e"), 7), 0.45, 0.6)
+	var wall_m := MeshKit.tex_mat(MeshKit.stone_texture(), 0.55, 0.95)
+	var ceil_m := MeshKit.tex_mat(MeshKit.plank_texture(Color("2e1c12"), 9), 0.35, 0.85)
+	var timber := MeshKit.mat(Color("2e1c12"), 0.7)
+	_room(6.1, 14.3, -0.3, 7.7, floor_m, wall_m, ceil_m, timber, timber, [["w", 4.9]], 0.0)
+	for x in [7.6, 9.6, 11.6, 13.4]:
+		_solid(Vector3(0.24, 0.24, 7.8), Vector3(x, 2.88, 3.7), timber, false)
+	var wood := MeshKit.mat(Color("5e3620"), 0.55)
+	var iron := MeshKit.mat(Color("2a2522"), 0.5)
+	# A round rug in deep red under the round table.
+	_solid(Vector3(0.1, 0.1, 0.1), Vector3(9.6, -1.0, 3.6), wood, false)
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(1.55, 1.55, 0.004, 48), MeshKit.mat(Color("c49a3a"), 1.0), Vector3(9.6, 0.002, 3.6)))
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(1.45, 1.45, 0.005, 48), MeshKit.mat(Color("5a1420"), 1.0), Vector3(9.6, 0.0025, 3.6)))
+	# The round table for Wyrmlight Tales, under an iron candle chandelier.
+	var top := StaticBody3D.new()
+	top.collision_layer = Item.LAYER_WORLD
+	var tcs := CollisionShape3D.new()
+	tcs.shape = MeshKit._cyl_shape(0.62, 0.05)
+	top.add_child(tcs)
+	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.62, 0.62, 0.05, 40), wood))
+	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.56, 0.56, 0.004, 40), MeshKit.mat(Color("5a1e2c"), 1.0), Vector3(0, 0.026, 0)))
+	top.position = Vector3(9.6, 0.715, 3.6)
+	world.add_child(top)
+	_solid(Vector3(0.12, 0.69, 0.12), Vector3(9.6, 0.345, 3.6), wood)
+	_solid(Vector3(0.5, 0.04, 0.5), Vector3(9.6, 0.02, 3.6), wood)
+	for c in [[Vector3(8.62, 0, 3.6), PI / 2], [Vector3(10.58, 0, 3.6), -PI / 2], [Vector3(9.6, 0, 2.62), 0.0]]:
+		_chair(c[0], c[1], timber)
+	var ring := MeshKit.mesh_node(MeshKit.torus(0.52, 0.56), iron, Vector3(9.6, 2.25, 3.6))
+	ring.scale = Vector3(1, 0.5, 1)
+	world.add_child(ring)
+	for k in 4:
+		var a := TAU * k / 4.0 + 0.4
+		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.004, 0.004, 0.8), iron, Vector3(9.6 + cos(a) * 0.27, 2.62, 3.6 + sin(a) * 0.27), Vector3(sin(a) * 0.6, 0, -cos(a) * 0.6)))
+	var wax := MeshKit.mat(Color("efe0c4"), 0.6)
+	for k in 8:
+		var a := TAU * k / 8.0
+		var cp := Vector3(9.6 + cos(a) * 0.54, 2.27, 3.6 + sin(a) * 0.54)
+		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.018, 0.018, 0.1, 10), wax, cp + Vector3(0, 0.05, 0)))
+		_flame(cp + Vector3(0, 0.125, 0), 0.04, 0.01, true)
+	_omni(Vector3(9.6, 2.2, 3.6), Color(1.0, 0.62, 0.32), 1.6, 4.5, true, 3.0)
+	var down := SpotLight3D.new()
+	down.position = Vector3(9.6, 2.15, 3.6)
+	down.rotation.x = -PI / 2
+	down.light_color = Color(1.0, 0.7, 0.42)
+	down.light_energy = 2.4
+	down.spot_range = 3.0
+	down.spot_angle = 40.0
+	down.shadow_enabled = true
+	world.add_child(down)
+	# The war table for Mossy Crowns: a long table with a green battlefield mat.
+	_table(Vector3(10.9, 0, 6.45), Vector3(2.0, 0.76, 1.1), wood)
+	_solid(Vector3(1.9, 0.003, 1.0), Vector3(10.9, 0.7615, 6.45), MeshKit.mat(Color("3a5a2a"), 1.0), false)
+	for p in [[Vector3(10.4, 0.763, 6.2), 0.25], [Vector3(11.5, 0.763, 6.75), 0.18]]:
+		var patch := MeshKit.mesh_node(MeshKit.cyl(p[1], p[1], 0.001, 20), MeshKit.mat(Color("4a6a32"), 1.0), p[0])
+		patch.scale = Vector3(1.4, 1, 0.8)
+		world.add_child(patch)
+	_pendant(Vector3(10.9, 0, 6.45), Color("3a2a1a"), 2.8)
+	# A velvet-lined curio table for the crystals, glowing faintly purple.
 	var curio := StaticBody3D.new()
 	curio.collision_layer = Item.LAYER_WORLD
 	var ccs := CollisionShape3D.new()
@@ -1678,11 +1864,111 @@ func _build_hobby_nook() -> void:
 	curio.add_child(ccs)
 	curio.add_child(MeshKit.mesh_node(MeshKit.cyl(0.5, 0.5, 0.04, 36), wood))
 	curio.add_child(MeshKit.mesh_node(MeshKit.cyl(0.46, 0.46, 0.004, 36), MeshKit.mat(Color("16121c"), 1.0), Vector3(0, 0.021, 0)))
-	curio.position = Vector3(3.3, 0.68, 5.75)
+	curio.position = Vector3(12.3, 0.68, 2.0)
 	world.add_child(curio)
-	_solid(Vector3(0.1, 0.66, 0.1), Vector3(3.3, 0.33, 5.75), wood)
-	_pendant(Vector3(3.3, 0, 5.75), Color("3a2a5a"), 3.0)
-	# A chalk marble ring on a round mat, right on the floor.
+	_solid(Vector3(0.1, 0.66, 0.1), Vector3(12.3, 0.33, 2.0), wood)
+	_pendant(Vector3(12.3, 0, 2.0), Color("3a2a5a"), 2.4)
+	_omni(Vector3(12.3, 1.1, 2.0), Color(0.7, 0.5, 1.0), 0.5, 1.6)
+	# A felt-lined dice tray table for the dice hoard.
+	var dt := StaticBody3D.new()
+	dt.collision_layer = Item.LAYER_WORLD
+	var dcs := CollisionShape3D.new()
+	dcs.shape = MeshKit._cyl_shape(0.45, 0.04)
+	dt.add_child(dcs)
+	dt.add_child(MeshKit.mesh_node(MeshKit.cyl(0.45, 0.45, 0.04, 36), wood))
+	dt.add_child(MeshKit.mesh_node(MeshKit.cyl(0.42, 0.42, 0.004, 36), MeshKit.mat(Color("2a3f5a"), 1.0), Vector3(0, 0.022, 0)))
+	var rim := MeshKit.mesh_node(MeshKit.torus(0.42, 0.46), MeshKit.mat(Color("b08d4a"), 0.35), Vector3(0, 0.03, 0))
+	rim.scale = Vector3(1, 0.5, 1)
+	dt.add_child(rim)
+	dt.position = Vector3(12.4, 0.6, 4.1)
+	world.add_child(dt)
+	_solid(Vector3(0.1, 0.58, 0.1), Vector3(12.4, 0.29, 4.1), wood)
+	_solid(Vector3(0.4, 0.04, 0.4), Vector3(12.4, 0.02, 4.1), wood)
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.03, 0.03, 0.12, 10), wax, Vector3(12.85, 0.68, 3.75)))
+	_flame(Vector3(12.85, 0.765, 3.75), 0.04, 0.01, true)
+	_omni(Vector3(12.8, 0.95, 3.8), Color(1.0, 0.64, 0.34), 0.6, 1.8, false, 4.0)
+	# Torches on the walls.
+	for t in [[Vector3(6.25, 1.75, 2.2), Vector3(1, 0, 0)], [Vector3(6.25, 1.75, 7.0), Vector3(1, 0, 0)],
+			[Vector3(14.15, 1.75, 0.6), Vector3(-1, 0, 0)], [Vector3(14.15, 1.75, 4.3), Vector3(-1, 0, 0)],
+			[Vector3(12.4, 1.75, 7.55), Vector3(0, 0, -1)]]:
+		_torch(t[0], t[1])
+	# Banners hanging on the north wall.
+	for b in [[9.95, Color("7a1e22")], [13.5, Color("1e3a6a")]]:
+		var bx: float = b[0]
+		_solid(Vector3(0.62, 1.25, 0.02), Vector3(bx, 2.05, -0.17), MeshKit.mat(b[1], 0.95), false)
+		_solid(Vector3(0.62, 0.05, 0.03), Vector3(bx, 1.45, -0.165), MeshKit.mat(Color("c49a3a"), 0.4), false)
+		_solid(Vector3(0.7, 0.03, 0.03), Vector3(bx, 2.7, -0.16), iron, false)
+		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.12, 0.12, 0.01, 6), MeshKit.mat(Color("e8b84a"), 0.35), Vector3(bx, 2.15, -0.155), Vector3(PI / 2, 0, 0)))
+	# A shelf of spellbooks, a treasure chest and a shield on the wall.
+	_bookcase(Vector3(7.3, 0, 7.4), PI, 1.6, 2.2, timber)
+	var chest: Node3D = MeshKit.piece("chest", Color("6b3a1e"), Color("e8b84a"))[0]
+	chest.scale = Vector3.ONE * 5.0
+	chest.position = Vector3(6.75, 0.16, 3.0)
+	chest.rotation.y = PI / 2
+	world.add_child(chest)
+	var shield := MeshKit.mesh_node(MeshKit.cyl(0.32, 0.32, 0.04, 24), MeshKit.mat(Color("5a1420"), 0.6), Vector3(8.6, 1.9, 7.57), Vector3(PI / 2, 0, 0))
+	world.add_child(shield)
+	world.add_child(MeshKit.mesh_node(MeshKit.torus(0.29, 0.33), MeshKit.mat(Color("b08d4a"), 0.35), Vector3(8.6, 1.9, 7.55), Vector3(PI / 2, 0, 0)))
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.07, 0.07, 0.05, 16), MeshKit.mat(Color("b08d4a"), 0.35), Vector3(8.6, 1.9, 7.54), Vector3(PI / 2, 0, 0)))
+	_omni(Vector3(10.2, 2.5, 3.7), Color(1.0, 0.6, 0.35), 0.35, 6.0)
+
+
+# ---- the hobby studio: a bright workshop for the paints and the marbles
+
+func _build_studio() -> void:
+	var floor_m := MeshKit.tex_mat(MeshKit.plank_texture(Color("b58a5c"), 4), 0.45, 0.55)
+	var wall_m := MeshKit.tex_mat(MeshKit.stripe_texture(Color("c9cfb4"), Color("bcc4a6")), 0.9, 0.95)
+	var ceil_m := MeshKit.tex_mat(MeshKit.plank_texture(Color("d9c8ae"), 9), 0.35, 0.8)
+	var panel := MeshKit.mat(Color("ece4d4"), 0.7)
+	var trim := MeshKit.mat(Color("f6efe2"), 0.6)
+	_room(-3.5, 3.5, 7.7, 13.5, floor_m, wall_m, ceil_m, panel, trim, [["n", 0.0]], 0.9)
+	var wood := MeshKit.mat(Color("8a5a34"), 0.55)
+	var dark := MeshKit.mat(Color("2a1a12"), 0.6)
+	# A woven rug.
+	_solid(Vector3(3.6, 0.004, 2.6), Vector3(0.2, 0.002, 10.5), MeshKit.mat(Color("d9a441"), 1.0), false)
+	_solid(Vector3(3.4, 0.005, 2.4), Vector3(0.2, 0.0025, 10.5), MeshKit.mat(Color("3f6a6a"), 1.0), false)
+	# The painting desk against the back wall, with a cutting mat, a rack of paints and a task lamp.
+	var o := Vector3(-1.6, 0, 12.95)
+	_solid(Vector3(1.6, 0.05, 0.75), o + Vector3(0, 0.735, 0), wood)
+	for sx in [-1, 1]:
+		for sz in [-1, 1]:
+			_solid(Vector3(0.06, 0.71, 0.06), o + Vector3(sx * 0.72, 0.355, sz * 0.3), wood)
+	_solid(Vector3(1.0, 0.004, 0.45), o + Vector3(-0.15, 0.762, -0.18), MeshKit.mat(Color("2f5a46"), 0.9), false)
+	_solid(Vector3(1.5, 0.22, 0.12), o + Vector3(0, 0.87, 0.3), dark)
+	var pot_colors := [Color("c8323a"), Color("e8742a"), Color("f2c94e"), Color("4f9e3a"), Color("2a6fb5"), Color("6a3fa0"), Color("f2efe6"), Color("1d1d22"), Color("8a5a34"), Color("e05a9a"), Color("2fb8a8"), Color("e8b84a")]
+	for row in 2:
+		for i in 12:
+			world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.016, 0.016, 0.03, 10), MeshKit.mat(pot_colors[(i + row * 5) % pot_colors.size()], 0.4),
+				o + Vector3(-0.68 + i * 0.12, 1.011 - row * 0.1, 0.26 - row * 0.05)))
+	var lamp := SpotLight3D.new()
+	lamp.position = o + Vector3(0.3, 1.45, -0.05)
+	lamp.rotation = Vector3(-PI / 2 + 0.25, 0, 0)
+	lamp.light_color = Color(1.0, 0.94, 0.84)
+	lamp.light_energy = 3.5
+	lamp.spot_range = 2.0
+	lamp.spot_angle = 45.0
+	lamp.shadow_enabled = true
+	world.add_child(lamp)
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.012, 0.6), MeshKit.mat(Color("2a2a2a"), 0.4), o + Vector3(0.65, 1.07, 0.25)))
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.04, 0.08, 0.1, 16), MeshKit.mat(Color("2f5a46"), 0.4), o + Vector3(0.4, 1.47, 0.05), Vector3(0.6, 0, 0.5)))
+	_chair(o + Vector3(0, 0, -0.75), 0.0, wood)
+	# A pegboard of tools above the desk, and a little shelf of finished miniatures.
+	_solid(Vector3(1.7, 0.9, 0.02), Vector3(-1.6, 1.85, 13.38), MeshKit.tex_mat(MeshKit.pegboard_texture(Color("c9a272"), Color("5a3a22")), 1.6, 0.8), false)
+	var tool_c := [Color("c8323a"), Color("2a6fb5"), Color("e8b84a"), Color("4f9e3a")]
+	for i in 7:
+		var tx := -2.25 + i * 0.2
+		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.006, 0.004, 0.2, 8), MeshKit.mat(Color("8a5a34"), 0.6), Vector3(tx, 1.9, 13.35)))
+		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.008, 0.008, 0.04, 8), MeshKit.mat(tool_c[i % 4], 0.5), Vector3(tx, 2.02, 13.35)))
+	_solid(Vector3(0.5, 0.03, 0.04), Vector3(-1.05, 1.62, 13.36), MeshKit.mat(Color("d9d0c0"), 0.5), false)
+	_solid(Vector3(1.0, 0.03, 0.18), Vector3(0.3, 1.45, 13.31), wood, false)
+	var mini_c := [Color("6a9a3a"), Color("b0302c"), Color("e8e0cc"), Color("2a6fb5")]
+	var mini_t := ["knight", "hero", "skeleton", "goblin"]
+	for i in 4:
+		var fig: Node3D = MeshKit.piece(mini_t[i], mini_c[i], Color("d8b45a"))[0]
+		fig.position = Vector3(-0.05 + i * 0.22, 1.465 + 0.045, 13.3)
+		fig.rotation.y = PI
+		world.add_child(fig)
+	# The chalk marble ring on its mat, with a beanbag beside it.
 	var mat_body := StaticBody3D.new()
 	mat_body.collision_layer = Item.LAYER_WORLD
 	var mcs := CollisionShape3D.new()
@@ -1692,12 +1978,45 @@ func _build_hobby_nook() -> void:
 	var chalk := MeshKit.mesh_node(MeshKit.torus(0.5, 0.52), MeshKit.mat(Color("f2efe6"), 1.0), Vector3(0, 0.007, 0))
 	chalk.scale = Vector3(1, 0.05, 1)
 	mat_body.add_child(chalk)
-	mat_body.position = Vector3(5.0, 0.006, 5.75)
+	mat_body.position = Vector3(1.0, 0.006, 10.4)
 	world.add_child(mat_body)
-	_pendant(Vector3(5.0, 0, 5.75), Color("8a4a2a"), 2.6)
-	# A little warm fill so the nook isn't a dark corner.
-	for x in [-3.5, 0.0, 3.5]:
-		_omni(Vector3(x, 2.4, 6.4), Color(1.0, 0.72, 0.45), 0.55, 4.0)
+	var bean := MeshKit.mesh_node(MeshKit.sphere(0.4, 16), MeshKit.mat(Color("d9774a"), 0.95), Vector3(-0.3, 0.22, 11.6))
+	bean.scale = Vector3(1, 0.55, 1)
+	world.add_child(bean)
+	# A big night window on the east wall.
+	var glass := MeshKit.mat(Color("16224a"), 0.2, 0.7)
+	_solid(Vector3(0.04, 1.3, 1.7), Vector3(3.39, 1.65, 11.8), glass, false)
+	var frame := MeshKit.mat(Color("f6efe2"), 0.6)
+	for y in [1.0, 1.65, 2.3]:
+		_solid(Vector3(0.08, 0.07, 1.8), Vector3(3.36, y, 11.8), frame, false)
+	for z in [10.93, 11.8, 12.67]:
+		_solid(Vector3(0.08, 1.37, 0.07), Vector3(3.36, 1.65, z), frame, false)
+	var star := MeshKit.mat(Color("fff6d8"), 0.5, 3.0)
+	for i in 12:
+		world.add_child(MeshKit.mesh_node(MeshKit.sphere(0.006 + rng.randf() * 0.006, 6), star, Vector3(3.37, rng.randf_range(1.05, 2.25), rng.randf_range(11.0, 12.6))))
+	var moonbeam := SpotLight3D.new()
+	moonbeam.light_color = Color(0.55, 0.65, 1.0)
+	moonbeam.light_energy = 0.8
+	moonbeam.spot_range = 5.0
+	moonbeam.spot_angle = 30.0
+	moonbeam.position = Vector3(3.2, 2.4, 11.8)
+	moonbeam.rotation = Vector3(deg_to_rad(-38), deg_to_rad(90), 0)
+	moonbeam.light_volumetric_fog_energy = 2.0
+	world.add_child(moonbeam)
+	# Pendants, a string of fairy lights and some plants.
+	_pendant(Vector3(1.0, 0, 10.4), Color("d9a441"), 2.4)
+	_pendant(Vector3(-1.4, 0, 10.0), Color("3f6a6a"), 1.6)
+	var bulb_colors := [Color("ffcf7a"), Color("ff9f6e"), Color("ffe6a8")]
+	for i in 22:
+		var t := i / 21.0
+		var z := lerpf(8.0, 13.2, t)
+		var y := 2.72 - 0.16 * (1.0 - pow(2.0 * fmod(t * 3.0, 1.0) - 1.0, 2.0))
+		world.add_child(MeshKit.mesh_node(MeshKit.sphere(0.028, 8), MeshKit.mat(bulb_colors[i % 3], 0.5, 6.0), Vector3(-3.32, y, z)))
+	for z in [9.0, 12.0]:
+		_omni(Vector3(-3.0, 2.5, z), Color(1.0, 0.74, 0.45), 0.5, 3.0)
+	_plant(Vector3(-3.0, 0, 8.2))
+	_plant(Vector3(3.0, 0, 13.0))
+	_omni(Vector3(0.0, 2.5, 10.6), Color(1.0, 0.8, 0.6), 0.5, 5.0)
 
 
 func _pendant(at: Vector3, shade: Color, energy: float) -> void:
@@ -2112,7 +2431,7 @@ func _screenshots() -> void:
 	# The cards as you walk past the tables.
 	await _cam_at(cam, Vector3(-3.0, 1.45, -0.3), Vector3(-3.0, 0.75, -1.5))
 	await _shot(dir, "cards_dining")
-	await _cam_at(cam, Vector3(0.9, 1.45, 4.7), Vector3(0.9, 0.75, 5.75))
+	await _cam_at(cam, Vector3(-8.3, 1.45, 4.95), Vector3(-8.3, 0.75, 6.0))
 	await _shot(dir, "cards_ccg")
 	# Open boxes waiting to be filled, then half packed (pieces and cards, board still out).
 	var wy: GameBox = by_id.call("wyrm/base")
@@ -2155,8 +2474,8 @@ func _screenshots() -> void:
 	await get_tree().create_timer(2.5).timeout
 	await _cam_at(cam, Vector3(0, 1.3, -2.2), Vector3(0, 1.0, -4.5))
 	await _shot(dir, "shelf_games")
-	await _cam_at(cam, Vector3(3.2, 1.3, -3.1), Vector3(5.5, 1.0, -3.1))
-	await _shot(dir, "shelf_hobby")
+	await _cam_at(cam, Vector3(9.0, 1.3, 2.2), Vector3(7.6, 1.0, 0.1))
+	await _shot(dir, "shelf_den")
 	# The collection tour on the end screen.
 	hud.visible = true
 	_tour_start()
@@ -2166,6 +2485,24 @@ func _screenshots() -> void:
 	await get_tree().create_timer(1.0).timeout
 	await _shot(dir, "tour_2")
 	_tour_end()
+	get_tree().quit()
+
+
+## A look into every room from its doorway, for documentation.
+func _room_shots(dir: String) -> void:
+	await get_tree().create_timer(3.0).timeout
+	_start()
+	hud.visible = false
+	var cam := Camera3D.new()
+	cam.fov = 70
+	add_child(cam)
+	cam.current = true
+	for v in [["room_living", Vector3(0.6, 1.6, 4.6), Vector3(0.0, 0.7, -2.0)],
+			["room_card", Vector3(-6.5, 1.65, 5.3), Vector3(-10.5, 0.6, 4.2)],
+			["room_den", Vector3(6.6, 1.65, 5.2), Vector3(11.0, 0.6, 3.4)],
+			["room_studio", Vector3(0.3, 1.65, 8.0), Vector3(0.0, 0.6, 12.0)]]:
+		await _cam_at(cam, v[1], v[2])
+		await _shot(dir, v[0])
 	get_tree().quit()
 
 
@@ -2200,26 +2537,28 @@ func _render_map(dir: String) -> void:
 	hud.visible = false
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = 13.4
+	cam.size = 20.4
 	cam.near = 0.05
 	cam.far = 6.0
-	# Just below the lamps, so the ceiling, beams and pendants don't hide the room.
-	cam.position = Vector3(0, 1.98, 1.3)
+	# Just below the lamps, so the ceilings, beams and pendants don't hide the rooms.
+	cam.position = Vector3(0.5, 1.98, 4.2)
 	cam.rotation = Vector3(-PI / 2, 0, 0)
 	add_child(cam)
 	cam.current = true
 	var font: Font = load("res://fonts/righteous-latin-400-normal.woff2")
 	var tags := [
-		["GAME SHELF", Vector3(0, 0, -4.25), 0.0], ["HOBBY SHELF", Vector3(5.2, 0, -3.1), PI / 2],
-		["Plum Parlor\ndining table", Vector3(-3.0, 0, -1.5), 0.0], ["Mossy Crowns\non the rug", Vector3(-2.4, 0, 2.5), 0.0],
-		["Starfall Atlas\ngame table", Vector3(0.4, 0, -2.3), 0.0], ["Lantern Harbor\ncard table", Vector3(3.6, 0, -2.6), 0.0],
-		["Honeycomb Hustle\ncoffee table", Vector3(3.0, 0, 1.0), 0.0], ["Orchard Hollow\nwindow seat", Vector3(-5.2, 0, 0.5), 0.0],
-		["Wyrmlight Tales\nround table", Vector3(0.55, 0, 0.75), 0.0], ["Dice Hoard\nottoman", Vector3(4.72, 0, 0.35), 0.0],
-		["Velvet Card Room\npoker table", Vector3(-1.6, 0, 5.75), 0.0], ["Prismatic Legends\ncard table", Vector3(0.9, 0, 5.75), 0.0],
-		["Crystal Caverns\ncurio", Vector3(3.3, 0, 5.75), 0.0], ["Marble Jar\nring", Vector3(5.0, 0, 5.75), 0.0],
-		["Brushwork Hobby\nhobby desk", Vector3(-4.6, 0, 5.75), 0.0],
-		["FIREPLACE", Vector3(5.75, 0, 0.2), PI / 2], ["COUCH", Vector3(3.0, 0, 3.0), 0.0], ["WINDOW", Vector3(-5.85, 0, 1.9), PI / 2],
-		["★ START", Vector3(0.6, 0, 3.9), 0.0], ["HOBBY NOOK", Vector3(0.0, 0, 4.75), 0.0],
+		["LIVING ROOM", Vector3(0, 0, 3.0), 0.0], ["GAME SHELF", Vector3(0, 0, -4.25), 0.0],
+		["Plum Parlor\ndining table", Vector3(-3.0, 0, -1.5), 0.0], ["Starfall Atlas\ngame table", Vector3(0.4, 0, -2.3), 0.0],
+		["Lantern Harbor\ncard table", Vector3(3.6, 0, -2.6), 0.0], ["Honeycomb Hustle\ncoffee table", Vector3(3.0, 0, 1.0), 0.0],
+		["Orchard Hollow\nwindow seat", Vector3(-5.2, 0, 0.5), 0.0], ["FIREPLACE", Vector3(5.6, 0, 0.2), PI / 2],
+		["★ START", Vector3(0.6, 0, 3.9), 0.0],
+		["THE CARD ROOM", Vector3(-9.7, 0, 2.4), 0.0], ["Velvet Card Room\npoker table", Vector3(-10.6, 0, 4.0), 0.0],
+		["Prismatic Legends\ncard table", Vector3(-8.3, 0, 6.0), 0.0], ["SHELF", Vector3(-12.9, 0, 4.8), PI / 2],
+		["THE DRAGON'S DEN", Vector3(10.2, 0, 1.4), 0.0], ["Wyrmlight Tales\nround table", Vector3(9.6, 0, 3.6), 0.0],
+		["Mossy Crowns\nwar table", Vector3(10.9, 0, 6.45), 0.0], ["Crystal Caverns\ncurio", Vector3(12.3, 0, 2.0), 0.0],
+		["Dice Hoard\ndice tray", Vector3(12.4, 0, 4.1), 0.0], ["SHELF", Vector3(7.6, 0, 0.3), 0.0],
+		["HOBBY STUDIO", Vector3(0, 0, 8.6), 0.0], ["Brushwork Hobby\npainting desk", Vector3(-1.6, 0, 12.6), 0.0],
+		["Marble Jar\nring", Vector3(1.0, 0, 10.4), 0.0], ["SHELF", Vector3(1.6, 0, 13.0), 0.0],
 	]
 	for t in tags:
 		var l := Label3D.new()

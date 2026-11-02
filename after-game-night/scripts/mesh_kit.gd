@@ -738,15 +738,13 @@ static func stripe_texture(a: Color, b: Color) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-static func brick_texture() -> ImageTexture:
+static func brick_texture(reds: Array = [Color("8e4632"), Color("7a3b2b"), Color("9c5539"), Color("6e3527"), Color("a0624a")],
+		mortar := Color("4a3b34"), bw := 64, bh := 32, seed_val := 11) -> ImageTexture:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 11
+	rng.seed = seed_val
 	var n := 256
-	var bh := 32
-	var bw := 64
 	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
-	img.fill(Color("4a3b34"))
-	var reds := [Color("8e4632"), Color("7a3b2b"), Color("9c5539"), Color("6e3527"), Color("a0624a")]
+	img.fill(mortar)
 	var row := 0
 	for y in range(0, n, bh):
 		var off := 0 if row % 2 == 0 else bw / 2
@@ -754,6 +752,44 @@ static func brick_texture() -> ImageTexture:
 			var col: Color = reds[rng.randi_range(0, reds.size() - 1)]
 			img.fill_rect(Rect2i(x + off + 2, y + 2, bw - 4, bh - 4).intersection(Rect2i(0, 0, n, n)), col)
 		row += 1
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
+## Old castle stone: big grey blocks of slightly different shades.
+static func stone_texture() -> ImageTexture:
+	return brick_texture([Color("6d6a66"), Color("5d5a57"), Color("7a7570"), Color("54504c"), Color("847e76")], Color("35312e"), 128, 64, 23)
+
+
+## Flocked wallpaper: a diamond lattice with a small motif in each diamond.
+static func damask_texture(a: Color, b: Color, gilt: Color) -> ImageTexture:
+	var n := 128
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	for y in n:
+		for x in n:
+			var u := absf(fmod(x + 0.5, 64.0) - 32.0)
+			var v := absf(fmod(y + 0.5, 64.0) - 32.0)
+			var d := u + v
+			var c := a
+			if absf(d - 30.0) < 1.2:
+				c = gilt
+			elif d < 9.0:
+				c = b
+			elif d > 30.0:
+				c = a.darkened(0.08)
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
+## A hobby pegboard: a board with a grid of holes.
+static func pegboard_texture(board: Color, hole: Color) -> ImageTexture:
+	var n := 128
+	var img := Image.create(n, n, false, Image.FORMAT_RGB8)
+	img.fill(board)
+	for y in range(8, n, 16):
+		for x in range(8, n, 16):
+			img.fill_rect(Rect2i(x - 2, y - 2, 4, 4), hole)
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
 
