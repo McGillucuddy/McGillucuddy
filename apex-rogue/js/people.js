@@ -463,14 +463,15 @@ Object.assign(People, {
       const tilt = L.brow === 'scowl' ? s * 0.14 : s * 0.05; // a frown, not a glare
       P.slab(H, [0.05, 0.06, 0.24], M.brow, [face(1.15, s * 0.25) + 0.02, 1.15, s * 0.25], [tilt, s * -0.25, 0]);
     }
-    if (L.shades) { // a pair of sunglasses: two lenses in a thin frame, a bridge, and arms back to the ears
-      for (const s of [-1, 1]) {
-        const x = face(1.0, s * 0.24);
-        P.slab(H, [0.03, 0.19, 0.3], M.frame, [x + 0.04, 1.0, s * 0.235], [0, s * -0.12, 0]);
-        P.slab(H, [0.03, 0.15, 0.26], M.lens, [x + 0.058, 0.995, s * 0.235], [0, s * -0.12, 0]);
-        P.prism(H, [x - 0.02, 1.05, s * 0.4], [-0.06, 1.0, s * 0.7], 0.028, 0.028, M.frame, 5); // the arm
+    if (L.shades) { // a pair of sunglasses, laid on the face itself so they sit on it from every side
+      const eye = Math.asin(0.24 / P.headProfile(1.0)[2]); // the angle round the head of each eye
+      for (const sd of [-1, 1]) {
+        const c = sd * eye;
+        P.headSurf(H, M.frameD, { th0: c - 0.27, th1: c + 0.27, n: 6, m: 3, yA: K(0.855), yB: K(1.13), off: 0.035 }); // the rim
+        P.headSurf(H, M.lensD, { th0: c - 0.235, th1: c + 0.235, n: 6, m: 3, yA: K(0.875), yB: K(1.11), off: 0.045 }); // the lens, proud of it
+        P.headSurf(H, M.frameD, { th0: sd > 0 ? eye + 0.25 : -1.62, th1: sd > 0 ? 1.62 : -eye - 0.25, n: 8, m: 1, yA: K(1.05), yB: K(1.1), off: 0.03 }); // the arm, back to the ear
       }
-      P.slab(H, [0.04, 0.04, 0.16], M.frame, [face(1.02, 0) + 0.06, 1.04, 0]); // the bridge
+      P.headSurf(H, M.frameD, { th0: -eye + 0.25, th1: eye - 0.25, n: 3, m: 1, yA: K(1.04), yB: K(1.1), off: 0.05 }); // the bridge
     }
     if (beard !== 'full') P.slab(H, [0.03, 0.035, 0.22], M.mouth, [face(0.55, 0) + 0.005, 0.55, 0]);
     if (L.tattoo === 'tear') P.slab(H, [0.02, 0.07, 0.035], M.ink, [face(0.88, 0.3) + 0.01, 0.88, 0.3]);
@@ -510,7 +511,7 @@ Object.assign(People, {
       belt: P.polyMat('#3a2416'), pouch: P.polyMat('#5a4028'), leather: P.polyMat('#4a3020'), buckle: P.polyMat('#d9b24a', { metalness: 0.4, roughness: 0.4 }),
       vest: P.polyMat('#eeeae0'), shades: P.polyMat('#0e0e10'), helmet: P.polyMat('#22232a', Object.assign({ roughness: 0.4 }, SMOOTH)),
       glove: P.polyMat(o.role === 'trader' ? L.skin : '#3a2a20'), boot: P.polyMat('#22180f'), dark: P.polyMat('#1c1c1c'),
-      eye: P.polyMat('#2a1c14'), eyeSet: P.polyMat(mix(L.skin, '#2a1810', 0.35)), brow: P.polyMat(mix(L.hair, L.skin, 0.2)), hairD: P.polyMat(L.hair, Object.assign({ side: THREE.DoubleSide }, SMOOTH)), shadesD: P.polyMat('#0e0e10', Object.assign({ side: THREE.DoubleSide, roughness: 0.3, metalness: 0.4 }, SMOOTH)), lens: P.polyMat('#2c3a48', Object.assign({ roughness: 0.12, metalness: 0.5, emissive: '#0c1218' }, SMOOTH)), frame: P.polyMat('#121212', Object.assign({ roughness: 0.4 }, SMOOTH)), white: P.polyMat('#f4efe2'), sclera: P.polyMat('#e6ddd0', SMOOTH), mouth: P.polyMat(mix(L.skin, '#4a1a14', 0.4)),
+      eye: P.polyMat('#2a1c14'), eyeSet: P.polyMat(mix(L.skin, '#2a1810', 0.35)), brow: P.polyMat(mix(L.hair, L.skin, 0.2)), hairD: P.polyMat(L.hair, Object.assign({ side: THREE.DoubleSide }, SMOOTH)), shadesD: P.polyMat('#0e0e10', Object.assign({ side: THREE.DoubleSide, roughness: 0.3, metalness: 0.4 }, SMOOTH)), lensD: P.polyMat('#2c3a48', Object.assign({ roughness: 0.12, metalness: 0.5, emissive: '#0c1218', side: THREE.DoubleSide }, SMOOTH)), frameD: P.polyMat('#141414', Object.assign({ roughness: 0.4, side: THREE.DoubleSide }, SMOOTH)), white: P.polyMat('#f4efe2'), sclera: P.polyMat('#e6ddd0', SMOOTH), mouth: P.polyMat(mix(L.skin, '#4a1a14', 0.4)),
       stubble: P.polyMat(mix(L.skin, L.hair, 0.35), SMOOTH), ink: P.polyMat('#2a3a5a'),
     };
     M.seam = M.trim; M.lip = M.mouth;
