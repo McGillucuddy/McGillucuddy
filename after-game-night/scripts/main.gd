@@ -8,10 +8,15 @@ const STRAY_CHANCE := 0.08
 const VOLUME := 3.0
 ## Share of each game that has spilled onto the floor beside its table.
 const SPILL := 0.22
+## Share of the miniatures that start unpainted and need the painting desk.
+const UNPAINTED := 0.45
 const PIECE_SCALE := 0.9
 const CARD_SCALE := 1.0
 ## Which surface each game line is played on.
-const PLAYED_ON := {"crowns": "rug", "plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench", "wyrm": "round", "hoard": "ottoman"}
+const PLAYED_ON := {"crowns": "rug", "plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench", "wyrm": "round", "hoard": "ottoman",
+	"casino": "poker", "ccg": "ccgtable", "caverns": "curio", "marbles": "ring", "paints": "paintdesk"}
+## Game lines that live on the second shelf, by the hobby nook.
+const HOBBY_LINES := ["casino", "ccg", "caverns", "marbles", "paints"]
 const TOOL_NAMES := [["Hands"], ["Seeker Lantern"], ["Dustpan"], ["Magnet"]]
 
 var player: Player
@@ -42,6 +47,7 @@ var streak := 0
 var _last_sort_ms := 0
 var _tidy_step := 0
 var tokens := 0
+var painted := 0
 var levels := {}
 var _beacons := {}
 var _beacon_t := 0.0
@@ -106,15 +112,19 @@ func _ready() -> void:
 	_build_furniture()
 	_build_decor()
 	_build_extra_lights()
+	_build_hobby_nook()
 
 	pieces = Pieces.new()
 	add_child(pieces)
 	pieces.clacked.connect(_on_piece_clack)
 	_define_spots()
 	var lines := GameData.LINES.duplicate()
-	var shelf_order := lines.duplicate()
-	shelf_order.shuffle()
-	_build_shelf(shelf_order)
+	var main_lines := lines.filter(func(l): return not HOBBY_LINES.has(l.id))
+	var hobby_lines := lines.filter(func(l): return HOBBY_LINES.has(l.id))
+	main_lines.shuffle()
+	hobby_lines.shuffle()
+	_build_shelf(main_lines, Vector3(0, 0, -4.72), 0.0, 4, "Game Shelf")
+	_build_shelf(hobby_lines, Vector3(5.68, 0, -3.1), -PI / 2, 3, "Hobby Shelf")
 	for line in lines:
 		_deal_line(line, spots[PLAYED_ON[line.id]])
 	pieces.build()
@@ -224,24 +234,31 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 		var groups := []
 		var where := {}
 		for part in ed.parts:
-			var g := pieces.make_group(line.id, ed_key, ed_name, part[0], style.body, style.accent, PIECE_SCALE, style.get("style", ""))
+			var body: Color = part[3] if part.size() > 3 else style.body
+			var tint: String = part[4] if part.size() > 4 else ""
+			var g := pieces.make_group(line.id, ed_key, ed_name, part[0], body, style.accent, PIECE_SCALE, style.get("style", ""), tint)
 			groups.append(g)
 			where[g.key] = part[2]
 			for n in int(round(part[1] * VOLUME)):
-				pieces.add(g, Transform3D(), spot)
+				var p := pieces.add(g, Transform3D(), spot)
+				# Plenty of the miniatures came out of the box unpainted.
+				if GameData.PAINTABLE.has(part[0]) and rng.randf() < UNPAINTED:
+					p.unpainted = true
 		var card_piles := {}
 		var card_items: Array[Item] = []
-		for si in ed.cards.size():
+		for si in ed.get("cards", []).size():
 			var set_name: String = ed.cards[si][0]
 			var total: int = int(round(ed.cards[si][1] * VOLUME))
 			var stripe: Color = GameData.SET_COLORS[si % GameData.SET_COLORS.size()]
+			var back_style: String = ed.cards[si][2] if ed.cards[si].size() > 2 else ""
+			var back: Color = ed.cards[si][3] if ed.cards[si].size() > 3 else style.body
 			var left := total
 			var piles := 0
 			while left > 0:
 				var n := mini(left, rng.randi_range(4, 6) if rng.randf() < 0.18 else rng.randi_range(12, 48))
 				if left - n < 4:
 					n = left
-				card_items.append(_make_cards(ed_key, ed_name, style.body, stripe, set_name, n, n <= 6))
+				card_items.append(_make_cards(ed_key, ed_name, back, stripe, set_name, n, n <= 6, back_style))
 				left -= n
 				piles += 1
 			card_piles[set_name] = {"cards": total, "piles": piles, "stripe": stripe}
@@ -425,15 +442,17 @@ func _put_item(it: Item, spot: Dictionary, at: Vector3, yaw: float) -> void:
 		it.clacked.connect(_on_clack)
 
 
-func _make_cards(ed_key: String, ed_name: String, c: Color, stripe: Color, set_name: String, n: int, fanned: bool) -> Item:
+func _make_cards(ed_key: String, ed_name: String, c: Color, stripe: Color, set_name: String, n: int, fanned: bool, back_style := "") -> Item:
 	var it := Item.new()
 	it.game_id = ed_key
 	it.kind = "cards"
 	it.card_count = n
 	it.card_set = set_name
 	it.card_stripe = stripe
+	it.card_style = back_style
+	it.card_back = c
 	it.label = "%d %s cards (%s)" % [n, set_name, ed_name]
-	_attach(it, MeshKit.card_hand(c, n, stripe) if fanned else MeshKit.card_stack(c, n, stripe), CARD_SCALE)
+	_attach(it, MeshKit.card_hand(c, n, stripe, back_style) if fanned else MeshKit.card_stack(c, n, stripe, back_style), CARD_SCALE)
 	it.mass = 0.02 + n * 0.002
 	return it
 
@@ -493,6 +512,11 @@ func _on_player_acted(kind: String, data: Variant) -> void:
 			_float_text(box.global_position + Vector3(0, box.H + 0.15, 0), "+%d" % d.n if kind == "poured" else "+%d" % d.n)
 			if d.left > 0:
 				hud.toast("%d left in your hand belong somewhere else." % d.left, 1.6)
+		"paint":
+			_paint_hand()
+		"needs_paint":
+			sfx.ui("tick", -6.0, 0.8)
+			hud.toast("%d of those are still bare plastic. Take them to the painting desk first." % data, 3.0)
 		"seek_box":
 			_seek_box(data as GameBox)
 		"seek_for":
@@ -717,7 +741,7 @@ func _hint() -> void:
 	if not loose.is_empty():
 		var p: Pieces.P = loose[rng.randi_range(0, loose.size() - 1)]
 		_hint_target = p
-		msg = "Look for the arrow over some %s %s." % [p.g.ed_name, GameData.type_name(p.g.type, 2)]
+		msg = "Look for the arrow over some %s %s." % [p.g.ed_name, p.g.nice(2)]
 	else:
 		var left := items.filter(func(i: Item): return not i.stored and not i.held and _box_for(i) and _box_for(i).check(i) == "")
 		if not left.is_empty():
@@ -829,7 +853,7 @@ func _build_environment() -> void:
 	add_child(we)
 
 
-func _solid(size: Vector3, pos: Vector3, m: Material, collide := true, rot_y := 0.0) -> Node3D:
+func _solid(size: Vector3, pos: Vector3, m: Material, collide := true, rot_y := 0.0, parent: Node = null) -> Node3D:
 	var node: Node3D
 	if collide:
 		var sb := StaticBody3D.new()
@@ -846,7 +870,7 @@ func _solid(size: Vector3, pos: Vector3, m: Material, collide := true, rot_y := 
 	node.add_child(MeshKit.mesh_node(MeshKit.box(size), m))
 	node.position = pos
 	node.rotation.y = rot_y
-	world.add_child(node)
+	(parent if parent else world).add_child(node)
 	return node
 
 
@@ -883,23 +907,24 @@ func _build_room() -> void:
 	var ceil_m := MeshKit.tex_mat(MeshKit.plank_texture(Color("6e4a33"), 9), 0.35, 0.8)
 	var trim := MeshKit.mat(Color("4a2a18"), 0.6)
 	var wainscot := MeshKit.mat(Color("2e4637"), 0.75)
-	_solid(Vector3(12.4, 0.2, 10.4), Vector3(0, -0.1, 0), floor_m)
-	_solid(Vector3(12.4, 0.2, 10.4), Vector3(0, 3.1, 0), ceil_m)
+	# The room runs from the game shelf (z -5) to the hobby nook at the front (z 7.6).
+	_solid(Vector3(12.4, 0.2, 13.2), Vector3(0, -0.1, 1.3), floor_m)
+	_solid(Vector3(12.4, 0.2, 13.2), Vector3(0, 3.1, 1.3), ceil_m)
 	_solid(Vector3(12.4, 3.2, 0.2), Vector3(0, 1.5, -5.1), wall_m)
-	_solid(Vector3(12.4, 3.2, 0.2), Vector3(0, 1.5, 5.1), wall_m)
-	_solid(Vector3(0.2, 3.2, 10.4), Vector3(-6.1, 1.5, 0), wall_m)
-	_solid(Vector3(0.2, 3.2, 10.4), Vector3(6.1, 1.5, 0), wall_m)
+	_solid(Vector3(12.4, 3.2, 0.2), Vector3(0, 1.5, 7.7), wall_m)
+	_solid(Vector3(0.2, 3.2, 13.2), Vector3(-6.1, 1.5, 1.3), wall_m)
+	_solid(Vector3(0.2, 3.2, 13.2), Vector3(6.1, 1.5, 1.3), wall_m)
 	# Painted wainscoting with a wooden rail, all the way round.
-	for z in [-4.985, 4.985]:
+	for z in [-4.985, 7.585]:
 		_solid(Vector3(12.0, 0.95, 0.03), Vector3(0, 0.475, z), wainscot, false)
 		_solid(Vector3(12.0, 0.05, 0.06), Vector3(0, 0.95, z), trim, false)
 		_solid(Vector3(12.0, 0.14, 0.05), Vector3(0, 0.07, z), trim, false)
 	for x in [-5.985, 5.985]:
-		_solid(Vector3(0.03, 0.95, 10.0), Vector3(x, 0.475, 0), wainscot, false)
-		_solid(Vector3(0.06, 0.05, 10.0), Vector3(x, 0.95, 0), trim, false)
-		_solid(Vector3(0.05, 0.14, 10.0), Vector3(x, 0.07, 0), trim, false)
+		_solid(Vector3(0.03, 0.95, 12.6), Vector3(x, 0.475, 1.3), wainscot, false)
+		_solid(Vector3(0.06, 0.05, 12.6), Vector3(x, 0.95, 1.3), trim, false)
+		_solid(Vector3(0.05, 0.14, 12.6), Vector3(x, 0.07, 1.3), trim, false)
 	for x in [-4.0, -1.3, 1.3, 4.0]:
-		_solid(Vector3(0.22, 0.2, 10.0), Vector3(x, 2.9, 0), trim, false)
+		_solid(Vector3(0.22, 0.2, 12.6), Vector3(x, 2.9, 1.3), trim, false)
 
 	# Night window on the left wall: cool moonlight against all the warm lamps.
 	var glass := MeshKit.mat(Color("16224a"), 0.2, 0.7)
@@ -1127,7 +1152,7 @@ func _build_decor() -> void:
 	# A warm light tucked inside the top of the game shelf.
 	_omni(Vector3(0, 1.75, -4.4), Color(1.0, 0.75, 0.48), 0.9, 2.6)
 
-	for p in [Vector3(-5.4, 0, -4.5), Vector3(5.4, 0, -4.4), Vector3(5.5, 0, 4.5)]:
+	for p in [Vector3(-5.4, 0, -4.5), Vector3(5.45, 0, -1.3), Vector3(5.5, 0, 4.5)]:
 		_plant(p)
 
 	# A cup of tea left on the coffee table.
@@ -1206,29 +1231,34 @@ func _build_extra_lights() -> void:
 	_omni(Vector3(3.0, 1.3, 1.0), Color(1.0, 0.66, 0.4), 0.7, 2.4)
 
 
-func _build_shelf(order: Array) -> void:
+## A bookcase of cubbies, one per game line. Built facing +z, then turned and placed.
+func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: String) -> void:
+	var rack := Node3D.new()
+	world.add_child(rack)
+	rack.position = at
+	rack.rotation.y = rot
 	var wood := MeshKit.mat(Color("5e3620"), 0.6)
 	var back := MeshKit.mat(Color("3a2216"), 0.8)
-	var cols := 4
 	var cw := 0.9
 	var ch := 0.82
 	var bt := 0.05
 	var depth := 0.55
-	var z := -4.72
 	var width := cols * cw + (cols + 1) * bt
 	var floors := [0.12]
 	floors.append(floors[0] + ch + bt)
 	var top_y: float = floors[1] + ch + bt
-	_solid(Vector3(width, top_y + 0.05, 0.03), Vector3(0, (top_y + 0.05) / 2, z - depth / 2 + 0.015), back)
+	_solid(Vector3(width, top_y + 0.05, 0.03), Vector3(0, (top_y + 0.05) / 2, -depth / 2 + 0.015), back, true, 0.0, rack)
 	for i in cols + 1:
 		var x := -width / 2 + bt / 2 + i * (cw + bt)
-		_solid(Vector3(bt, top_y + 0.05, depth), Vector3(x, (top_y + 0.05) / 2, z), wood)
+		_solid(Vector3(bt, top_y + 0.05, depth), Vector3(x, (top_y + 0.05) / 2, 0), wood, true, 0.0, rack)
 	for y in [floors[0] - bt / 2, floors[1] - bt / 2, top_y - bt / 2 + 0.05]:
-		_solid(Vector3(width, bt, depth), Vector3(0, y, z), wood)
-	_solid(Vector3(width, 0.1, 0.03), Vector3(0, 0.05, z + depth / 2 - 0.015), wood, false)
+		_solid(Vector3(width, bt, depth), Vector3(0, y, 0), wood, true, 0.0, rack)
+	_solid(Vector3(width, 0.1, 0.03), Vector3(0, 0.05, depth / 2 - 0.015), wood, false, 0.0, rack)
 
 	for r in 2:
 		for c in cols:
+			if r * cols + c >= order.size():
+				continue
 			var line: Dictionary = order[r * cols + c]
 			var cx := -width / 2 + bt + cw / 2 + c * (cw + bt)
 			var fy: float = floors[r]
@@ -1243,45 +1273,44 @@ func _build_shelf(order: Array) -> void:
 			bs.size = Vector3(cw - 0.02, ch - 0.02, depth - 0.05)
 			cs.shape = bs
 			slot.add_child(cs)
-			slot.position = Vector3(cx, fy + ch / 2, z + 0.02)
-			world.add_child(slot)
-			slot.anchor = Vector3(cx, fy + 0.001, z + 0.02)
+			slot.position = Vector3(cx, fy + ch / 2, 0.02)
+			rack.add_child(slot)
+			slot.anchor = rack.to_global(Vector3(cx, fy + 0.001, 0.02))
 			slot.shelved.connect(_on_shelved)
 			slots.append(slot)
 			var gm := StandardMaterial3D.new()
 			gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 			gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			gm.albedo_color = Color(line.color, 0.18)
-			var ghost := MeshKit.mesh_node(MeshKit.box(Vector3(0.6, 0.2, 0.4)), gm, Vector3(cx, fy + 0.1, z + 0.02))
-			world.add_child(ghost)
+			var ghost := MeshKit.mesh_node(MeshKit.box(Vector3(0.6, 0.2, 0.4)), gm, Vector3(cx, fy + 0.1, 0.02))
+			rack.add_child(ghost)
 			slot.ghost = ghost
-			var plate := MeshKit.mesh_node(MeshKit.box(Vector3(0.66, 0.046, 0.006)), MeshKit.mat(line.color, 0.6), Vector3(cx, fy - bt / 2, z + depth / 2 + 0.004))
-			world.add_child(plate)
+			rack.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.66, 0.046, 0.006)), MeshKit.mat(line.color, 0.6), Vector3(cx, fy - bt / 2, depth / 2 + 0.004)))
 			var lbl := Label3D.new()
 			lbl.text = line.name
 			lbl.font_size = 40
 			lbl.pixel_size = 0.0009
 			lbl.outline_size = 6
 			lbl.outline_modulate = Color(line.color).darkened(0.6)
-			lbl.position = Vector3(cx, fy - bt / 2, z + depth / 2 + 0.009)
-			world.add_child(lbl)
+			lbl.position = Vector3(cx, fy - bt / 2, depth / 2 + 0.009)
+			rack.add_child(lbl)
 
 	var bx := -width / 2 + 0.15
 	for i in 7:
 		var h := rng.randf_range(0.2, 0.3)
 		var col: Color = [Color("c8473b"), Color("2e8c9a"), Color("e09a1f"), Color("5a8d39"), Color("8c4a86")][i % 5]
-		world.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.05, h, 0.2)), MeshKit.mat(col.darkened(0.2), 0.8), Vector3(bx, top_y + 0.05 + h / 2, z)))
+		rack.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.05, h, 0.2)), MeshKit.mat(col.darkened(0.2), 0.8), Vector3(bx, top_y + 0.05 + h / 2, 0)))
 		bx += 0.06
-	_plant(Vector3(width / 2 - 0.25, top_y + 0.05, z))
+	_plant(rack.to_global(Vector3(width / 2 - 0.25, top_y + 0.05, 0)))
 	var title := Label3D.new()
-	title.text = "Game Shelf"
+	title.text = title_text
 	title.font_size = 64
 	title.pixel_size = 0.0018
 	title.modulate = Color("f3b648")
 	title.outline_size = 12
 	title.outline_modulate = Color("3a1f0f")
-	title.position = Vector3(0.1, top_y + 0.24, z + 0.05)
-	world.add_child(title)
+	title.position = Vector3(0.1, top_y + 0.24, 0.05)
+	rack.add_child(title)
 
 
 func _fit_shelf_ghosts() -> void:
@@ -1309,6 +1338,12 @@ func _define_spots() -> void:
 		"ottoman": {"center": Vector3(4.72, 0.41, 0.35), "ext": Vector2(0.36, 0.5), "row_start": Vector3(4.0, 0.0, 4.45), "rot": PI, "spill": "floor_ottoman"},
 		"floor_round": {"center": Vector3(0.55, 0.0, 1.75), "ext": Vector2(0.35, 0.2), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_ottoman": {"center": Vector3(4.75, 0.0, 1.45), "ext": Vector2(0.35, 0.22), "row_start": Vector3.ZERO, "rot": 0.0},
+		# The hobby nook at the front of the room; its boxes line the front wall.
+		"paintdesk": {"center": Vector3(-4.6, 0.763, 5.62), "ext": Vector2(0.7, 0.22), "row_start": Vector3(-3.75, 0.0, 7.12), "rot": PI},
+		"poker": {"center": Vector3(-1.6, 0.763, 5.75), "ext": Vector2(0.5, 0.27), "row_start": Vector3(-0.6, 0.0, 7.12), "rot": PI},
+		"ccgtable": {"center": Vector3(0.9, 0.746, 5.75), "ext": Vector2(0.4, 0.38), "row_start": Vector3(2.0, 0.0, 7.12), "rot": PI},
+		"curio": {"center": Vector3(3.3, 0.706, 5.75), "ext": Vector2(0.33, 0.33), "row_start": Vector3(3.73, 0.0, 7.12), "rot": PI},
+		"ring": {"center": Vector3(5.0, 0.014, 5.75), "ext": Vector2(0.38, 0.38), "row_start": Vector3(5.45, 0.0, 7.12), "rot": PI},
 		"couch": {"center": Vector3(3.0, 0.44, 2.92), "ext": Vector2(0.95, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
 		# Floor patches where each game has spilled over.
 		"floor_dining": {"center": Vector3(-4.55, 0.0, -0.75), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
@@ -1322,6 +1357,150 @@ func _define_spots() -> void:
 		s["name"] = k
 		s["hmap"] = HMap.new(s.center, s.ext)
 		spots[k] = s
+
+
+# ---------------------------------------------------------------- painting miniatures
+
+const PAINT_SPLASH := [Color("c8323a"), Color("2a6fb5"), Color("4f9e3a"), Color("f2c94e"), Color("6a3fa0"), Color("e8b84a"), Color("e05a9a")]
+
+
+## Every bare miniature in your hand hops up, gets a splash of paint and comes back finished.
+func _paint_hand() -> void:
+	var gap: float = [0.14, 0.08, 0.04, 0.015][levels.get("airbrush", 0)]
+	var k := 0
+	for i in player.hand.size():
+		var p: Pieces.P = player.hand[i]
+		if not p.unpainted:
+			continue
+		p.unpainted = false
+		var mi: MeshInstance3D = player._hand_nodes[i]
+		var rest := mi.transform
+		var up := Transform3D(rest.basis.rotated(Vector3.UP, PI), rest.origin + Vector3(0, 0.04, 0))
+		var tw := mi.create_tween()
+		tw.tween_interval(k * gap)
+		tw.tween_property(mi, "transform", up, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		var splash: Color = PAINT_SPLASH[k % PAINT_SPLASH.size()]
+		var n := k
+		tw.tween_callback(func():
+			mi.mesh = p.g.mesh
+			_sparkle(mi.global_position, 8, 0.3, splash)
+			sfx.ui("tick", -9.0, 0.8 + (n % 7) * 0.06)
+			if n % 3 == 0:
+				sfx.note(PENTA[n % PENTA.size()], -15.0))
+		tw.tween_property(mi, "transform", rest, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		k += 1
+	if k == 0:
+		hud.toast("Nothing in your hand needs paint.", 1.8)
+		return
+	painted += k
+	var reward := (painted / 6) - ((painted - k) / 6)
+	hud.toast("Painted %d miniatures.%s" % [k, ("  +%d ✦" % reward) if reward > 0 else ""], 2.2)
+	if reward > 0:
+		get_tree().create_timer(k * gap + 0.3).timeout.connect(_earn.bind(reward))
+
+
+# ---------------------------------------------------------------- the hobby nook
+
+func _build_hobby_nook() -> void:
+	var wood := MeshKit.mat(Color("5e3620"), 0.55)
+	var dark := MeshKit.mat(Color("2a1a12"), 0.6)
+	# The painting desk, with a cutting mat, a rack of paints and a bright task lamp.
+	var desk := _solid(Vector3(1.6, 0.05, 0.75), Vector3(-4.6, 0.735, 5.8), wood)
+	desk.set_meta("paint_desk", true)
+	for sx in [-1, 1]:
+		for sz in [-1, 1]:
+			_solid(Vector3(0.06, 0.71, 0.06), Vector3(-4.6 + sx * 0.72, 0.355, 5.8 + sz * 0.3), wood)
+	_solid(Vector3(1.0, 0.004, 0.45), Vector3(-4.75, 0.762, 5.66), MeshKit.mat(Color("2f5a46"), 0.9), false)
+	_solid(Vector3(1.5, 0.22, 0.12), Vector3(-4.6, 0.87, 6.1), dark)
+	var pot_colors := [Color("c8323a"), Color("e8742a"), Color("f2c94e"), Color("4f9e3a"), Color("2a6fb5"), Color("6a3fa0"), Color("f2efe6"), Color("1d1d22"), Color("8a5a34"), Color("e05a9a"), Color("2fb8a8"), Color("e8b84a")]
+	for row in 2:
+		for i in 12:
+			var x := -5.28 + i * 0.12
+			world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.016, 0.016, 0.03, 10), MeshKit.mat(pot_colors[(i + row * 5) % pot_colors.size()], 0.4), Vector3(x, 0.996 - row * 0.1 + 0.015, 6.06 - row * 0.05)))
+	var lamp := SpotLight3D.new()
+	lamp.position = Vector3(-4.3, 1.45, 5.75)
+	lamp.rotation = Vector3(-PI / 2 + 0.25, 0, 0)
+	lamp.light_color = Color(1.0, 0.92, 0.8)
+	lamp.light_energy = 4.5
+	lamp.spot_range = 2.0
+	lamp.spot_angle = 45.0
+	lamp.shadow_enabled = true
+	world.add_child(lamp)
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.012, 0.6), MeshKit.mat(Color("2a2a2a"), 0.4), Vector3(-3.95, 1.07, 6.05)))
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.04, 0.08, 0.1, 16), MeshKit.mat(Color("2f5a46"), 0.4), Vector3(-4.2, 1.47, 5.85), Vector3(0.6, 0, 0.5)))
+	var sign := Label3D.new()
+	sign.text = "Painting Desk"
+	sign.font_size = 48
+	sign.pixel_size = 0.0014
+	sign.modulate = Color("f3b648")
+	sign.outline_size = 10
+	sign.outline_modulate = Color("3a1f0f")
+	sign.position = Vector3(-4.6, 1.15, 6.17)
+	sign.rotation.y = PI
+	world.add_child(sign)
+	# An oval felt poker table under a green banker's lamp.
+	var poker := StaticBody3D.new()
+	poker.collision_layer = Item.LAYER_WORLD
+	var pcs := CollisionShape3D.new()
+	pcs.shape = MeshKit._box_shape(Vector3(1.4, 0.05, 0.92))
+	poker.add_child(pcs)
+	var felt := MeshKit.mesh_node(MeshKit.cyl(0.7, 0.7, 0.05, 40), MeshKit.mat(Color("1f6b46"), 1.0))
+	felt.scale = Vector3(1, 1, 0.68)
+	poker.add_child(felt)
+	var rail := MeshKit.mesh_node(MeshKit.torus(0.66, 0.76), MeshKit.mat(Color("3a1f12"), 0.4), Vector3(0, 0.02, 0))
+	rail.scale = Vector3(1, 0.6, 0.68)
+	poker.add_child(rail)
+	poker.position = Vector3(-1.6, 0.735, 5.75)
+	world.add_child(poker)
+	_solid(Vector3(0.14, 0.71, 0.14), Vector3(-1.6, 0.355, 5.75), wood)
+	_solid(Vector3(0.6, 0.04, 0.4), Vector3(-1.6, 0.02, 5.75), wood)
+	_pendant(Vector3(-1.6, 0, 5.75), Color("2f6b4a"), 4.0)
+	# A square card table with a playmat, for the card game.
+	_table(Vector3(0.9, 0, 5.75), Vector3(0.95, 0.72, 0.9), wood)
+	_solid(Vector3(0.85, 0.003, 0.8), Vector3(0.9, 0.7215, 5.75), MeshKit.mat(Color("1d2a4a"), 1.0), false)
+	_pendant(Vector3(0.9, 0, 5.75), Color("6b1e4a"), 3.6)
+	# A round curio table in black velvet for the crystals.
+	var curio := StaticBody3D.new()
+	curio.collision_layer = Item.LAYER_WORLD
+	var ccs := CollisionShape3D.new()
+	ccs.shape = MeshKit._cyl_shape(0.5, 0.04)
+	curio.add_child(ccs)
+	curio.add_child(MeshKit.mesh_node(MeshKit.cyl(0.5, 0.5, 0.04, 36), wood))
+	curio.add_child(MeshKit.mesh_node(MeshKit.cyl(0.46, 0.46, 0.004, 36), MeshKit.mat(Color("16121c"), 1.0), Vector3(0, 0.021, 0)))
+	curio.position = Vector3(3.3, 0.68, 5.75)
+	world.add_child(curio)
+	_solid(Vector3(0.1, 0.66, 0.1), Vector3(3.3, 0.33, 5.75), wood)
+	_pendant(Vector3(3.3, 0, 5.75), Color("3a2a5a"), 3.0)
+	# A chalk marble ring on a round mat, right on the floor.
+	var mat_body := StaticBody3D.new()
+	mat_body.collision_layer = Item.LAYER_WORLD
+	var mcs := CollisionShape3D.new()
+	mcs.shape = MeshKit._cyl_shape(0.62, 0.012)
+	mat_body.add_child(mcs)
+	mat_body.add_child(MeshKit.mesh_node(MeshKit.cyl(0.62, 0.62, 0.012, 40), MeshKit.mat(Color("3a3f4a"), 1.0)))
+	var chalk := MeshKit.mesh_node(MeshKit.torus(0.5, 0.52), MeshKit.mat(Color("f2efe6"), 1.0), Vector3(0, 0.007, 0))
+	chalk.scale = Vector3(1, 0.05, 1)
+	mat_body.add_child(chalk)
+	mat_body.position = Vector3(5.0, 0.006, 5.75)
+	world.add_child(mat_body)
+	_pendant(Vector3(5.0, 0, 5.75), Color("8a4a2a"), 2.6)
+	# A little warm fill so the nook isn't a dark corner.
+	for x in [-3.5, 0.0, 3.5]:
+		_omni(Vector3(x, 2.4, 6.4), Color(1.0, 0.72, 0.45), 0.55, 4.0)
+
+
+func _pendant(at: Vector3, shade: Color, energy: float) -> void:
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.006, 0.006, 0.9), MeshKit.mat(Color("222222")), at + Vector3(0, 2.6, 0)))
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.06, 0.24, 0.18, 24), MeshKit.mat(shade, 0.5), at + Vector3(0, 2.1, 0)))
+	world.add_child(MeshKit.mesh_node(MeshKit.sphere(0.045), MeshKit.mat(Color("ffe2b0"), 0.5, 6.0), at + Vector3(0, 2.02, 0)))
+	var l := SpotLight3D.new()
+	l.position = at + Vector3(0, 2.0, 0)
+	l.rotation.x = -PI / 2
+	l.light_color = Color(1.0, 0.74, 0.48)
+	l.light_energy = energy
+	l.spot_range = 3.0
+	l.spot_angle = 40.0
+	world.add_child(l)
 
 
 # ---------------------------------------------------------------- tidy tokens and the tool chest
@@ -1525,6 +1704,8 @@ func _update_fireflies(t: float) -> void:
 
 func _pack_all(b: GameBox) -> void:
 	var mine := pieces.all.filter(func(p: Pieces.P): return p.g.ed == b.ed_id and p.state == Pieces.LOOSE)
+	for p: Pieces.P in mine:
+		p.unpainted = false
 	var by_group := {}
 	for p: Pieces.P in mine:
 		if not by_group.has(p.g.key):
@@ -1575,6 +1756,7 @@ func _autotest() -> void:
 	print("handful of ", p0.g.key, ": ", hand.size(), " all same kind: ", hand.all(func(q: Pieces.P): return q.g == p0.g))
 	# Sifting: pour a mixed handful from two boxes; the box keeps only its own.
 	var line_ps := pieces.all.filter(func(p: Pieces.P): return p.g.line == base.line_id and p.state == Pieces.LOOSE)
+	line_ps = line_ps.filter(func(p: Pieces.P): return not p.unpainted)
 	var mixed := line_ps.filter(func(p: Pieces.P): return p.g.ed == base.ed_id).slice(0, 7) + line_ps.filter(func(p: Pieces.P): return p.g.ed != base.ed_id).slice(0, 5)
 	var mixed_nodes := []
 	for p: Pieces.P in mixed:
@@ -1602,6 +1784,17 @@ func _autotest() -> void:
 		player.set_tool(i)
 	print("tool switching ok: ", player.tool == Player.MAGNET)
 	player.set_tool(0)
+	# Painting: bare miniatures are refused by their box until they've been to the desk.
+	var raw := pieces.all.filter(func(p: Pieces.P): return p.unpainted and p.state == Pieces.LOOSE)
+	print("unpainted miniatures in the room: ", raw.size())
+	var raw_hand := raw.slice(0, 20)
+	player._scoop(raw_hand)
+	var crowns: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == (raw_hand[0] as Pieces.P).g.ed)[0]
+	print("box takes bare minis? ", crowns.check_pieces([raw_hand[0]]))
+	_paint_hand()
+	print("after the painting desk: ", raw_hand.filter(func(p: Pieces.P): return p.unpainted).size(), " still bare, painted total ", painted)
+	player._drop_hand(Vector3.ZERO)
+	await get_tree().create_timer(1.5).timeout
 	# The Tool Chest: earn, buy every level, and check the effects.
 	_earn(2000)
 	for u in Upgrades.LIST:
@@ -1671,43 +1864,25 @@ func _screenshots() -> void:
 	await get_tree().create_timer(3.0).timeout
 	_start()
 	hud.toast("", 0.0)
-	await _view(Vector3(4.72, 0.05, -0.75), 0.0, -1.05)
-	await _view(Vector3(4.72, 0.05, -0.62), PI, -1.15)
-	await _shot(dir, "dice")
-	await _view(Vector3(0.55, 0.05, 1.95), 0.0, -0.95)
-	await _shot(dir, "rpg")
-	# The seeker lantern lighting up everything that belongs in one dice box.
-	levels = {"lantern": 1, "dustpan": 1, "magnet": 1}
-	_apply_upgrades()
-	player.set_tool(1)
-	var frost: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == "hoard/frost")[0]
-	_seek_box(frost)
-	await _view(Vector3(3.3, 0.05, 0.4), -PI / 2, -0.55)
-	await _shot(dir, "lantern")
-	# The dustpan with a mixed sweep, aimed at a dice box.
-	player.set_tool(2)
-	var seed_p: Pieces.P = pieces.all.filter(func(p: Pieces.P): return p.g.line == "hoard" and p.state == Pieces.LOOSE)[0]
-	player._scoop(pieces.in_radius(seed_p.xf.origin, 0.25, 120))
-	var fwd := frost.global_transform.basis.z
-	await _view(frost.global_position + fwd * 0.95, atan2(fwd.x, fwd.z), -0.75)
-	await get_tree().create_timer(0.4).timeout
-	await _shot(dir, "dustpan")
-	player._pour_into(frost)
-	await get_tree().create_timer(0.7).timeout
-	await _shot(dir, "dustpan_pour")
-	# Box Beacons over the dice boxes while holding a mixed pan.
-	levels["beacons"] = 2
-	_beacon_t = 0.0
-	await _view(Vector3(2.6, 0.05, 2.6), PI * 0.8, -0.3)
-	await get_tree().create_timer(0.5).timeout
-	await _shot(dir, "beacons")
-	# The Tool Chest, partway through a game.
-	player._drop_hand(Vector3.ZERO)
-	levels = {"lantern": 1, "caddy": 1, "pour": 1}
-	tokens = 0
-	_earn(17)
-	_apply_upgrades()
-	_toggle_shop(true)
-	await get_tree().create_timer(0.4).timeout
-	await _shot(dir, "shop")
+	await _view(Vector3(0.0, 0.05, 3.4), PI, -0.22)
+	await _shot(dir, "nook")
+	await _view(Vector3(-1.6, 0.05, 4.85), PI, -0.9)
+	await _shot(dir, "poker")
+	await _view(Vector3(0.9, 0.05, 4.95), PI, -1.0)
+	await _shot(dir, "cards")
+	await _view(Vector3(3.3, 0.05, 5.0), PI, -0.95)
+	await _shot(dir, "crystals")
+	await _view(Vector3(5.0, 0.05, 4.95), PI, -1.05)
+	await _shot(dir, "marbles")
+	# The painting desk: a handful of bare miniatures, then painted.
+	await _view(Vector3(-4.6, 0.05, 4.9), PI, -0.75)
+	var raw := pieces.all.filter(func(p: Pieces.P): return p.unpainted and p.state == Pieces.LOOSE).slice(0, 14)
+	player._scoop(raw)
+	await get_tree().create_timer(0.6).timeout
+	await _shot(dir, "paint_before")
+	_paint_hand()
+	await get_tree().create_timer(0.9).timeout
+	await _shot(dir, "paint_mid")
+	await get_tree().create_timer(2.0).timeout
+	await _shot(dir, "paint_after")
 	get_tree().quit()

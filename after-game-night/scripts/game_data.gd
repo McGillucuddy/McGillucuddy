@@ -10,8 +10,10 @@ extends RefCounted
 ##   "heap"      = loose heaps (cubes, gems, apples)
 ##   "supply"    = scattered around
 ## cards: [card set name, how many cards]
-## An edition can also set its own "color", "accent" and material "style" (used by dice),
-## and "rules": false if the box has no rulebook.
+## An edition can also set its own "color", "accent" and material "style" (used by dice, chips
+## and cards), and "rules": false if the box has no rulebook.
+## A part can carry its own color and name: [type, count, how, Color, "ruby"].
+## cards can carry a back style: [set name, count, "holo" | "neon" | "casino", Color].
 
 const LINES := [
 	{"id": "crowns", "name": "Mossy Crowns", "color": Color("5a8d39"), "tagline": "a miniatures war game", "editions": [
@@ -92,6 +94,64 @@ const LINES := [
 		{"id": "jade", "name": "Jade", "board": false, "rules": false, "style": "jade", "color": Color("2f8f5b"), "accent": Color("e8c66a"),
 			"parts": [["d4", 14, "heap"], ["d6p", 14, "heap"], ["d8", 14, "heap"], ["d10", 14, "heap"], ["d10p", 14, "heap"], ["d12", 14, "heap"], ["d20", 14, "supply"]], "cards": []},
 	]},
+	{"id": "casino", "name": "Velvet Card Room", "color": Color("1f6b46"), "tagline": "a casino poker set", "editions": [
+		{"id": "clay", "name": "Classic Clay", "board": false, "rules": false, "style": "classic", "color": Color("1f6b46"), "accent": Color("f4f0e6"),
+			"parts": [["chip", 30, "stack", Color("f2efe6"), "white"], ["chip", 30, "stack", Color("c8323a"), "red"], ["chip", 24, "stack", Color("2a5bb5"), "blue"],
+				["chip", 24, "stack", Color("2f8f4f"), "green"], ["chip", 16, "stack", Color("1d1d22"), "black"], ["dealer", 1, "supply"]],
+			"cards": [["Red Deck", 52, "casino", Color("b3262e")], ["Blue Deck", 52, "casino", Color("2a4f9e")]]},
+		{"id": "royale", "name": "Gilded Royale", "board": false, "rules": false, "style": "royale", "color": Color("3b1f4f"), "accent": Color("e8b84a"),
+			"parts": [["chip", 24, "stack", Color("6a2c8e"), "purple"], ["chip", 16, "stack", Color("d9a520"), "gold"], ["chip", 24, "stack", Color("1d1d22"), "black"],
+				["chip", 24, "stack", Color("8a1c2a"), "crimson"], ["plaque", 8, "supply", Color("d9a520"), "gold"], ["plaque", 8, "supply", Color("6a2c8e"), "purple"]],
+			"cards": [["Gold Deck", 52, "casino", Color("8a6a1a")]]},
+		{"id": "neon", "name": "Neon Nights", "board": false, "rules": false, "style": "neon", "color": Color("15131f"), "accent": Color("ff4fd8"),
+			"parts": [["chip", 24, "stack", Color("ff4fd8"), "pink"], ["chip", 24, "stack", Color("3ee0ff"), "cyan"], ["chip", 24, "stack", Color("a6ff4d"), "lime"],
+				["chip", 16, "stack", Color("9b5cff"), "violet"]],
+			"cards": [["Neon Deck", 52, "neon", Color("ff4fd8")]]},
+	]},
+	{"id": "ccg", "name": "Prismatic Legends", "color": Color("d64f8a"), "tagline": "a collectible card game", "editions": [
+		{"id": "starter", "name": "", "board": false,
+			"parts": [["counter", 20, "heap", Color("ff5a5a"), "red"], ["counter", 20, "heap", Color("4fb3ff"), "blue"], ["counter", 20, "heap", Color("6ee07a"), "green"],
+				["deckbox", 6, "supply"]],
+			"cards": [["Flame", 60], ["Tide", 60], ["Grove", 60], ["Shade", 60]]},
+		{"id": "aurora", "name": "Aurora Holofoils", "board": false, "style": "holo", "color": Color("8fb7ff"), "accent": Color("ffffff"),
+			"parts": [["toploader", 30, "stack"], ["deckbox", 4, "supply"]],
+			"cards": [["Aurora Foils", 120, "holo", Color("b8c8ff")]]},
+		{"id": "showcase", "name": "Neon Showcase", "board": false, "style": "neon", "color": Color("1a1424"), "accent": Color("3ee0ff"),
+			"parts": [["toploader", 18, "stack"], ["counter", 24, "heap", Color("ff4fd8"), "pink"]],
+			"cards": [["Showcase", 90, "neon", Color("3ee0ff")]]},
+	]},
+	{"id": "caverns", "name": "Crystal Caverns", "color": Color("5aa9b8"), "tagline": "a crystal mining game", "editions": [
+		{"id": "base", "name": "", "board": true,
+			"parts": [["shard", 24, "heap", Color("9b59d0"), "amethyst"], ["shard", 24, "heap", Color("f29bbf"), "rose quartz"], ["shard", 24, "heap", Color("f2c14e"), "citrine"],
+				["cluster", 12, "supply", Color("9b59d0"), "amethyst"], ["geode", 8, "supply", Color("7fd1e8"), "blue lace"], ["meeple", 8, "board"]],
+			"cards": [["Tunnels", 40]]},
+		{"id": "deep", "name": "Deep Geodes", "board": false,
+			"parts": [["geode", 16, "supply", Color("c16fe0"), "violet"], ["cluster", 14, "supply", Color("7fe0d6"), "aquamarine"],
+				["cutgem", 20, "heap", Color("4fd07a"), "emerald"], ["cutgem", 20, "heap", Color("e04f5f"), "ruby"], ["cutgem", 20, "heap", Color("4f8fe0"), "sapphire"]],
+			"cards": [["Veins", 30]]},
+	]},
+	{"id": "marbles", "name": "Marble Jar", "color": Color("8fa8b8"), "tagline": "a marble collection", "editions": [
+		{"id": "cateye", "name": "Cat's Eyes", "board": false, "rules": false, "color": Color("5b86a8"), "accent": Color("e8f4ff"),
+			"parts": [["cateye", 24, "heap", Color("2f7fe0"), "blue"], ["cateye", 24, "heap", Color("e0402f"), "red"], ["cateye", 24, "heap", Color("3fbf5f"), "green"],
+				["cateye", 24, "heap", Color("f2c14e"), "yellow"], ["shooter", 10, "supply", Color("9b59d0"), "purple"]], "cards": []},
+		{"id": "pearl", "name": "Pearls & Steelies", "board": false, "rules": false, "color": Color("c9b8d6"), "accent": Color("ffffff"),
+			"parts": [["pearl", 24, "heap", Color("f4efe6"), "white"], ["pearl", 24, "heap", Color("f2b6c8"), "pink"], ["pearl", 24, "heap", Color("7fd1c8"), "teal"],
+				["steelie", 24, "heap"], ["galaxymarble", 12, "supply", Color("6a3fd0"), "nebula"]], "cards": []},
+	]},
+	{"id": "paints", "name": "Brushwork Hobby", "color": Color("d8d2c4"), "tagline": "miniature painting supplies", "editions": [
+		{"id": "base", "name": "Base Paints", "board": false, "rules": false, "color": Color("d8d2c4"), "accent": Color("c8323a"),
+			"parts": [["pot", 6, "heap", Color("c8323a"), "blood red"], ["pot", 6, "heap", Color("e8742a"), "ember orange"], ["pot", 6, "heap", Color("f2c94e"), "sun yellow"],
+				["pot", 6, "heap", Color("4f9e3a"), "moss green"], ["pot", 6, "heap", Color("2a6fb5"), "ocean blue"], ["pot", 6, "heap", Color("6a3fa0"), "royal purple"],
+				["pot", 6, "heap", Color("f2efe6"), "bone white"], ["pot", 6, "heap", Color("1d1d22"), "abyss black"], ["pot", 6, "heap", Color("8a5a34"), "leather brown"],
+				["pot", 6, "heap", Color("e8b8a0"), "flesh tone"], ["pot", 6, "heap", Color("2fb8a8"), "teal"], ["pot", 6, "heap", Color("e05a9a"), "rose pink"]]},
+		{"id": "metal", "name": "Metallics & Washes", "board": false, "rules": false, "style": "metal", "color": Color("4a4a52"), "accent": Color("e8b84a"),
+			"parts": [["pot", 8, "heap", Color("e8b84a"), "gold"], ["pot", 8, "heap", Color("c9cfd6"), "silver"], ["pot", 8, "heap", Color("b06a3a"), "bronze"],
+				["pot", 8, "heap", Color("c8743a"), "copper"], ["dropper", 8, "supply", Color("6a4a2a"), "sepia wash"], ["dropper", 8, "supply", Color("2a3a5a"), "blue wash"],
+				["dropper", 8, "supply", Color("3a2a1a"), "dark wash"]]},
+		{"id": "brushes", "name": "Brushes & Primers", "board": false, "rules": false, "color": Color("2a2a30"), "accent": Color("c9cfd6"),
+			"parts": [["brush", 12, "supply", Color("c8323a"), "detail"], ["brush", 12, "supply", Color("2a6fb5"), "layer"], ["brush", 12, "supply", Color("1d1d22"), "drybrush"],
+				["spray", 4, "supply", Color("2a2a2a"), "black primer"], ["spray", 4, "supply", Color("e8e4dc"), "white primer"], ["spray", 4, "supply", Color("8d9095"), "grey primer"]]},
+	]},
 ]
 
 ## How many of each piece a single click scoops up.
@@ -101,7 +161,13 @@ const HANDFUL := {
 	"lantern": 5, "bee": 6, "honey": 12, "apple": 8, "basket": 3, "meeple": 8,
 	"skeleton": 6, "slime": 6, "tile": 10, "chest": 2, "potion": 4, "dragon": 1,
 	"d4": 10, "d6p": 10, "d8": 10, "d10": 10, "d10p": 10, "d12": 10, "d20": 8,
+	"chip": 14, "plaque": 3, "dealer": 1, "toploader": 6, "deckbox": 2, "counter": 12,
+	"shard": 8, "cluster": 3, "geode": 3, "cutgem": 10, "cateye": 14, "shooter": 4, "pearl": 14,
+	"steelie": 14, "galaxymarble": 4, "pot": 6, "dropper": 4, "brush": 6, "spray": 2,
 }
+
+## Miniatures that may start unpainted and need a trip to the painting desk.
+const PAINTABLE := ["knight", "goblin", "hero", "skeleton", "dragon"]
 
 const TYPE_NAMES := {
 	"meeple": ["meeple", "meeples"], "pawn": ["pawn", "pawns"], "die": ["die", "dice"],
@@ -116,6 +182,14 @@ const TYPE_NAMES := {
 	"potion": ["potion", "potions"], "dragon": ["dragon", "dragons"],
 	"d4": ["d4", "d4s"], "d6p": ["d6", "d6s"], "d8": ["d8", "d8s"], "d10": ["d10", "d10s"],
 	"d10p": ["percentile die", "percentile dice"], "d12": ["d12", "d12s"], "d20": ["d20", "d20s"],
+	"chip": ["chip", "chips"], "plaque": ["plaque", "plaques"], "dealer": ["dealer button", "dealer buttons"],
+	"toploader": ["foil card in a case", "foil cards in cases"], "deckbox": ["deck box", "deck boxes"],
+	"counter": ["glass counter", "glass counters"], "shard": ["crystal shard", "crystal shards"],
+	"cluster": ["crystal cluster", "crystal clusters"], "geode": ["geode", "geodes"], "cutgem": ["cut gem", "cut gems"],
+	"cateye": ["cat's-eye marble", "cat's-eye marbles"], "shooter": ["shooter marble", "shooter marbles"],
+	"pearl": ["pearl marble", "pearl marbles"], "steelie": ["steelie", "steelies"], "galaxymarble": ["galaxy marble", "galaxy marbles"],
+	"pot": ["paint pot", "paint pots"], "dropper": ["wash bottle", "wash bottles"], "brush": ["brush", "brushes"],
+	"spray": ["spray can", "spray cans"],
 }
 
 ## Colors that set each box in a line apart: base, first expansion, second expansion.

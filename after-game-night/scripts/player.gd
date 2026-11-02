@@ -173,7 +173,7 @@ func _hand_label() -> String:
 		kinds[p.g.key] = true
 	if kinds.size() == 1:
 		var p: Pieces.P = hand[0]
-		return "%d %s %s" % [hand.size(), p.g.ed_name, GameData.type_name(p.g.type, hand.size())]
+		return "%d %s %s" % [hand.size(), p.g.ed_name, p.g.nice(hand.size())]
 	return "%d pieces (%d kinds)" % [hand.size(), kinds.size()]
 
 
@@ -203,7 +203,7 @@ func _update_hover() -> void:
 			(c as GameBox).set_highlight(true)
 		elif loose_piece:
 			var p := c as Pieces.P
-			text = "Where does this %s go?" % GameData.type_name(p.g.type, 1)
+			text = "Where does this %s go?" % p.g.nice(1)
 		elif c is Item and (c as Item).kind != "box" and (c as Item).can_pick():
 			text = "Where does this go?  ·  %s" % (c as Item).label
 		else:
@@ -224,7 +224,7 @@ func _update_hover() -> void:
 		var p := c as Pieces.P
 		preview = pieces.handful(p, magnet_radius, mini(30, hand_max - hand.size()))
 		var n := pieces.handful(p, magnet_radius, hand_max - hand.size()).size()
-		text = "Magnet: pull in %d %s %s from nearby" % [n, p.g.ed_name, GameData.type_name(p.g.type, n)]
+		text = "Magnet: pull in %d %s %s from nearby" % [n, p.g.ed_name, p.g.nice(n)]
 	elif tool == MAGNET and held == null and hand.is_empty():
 		text = "Magnet  ·  aim at a piece to pull in every match nearby"
 	elif held == null and loose_piece and hand.size() < hand_max:
@@ -232,14 +232,20 @@ func _update_hover() -> void:
 		var p := c as Pieces.P
 		var n := mini(preview.size(), hand_max - hand.size())
 		if hand.is_empty():
-			text = "Scoop %d %s %s  ·  hold to sweep" % [n, p.g.ed_name, GameData.type_name(p.g.type, n)]
+			text = "Scoop %d %s %s  ·  hold to sweep" % [n, p.g.ed_name, p.g.nice(n)]
 		else:
-			text = "Scoop %d more %s  ·  holding %d" % [n, GameData.type_name(p.g.type, n), hand.size()]
+			text = "Scoop %d more %s  ·  holding %d" % [n, p.g.nice(n), hand.size()]
+	elif not hand.is_empty() and c is Object and c.has_meta("paint_desk"):
+		var raw := hand.filter(func(p: Pieces.P): return p.unpainted).size()
+		text = ("Paint %d miniatures" % raw) if raw > 0 else "Painting desk  ·  nothing in your hand needs paint"
 	elif not hand.is_empty():
 		if c is GameBox and not (c as GameBox).complete:
 			var box := c as GameBox
-			var fits := hand.filter(func(p: Pieces.P): return p.g.ed == box.ed_id).size()
-			if fits > 0:
+			var fits := hand.filter(func(p: Pieces.P): return p.g.ed == box.ed_id and not p.unpainted).size()
+			var raw := hand.filter(func(p: Pieces.P): return p.g.ed == box.ed_id and p.unpainted).size()
+			if raw > 0 and fits == 0:
+				text = "%d of these need painting first  ·  take them to the painting desk" % raw
+			elif fits > 0:
 				text = "Pour into %s  ·  %d of your %d belong here" % [box.game_name, fits, hand.size()]
 			else:
 				text = "Pour into %s" % box.game_name
@@ -321,6 +327,9 @@ func primary() -> void:
 		_sweep_t = SWEEP_EVERY * 3.0
 		return
 	if not hand.is_empty():
+		if c is Object and c.has_meta("paint_desk"):
+			acted.emit("paint", c)
+			return
 		if c is GameBox and not (c as GameBox).complete:
 			_pour_into(c as GameBox)
 			return
@@ -390,6 +399,10 @@ func _pour_into(box: GameBox) -> void:
 			chuted += t2.size()
 			acted.emit("poured", {"box": other, "n": t2.size(), "left": hand.size()})
 	if took.is_empty() and chuted == 0:
+		var raw := hand.filter(func(p: Pieces.P): return p.g.ed == box.ed_id and p.unpainted).size()
+		if raw > 0:
+			acted.emit("needs_paint", raw)
+			return
 		box.shake()
 		acted.emit("wrong_box", box)
 		return

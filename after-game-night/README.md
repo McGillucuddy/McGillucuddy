@@ -4,7 +4,7 @@ A cozy first-person tidying game made in Godot 4. Game night is over. Six board 
 
 ## The collection
 
-There are eight game lines, each with several boxes: 21 boxes holding about 6,100 pieces and 4,700 cards, roughly 10,800 things to sort. Real big-box games set the starting point (*Slay the Spire: The Board Game* ships with 650+ cards and 113 tokens; a Warhammer 40,000 starter set has about 40 miniatures), and then everything is tripled. Some of every game has also spilled onto the floor beside its table.
+There are thirteen game lines across two shelves: 34 boxes holding about 9,200 pieces and 6,900 cards, roughly 16,100 things to sort. The room has a main play area and a hobby nook at the front with a painting desk, a felt poker table, a card table, a crystal curio table and a marble ring. Real big-box games set the starting point (*Slay the Spire: The Board Game* ships with 650+ cards and 113 tokens; a Warhammer 40,000 starter set has about 40 miniatures), and then everything is tripled. Some of every game has also spilled onto the floor beside its table.
 
 | Game line | Boxes | What's in them |
 | --- | --- | --- |
@@ -16,6 +16,15 @@ There are eight game lines, each with several boxes: 21 boxes holding about 6,10
 | Orchard Hollow (farming) | base, Cider Press | 234 apples, baskets, farmers, cider drops, teacups (945 things) |
 | Wyrmlight Tales (tabletop RPG) | Starter Adventure, Monster Vault | heroes, skeletons, slimes, dragons, dungeon tiles, treasure chests, potion bottles, spell and monster cards, and full dice sets in bone and obsidian (1,599 things) |
 | The Dice Hoard (dice collection) | Ember, Frost, Galaxy, Jade | 294 polyhedral dice per box: d4, d6, d8, d10, percentile d10, d12 and d20 (1,176 dice) |
+| Velvet Card Room (casino set) | Classic Clay, Gilded Royale, Neon Nights | casino chips in 13 colors with edge spots, inlays and printed rings; gold-rimmed and glowing designs; high-roller plaques; a dealer button; decks of playing cards (1,575 things) |
+| Prismatic Legends (trading card game) | Starter Decks, Aurora Holofoils, Neon Showcase | about 1,400 cards, including holographic foils that shift through the rainbow as you move and neon cards with glowing borders; foil cards in clear toploader cases; deck boxes; glass counters (1,779 things) |
+| Crystal Caverns (crystal mining game) | base, Deep Geodes | glowing translucent crystal shards and clusters in amethyst, rose quartz and citrine; split-open geodes; cut emeralds, rubies and sapphires (783 things) |
+| Marble Jar (marble collection) | Cat's Eyes, Pearls & Steelies | clear cat's-eye marbles with colored vanes, shooters, pearlescents, chrome steelies and galaxy marbles (642 things) |
+| Brushwork Hobby (painting supplies) | Base Paints, Metallics & Washes, Brushes & Primers | paint pots in 16 colors including metallics, wash bottles, brushes and spray primers (528 things) |
+
+### Painting miniatures
+
+About 45% of the Mossy Crowns and Wyrmlight Tales miniatures start out as bare grey plastic, and their boxes won't take them that way. Carry a handful to the **painting desk** in the hobby nook and click it: each bare mini hops up, gets a splash of paint and comes back finished. Every six you paint earns a Tidy Token, and the Airbrush upgrade makes painting faster.
 
 ### The dice
 
@@ -59,6 +68,7 @@ Press **Tab** to open the Tool Chest and spend them. Every upgrade has levels, s
 | Magnet (✦14, 22, 34) | Pull every matching piece within 2 m, then 4 m, then across the whole room. |
 | Quick Pour (✦4, 9, 16) | Pieces pour into boxes 1.5×, 2× and 3× faster. |
 | Card Satchel (✦6, 14) | Carry 16, then 30, card piles at once. |
+| Airbrush (✦5, 10, 18) | Paint miniatures at the desk faster and faster. |
 | Sorting Chute (✦40, 60) | When you pour, leftovers fly on to their own open boxes within 4 m, then anywhere in the room. |
 
 A full game earns roughly 400 tokens, and buying everything costs about 365, so you'll own most of the chest by the end. The upgrade list lives in `scripts/upgrades.gd`, and `_apply_upgrades()` in `scripts/main.gd` sets what each level does.
@@ -118,4 +128,4 @@ The lighting is designed for Godot's default Forward+ renderer, which adds the w
 godot --headless --path . -- --autotest
 ```
 
-This checks that handfuls only scoop matching pieces, that the dustpan, magnet and lantern find what they should, that buying upgrades applies them, that Box Beacons light the right boxes and that the Sorting Chute sends every piece home, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, then packs and shelves all 21 boxes and confirms the game ends.
+This checks that handfuls only scoop matching pieces, that the dustpan, magnet and lantern find what they should, that buying upgrades applies them, that Box Beacons light the right boxes and that the Sorting Chute sends every piece home, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, that bare miniatures are refused until painted at the desk, then packs and shelves all 34 boxes and confirms the game ends.

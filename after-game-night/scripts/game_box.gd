@@ -360,6 +360,9 @@ func check_pieces(list: Array) -> String:
 	for p: Pieces.P in list:
 		if p.g.ed != ed_id:
 			return "wrong_game"
+	for p: Pieces.P in list:
+		if p.unpainted:
+			return "unpainted"
 	return ""
 
 
@@ -375,7 +378,7 @@ func sift(list: Array, proxies: Array) -> Array:
 	var room := _left.duplicate()
 	for k in list.size():
 		var p: Pieces.P = list[k]
-		if p.g.ed == ed_id and room.get(p.g.key, 0) > 0:
+		if p.g.ed == ed_id and not p.unpainted and room.get(p.g.key, 0) > 0:
 			room[p.g.key] -= 1
 			took.append(k)
 			mine.append(p)
@@ -473,7 +476,7 @@ func try_accept(item: Item) -> String:
 					break
 			for c in item.visual.get_children():
 				c.queue_free()
-			item.visual.add_child(MeshKit.card_stack(color, item.card_count, item.card_stripe)[0])
+			item.visual.add_child(MeshKit.card_stack(item.card_back, item.card_count, item.card_stripe, item.card_style)[0])
 			item.visual.scale = Vector3.ONE * item.base_scale
 			target_pos = stack.pos + Vector3(0, stack.cards * MeshKit.CARD.y * tray.scale, 0)
 			target_rot = Vector3(0, randf_range(-0.04, 0.04), 0)

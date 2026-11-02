@@ -28,6 +28,17 @@ class Group:
 	var handful := 10
 	var mm: MultiMesh
 	var members: Array = []
+	var tint_name := ""         # "red", "amethyst"... for pieces that come in several colors
+	var mesh_raw: ArrayMesh     # grey primer version, for miniatures that can start unpainted
+	var mm_raw: MultiMesh
+
+	## "red chips", "amethyst crystal shards", "knights".
+	func nice(n: int) -> String:
+		var t := GameData.type_name(type, n)
+		return t if tint_name == "" else "%s %s" % [tint_name, t]
+
+	func mesh_for(p) -> ArrayMesh:
+		return mesh_raw if p.unpainted and mesh_raw else mesh
 
 
 class P:
@@ -38,6 +49,7 @@ class P:
 	var state := 0
 	var body := RID()
 	var home: Dictionary = {}
+	var unpainted := false
 
 
 var groups := {}
@@ -49,8 +61,8 @@ var _outline_mat: StandardMaterial3D
 var _hidden := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3(0, -50, 0))
 
 
-func make_group(line: String, ed: String, ed_name: String, type: String, body: Color, accent: Color, scale: float, style := "") -> Group:
-	var key := ed + "/" + type
+func make_group(line: String, ed: String, ed_name: String, type: String, body: Color, accent: Color, scale: float, style := "", tint_name := "") -> Group:
+	var key := ed + "/" + type + ("#" + tint_name if tint_name != "" else "")
 	if groups.has(key):
 		return groups[key]
 	var g := Group.new()
@@ -62,6 +74,9 @@ func make_group(line: String, ed: String, ed_name: String, type: String, body: C
 	var parts := MeshKit.piece(type, body, accent, style)
 	var v: Node3D = parts[0]
 	g.mesh = MeshKit.bake(v, scale)
+	g.tint_name = tint_name
+	if GameData.PAINTABLE.has(type):
+		g.mesh_raw = MeshKit.bake(v, scale, MeshKit.primer_mat())
 	g.shape = MeshKit.scaled_shape(parts[1], scale)
 	g.shape_off = parts[2] * scale
 	g.rest = parts[3]
@@ -97,6 +112,17 @@ func build() -> void:
 		mmi.multimesh = mm
 		add_child(mmi)
 		g.mm = mm
+		if g.mesh_raw:
+			var raw := MultiMesh.new()
+			raw.transform_format = MultiMesh.TRANSFORM_3D
+			raw.mesh = g.mesh_raw
+			raw.instance_count = g.members.size()
+			var rmi := MultiMeshInstance3D.new()
+			rmi.multimesh = raw
+			add_child(rmi)
+			g.mm_raw = raw
+			for i in raw.instance_count:
+				raw.set_instance_transform(i, _hidden)
 		for p: P in g.members:
 			var b := PhysicsServer3D.body_create()
 			PhysicsServer3D.body_set_mode(b, PhysicsServer3D.BODY_MODE_STATIC)
@@ -136,7 +162,13 @@ func _exit_tree() -> void:
 func set_loose(p: P, xf: Transform3D) -> void:
 	p.state = LOOSE
 	p.xf = xf
-	p.g.mm.set_instance_transform(p.gi, xf)
+	if p.unpainted and p.g.mm_raw:
+		p.g.mm_raw.set_instance_transform(p.gi, xf)
+		p.g.mm.set_instance_transform(p.gi, _hidden)
+	else:
+		p.g.mm.set_instance_transform(p.gi, xf)
+		if p.g.mm_raw:
+			p.g.mm_raw.set_instance_transform(p.gi, _hidden)
 	PhysicsServer3D.body_set_state(p.body, PhysicsServer3D.BODY_STATE_TRANSFORM, xf)
 	PhysicsServer3D.body_set_collision_layer(p.body, Item.LAYER_ITEMS)
 
@@ -145,6 +177,8 @@ func set_loose(p: P, xf: Transform3D) -> void:
 func take(p: P, new_state := HELD) -> void:
 	p.state = new_state
 	p.g.mm.set_instance_transform(p.gi, _hidden)
+	if p.g.mm_raw:
+		p.g.mm_raw.set_instance_transform(p.gi, _hidden)
 	PhysicsServer3D.body_set_collision_layer(p.body, 0)
 
 
@@ -187,7 +221,7 @@ func loose_count(g: Group) -> int:
 
 func proxy(p: P) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	mi.mesh = p.g.mesh
+	mi.mesh = p.g.mesh_for(p)
 	add_child(mi)
 	mi.global_transform = p.xf
 	return mi
@@ -198,7 +232,7 @@ func show_outline(list: Array) -> void:
 		var mi := _outlines[i]
 		if i < list.size():
 			var p: P = list[i]
-			mi.mesh = p.g.mesh
+			mi.mesh = p.g.mesh_for(p)
 			mi.transform = p.xf
 			mi.show()
 		else:
@@ -220,7 +254,7 @@ func drop(p: P, xf: Transform3D, vel: Vector3) -> RigidBody3D:
 	pm.bounce = 0.15
 	rb.physics_material_override = pm
 	var mi := MeshInstance3D.new()
-	mi.mesh = p.g.mesh
+	mi.mesh = p.g.mesh_for(p)
 	rb.add_child(mi)
 	var cs := CollisionShape3D.new()
 	cs.shape = p.g.shape

@@ -469,6 +469,16 @@ static func piece(type: String, c: Color, accent := Color(0, 0, 0, 0), style := 
 				v.add_child(mesh_node(cyl(0.0, 0.003, 0.007, 4), light, Vector3(-0.012 + k * 0.007, 0.004, 0)))
 			shape = _cyl_shape(0.026, 0.07)
 			offset = Vector3(0, 0.002, 0)
+		"chip", "plaque", "dealer":
+			return casino_piece(type, c, accent, style)
+		"toploader", "deckbox", "counter":
+			return ccg_piece(type, c, accent, style)
+		"shard", "cluster", "geode", "cutgem":
+			return crystal_piece(type, c)
+		"cateye", "shooter", "pearl", "steelie", "galaxymarble":
+			return marble_piece(type, c)
+		"pot", "dropper", "brush", "spray":
+			return paint_piece(type, c, style)
 		"cake":
 			var wedge := PackedVector2Array([Vector2(-0.03, 0.0), Vector2(0.03, -0.024), Vector2(0.03, 0.024)])
 			v.add_child(mesh_node(extrude(wedge, 0.028), mat(Color("e9c48f"), 0.8), Vector3.ZERO, Vector3(-PI / 2, 0, 0)))
@@ -492,10 +502,26 @@ static func _pips(n: int) -> Array:
 
 # ---------------------------------------------------------------- cards and books
 
-static func _card(c: Color, stripe: Color) -> Node3D:
+static func _card(c: Color, stripe: Color, style := "") -> Node3D:
 	var n := Node3D.new()
+	if style == "neon":
+		n.add_child(mesh_node(box(CARD), mat(Color("121018"), 0.4)))
+		n.add_child(mesh_node(box(Vector3(0.071, 0.0005, 0.101)), mat(stripe, 0.3, 2.2), Vector3(0, 0.0008, 0)))
+		n.add_child(mesh_node(box(Vector3(0.066, 0.0005, 0.096)), mat(Color("17131f"), 0.3), Vector3(0, 0.0009, 0)))
+		n.add_child(mesh_node(cyl(0.016, 0.016, 0.0005, 6), mat(c, 0.3, 2.5), Vector3(0, 0.0011, 0)))
+		n.add_child(mesh_node(box(Vector3(0.05, 0.0006, 0.003)), mat(stripe, 0.3, 2.5), Vector3(0, 0.0011, 0.03)))
+		return n
 	n.add_child(mesh_node(box(CARD), mat(Color("fbf1e1"), 0.6)))
 	n.add_child(mesh_node(box(Vector3(0.069, 0.0005, 0.099)), mat(c, 0.5), Vector3(0, 0.0008, 0)))
+	if style == "holo":
+		n.add_child(mesh_node(box(Vector3(0.06, 0.0005, 0.09)), holo_mat(c), Vector3(0, 0.0009, 0)))
+		n.add_child(mesh_node(cyl(0.012, 0.012, 0.0005, 8), mat(stripe, 0.3, 0.6), Vector3(0, 0.0011, 0)))
+		return n
+	if style == "casino":
+		n.add_child(mesh_node(box(Vector3(0.062, 0.0005, 0.092)), mat(Color("fbf1e1"), 0.5), Vector3(0, 0.0009, 0)))
+		for k in 5:
+			n.add_child(mesh_node(box(Vector3(0.058, 0.0006, 0.004)), mat(c, 0.5), Vector3(0, 0.001, -0.036 + k * 0.018), Vector3(0, 0.6, 0)))
+		return n
 	n.add_child(mesh_node(box(Vector3(0.048, 0.0005, 0.076)), mat(c.lightened(0.3), 0.5), Vector3(0, 0.0009, 0)))
 	n.add_child(mesh_node(box(Vector3(0.069, 0.0006, 0.014)), mat(stripe, 0.4), Vector3(0, 0.001, -0.036)))
 	n.add_child(mesh_node(cyl(0.011, 0.011, 0.0005, 12), mat(stripe, 0.3), Vector3(0, 0.0011, 0)))
@@ -503,13 +529,13 @@ static func _card(c: Color, stripe: Color) -> Node3D:
 
 
 ## A fanned hand of cards, the way a player leaves them face down on the table.
-static func card_hand(c: Color, count: int, stripe: Color) -> Array:
+static func card_hand(c: Color, count: int, stripe: Color, style := "") -> Array:
 	var v := Node3D.new()
 	for i in count:
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, i * 0.0022, 0.035)
 		pivot.rotation.y = (i - (count - 1) / 2.0) * 0.26
-		var card := _card(c, stripe)
+		var card := _card(c, stripe, style)
 		card.position = Vector3(0, 0, -0.04)
 		pivot.add_child(card)
 		v.add_child(pivot)
@@ -517,13 +543,13 @@ static func card_hand(c: Color, count: int, stripe: Color) -> Array:
 
 
 ## A neat stack of cards: a draw pile, or how cards sit once they're put away.
-static func card_stack(c: Color, count: int, stripe: Color) -> Array:
+static func card_stack(c: Color, count: int, stripe: Color, style := "") -> Array:
 	var v := Node3D.new()
 	var h := count * CARD.y
 	v.add_child(mesh_node(box(Vector3(CARD.x, h, CARD.z)), mat(Color("f4ead8"), 0.7), Vector3(0, h / 2, 0)))
 	# Stripes down the side of the stack so you can tell sets apart from any angle.
 	v.add_child(mesh_node(box(Vector3(CARD.x + 0.001, h * 0.9, 0.012)), mat(stripe.darkened(0.15), 0.6), Vector3(0, h / 2, -0.036)))
-	var top := _card(c, stripe)
+	var top := _card(c, stripe, style)
 	top.position = Vector3(0, h, 0)
 	v.add_child(top)
 	return [v, _box_shape(Vector3(CARD.x, h + 0.002, CARD.z)), Vector3(0, h / 2, 0), Vector3.ZERO]
@@ -574,7 +600,7 @@ static func board(c: Color, seed_val: int) -> Array:
 
 
 ## Merges a model into one mesh with one surface per material, so it can be drawn in batches.
-static func bake(v: Node3D, s: float) -> ArrayMesh:
+static func bake(v: Node3D, s: float, only: Material = null) -> ArrayMesh:
 	var tools := {}
 	var order: Array = []
 	var todo := [[v, Transform3D(Basis.from_scale(Vector3.ONE * s))]]
@@ -587,7 +613,7 @@ static func bake(v: Node3D, s: float) -> ArrayMesh:
 				continue
 			var cx: Transform3D = xf * (c as Node3D).transform
 			if c is MeshInstance3D and (c as MeshInstance3D).mesh:
-				var m: Material = (c as MeshInstance3D).material_override
+				var m: Material = only if only else (c as MeshInstance3D).material_override
 				if not tools.has(m):
 					var st := SurfaceTool.new()
 					st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -993,3 +1019,281 @@ static func _face_normal(f: Array) -> Vector3:
 	c /= f.size()
 	var n := ((f[1] as Vector3) - (f[0] as Vector3)).cross((f[2] as Vector3) - (f[0] as Vector3)).normalized()
 	return -n if n.dot(c) < 0.0 else n
+
+
+# ---------------------------------------------------------------- holographic and special materials
+
+static var _holo_shader: Shader
+static var _special := {}
+
+
+## A foil that shifts through the rainbow as you move around it.
+static func holo_mat(c: Color) -> ShaderMaterial:
+	var key := "holo" + c.to_html()
+	if _special.has(key):
+		return _special[key]
+	if _holo_shader == null:
+		_holo_shader = Shader.new()
+		_holo_shader.code = """
+shader_type spatial;
+render_mode cull_disabled;
+uniform vec3 base_color : source_color = vec3(0.6);
+void fragment() {
+	vec3 wn = (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz;
+	vec3 wv = (INV_VIEW_MATRIX * vec4(VIEW, 0.0)).xyz;
+	vec3 wp = (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	float band = fract(dot(wv, vec3(1.3, 0.7, 1.1)) * 1.4 + (wp.x + wp.z) * 9.0 + dot(wn, wv) * 0.6);
+	vec3 rainbow = 0.5 + 0.5 * cos(6.2831 * (band + vec3(0.0, 0.33, 0.67)));
+	ALBEDO = mix(base_color, rainbow, 0.6);
+	METALLIC = 0.7;
+	ROUGHNESS = 0.15;
+	EMISSION = rainbow * 0.35;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = _holo_shader
+	m.set_shader_parameter("base_color", c)
+	_special[key] = m
+	return m
+
+
+static func crystal_mat(c: Color) -> StandardMaterial3D:
+	var key := "crystal" + c.to_html()
+	if _special.has(key):
+		return _special[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(c, 0.62)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.roughness = 0.04
+	m.metallic = 0.1
+	m.emission_enabled = true
+	m.emission = c
+	m.emission_energy_multiplier = 0.9
+	m.rim_enabled = true
+	m.rim = 1.0
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_special[key] = m
+	return m
+
+
+static func glass_mat(tint := Color(0.9, 0.95, 1.0)) -> StandardMaterial3D:
+	var key := "glass" + tint.to_html()
+	if _special.has(key):
+		return _special[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(tint, 0.28)
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.roughness = 0.02
+	m.metallic = 0.2
+	m.rim_enabled = true
+	m.rim = 1.0
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_special[key] = m
+	return m
+
+
+static func metal_mat(c: Color, rough := 0.22) -> StandardMaterial3D:
+	var key := "metal%s%.2f" % [c.to_html(), rough]
+	if _special.has(key):
+		return _special[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.metallic = 1.0
+	m.roughness = rough
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_special[key] = m
+	return m
+
+
+## Grey plastic, for miniatures that haven't been painted yet.
+static func primer_mat() -> StandardMaterial3D:
+	if _special.has("primer"):
+		return _special["primer"]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color("5d6470")
+	m.roughness = 0.9
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_special["primer"] = m
+	return m
+
+
+# ---------------------------------------------------------------- casino
+
+## A clay poker chip with edge spots and a printed inlay, a high-roller plaque, or the dealer button.
+static func casino_piece(type: String, c: Color, accent: Color, style: String) -> Array:
+	var v := Node3D.new()
+	var spot_m := mat(accent, 0.4, 2.2 if style == "neon" else 0.0)
+	if style == "royale":
+		spot_m = metal_mat(Color("e8b84a"), 0.25)
+	match type:
+		"chip":
+			var r := 0.024
+			var h := 0.0048
+			v.add_child(mesh_node(cyl(r, r, h, 28), mat(c, 0.55)))
+			# Edge spots, the classic casino stripe pattern.
+			for i in 6:
+				var a := TAU * i / 6.0
+				var spot := mesh_node(box(Vector3(0.0075, h + 0.0004, 0.006)), spot_m, Vector3(cos(a) * (r - 0.0025), 0, sin(a) * (r - 0.0025)), Vector3(0, -a, 0))
+				v.add_child(spot)
+			v.add_child(mesh_node(cyl(0.0135, 0.0135, h + 0.0006, 24), mat(c.lightened(0.55), 0.5)))
+			v.add_child(mesh_node(torus(0.0105, 0.0118), spot_m if style != "classic" else mat(c.darkened(0.2), 0.5), Vector3(0, h / 2 + 0.0003, 0), Vector3.ZERO))
+			v.get_child(v.get_child_count() - 1).scale = Vector3(1, 0.08, 1)
+			v.add_child(mesh_node(cyl(0.004, 0.004, h + 0.0009, 5), mat(c, 0.5), Vector3.ZERO))
+			return [v, _cyl_shape(r, h), Vector3.ZERO, Vector3.ZERO]
+		"plaque":
+			v.add_child(mesh_node(box(Vector3(0.06, 0.005, 0.04)), mat(c, 0.15)))
+			v.add_child(mesh_node(box(Vector3(0.05, 0.0056, 0.03)), mat(c.lightened(0.5), 0.1)))
+			for sx in [-1.0, 1.0]:
+				v.add_child(mesh_node(box(Vector3(0.006, 0.006, 0.04)), spot_m, Vector3(sx * 0.024, 0, 0)))
+			return [v, _box_shape(Vector3(0.06, 0.006, 0.04)), Vector3.ZERO, Vector3.ZERO]
+	# dealer button
+	v.add_child(mesh_node(cyl(0.028, 0.028, 0.009, 28), mat(Color("f4f0e6"), 0.4)))
+	v.add_child(mesh_node(torus(0.019, 0.023), mat(Color("1a1a1a"), 0.4), Vector3(0, 0.0045, 0)))
+	v.get_child(1).scale = Vector3(1, 0.1, 1)
+	v.add_child(mesh_node(box(Vector3(0.004, 0.0095, 0.016)), mat(Color("1a1a1a"), 0.4), Vector3(-0.004, 0, 0)))
+	v.add_child(mesh_node(cyl(0.007, 0.007, 0.0095, 12), mat(Color("1a1a1a"), 0.4), Vector3(0.0, 0, 0)))
+	return [v, _cyl_shape(0.028, 0.009), Vector3.ZERO, Vector3.ZERO]
+
+
+# ---------------------------------------------------------------- trading card game extras
+
+static func ccg_piece(type: String, c: Color, accent: Color, style: String) -> Array:
+	var v := Node3D.new()
+	match type:
+		"toploader":
+			# A foil card sealed in a clear rigid case.
+			v.add_child(mesh_node(box(Vector3(0.07, 0.0012, 0.098)), holo_mat(c) if style != "neon" else mat(c, 0.3, 2.0)))
+			v.add_child(mesh_node(box(Vector3(0.05, 0.0014, 0.04)), mat(accent, 0.3, 0.4), Vector3(0, 0.0, -0.018)))
+			v.add_child(mesh_node(box(Vector3(0.078, 0.004, 0.108)), glass_mat(), Vector3(0, 0, 0.002)))
+			return [v, _box_shape(Vector3(0.078, 0.004, 0.108)), Vector3.ZERO, Vector3.ZERO]
+		"deckbox":
+			v.add_child(mesh_node(box(Vector3(0.075, 0.048, 0.09)), mat(c, 0.35)))
+			v.add_child(mesh_node(box(Vector3(0.077, 0.014, 0.092)), mat(accent, 0.3, 0.3 if style == "neon" else 0.0), Vector3(0, 0.018, 0)))
+			v.add_child(mesh_node(box(Vector3(0.05, 0.002, 0.05)), holo_mat(c.lightened(0.2)), Vector3(0, 0.0, 0.046), Vector3(PI / 2, 0, 0)))
+			return [v, _box_shape(Vector3(0.077, 0.048, 0.092)), Vector3.ZERO, Vector3(0, 0, PI / 2)]
+	# a glass counter bead
+	var bead := mesh_node(sphere(0.011, 12), crystal_mat(c))
+	bead.scale = Vector3(1, 0.45, 1)
+	v.add_child(bead)
+	return [v, _cyl_shape(0.011, 0.01), Vector3.ZERO, Vector3.ZERO]
+
+
+# ---------------------------------------------------------------- crystals
+
+static func _prism_point(r: float, h: float, tip: float, m: Material) -> MeshInstance3D:
+	var prof := [Vector2(0, 0), Vector2(r, 0), Vector2(r, h), Vector2(0, h + tip)]
+	var mi := mesh_node(lathe(prof, 6), m)
+	return mi
+
+
+static func crystal_piece(type: String, c: Color) -> Array:
+	var v := Node3D.new()
+	var cm := crystal_mat(c)
+	var rock := mat(Color("5a5048"), 0.95)
+	match type:
+		"shard":
+			var s := _prism_point(0.009, 0.034, 0.014, cm)
+			s.position = Vector3(0, -0.024, 0)
+			v.add_child(s)
+			return [v, _cyl_shape(0.01, 0.048), Vector3.ZERO, Vector3(0, 0, PI / 2)]
+		"cluster":
+			v.add_child(mesh_node(sphere(0.02, 8), rock, Vector3(0, -0.018, 0)))
+			v.get_child(0).scale = Vector3(1.2, 0.5, 1.0)
+			for k in 5:
+				var a := TAU * k / 5.0
+				var s := _prism_point(0.006, 0.022 + (k % 3) * 0.006, 0.009, cm)
+				s.position = Vector3(cos(a) * 0.008, -0.016, sin(a) * 0.008)
+				s.rotation = Vector3(sin(a) * 0.45, 0, -cos(a) * 0.45)
+				v.add_child(s)
+			var mid := _prism_point(0.007, 0.03, 0.01, cm)
+			mid.position = Vector3(0, -0.016, 0)
+			v.add_child(mid)
+			return [v, _cyl_shape(0.024, 0.05), Vector3(0, 0.004, 0), Vector3.ZERO]
+		"geode":
+			# A rough rock split open to show the crystals inside.
+			var shell := mesh_node(sphere(0.022, 12), rock, Vector3.ZERO)
+			shell.scale = Vector3(1, 0.55, 1)
+			v.add_child(shell)
+			v.add_child(mesh_node(cyl(0.0205, 0.0205, 0.0015, 16), mat(Color("e8e2d8"), 0.8), Vector3(0, 0.0005, 0)))
+			v.add_child(mesh_node(cyl(0.017, 0.017, 0.002, 16), cm, Vector3(0, 0.0012, 0)))
+			for k in 9:
+				var a := TAU * k / 9.0
+				var s := _prism_point(0.0025, 0.004, 0.004, cm)
+				s.position = Vector3(cos(a) * 0.01 * (1 + k % 2 * 0.4), 0.0012, sin(a) * 0.01 * (1 + k % 2 * 0.4))
+				v.add_child(s)
+			return [v, _cyl_shape(0.022, 0.026), Vector3(0, -0.005, 0), Vector3.ZERO]
+	# a brilliant-cut gem
+	v.add_child(mesh_node(cyl(0.012, 0.018, 0.007, 8), cm, Vector3(0, 0.004, 0)))
+	v.add_child(mesh_node(cyl(0.018, 0.0, 0.016, 8), cm, Vector3(0, -0.0075, 0)))
+	return [v, _cyl_shape(0.018, 0.023), Vector3.ZERO, Vector3(0, 0, PI / 2)]
+
+
+# ---------------------------------------------------------------- marbles
+
+static func marble_piece(type: String, c: Color) -> Array:
+	var v := Node3D.new()
+	var r := 0.016
+	match type:
+		"cateye", "shooter":
+			if type == "shooter":
+				r = 0.024
+			# Clear glass with a twisted colored vane inside.
+			v.add_child(mesh_node(sphere(r, 16), glass_mat(c.lerp(Color.WHITE, 0.6))))
+			var vane_m := mat(c, 0.3, 0.35)
+			for k in 4:
+				var vane := mesh_node(sphere(r * 0.82, 10), vane_m, Vector3.ZERO, Vector3(0, k * PI / 4, 0.4 * (k % 2) - 0.2))
+				vane.scale = Vector3(1, 0.12, 0.28)
+				v.add_child(vane)
+		"pearl":
+			var m := StandardMaterial3D.new()
+			m.albedo_color = c
+			m.metallic = 0.45
+			m.roughness = 0.12
+			m.rim_enabled = true
+			m.rim = 0.8
+			m.clearcoat_enabled = true
+			v.add_child(mesh_node(sphere(r, 16), m))
+		"steelie":
+			v.add_child(mesh_node(sphere(r, 16), metal_mat(Color("d8dde2"), 0.08)))
+		"galaxymarble":
+			r = 0.019
+			v.add_child(mesh_node(sphere(r, 16), glass_mat(Color(0.6, 0.6, 1.0))))
+			v.add_child(mesh_node(sphere(r * 0.75, 12), mat(c, 0.2, 0.9)))
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 7
+			for k in 10:
+				var d := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized()
+				v.add_child(mesh_node(sphere(0.0009, 4), mat(Color.WHITE, 0.3, 5.0), d * r * 0.85))
+	return [v, _sphere_shape(r), Vector3.ZERO, Vector3.ZERO]
+
+
+# ---------------------------------------------------------------- hobby paints
+
+static func paint_piece(type: String, c: Color, style: String) -> Array:
+	var v := Node3D.new()
+	var paint := metal_mat(c, 0.25) if style == "metal" else mat(c, 0.35)
+	var plastic := mat(Color("f2efe8"), 0.5)
+	match type:
+		"pot":
+			# A squat hobby paint pot with a hinged flip cap in the paint's color.
+			v.add_child(mesh_node(cyl(0.0125, 0.0135, 0.022, 14), plastic, Vector3(0, -0.004, 0)))
+			v.add_child(mesh_node(cyl(0.0137, 0.0137, 0.008, 14), mat(Color("1d1d1f"), 0.5), Vector3(0, -0.006, 0)))
+			v.add_child(mesh_node(cyl(0.0128, 0.0128, 0.008, 14), paint, Vector3(0, 0.011, 0)))
+			v.add_child(mesh_node(box(Vector3(0.008, 0.004, 0.006)), paint, Vector3(0, 0.009, 0.013)))
+			return [v, _cyl_shape(0.0137, 0.032), Vector3(0, 0.0, 0), Vector3.ZERO]
+		"dropper":
+			v.add_child(mesh_node(cyl(0.009, 0.01, 0.034, 12), plastic, Vector3(0, -0.006, 0)))
+			v.add_child(mesh_node(cyl(0.0092, 0.0092, 0.016, 12), paint, Vector3(0, -0.012, 0)))
+			v.add_child(mesh_node(cyl(0.003, 0.0065, 0.012, 10), mat(Color("1d1d1f"), 0.5), Vector3(0, 0.017, 0)))
+			return [v, _cyl_shape(0.01, 0.046), Vector3.ZERO, Vector3(0, 0, PI / 2)]
+		"brush":
+			v.add_child(mesh_node(cyl(0.0022, 0.0032, 0.07, 8), mat(c, 0.3), Vector3(0, 0.0, 0)))
+			v.add_child(mesh_node(cyl(0.0024, 0.0024, 0.012, 8), metal_mat(Color("c9cfd6")), Vector3(0, 0.041, 0)))
+			v.add_child(mesh_node(cyl(0.0, 0.002, 0.009, 8), mat(Color("3a2414"), 0.8), Vector3(0, 0.0515, 0)))
+			return [v, _cyl_shape(0.004, 0.11), Vector3(0, 0.01, 0), Vector3(0, 0, PI / 2)]
+	# spray primer can
+	v.add_child(mesh_node(cyl(0.017, 0.017, 0.06, 16), metal_mat(c.darkened(0.1), 0.35)))
+	v.add_child(mesh_node(cyl(0.0172, 0.0172, 0.03, 16), mat(Color("f2efe8"), 0.4), Vector3(0, 0.0, 0)))
+	v.add_child(mesh_node(cyl(0.012, 0.016, 0.01, 16), metal_mat(Color("c9cfd6")), Vector3(0, 0.035, 0)))
+	v.add_child(mesh_node(cyl(0.006, 0.006, 0.008, 10), mat(c, 0.4), Vector3(0, 0.044, 0)))
+	return [v, _cyl_shape(0.017, 0.09), Vector3(0, 0.005, 0), Vector3(0, 0, PI / 2)]
