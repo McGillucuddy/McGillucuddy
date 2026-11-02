@@ -8,8 +8,6 @@ const STRAY_CHANCE := 0.08
 const VOLUME := 3.0
 ## Share of each game that has spilled onto the floor beside its table.
 const SPILL := 0.22
-## Share of the miniatures that start unpainted and need the painting desk.
-const UNPAINTED := 0.45
 const PIECE_SCALE := 0.9
 const CARD_SCALE := 1.0
 ## Which surface each game line is played on.
@@ -47,7 +45,6 @@ var streak := 0
 var _last_sort_ms := 0
 var _tidy_step := 0
 var tokens := 0
-var painted := 0
 var levels := {}
 var _beacons := {}
 var _beacon_t := 0.0
@@ -240,10 +237,7 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 			groups.append(g)
 			where[g.key] = part[2]
 			for n in int(round(part[1] * VOLUME)):
-				var p := pieces.add(g, Transform3D(), spot)
-				# Plenty of the miniatures came out of the box unpainted.
-				if GameData.PAINTABLE.has(part[0]) and rng.randf() < UNPAINTED:
-					p.unpainted = true
+				pieces.add(g, Transform3D(), spot)
 		var card_piles := {}
 		var card_items: Array[Item] = []
 		for si in ed.get("cards", []).size():
@@ -512,11 +506,6 @@ func _on_player_acted(kind: String, data: Variant) -> void:
 			_float_text(box.global_position + Vector3(0, box.H + 0.15, 0), "+%d" % d.n if kind == "poured" else "+%d" % d.n)
 			if d.left > 0:
 				hud.toast("%d left in your hand belong somewhere else." % d.left, 1.6)
-		"paint":
-			_paint_hand()
-		"needs_paint":
-			sfx.ui("tick", -6.0, 0.8)
-			hud.toast("%d of those are still bare plastic. Take them to the painting desk first." % data, 3.0)
 		"seek_box":
 			_seek_box(data as GameBox)
 		"seek_for":
@@ -1359,46 +1348,6 @@ func _define_spots() -> void:
 		spots[k] = s
 
 
-# ---------------------------------------------------------------- painting miniatures
-
-const PAINT_SPLASH := [Color("c8323a"), Color("2a6fb5"), Color("4f9e3a"), Color("f2c94e"), Color("6a3fa0"), Color("e8b84a"), Color("e05a9a")]
-
-
-## Every bare miniature in your hand hops up, gets a splash of paint and comes back finished.
-func _paint_hand() -> void:
-	var gap: float = [0.14, 0.08, 0.04, 0.015][levels.get("airbrush", 0)]
-	var k := 0
-	for i in player.hand.size():
-		var p: Pieces.P = player.hand[i]
-		if not p.unpainted:
-			continue
-		p.unpainted = false
-		var mi: MeshInstance3D = player._hand_nodes[i]
-		var rest := mi.transform
-		var up := Transform3D(rest.basis.rotated(Vector3.UP, PI), rest.origin + Vector3(0, 0.04, 0))
-		var tw := mi.create_tween()
-		tw.tween_interval(k * gap)
-		tw.tween_property(mi, "transform", up, 0.12).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		var splash: Color = PAINT_SPLASH[k % PAINT_SPLASH.size()]
-		var n := k
-		tw.tween_callback(func():
-			mi.mesh = p.g.mesh
-			_sparkle(mi.global_position, 8, 0.3, splash)
-			sfx.ui("tick", -9.0, 0.8 + (n % 7) * 0.06)
-			if n % 3 == 0:
-				sfx.note(PENTA[n % PENTA.size()], -15.0))
-		tw.tween_property(mi, "transform", rest, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		k += 1
-	if k == 0:
-		hud.toast("Nothing in your hand needs paint.", 1.8)
-		return
-	painted += k
-	var reward := (painted / 6) - ((painted - k) / 6)
-	hud.toast("Painted %d miniatures.%s" % [k, ("  +%d ✦" % reward) if reward > 0 else ""], 2.2)
-	if reward > 0:
-		get_tree().create_timer(k * gap + 0.3).timeout.connect(_earn.bind(reward))
-
-
 # ---------------------------------------------------------------- the hobby nook
 
 func _build_hobby_nook() -> void:
@@ -1406,7 +1355,6 @@ func _build_hobby_nook() -> void:
 	var dark := MeshKit.mat(Color("2a1a12"), 0.6)
 	# The painting desk, with a cutting mat, a rack of paints and a bright task lamp.
 	var desk := _solid(Vector3(1.6, 0.05, 0.75), Vector3(-4.6, 0.735, 5.8), wood)
-	desk.set_meta("paint_desk", true)
 	for sx in [-1, 1]:
 		for sz in [-1, 1]:
 			_solid(Vector3(0.06, 0.71, 0.06), Vector3(-4.6 + sx * 0.72, 0.355, 5.8 + sz * 0.3), wood)
@@ -1429,7 +1377,7 @@ func _build_hobby_nook() -> void:
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.012, 0.6), MeshKit.mat(Color("2a2a2a"), 0.4), Vector3(-3.95, 1.07, 6.05)))
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.04, 0.08, 0.1, 16), MeshKit.mat(Color("2f5a46"), 0.4), Vector3(-4.2, 1.47, 5.85), Vector3(0.6, 0, 0.5)))
 	var sign := Label3D.new()
-	sign.text = "Painting Desk"
+	sign.text = "Hobby Desk"
 	sign.font_size = 48
 	sign.pixel_size = 0.0014
 	sign.modulate = Color("f3b648")
@@ -1704,8 +1652,6 @@ func _update_fireflies(t: float) -> void:
 
 func _pack_all(b: GameBox) -> void:
 	var mine := pieces.all.filter(func(p: Pieces.P): return p.g.ed == b.ed_id and p.state == Pieces.LOOSE)
-	for p: Pieces.P in mine:
-		p.unpainted = false
 	var by_group := {}
 	for p: Pieces.P in mine:
 		if not by_group.has(p.g.key):
@@ -1756,7 +1702,6 @@ func _autotest() -> void:
 	print("handful of ", p0.g.key, ": ", hand.size(), " all same kind: ", hand.all(func(q: Pieces.P): return q.g == p0.g))
 	# Sifting: pour a mixed handful from two boxes; the box keeps only its own.
 	var line_ps := pieces.all.filter(func(p: Pieces.P): return p.g.line == base.line_id and p.state == Pieces.LOOSE)
-	line_ps = line_ps.filter(func(p: Pieces.P): return not p.unpainted)
 	var mixed := line_ps.filter(func(p: Pieces.P): return p.g.ed == base.ed_id).slice(0, 7) + line_ps.filter(func(p: Pieces.P): return p.g.ed != base.ed_id).slice(0, 5)
 	var mixed_nodes := []
 	for p: Pieces.P in mixed:
@@ -1784,17 +1729,6 @@ func _autotest() -> void:
 		player.set_tool(i)
 	print("tool switching ok: ", player.tool == Player.MAGNET)
 	player.set_tool(0)
-	# Painting: bare miniatures are refused by their box until they've been to the desk.
-	var raw := pieces.all.filter(func(p: Pieces.P): return p.unpainted and p.state == Pieces.LOOSE)
-	print("unpainted miniatures in the room: ", raw.size())
-	var raw_hand := raw.slice(0, 20)
-	player._scoop(raw_hand)
-	var crowns: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == (raw_hand[0] as Pieces.P).g.ed)[0]
-	print("box takes bare minis? ", crowns.check_pieces([raw_hand[0]]))
-	_paint_hand()
-	print("after the painting desk: ", raw_hand.filter(func(p: Pieces.P): return p.unpainted).size(), " still bare, painted total ", painted)
-	player._drop_hand(Vector3.ZERO)
-	await get_tree().create_timer(1.5).timeout
 	# The Tool Chest: earn, buy every level, and check the effects.
 	_earn(2000)
 	for u in Upgrades.LIST:
@@ -1864,25 +1798,24 @@ func _screenshots() -> void:
 	await get_tree().create_timer(3.0).timeout
 	_start()
 	hud.toast("", 0.0)
-	await _view(Vector3(0.0, 0.05, 3.4), PI, -0.22)
-	await _shot(dir, "nook")
-	await _view(Vector3(-1.6, 0.05, 4.85), PI, -0.9)
-	await _shot(dir, "poker")
-	await _view(Vector3(0.9, 0.05, 4.95), PI, -1.0)
-	await _shot(dir, "cards")
-	await _view(Vector3(3.3, 0.05, 5.0), PI, -0.95)
-	await _shot(dir, "crystals")
-	await _view(Vector3(5.0, 0.05, 4.95), PI, -1.05)
-	await _shot(dir, "marbles")
-	# The painting desk: a handful of bare miniatures, then painted.
-	await _view(Vector3(-4.6, 0.05, 4.9), PI, -0.75)
-	var raw := pieces.all.filter(func(p: Pieces.P): return p.unpainted and p.state == Pieces.LOOSE).slice(0, 14)
-	player._scoop(raw)
-	await get_tree().create_timer(0.6).timeout
-	await _shot(dir, "paint_before")
-	_paint_hand()
-	await get_tree().create_timer(0.9).timeout
-	await _shot(dir, "paint_mid")
-	await get_tree().create_timer(2.0).timeout
-	await _shot(dir, "paint_after")
+	# Open cases along the front wall of the hobby nook.
+	await _view(Vector3(-2.2, 0.05, 6.15), PI, -0.55)
+	await _shot(dir, "cases_open_left")
+	await _view(Vector3(2.6, 0.05, 6.15), PI, -0.55)
+	await _shot(dir, "cases_open_right")
+	# Pack and shelve everything, then look at the closed boxes on both shelves.
+	for b in boxes:
+		_pack_all(b)
+	await get_tree().create_timer(6.0).timeout
+	for b in boxes:
+		for s in slots:
+			if s.place(b):
+				break
+	await get_tree().create_timer(1.5).timeout
+	hud.show_end("")
+	hud.get_child(0).hide()
+	await _view(Vector3(-0.9, 0.05, -2.9), 0.25, -0.12)
+	await _shot(dir, "game_shelf")
+	await _view(Vector3(3.6, 0.05, -3.1), -PI / 2, -0.12)
+	await _shot(dir, "hobby_shelf")
 	get_tree().quit()

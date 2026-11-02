@@ -84,7 +84,7 @@ const LINES := [
 				["d4", 6, "heap"], ["d6p", 6, "heap"], ["d8", 6, "heap"], ["d10", 6, "heap"], ["d10p", 6, "heap"], ["d12", 6, "heap"], ["d20", 6, "supply"]],
 			"cards": [["Bestiary", 50]]},
 	]},
-	{"id": "hoard", "name": "The Dice Hoard", "color": Color("c9a227"), "tagline": "a dice collection", "editions": [
+	{"id": "hoard", "case": "vault", "name": "The Dice Hoard", "color": Color("c9a227"), "tagline": "a dice collection", "editions": [
 		{"id": "ember", "name": "Ember", "board": false, "rules": false, "style": "ember", "color": Color("e8622a"), "accent": Color("ffd166"),
 			"parts": [["d4", 14, "heap"], ["d6p", 14, "heap"], ["d8", 14, "heap"], ["d10", 14, "heap"], ["d10p", 14, "heap"], ["d12", 14, "heap"], ["d20", 14, "supply"]], "cards": []},
 		{"id": "frost", "name": "Frost", "board": false, "rules": false, "style": "frost", "color": Color("8fd3f4"), "accent": Color("ffffff"),
@@ -94,7 +94,7 @@ const LINES := [
 		{"id": "jade", "name": "Jade", "board": false, "rules": false, "style": "jade", "color": Color("2f8f5b"), "accent": Color("e8c66a"),
 			"parts": [["d4", 14, "heap"], ["d6p", 14, "heap"], ["d8", 14, "heap"], ["d10", 14, "heap"], ["d10p", 14, "heap"], ["d12", 14, "heap"], ["d20", 14, "supply"]], "cards": []},
 	]},
-	{"id": "casino", "name": "Velvet Card Room", "color": Color("1f6b46"), "tagline": "a casino poker set", "editions": [
+	{"id": "casino", "case": "chipcase", "name": "Velvet Card Room", "color": Color("1f6b46"), "tagline": "a casino poker set", "editions": [
 		{"id": "clay", "name": "Classic Clay", "board": false, "rules": false, "style": "classic", "color": Color("1f6b46"), "accent": Color("f4f0e6"),
 			"parts": [["chip", 30, "stack", Color("f2efe6"), "white"], ["chip", 30, "stack", Color("c8323a"), "red"], ["chip", 24, "stack", Color("2a5bb5"), "blue"],
 				["chip", 24, "stack", Color("2f8f4f"), "green"], ["chip", 16, "stack", Color("1d1d22"), "black"], ["dealer", 1, "supply"]],
@@ -108,7 +108,7 @@ const LINES := [
 				["chip", 16, "stack", Color("9b5cff"), "violet"]],
 			"cards": [["Neon Deck", 52, "neon", Color("ff4fd8")]]},
 	]},
-	{"id": "ccg", "name": "Prismatic Legends", "color": Color("d64f8a"), "tagline": "a collectible card game", "editions": [
+	{"id": "ccg", "case": "deckvault", "name": "Prismatic Legends", "color": Color("d64f8a"), "tagline": "a collectible card game", "editions": [
 		{"id": "starter", "name": "", "board": false,
 			"parts": [["counter", 20, "heap", Color("ff5a5a"), "red"], ["counter", 20, "heap", Color("4fb3ff"), "blue"], ["counter", 20, "heap", Color("6ee07a"), "green"],
 				["deckbox", 6, "supply"]],
@@ -130,7 +130,7 @@ const LINES := [
 				["cutgem", 20, "heap", Color("4fd07a"), "emerald"], ["cutgem", 20, "heap", Color("e04f5f"), "ruby"], ["cutgem", 20, "heap", Color("4f8fe0"), "sapphire"]],
 			"cards": [["Veins", 30]]},
 	]},
-	{"id": "marbles", "name": "Marble Jar", "color": Color("8fa8b8"), "tagline": "a marble collection", "editions": [
+	{"id": "marbles", "case": "display", "name": "Marble Jar", "color": Color("8fa8b8"), "tagline": "a marble collection", "editions": [
 		{"id": "cateye", "name": "Cat's Eyes", "board": false, "rules": false, "color": Color("5b86a8"), "accent": Color("e8f4ff"),
 			"parts": [["cateye", 24, "heap", Color("2f7fe0"), "blue"], ["cateye", 24, "heap", Color("e0402f"), "red"], ["cateye", 24, "heap", Color("3fbf5f"), "green"],
 				["cateye", 24, "heap", Color("f2c14e"), "yellow"], ["shooter", 10, "supply", Color("9b59d0"), "purple"]], "cards": []},
@@ -138,7 +138,7 @@ const LINES := [
 			"parts": [["pearl", 24, "heap", Color("f4efe6"), "white"], ["pearl", 24, "heap", Color("f2b6c8"), "pink"], ["pearl", 24, "heap", Color("7fd1c8"), "teal"],
 				["steelie", 24, "heap"], ["galaxymarble", 12, "supply", Color("6a3fd0"), "nebula"]], "cards": []},
 	]},
-	{"id": "paints", "name": "Brushwork Hobby", "color": Color("d8d2c4"), "tagline": "miniature painting supplies", "editions": [
+	{"id": "paints", "case": "paintchest", "name": "Brushwork Hobby", "color": Color("d8d2c4"), "tagline": "miniature painting supplies", "editions": [
 		{"id": "base", "name": "Base Paints", "board": false, "rules": false, "color": Color("d8d2c4"), "accent": Color("c8323a"),
 			"parts": [["pot", 6, "heap", Color("c8323a"), "blood red"], ["pot", 6, "heap", Color("e8742a"), "ember orange"], ["pot", 6, "heap", Color("f2c94e"), "sun yellow"],
 				["pot", 6, "heap", Color("4f9e3a"), "moss green"], ["pot", 6, "heap", Color("2a6fb5"), "ocean blue"], ["pot", 6, "heap", Color("6a3fa0"), "royal purple"],
@@ -165,9 +165,6 @@ const HANDFUL := {
 	"shard": 8, "cluster": 3, "geode": 3, "cutgem": 10, "cateye": 14, "shooter": 4, "pearl": 14,
 	"steelie": 14, "galaxymarble": 4, "pot": 6, "dropper": 4, "brush": 6, "spray": 2,
 }
-
-## Miniatures that may start unpainted and need a trip to the painting desk.
-const PAINTABLE := ["knight", "goblin", "hero", "skeleton", "dragon"]
 
 const TYPE_NAMES := {
 	"meeple": ["meeple", "meeples"], "pawn": ["pawn", "pawns"], "die": ["die", "dice"],

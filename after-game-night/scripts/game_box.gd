@@ -25,6 +25,10 @@ var ed_id := ""
 var game_name := ""
 var color := Color.WHITE
 var trim_color := Color.WHITE
+var accent := Color.WHITE
+var case_style := CaseKit.BOARDGAME
+var line_id_seed := 0
+var _line_short := ""
 var units_needed := 0    # pieces + cards + board + rulebook, for the progress readout
 var units := 0
 var items_needed := 0    # things that have to go in: pieces, card piles, board, rulebook
@@ -113,6 +117,10 @@ func setup(line: Dictionary, ed: Dictionary, ed_idx: int, groups: Array, card_pi
 	var style := GameData.edition_style(line.color, ed_idx, ed)
 	color = style.body
 	trim_color = style.trim
+	accent = style.accent
+	case_style = line.get("case", CaseKit.BOARDGAME)
+	_line_short = line.id
+	line_id_seed = ed_id.hash()
 	kind = "box"
 	label = "%s box" % game_name
 	game_id = ed_id
@@ -143,8 +151,9 @@ func setup(line: Dictionary, ed: Dictionary, ed_idx: int, groups: Array, card_pi
 func _build_shell(ed_idx: int) -> void:
 	visual = Node3D.new()
 	add_child(visual)
-	var outer := MeshKit.mat(color, 0.75)
-	var trim := MeshKit.mat(trim_color, 0.6)
+	var mats := CaseKit.shell_mats(case_style, color, trim_color)
+	var outer: Material = mats.outer
+	var trim: Material = mats.trim
 	var parts := [
 		[Vector3(W, T, D), Vector3(0, T / 2, 0)],
 		[Vector3(W, H, T), Vector3(0, H / 2, D / 2 - T / 2)],
@@ -160,10 +169,7 @@ func _build_shell(ed_idx: int) -> void:
 		cs.shape = bs
 		cs.position = p[1]
 		add_child(cs)
-	visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(W + 0.002, 0.016, T + 0.002)), trim, Vector3(0, H - 0.018, D / 2 - T / 2)))
-	var front := _label(game_name, 44 if game_name.length() > 22 else 54)
-	front.position = Vector3(0, H * 0.42, D / 2 + 0.0015)
-	visual.add_child(front)
+	CaseKit.dress_base(case_style, visual, W, H, D, T, color, trim, game_name, ed_idx)
 
 	lid_pivot = Node3D.new()
 	lid_pivot.position = Vector3(0, H, -D / 2)
@@ -171,19 +177,8 @@ func _build_shell(ed_idx: int) -> void:
 	visual.add_child(lid_pivot)
 	var lw := W + 0.012
 	var ld := D + 0.012
-	var skirt := minf(0.05, H * 0.45)
-	lid_pivot.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(lw, T, ld)), outer, Vector3(0, T / 2, ld / 2 - 0.006)))
-	lid_pivot.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(lw + 0.002, T + 0.002, 0.06)), trim, Vector3(0, T / 2, ld * 0.7)))
-	if ed_idx > 0:
-		# Expansions get a corner banner so they read differently from the base game.
-		lid_pivot.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.16, T + 0.003, 0.16)), trim, Vector3(lw / 2 - 0.08, T / 2, 0.074), Vector3(0, PI / 4, 0)))
-	for s in [-1.0, 1.0]:
-		lid_pivot.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(T, skirt, ld)), outer, Vector3(s * (lw / 2 - T / 2), -skirt / 2 + T, ld / 2 - 0.006)))
-	lid_pivot.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(lw, skirt, T)), outer, Vector3(0, -skirt / 2 + T, ld - 0.012)))
-	var top := _label(game_name, 64 if game_name.length() > 22 else 80)
-	top.position = Vector3(0, T + 0.0015, ld * 0.42)
-	top.rotation.x = -PI / 2
-	lid_pivot.add_child(top)
+	CaseKit.build_lid(case_style, lid_pivot, lw, ld, T, CaseKit.skirt(case_style, H), color, accent, outer, trim,
+		game_name, _line_short, ed_idx, line_id_seed)
 
 	contents = Node3D.new()
 	contents.name = "Contents"
@@ -203,9 +198,10 @@ func _build_shell(ed_idx: int) -> void:
 
 
 func _build_insert(lay: Dictionary, id: float, groups: Array, card_piles: Dictionary) -> void:
-	var tray := MeshKit.mat(color.darkened(0.42), 0.9)
-	var floor_m := MeshKit.mat(color.darkened(0.62), 0.95)
-	var wall_m := MeshKit.mat(color.darkened(0.3), 0.85)
+	var im := CaseKit.insert_mats(case_style, color)
+	var tray: Material = im.tray
+	var floor_m: Material = im.floor
+	var wall_m: Material = im.wall
 	var ghost_m := StandardMaterial3D.new()
 	ghost_m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	ghost_m.albedo_color = Color(color.lightened(0.55), 0.18)
@@ -360,9 +356,6 @@ func check_pieces(list: Array) -> String:
 	for p: Pieces.P in list:
 		if p.g.ed != ed_id:
 			return "wrong_game"
-	for p: Pieces.P in list:
-		if p.unpainted:
-			return "unpainted"
 	return ""
 
 
@@ -378,7 +371,7 @@ func sift(list: Array, proxies: Array) -> Array:
 	var room := _left.duplicate()
 	for k in list.size():
 		var p: Pieces.P = list[k]
-		if p.g.ed == ed_id and not p.unpainted and room.get(p.g.key, 0) > 0:
+		if p.g.ed == ed_id and room.get(p.g.key, 0) > 0:
 			room[p.g.key] -= 1
 			took.append(k)
 			mine.append(p)

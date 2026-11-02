@@ -235,17 +235,11 @@ func _update_hover() -> void:
 			text = "Scoop %d %s %s  ·  hold to sweep" % [n, p.g.ed_name, p.g.nice(n)]
 		else:
 			text = "Scoop %d more %s  ·  holding %d" % [n, p.g.nice(n), hand.size()]
-	elif not hand.is_empty() and c is Object and c.has_meta("paint_desk"):
-		var raw := hand.filter(func(p: Pieces.P): return p.unpainted).size()
-		text = ("Paint %d miniatures" % raw) if raw > 0 else "Painting desk  ·  nothing in your hand needs paint"
 	elif not hand.is_empty():
 		if c is GameBox and not (c as GameBox).complete:
 			var box := c as GameBox
-			var fits := hand.filter(func(p: Pieces.P): return p.g.ed == box.ed_id and not p.unpainted).size()
-			var raw := hand.filter(func(p: Pieces.P): return p.g.ed == box.ed_id and p.unpainted).size()
-			if raw > 0 and fits == 0:
-				text = "%d of these need painting first  ·  take them to the painting desk" % raw
-			elif fits > 0:
+			var fits := hand.filter(func(p: Pieces.P): return p.g.ed == box.ed_id).size()
+			if fits > 0:
 				text = "Pour into %s  ·  %d of your %d belong here" % [box.game_name, fits, hand.size()]
 			else:
 				text = "Pour into %s" % box.game_name
@@ -327,9 +321,6 @@ func primary() -> void:
 		_sweep_t = SWEEP_EVERY * 3.0
 		return
 	if not hand.is_empty():
-		if c is Object and c.has_meta("paint_desk"):
-			acted.emit("paint", c)
-			return
 		if c is GameBox and not (c as GameBox).complete:
 			_pour_into(c as GameBox)
 			return
@@ -399,10 +390,6 @@ func _pour_into(box: GameBox) -> void:
 			chuted += t2.size()
 			acted.emit("poured", {"box": other, "n": t2.size(), "left": hand.size()})
 	if took.is_empty() and chuted == 0:
-		var raw := hand.filter(func(p: Pieces.P): return p.g.ed == box.ed_id and p.unpainted).size()
-		if raw > 0:
-			acted.emit("needs_paint", raw)
-			return
 		box.shake()
 		acted.emit("wrong_box", box)
 		return

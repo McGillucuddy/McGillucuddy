@@ -1105,17 +1105,6 @@ static func metal_mat(c: Color, rough := 0.22) -> StandardMaterial3D:
 	return m
 
 
-## Grey plastic, for miniatures that haven't been painted yet.
-static func primer_mat() -> StandardMaterial3D:
-	if _special.has("primer"):
-		return _special["primer"]
-	var m := StandardMaterial3D.new()
-	m.albedo_color = Color("5d6470")
-	m.roughness = 0.9
-	m.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_special["primer"] = m
-	return m
-
 
 # ---------------------------------------------------------------- casino
 
