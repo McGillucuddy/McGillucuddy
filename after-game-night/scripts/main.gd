@@ -1575,15 +1575,15 @@ func _define_spots() -> void:
 		"floor_bench": {"room": "living", "center": Vector3(-5.25, 0.0, -1.35), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
 		# The card room, through the west doorway.
 		"poker": {"room": "card", "center": Vector3(-10.6, 0.763, 4.0), "ext": Vector2(0.5, 0.27), "row_start": Vector3(-12.0, 0.0, 2.5), "rot": 0.0, "spill": "floor_poker"},
-		"ccgtable": {"room": "card", "center": Vector3(-8.3, 0.746, 6.0), "ext": Vector2(0.4, 0.38), "row_start": Vector3(-10.3, 0.0, 7.15), "rot": PI, "spill": "floor_ccg"},
+		"ccgtable": {"room": "card", "center": Vector3(-8.3, 0.746, 6.0), "ext": Vector2(0.62, 0.48), "row_start": Vector3(-10.3, 0.0, 7.15), "rot": PI, "spill": "floor_ccg"},
 		"floor_poker": {"room": "card", "center": Vector3(-10.6, 0.0, 5.3), "ext": Vector2(0.45, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_ccg": {"room": "card", "center": Vector3(-7.45, 0.0, 3.3), "ext": Vector2(0.35, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
 		# The dragon's den, through the east doorway.
-		"round": {"room": "den", "center": Vector3(9.6, 0.743, 3.6), "ext": Vector2(0.4, 0.4), "row_start": Vector3(10.3, 0.0, 0.35), "rot": 0.0, "spill": "floor_round"},
+		"round": {"room": "den", "center": Vector3(9.6, 0.743, 3.6), "ext": Vector2(0.56, 0.56), "row_start": Vector3(10.3, 0.0, 0.35), "rot": 0.0, "spill": "floor_round"},
 		"curio": {"room": "den", "center": Vector3(12.3, 0.706, 2.0), "ext": Vector2(0.33, 0.33), "row_start": Vector3(12.2, 0.0, 0.35), "rot": 0.0},
 		"dicetable": {"room": "den", "center": Vector3(12.4, 0.624, 4.1), "ext": Vector2(0.34, 0.34), "row_start": Vector3(13.75, 0.0, 1.1), "rot": -PI / 2, "spill": "floor_dice"},
 		"war": {"room": "den", "center": Vector3(10.9, 0.763, 6.45), "ext": Vector2(0.9, 0.48), "row_start": Vector3(13.75, 0.0, 4.75), "rot": -PI / 2, "spill": "floor_war"},
-		"floor_round": {"room": "den", "center": Vector3(8.4, 0.0, 2.6), "ext": Vector2(0.35, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_round": {"room": "den", "center": Vector3(8.0, 0.0, 2.3), "ext": Vector2(0.35, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_dice": {"room": "den", "center": Vector3(11.3, 0.0, 5.0), "ext": Vector2(0.35, 0.28), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_war": {"room": "den", "center": Vector3(8.9, 0.0, 6.9), "ext": Vector2(0.35, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
 		# The hobby studio, through the front doorway.
@@ -1736,8 +1736,8 @@ func _build_card_room() -> void:
 	var gilt := MeshKit.mat(Color("b08d4a"), 0.3)
 	_room(-13.3, -6.1, 1.9, 7.7, floor_m, wall_m, ceil_m, panel, gilt, [["e", 4.9]], 1.1)
 	# A deep red carpet with a gold border.
-	_solid(Vector3(5.8, 0.004, 4.6), Vector3(-9.7, 0.002, 4.8), MeshKit.mat(Color("c49a3a"), 1.0), false)
-	_solid(Vector3(5.6, 0.005, 4.4), Vector3(-9.7, 0.0025, 4.8), MeshKit.mat(Color("6b1420"), 1.0), false)
+	_solid(Vector3(5.0, 0.004, 3.8), Vector3(-9.7, 0.002, 4.8), MeshKit.mat(Color("8a6a2a"), 1.0), false)
+	_solid(Vector3(4.84, 0.005, 3.64), Vector3(-9.7, 0.0025, 4.8), MeshKit.mat(Color("3e1218"), 1.0), false)
 	var wood := MeshKit.mat(Color("3a1f12"), 0.45)
 	var leather := MeshKit.mat(Color("7a2a22"), 0.55)
 	# The oval felt poker table under a green banker's lamp.
@@ -1760,10 +1760,10 @@ func _build_card_room() -> void:
 	_chair(Vector3(-11.6, 0, 4.0), PI / 2, leather)
 	_chair(Vector3(-9.6, 0, 4.0), -PI / 2, leather)
 	# A square card table with a playmat for the trading card game.
-	_table(Vector3(-8.3, 0, 6.0), Vector3(0.95, 0.72, 0.9), wood)
-	_solid(Vector3(0.85, 0.003, 0.8), Vector3(-8.3, 0.7215, 6.0), MeshKit.mat(Color("1d2a4a"), 1.0), false)
+	_table(Vector3(-8.3, 0, 6.0), Vector3(1.4, 0.72, 1.1), wood)
+	_solid(Vector3(1.3, 0.003, 1.0), Vector3(-8.3, 0.7215, 6.0), MeshKit.mat(Color("1d2a4a"), 1.0), false)
 	_pendant(Vector3(-8.3, 0, 6.0), Color("6b1e4a"), 2.6)
-	_chair(Vector3(-8.3, 0, 5.1), 0.0, leather)
+	_chair(Vector3(-8.3, 0, 4.85), 0.0, leather)
 	# A brass bar cart with decanters and glasses.
 	var cart := Vector3(-6.95, 0, 2.55)
 	_solid(Vector3(0.7, 0.03, 0.4), cart + Vector3(0, 0.75, 0), gilt)
@@ -1816,15 +1816,15 @@ func _build_den() -> void:
 	var top := StaticBody3D.new()
 	top.collision_layer = Item.LAYER_WORLD
 	var tcs := CollisionShape3D.new()
-	tcs.shape = MeshKit._cyl_shape(0.62, 0.05)
+	tcs.shape = MeshKit._cyl_shape(0.85, 0.05)
 	top.add_child(tcs)
-	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.62, 0.62, 0.05, 40), wood))
-	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.56, 0.56, 0.004, 40), MeshKit.mat(Color("5a1e2c"), 1.0), Vector3(0, 0.026, 0)))
+	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.85, 0.85, 0.05, 48), wood))
+	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.79, 0.79, 0.004, 48), MeshKit.mat(Color("5a1e2c"), 1.0), Vector3(0, 0.026, 0)))
 	top.position = Vector3(9.6, 0.715, 3.6)
 	world.add_child(top)
 	_solid(Vector3(0.12, 0.69, 0.12), Vector3(9.6, 0.345, 3.6), wood)
 	_solid(Vector3(0.5, 0.04, 0.5), Vector3(9.6, 0.02, 3.6), wood)
-	for c in [[Vector3(8.62, 0, 3.6), PI / 2], [Vector3(10.58, 0, 3.6), -PI / 2], [Vector3(9.6, 0, 2.62), 0.0]]:
+	for c in [[Vector3(8.4, 0, 3.6), PI / 2], [Vector3(10.8, 0, 3.6), -PI / 2], [Vector3(9.6, 0, 2.4), 0.0]]:
 		_chair(c[0], c[1], timber)
 	var ring := MeshKit.mesh_node(MeshKit.torus(0.52, 0.56), iron, Vector3(9.6, 2.25, 3.6))
 	ring.scale = Vector3(1, 0.5, 1)
