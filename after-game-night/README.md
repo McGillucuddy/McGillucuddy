@@ -82,6 +82,19 @@ The miniatures are sculpted from capsule limbs on bevelled slate bases with gras
 
 Physics runs at 120 ticks per second with extra solver iterations and a tight penetration allowance. When a piece settles, it is snapped onto the surface below, and anything dropped is kept above the floor, so nothing sinks into tables or falls through the ground. The autotest drops pieces from head height and checks this.
 
+### The rooms
+
+The living room is the hub. Doorways with gilded signs lead to three themed rooms, and every room has its own shelf for the games played there:
+
+| Room | Games | Feel |
+| --- | --- | --- |
+| Living room | Plum Parlor, Starfall Atlas, Lantern Harbor, Honeycomb Hustle, Orchard Hollow | Wood floor, plaster walls, a fireplace with a mantel clock, a sofa and ottoman, a grandfather clock, a reading corner |
+| The Card Room (west) | Velvet Card Room, Prismatic Legends | Herringbone parquet, green and gold damask, velvet drapes, framed playing cards, a gothic commode bar with bottles, a green velvet armchair |
+| The Dragon's Den (east) | Wyrmlight Tales, The Dice Hoard, Crystal Caverns, Mossy Crowns | Medieval stone walls, wall torches, a lantern chandelier over the round table, gothic high-backed chairs, a war table, a treasure chest, barrels, a shield and a war hammer |
+| Hobby Studio (front) | Brushwork Hobby, Marble Jar | Plank floor, sage plaster, a painting desk with an arm lamp, a pegboard, painted minis, a night window, fairy lights |
+
+`-- --rooms <dir>` renders a view into each room from its doorway, and `tools/props_sheet.gd` renders a contact sheet of every model.
+
 ### Catalogue and map renders
 
 `tools/gallery.gd` renders a sheet of every model and card set per game line. `tools/figures.gd` and `tools/dice.gd` render close-ups of the miniatures and the dice, `-- --shot <dir>` renders in-game close-ups of cards, open boxes, lids, cases and shelves, and `-- --map <dir>` renders a labelled top-down plan of the room:
@@ -146,7 +159,7 @@ All the boxes in a line share a footprint, so they stack together in that line's
 
 ## How it works
 
-Everything is made in code. Models, textures and sounds are all generated when the game starts, so there are no asset files.
+The game pieces, cards, boxes, logos and sounds are all made in code when the game starts. The house is dressed with real furniture, decor and photo-scanned materials from [Poly Haven](https://polyhaven.com) (CC0, public domain). They live in `assets/`, with a list in `assets/CREDITS.md`. Godot imports them the first time you open the project. `scripts/props.gd` loads and sizes the models, and `TexKit.pbr()` in `scripts/tex_kit.gd` builds the materials. The game tables are stretched so their tops sit exactly where each game is laid out.
 
 - `scripts/main.gd` builds the room, deals out the games and runs the game flow.
 - `scripts/player.gd` handles first-person movement, picking up, carrying, placing and the tools.

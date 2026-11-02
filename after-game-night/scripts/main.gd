@@ -1187,9 +1187,9 @@ func _flame(pos: Vector3, h: float, r: float, hot := false) -> void:
 
 
 func _build_room() -> void:
-	var floor_m := TexKit.planks(Color("8a5532"), 3, 0.45, 0.5)
-	var wall_m := TexKit.wallpaper(Color("a87c5d"), Color("946a4e"), 0.75)
-	var ceil_m := TexKit.planks(Color("6e4a33"), 9, 0.35, 0.8, 5)
+	var floor_m := TexKit.pbr("wood_floor", 0.45, Color("d8b89a"))
+	var wall_m := TexKit.pbr("plastered_wall_04", 0.35, Color("e2b48c"))
+	var ceil_m := TexKit.pbr("roof_planks", 0.4, Color("8a6a52"))
 	var trim := TexKit.wood(Color("4a2a18"), 0.6)
 	var wainscot := TexKit.panels(Color("2e4637"), 0.65)
 	# The living room runs from the game shelf (z -5) to the front wall (z 7.7), with doorways
@@ -1239,7 +1239,7 @@ func _build_room() -> void:
 
 
 func _build_fireplace() -> void:
-	var brick := TexKit.brick(0.8)
+	var brick := TexKit.pbr("large_red_bricks", 0.9)
 	var stone := MeshKit.mat(Color("5d544c"), 0.9)
 	var soot := TexKit.fabric(Color("1a1210"), 5.0)
 	var wood := TexKit.wood(Color("4a2a18"), 0.6)
@@ -1288,15 +1288,22 @@ func _build_fireplace() -> void:
 		_flame(Vector3(5.75, 1.335 + h, c[0]), 0.035, 0.009, true)
 	_omni(Vector3(5.55, 1.6, z - 0.68), Color(1.0, 0.68, 0.35), 0.6, 2.2, false, 4.0)
 	_omni(Vector3(5.55, 1.6, z + 0.7), Color(1.0, 0.68, 0.35), 0.45, 2.0, false, 4.0)
-	# A painting above the mantel.
-	_solid(Vector3(0.04, 0.7, 1.0), Vector3(5.72, 2.15, z), MeshKit.mat(Color("5c3520"), 0.6), false)
-	_solid(Vector3(0.045, 0.58, 0.88), Vector3(5.715, 2.15, z), MeshKit.mat(Color("2c3d5a"), 0.9), false)
-	_solid(Vector3(0.05, 0.18, 0.5), Vector3(5.71, 2.0, z + 0.1), MeshKit.mat(Color("3f6b4a"), 0.9), false)
-	_solid(Vector3(0.05, 0.08, 0.08), Vector3(5.71, 2.3, z - 0.25), MeshKit.mat(Color("f3e2a8"), 0.5, 0.6), false)
+	# A clock on the mantel and a painting above it.
+	_prop("mantel_clock_01", Vector3(5.74, 1.32, z), -PI / 2, Vector3(0.36, 0, 0))
+	var art := _prop("fancy_picture_frame_01", Vector3(5.7, 1.85, z), -PI / 2, Vector3(1.0, 0, 0))
+	art.position.x = 5.7
 
 
-func _table(center: Vector3, size: Vector3, wood: Material) -> void:
+func _table(center: Vector3, size: Vector3, wood: Material, model := "WoodenTable_01") -> void:
 	var top_t := 0.05
+	if model != "":
+		# A real table, stretched so its top lands exactly where the game is laid out.
+		_prop(model, center, 0.0, size, true)
+		_collider(Vector3(size.x, top_t, size.z), center + Vector3(0, size.y - top_t / 2, 0))
+		for sx in [-1, 1]:
+			for sz in [-1, 1]:
+				_collider(Vector3(0.06, size.y - top_t, 0.06), center + Vector3(sx * (size.x / 2 - 0.08), (size.y - top_t) / 2, sz * (size.z / 2 - 0.08)))
+		return
 	_solid(Vector3(size.x, top_t, size.z), center + Vector3(0, size.y - top_t / 2, 0), wood)
 	var lx := size.x / 2 - 0.08
 	var lz := size.z / 2 - 0.08
@@ -1318,6 +1325,16 @@ func _turned_leg(h: float, r: float) -> ArrayMesh:
 	return MeshKit.lathe([Vector2(0, 0), Vector2(r * 0.62, 0), Vector2(r * 0.72, h * 0.03), Vector2(r * 0.5, h * 0.09),
 		Vector2(r * 0.45, h * 0.5), Vector2(r * 0.7, h * 0.56), Vector2(r * 0.45, h * 0.62), Vector2(r * 0.6, h * 0.76),
 		Vector2(r * 0.95, h * 0.8), Vector2(r * 0.95, h), Vector2(0, h)], 14)
+
+
+## Places a Poly Haven model, its base centred on pos, turned by rot (models face +z).
+## size components of 0 are free; stretch matches each given axis exactly.
+func _prop(id: String, pos: Vector3, rot: float, size: Vector3, stretch := false, parent: Node = null) -> Node3D:
+	var p := Props.fit(id, size, stretch)
+	p.position = pos
+	p.rotation.y = rot
+	(parent if parent else world).add_child(p)
+	return p
 
 
 ## Collision only, for things whose visible shape is more detailed than a box.
@@ -1370,7 +1387,7 @@ func _build_furniture() -> void:
 	var wood := TexKit.wood(Color("6a3f24"), 0.55)
 	var light_wood := TexKit.wood(Color("9c6a40"), 0.6)
 	_table(Vector3(-3.0, 0, -1.5), Vector3(1.9, 0.76, 1.0), wood)
-	_table(Vector3(3.0, 0, 1.0), Vector3(1.2, 0.44, 0.66), light_wood)
+	_table(Vector3(3.0, 0, 1.0), Vector3(1.2, 0.44, 0.66), light_wood, "CoffeeTable_01")
 	_table(Vector3(3.6, 0, -2.6), Vector3(1.0, 0.74, 1.0), MeshKit.mat(Color("2f5a46"), 0.85))
 	# The big game table in the middle of the room.
 	_table(Vector3(0.4, 0, -2.3), Vector3(1.5, 0.74, 1.05), wood)
@@ -1388,9 +1405,9 @@ func _build_furniture() -> void:
 	# Couch with a knitted throw.
 	var fabric := TexKit.fabric(Color("8f4636"))
 	var fabric2 := TexKit.fabric(Color("a2563f"))
-	_sofa(Vector3(3.0, 0, 3.0), PI, 2.3, fabric, fabric2)
-	world.add_child(MeshKit.mesh_node(MeshKit.rounded_box(Vector3(0.4, 0.38, 0.14), 0.06), TexKit.fabric(Color("e8b04a")), Vector3(2.2, 0.66, 3.22), Vector3(-0.25, 0.3, 0.1)))
-	world.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.6, 0.03, 0.9)), TexKit.fabric(Color("d9c8ae"), 5.0), Vector3(3.75, 0.95, 3.25), Vector3(0.9, 0, 0)))
+	_seat("Sofa_01", Vector3(3.0, 0, 3.0), PI, 2.2)
+	_prop("throw_pillows_01", Vector3(3.0, 0.42, 3.2), PI, Vector3(1.1, 0, 0))
+	_prop("Ottoman_01", Vector3(1.55, 0, 2.6), 0.4, Vector3(0.7, 0, 0))
 
 	# Round rug under the floor game, a rectangular one by the fire.
 	var rug := StaticBody3D.new()
@@ -1410,24 +1427,13 @@ func _build_furniture() -> void:
 		world.add_child(cush)
 
 
-func _chair(pos: Vector3, rot: float, m: Material) -> void:
+func _chair(pos: Vector3, rot: float, _m: Material, model := "dining_chair_02", height := 0.97) -> void:
 	var root := Node3D.new()
 	root.position = pos
 	root.rotation.y = rot
 	world.add_child(root)
 	_collider(Vector3(0.44, 0.46, 0.44), Vector3(0, 0.23, 0), root)
-	root.add_child(MeshKit.mesh_node(MeshKit.rounded_box(Vector3(0.44, 0.035, 0.42), 0.01), m, Vector3(0, 0.45, 0)))
-	var leg := _turned_leg(0.435, 0.03)
-	for sx in [-1, 1]:
-		for sz in [-1, 1]:
-			root.add_child(MeshKit.mesh_node(leg, m, Vector3(sx * 0.185, 0, sz * 0.175)))
-	# Back: two stiles, a curved top rail and three slats.
-	for sx in [-1.0, 1.0]:
-		root.add_child(MeshKit.mesh_node(MeshKit.cyl(0.016, 0.018, 0.5, 10), m, Vector3(sx * 0.185, 0.71, -0.19), Vector3(-0.08, 0, 0)))
-	root.add_child(MeshKit.mesh_node(MeshKit.rounded_box(Vector3(0.42, 0.07, 0.03), 0.012), m, Vector3(0, 0.93, -0.21), Vector3(-0.08, 0, 0)))
-	for sx in [-0.09, 0.0, 0.09]:
-		root.add_child(MeshKit.mesh_node(MeshKit.rounded_box(Vector3(0.04, 0.34, 0.015), 0.006), m, Vector3(sx, 0.71, -0.195), Vector3(-0.08, 0, 0)))
-	root.add_child(MeshKit.mesh_node(MeshKit.rounded_box(Vector3(0.38, 0.045, 0.36), 0.02), TexKit.fabric(Color("8f4636")), Vector3(0, 0.49, 0.01)))
+	_prop(model, Vector3.ZERO, 0.0, Vector3(0, height, 0), false, root)
 
 
 func _build_decor() -> void:
@@ -1470,8 +1476,9 @@ func _build_decor() -> void:
 	# A warm light tucked inside the top of the game shelf.
 	_omni(Vector3(0, 1.75, -4.4), Color(1.0, 0.75, 0.48), 0.9, 2.6)
 
-	for p in [Vector3(-5.4, 0, -4.5), Vector3(5.45, 0, -1.3), Vector3(5.5, 0, 6.4)]:
+	for p in [Vector3(5.45, 0, -1.3), Vector3(5.5, 0, 6.4)]:
 		_plant(p)
+	_prop("vintage_grandfather_clock_01", Vector3(-5.6, 0, -4.6), PI / 4, Vector3(0, 2.0, 0))
 
 	# A cup of tea left on the coffee table.
 	var mug := Node3D.new()
@@ -1481,33 +1488,11 @@ func _build_decor() -> void:
 	world.add_child(mug)
 
 
-func _plant(pos: Vector3) -> void:
-	var p := Node3D.new()
-	p.position = pos
-	var clay := TexKit.wood(Color("a5573a"), 0.85, 3.0)
-	p.add_child(MeshKit.mesh_node(MeshKit.lathe([Vector2(0, 0), Vector2(0.14, 0), Vector2(0.19, 0.3), Vector2(0.215, 0.31),
-		Vector2(0.215, 0.37), Vector2(0.19, 0.37), Vector2(0.18, 0.33), Vector2(0, 0.33)], 28), clay))
-	p.add_child(MeshKit.mesh_node(MeshKit.cyl(0.18, 0.18, 0.01, 24), MeshKit.mat(Color("2e2016"), 1.0), Vector3(0, 0.335, 0)))
-	var greens := [MeshKit.mat(Color("2f5a2a"), 0.6), MeshKit.mat(Color("3f7034"), 0.6), MeshKit.mat(Color("4f8a3e"), 0.6)]
-	for g: StandardMaterial3D in greens:
-		g.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var stem := MeshKit.mat(Color("4a6a2a"), 0.7)
-	var count := 16
-	for i in count:
-		var yaw := TAU * i / count + rng.randf_range(-0.2, 0.2)
-		var tall := rng.randf_range(0.25, 0.62)
-		var lean := rng.randf_range(0.15, 0.5)
-		var top := Vector3(sin(yaw) * lean * tall, 0.33 + tall, cos(yaw) * lean * tall)
-		var base := Vector3(sin(yaw) * 0.03, 0.33, cos(yaw) * 0.03)
-		var mid := (base + top) / 2.0
-		var dir := (top - base).normalized()
-		var s_node := MeshKit.mesh_node(MeshKit.cyl(0.004, 0.006, base.distance_to(top), 5), stem, mid)
-		s_node.basis = Basis(Quaternion(Vector3.UP, dir))
-		p.add_child(s_node)
-		var leaf := MeshKit.mesh_node(MeshKit.leaf_mesh(rng.randf_range(0.2, 0.3), rng.randf_range(0.1, 0.15), 0.35), greens[i % 3], top)
-		leaf.rotation = Vector3(-rng.randf_range(0.2, 0.6), yaw, rng.randf_range(-0.3, 0.3))
-		p.add_child(leaf)
-	world.add_child(p)
+func _plant(pos: Vector3, small := false) -> void:
+	if small:
+		_prop("potted_plant_04", pos, rng.randf_range(0, TAU), Vector3(0, 0.32, 0))
+	else:
+		_prop("potted_plant_02", pos, rng.randf_range(0, TAU), Vector3(0, 0.95, 0))
 
 
 func _build_extra_lights() -> void:
@@ -1589,13 +1574,8 @@ func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: 
 			var plate_tex := LogoKit.plaque(self, line.name, Vector2i(768, 54), line.color, ink, (line.color as Color).darkened(0.4))
 			CaseKit._print(rack, Vector2(0.66, 0.046), plate_tex, Vector3(cx, fy - bt / 2, depth / 2 + 0.0076), false, 0.5)
 
-	var bx := -width / 2 + 0.15
-	for i in 7:
-		var h := rng.randf_range(0.2, 0.3)
-		var col: Color = [Color("c8473b"), Color("2e8c9a"), Color("e09a1f"), Color("5a8d39"), Color("8c4a86")][i % 5]
-		rack.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.05, h, 0.2)), MeshKit.mat(col.darkened(0.2), 0.8), Vector3(bx, top_y + 0.05 + h / 2, 0)))
-		bx += 0.06
-	_plant(rack.to_global(Vector3(width / 2 - 0.25, top_y + 0.05, 0)))
+	_prop("book_encyclopedia_set_01", Vector3(-width / 2 + 0.3, top_y + 0.05, 0), 0.0, Vector3(0.45, 0, 0), false, rack)
+	_plant(rack.to_global(Vector3(width / 2 - 0.2, top_y + 0.05, 0)), true)
 	# A carved and gilded wooden sign on top of the shelf.
 	_sign(rack, title_text, Vector3(0.1, top_y + 0.2, 0.06), Vector2(1.1, 0.2))
 
@@ -1712,8 +1692,21 @@ func _door_sign(text: String, at: Vector3, rot: float) -> void:
 	_sign(root, text, Vector3.ZERO, Vector2(1.1, 0.22))
 
 
-func _armchair(pos: Vector3, rot: float, fabric: Material) -> void:
-	_sofa(pos, rot, 0.95, fabric, fabric)
+func _armchair(pos: Vector3, rot: float, _fabric: Material, model := "ArmChair_01") -> void:
+	_seat(model, pos, rot, 0.9)
+
+
+## A sofa or armchair model with a simple seat-and-back collider.
+func _seat(model: String, pos: Vector3, rot: float, width: float) -> void:
+	var root := Node3D.new()
+	root.position = pos
+	root.rotation.y = rot
+	world.add_child(root)
+	var p := _prop(model, Vector3.ZERO, 0.0, Vector3(width, 0, 0), false, root)
+	var bb := Props.bounds(p)
+	var sz := bb.size * p.scale
+	_collider(Vector3(sz.x, 0.44, sz.z), Vector3(0, 0.22, 0), root)
+	_collider(Vector3(sz.x, sz.y, 0.2), Vector3(0, sz.y / 2, -sz.z / 2 + 0.1), root)
 
 
 ## An upholstered seat, built facing +z: a frame on short tapered legs, plump seat and back
@@ -1807,9 +1800,9 @@ func _frame(pos: Vector3, facing: Vector3, size: Vector2, art: Material, frame_c
 # ---- the card room: a velvet lounge for the casino set and the trading card game
 
 func _build_card_room() -> void:
-	var floor_m := TexKit.planks(Color("5a3020"), 5, 0.4, 0.4, 8)
+	var floor_m := TexKit.pbr("herringbone_parquet", 0.5, Color("b8906e"))
 	var wall_m := TexKit.damask(Color("1d4434"), Color("2b5a45"), Color("9c7a3a"), 0.6)
-	var ceil_m := TexKit.planks(Color("3a2216"), 9, 0.35, 0.8, 5)
+	var ceil_m := TexKit.pbr("roof_planks", 0.4, Color("5a4436"))
 	var panel := TexKit.panels(Color("3a1c12"), 0.4)
 	var gilt := MeshKit.mat(Color("b08d4a"), 0.3)
 	_room(-13.3, -6.1, 1.9, 7.7, floor_m, wall_m, ceil_m, panel, gilt, [["e", 4.9]], 1.1)
@@ -1842,22 +1835,13 @@ func _build_card_room() -> void:
 	_solid(Vector3(1.3, 0.003, 1.0), Vector3(-8.3, 0.7215, 6.0), TexKit.felt(Color("1d2a4a")), false)
 	_pendant(Vector3(-8.3, 0, 6.0), Color("6b1e4a"), 2.6)
 	_chair(Vector3(-8.3, 0, 4.85), 0.0, leather)
-	# A brass bar cart with decanters and glasses.
-	var cart := Vector3(-6.95, 0, 2.55)
-	_solid(Vector3(0.7, 0.03, 0.4), cart + Vector3(0, 0.75, 0), gilt)
-	_solid(Vector3(0.7, 0.03, 0.4), cart + Vector3(0, 0.3, 0), gilt, false)
-	for sx in [-1.0, 1.0]:
-		for sz in [-1.0, 1.0]:
-			_solid(Vector3(0.025, 0.75, 0.025), cart + Vector3(sx * 0.33, 0.375, sz * 0.18), gilt, false)
-	var bottles := [Color("6b2a1a"), Color("c49a3a"), Color("2a4a2a")]
-	for i in 3:
-		var bp := cart + Vector3(-0.22 + i * 0.13, 0.765, -0.06)
-		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.035, 0.04, 0.18, 14), MeshKit.glass_mat(bottles[i]), bp + Vector3(0, 0.09, 0)))
-		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.014, 0.06, 10), MeshKit.glass_mat(bottles[i]), bp + Vector3(0, 0.21, 0)))
-	for i in 2:
-		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.03, 0.025, 0.07, 14), MeshKit.glass_mat(), cart + Vector3(0.18 + i * 0.08, 0.8, 0.08)))
+	# A gothic commode as the bar, with bottles on top.
+	_prop("GothicCommode_01", Vector3(-7.0, 0, 2.35), 0.0, Vector3(1.0, 0, 0))
+	_collider(Vector3(1.0, 1.0, 0.5), Vector3(-7.0, 0.5, 2.35))
+	_prop("wine_bottles_01", Vector3(-7.05, 1.0, 2.3), 0.0, Vector3(0.55, 0, 0))
+	_prop("vintage_grandfather_clock_01", Vector3(-12.85, 0, 2.35), PI / 4, Vector3(0, 2.0, 0))
 	# A leather armchair and a lamp in the corner.
-	_armchair(Vector3(-7.0, 0, 7.0), PI, leather)
+	_armchair(Vector3(-7.0, 0, 7.0), PI, leather, "GreenChair_01")
 	_floor_lamp(Vector3(-6.62, 0, 6.35), Color("e8c48a"), 1.0, false)
 	# Sconces and framed playing cards on the walls.
 	for x in [-8.4, -12.2]:
@@ -1869,7 +1853,7 @@ func _build_card_room() -> void:
 		_frame(Vector3(-10.4 + i * 0.42, 1.75, 2.0), Vector3(0, 0, 1), Vector2(0.26, 0.36), art)
 	# Velvet drapes framing the shelf.
 	for z in [3.9, 5.7]:
-		_solid(Vector3(0.12, 2.6, 0.34), Vector3(-13.12, 1.4, z), TexKit.fabric(Color("6b1420")), false)
+		_solid(Vector3(0.12, 2.6, 0.34), Vector3(-13.12, 1.4, z), TexKit.pbr("velour_velvet", 2.0, Color("b02a36")), false)
 	_solid(Vector3(0.05, 0.05, 2.4), Vector3(-13.1, 2.72, 4.8), gilt, false)
 	_omni(Vector3(-9.7, 2.5, 4.8), Color(1.0, 0.7, 0.45), 0.45, 5.0)
 
@@ -1877,9 +1861,9 @@ func _build_card_room() -> void:
 # ---- the dragon's den: stone walls, torches and banners for the roleplaying games
 
 func _build_den() -> void:
-	var floor_m := TexKit.planks(Color("4a2e1e"), 7, 0.4, 0.6, 5)
-	var wall_m := TexKit.stone(0.36)
-	var ceil_m := TexKit.planks(Color("2e1c12"), 9, 0.35, 0.85, 5)
+	var floor_m := TexKit.pbr("wood_floor_worn", 0.4, Color("a88a72"))
+	var wall_m := TexKit.pbr("medieval_blocks_02", 0.3)
+	var ceil_m := TexKit.pbr("roof_planks", 0.4, Color("4a382c"))
 	var timber := TexKit.wood(Color("2e1c12"), 0.7)
 	_room(6.1, 14.3, -0.3, 7.7, floor_m, wall_m, ceil_m, timber, timber, [["w", 4.9]], 0.0)
 	for x in [7.6, 9.6, 11.6, 13.4]:
@@ -1896,26 +1880,15 @@ func _build_den() -> void:
 	var tcs := CollisionShape3D.new()
 	tcs.shape = MeshKit._cyl_shape(0.85, 0.05)
 	top.add_child(tcs)
-	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.85, 0.85, 0.05, 48), wood))
-	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.79, 0.79, 0.004, 48), TexKit.felt(Color("5a1e2c")), Vector3(0, 0.026, 0)))
+	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.8, 0.8, 0.004, 48), TexKit.pbr("velour_velvet", 2.0, Color("8a1e2c")), Vector3(0, 0.0255, 0)))
 	top.position = Vector3(9.6, 0.715, 3.6)
 	world.add_child(top)
-	_solid(Vector3(0.12, 0.69, 0.12), Vector3(9.6, 0.345, 3.6), wood)
-	_solid(Vector3(0.5, 0.04, 0.5), Vector3(9.6, 0.02, 3.6), wood)
-	for c in [[Vector3(8.4, 0, 3.6), PI / 2], [Vector3(10.8, 0, 3.6), -PI / 2], [Vector3(9.6, 0, 2.4), 0.0]]:
-		_chair(c[0], c[1], timber)
-	var ring := MeshKit.mesh_node(MeshKit.torus(0.52, 0.56), iron, Vector3(9.6, 2.25, 3.6))
-	ring.scale = Vector3(1, 0.5, 1)
-	world.add_child(ring)
-	for k in 4:
-		var a := TAU * k / 4.0 + 0.4
-		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.004, 0.004, 0.8), iron, Vector3(9.6 + cos(a) * 0.27, 2.62, 3.6 + sin(a) * 0.27), Vector3(sin(a) * 0.6, 0, -cos(a) * 0.6)))
+	_prop("round_wooden_table_01", Vector3(9.6, 0, 3.6), 0.0, Vector3(1.7, 0.74, 1.7), true)
+	_collider(Vector3(0.14, 0.69, 0.14), Vector3(9.6, 0.345, 3.6))
+	for c in [[Vector3(8.35, 0, 3.6), PI / 2], [Vector3(10.85, 0, 3.6), -PI / 2], [Vector3(9.6, 0, 2.35), 0.0]]:
+		_chair(c[0], c[1], timber, "WoodenChair_01", 1.45)
 	var wax := MeshKit.mat(Color("efe0c4"), 0.6)
-	for k in 8:
-		var a := TAU * k / 8.0
-		var cp := Vector3(9.6 + cos(a) * 0.54, 2.27, 3.6 + sin(a) * 0.54)
-		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.018, 0.018, 0.1, 10), wax, cp + Vector3(0, 0.05, 0)))
-		_flame(cp + Vector3(0, 0.125, 0), 0.04, 0.01, true)
+	_prop("lantern_chandelier_01", Vector3(9.6, 1.95, 3.6), 0.0, Vector3(0, 0.95, 0))
 	_omni(Vector3(9.6, 2.2, 3.6), Color(1.0, 0.62, 0.32), 1.6, 4.5, true, 3.0)
 	var down := SpotLight3D.new()
 	down.position = Vector3(9.6, 2.15, 3.6)
@@ -1928,6 +1901,7 @@ func _build_den() -> void:
 	world.add_child(down)
 	# The war table for Mossy Crowns: a long table with a green battlefield mat.
 	_table(Vector3(10.9, 0, 6.45), Vector3(2.0, 0.76, 1.1), wood)
+	_prop("Lantern_01", Vector3(11.7, 0.763, 6.9), 0.3, Vector3(0, 0.3, 0))
 	_solid(Vector3(1.9, 0.003, 1.0), Vector3(10.9, 0.7615, 6.45), TexKit.felt(Color("3a5a2a")), false)
 	for p in [[Vector3(10.4, 0.763, 6.2), 0.25], [Vector3(11.5, 0.763, 6.75), 0.18]]:
 		var patch := MeshKit.mesh_node(MeshKit.cyl(p[1], p[1], 0.001, 20), TexKit.felt(Color("4a6a32")), p[0])
@@ -1940,11 +1914,11 @@ func _build_den() -> void:
 	var ccs := CollisionShape3D.new()
 	ccs.shape = MeshKit._cyl_shape(0.5, 0.04)
 	curio.add_child(ccs)
-	curio.add_child(MeshKit.mesh_node(MeshKit.cyl(0.5, 0.5, 0.04, 36), wood))
-	curio.add_child(MeshKit.mesh_node(MeshKit.cyl(0.46, 0.46, 0.004, 36), TexKit.felt(Color("16121c")), Vector3(0, 0.021, 0)))
+	curio.add_child(MeshKit.mesh_node(MeshKit.cyl(0.46, 0.46, 0.004, 36), TexKit.pbr("velour_velvet", 2.0, Color("2a2034")), Vector3(0, 0.0215, 0)))
 	curio.position = Vector3(12.3, 0.68, 2.0)
 	world.add_child(curio)
-	_solid(Vector3(0.1, 0.66, 0.1), Vector3(12.3, 0.33, 2.0), wood)
+	_prop("round_wooden_table_02", Vector3(12.3, 0, 2.0), 0.0, Vector3(1.0, 0.7, 1.0), true)
+	_collider(Vector3(0.12, 0.66, 0.12), Vector3(12.3, 0.33, 2.0))
 	_pendant(Vector3(12.3, 0, 2.0), Color("3a2a5a"), 2.4)
 	_omni(Vector3(12.3, 1.1, 2.0), Color(0.7, 0.5, 1.0), 0.5, 1.6)
 	# A felt-lined dice tray table for the dice hoard.
@@ -1953,15 +1927,15 @@ func _build_den() -> void:
 	var dcs := CollisionShape3D.new()
 	dcs.shape = MeshKit._cyl_shape(0.45, 0.04)
 	dt.add_child(dcs)
-	dt.add_child(MeshKit.mesh_node(MeshKit.cyl(0.45, 0.45, 0.04, 36), wood))
+	dt.add_child(MeshKit.mesh_node(MeshKit.cyl(0.45, 0.45, 0.04, 36), TexKit.wood(Color("5e3620"), 0.5)))
 	dt.add_child(MeshKit.mesh_node(MeshKit.cyl(0.42, 0.42, 0.004, 36), TexKit.felt(Color("2a3f5a")), Vector3(0, 0.022, 0)))
 	var rim := MeshKit.mesh_node(MeshKit.torus(0.42, 0.46), MeshKit.mat(Color("b08d4a"), 0.35), Vector3(0, 0.03, 0))
 	rim.scale = Vector3(1, 0.5, 1)
 	dt.add_child(rim)
 	dt.position = Vector3(12.4, 0.6, 4.1)
 	world.add_child(dt)
-	_solid(Vector3(0.1, 0.58, 0.1), Vector3(12.4, 0.29, 4.1), wood)
-	_solid(Vector3(0.4, 0.04, 0.4), Vector3(12.4, 0.02, 4.1), wood)
+	_prop("round_wooden_table_01", Vector3(12.4, 0, 4.1), 0.0, Vector3(0.8, 0.58, 0.8), true)
+	_collider(Vector3(0.12, 0.58, 0.12), Vector3(12.4, 0.29, 4.1))
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.03, 0.03, 0.12, 10), wax, Vector3(12.85, 0.68, 3.75)))
 	_flame(Vector3(12.85, 0.765, 3.75), 0.04, 0.01, true)
 	_omni(Vector3(12.8, 0.95, 3.8), Color(1.0, 0.64, 0.34), 0.6, 1.8, false, 4.0)
@@ -1978,25 +1952,25 @@ func _build_den() -> void:
 		_solid(Vector3(0.7, 0.03, 0.03), Vector3(bx, 2.7, -0.16), iron, false)
 		world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.12, 0.12, 0.01, 6), MeshKit.mat(Color("e8b84a"), 0.35), Vector3(bx, 2.15, -0.155), Vector3(PI / 2, 0, 0)))
 	# A shelf of spellbooks, a treasure chest and a shield on the wall.
-	_bookcase(Vector3(7.3, 0, 7.4), PI, 1.6, 2.2, timber)
-	var chest: Node3D = MeshKit.piece("chest", Color("6b3a1e"), Color("e8b84a"))[0]
-	chest.scale = Vector3.ONE * 5.0
-	chest.position = Vector3(6.75, 0.16, 3.0)
-	chest.rotation.y = PI / 2
-	world.add_child(chest)
-	var shield := MeshKit.mesh_node(MeshKit.cyl(0.32, 0.32, 0.04, 24), MeshKit.mat(Color("5a1420"), 0.6), Vector3(8.6, 1.9, 7.57), Vector3(PI / 2, 0, 0))
-	world.add_child(shield)
-	world.add_child(MeshKit.mesh_node(MeshKit.torus(0.29, 0.33), MeshKit.mat(Color("b08d4a"), 0.35), Vector3(8.6, 1.9, 7.55), Vector3(PI / 2, 0, 0)))
-	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.07, 0.07, 0.05, 16), MeshKit.mat(Color("b08d4a"), 0.35), Vector3(8.6, 1.9, 7.54), Vector3(PI / 2, 0, 0)))
+	_prop("GothicCabinet_01", Vector3(7.3, 0, 7.15), PI, Vector3(1.5, 0, 0))
+	_collider(Vector3(1.5, 2.1, 0.6), Vector3(7.3, 1.05, 7.2))
+	_prop("treasure_chest", Vector3(6.6, 0, 3.0), PI / 2, Vector3(0.75, 0, 0))
+	_collider(Vector3(0.45, 0.5, 0.75), Vector3(6.6, 0.25, 3.0))
+	for b in [Vector3(13.85, 0, 7.25), Vector3(6.6, 0, 6.6)]:
+		_prop("wine_barrel_01", b, rng.randf_range(0, TAU), Vector3(0.6, 0, 0))
+		_collider(Vector3(0.55, 0.7, 0.55), b + Vector3(0, 0.35, 0))
+	var sh := _prop("kite_shield", Vector3(8.7, 1.25, 7.55), PI, Vector3(0, 0.95, 0))
+	sh.rotation.x = 0.05
+	_prop("ornate_war_hammer", Vector3(9.35, 1.45, 7.57), PI, Vector3(0, 0.75, 0)).rotation.z = 0.5
 	_omni(Vector3(10.2, 2.5, 3.7), Color(1.0, 0.6, 0.35), 0.35, 6.0)
 
 
 # ---- the hobby studio: a bright workshop for the paints and the marbles
 
 func _build_studio() -> void:
-	var floor_m := TexKit.planks(Color("b58a5c"), 4, 0.45, 0.5)
-	var wall_m := TexKit.wallpaper(Color("cdd3b8"), Color("bcc4a6"), 0.75)
-	var ceil_m := TexKit.planks(Color("d9c8ae"), 9, 0.35, 0.8, 5)
+	var floor_m := TexKit.pbr("plank_flooring_02", 0.45)
+	var wall_m := TexKit.pbr("plastered_wall_04", 0.35, Color("d4dcc0"))
+	var ceil_m := TexKit.pbr("roof_planks", 0.4, Color("e8dccb"))
 	var panel := TexKit.panels(Color("ece4d4"), 0.6)
 	var trim := MeshKit.mat(Color("f6efe2"), 0.6)
 	_room(-3.5, 3.5, 7.7, 13.5, floor_m, wall_m, ceil_m, panel, trim, [["n", 0.0]], 0.9)
@@ -2004,13 +1978,10 @@ func _build_studio() -> void:
 	var dark := TexKit.wood(Color("2a1a12"), 0.6)
 	# A woven rug.
 	_solid(Vector3(3.6, 0.004, 2.6), Vector3(0.2, 0.002, 10.5), TexKit.fabric(Color("d9a441"), 5.0), false)
-	_solid(Vector3(3.4, 0.005, 2.4), Vector3(0.2, 0.0025, 10.5), TexKit.fabric(Color("3f6a6a"), 5.0), false)
+	_solid(Vector3(3.4, 0.005, 2.4), Vector3(0.2, 0.0025, 10.5), TexKit.pbr("fabric_pattern_05", 1.2), false)
 	# The painting desk against the back wall, with a cutting mat, a rack of paints and a task lamp.
 	var o := Vector3(-1.6, 0, 12.95)
-	_solid(Vector3(1.6, 0.05, 0.75), o + Vector3(0, 0.735, 0), wood)
-	for sx in [-1, 1]:
-		for sz in [-1, 1]:
-			_solid(Vector3(0.06, 0.71, 0.06), o + Vector3(sx * 0.72, 0.355, sz * 0.3), wood)
+	_table(o, Vector3(1.6, 0.76, 0.75), wood)
 	_solid(Vector3(1.0, 0.004, 0.45), o + Vector3(-0.15, 0.762, -0.18), MeshKit.mat(Color("2f5a46"), 0.9), false)
 	_solid(Vector3(1.5, 0.22, 0.12), o + Vector3(0, 0.87, 0.3), dark)
 	var pot_colors := [Color("c8323a"), Color("e8742a"), Color("f2c94e"), Color("4f9e3a"), Color("2a6fb5"), Color("6a3fa0"), Color("f2efe6"), Color("1d1d22"), Color("8a5a34"), Color("e05a9a"), Color("2fb8a8"), Color("e8b84a")]
@@ -2029,7 +2000,8 @@ func _build_studio() -> void:
 	world.add_child(lamp)
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.012, 0.6), MeshKit.mat(Color("2a2a2a"), 0.4), o + Vector3(0.65, 1.07, 0.25)))
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.04, 0.08, 0.1, 16), MeshKit.mat(Color("2f5a46"), 0.4), o + Vector3(0.4, 1.47, 0.05), Vector3(0.6, 0, 0.5)))
-	_chair(o + Vector3(0, 0, -0.75), 0.0, wood)
+	_chair(o + Vector3(0, 0, -0.75), 0.0, wood, "wooden_stool_01", 0.5)
+	_prop("desk_lamp_arm_01", o + Vector3(0.62, 0.76, 0.15), PI + 0.4, Vector3(0, 0.6, 0))
 	# A pegboard of tools above the desk, and a little shelf of finished miniatures.
 	_solid(Vector3(1.7, 0.9, 0.02), Vector3(-1.6, 1.85, 13.38), TexKit.pegboard(Color("c9a272"), 1.2), false)
 	var tool_c := [Color("c8323a"), Color("2a6fb5"), Color("e8b84a"), Color("4f9e3a")]
@@ -2058,9 +2030,11 @@ func _build_studio() -> void:
 	mat_body.add_child(chalk)
 	mat_body.position = Vector3(1.0, 0.006, 10.4)
 	world.add_child(mat_body)
-	var bean := MeshKit.mesh_node(MeshKit.sphere(0.4, 16), TexKit.fabric(Color("d9774a")), Vector3(-0.3, 0.22, 11.6))
-	bean.scale = Vector3(1, 0.55, 1)
-	world.add_child(bean)
+	_prop("Ottoman_01", Vector3(-0.4, 0, 11.6), 0.3, Vector3(0.7, 0, 0))
+	_collider(Vector3(0.6, 0.45, 0.45), Vector3(-0.4, 0.22, 11.6))
+	_prop("painted_wooden_shelves", Vector3(3.2, 0, 12.9), -PI / 2, Vector3(0, 1.3, 0))
+	for k in 3:
+		_prop("spray_paint_bottles", Vector3(3.2, 0.42 + k * 0.33, 12.9), -PI / 2 + k * 0.4, Vector3(0, 0.18, 0))
 	# A big night window on the east wall.
 	var glass := MeshKit.mat(Color("16224a"), 0.2, 0.7)
 	_solid(Vector3(0.04, 1.3, 1.7), Vector3(3.39, 1.65, 11.8), glass, false)
@@ -2093,7 +2067,7 @@ func _build_studio() -> void:
 	for z in [9.0, 12.0]:
 		_omni(Vector3(-3.0, 2.5, z), Color(1.0, 0.74, 0.45), 0.5, 3.0)
 	_plant(Vector3(-3.0, 0, 8.2))
-	_plant(Vector3(3.0, 0, 13.0))
+	_plant(Vector3(-0.2, 0, 13.1))
 	_omni(Vector3(0.0, 2.5, 10.6), Color(1.0, 0.8, 0.6), 0.5, 5.0)
 
 

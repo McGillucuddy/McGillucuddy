@@ -53,6 +53,31 @@ static func _shade(c: Color, k: float) -> Color:
 	return Color(c.r * k, c.g * k, c.b * k)
 
 
+# ---------------------------------------------------------------- photo-scanned materials
+
+## A Poly Haven material (CC0) from assets/textures: colour, normal and roughness maps,
+## mapped in world space. tint multiplies the colour, so one plaster can be any paint colour.
+static func pbr(id: String, scale := 0.5, tint := Color.WHITE, rough := 1.0) -> StandardMaterial3D:
+	var key := "pbr%s%.2f%s%.2f" % [id, scale, tint.to_html(), rough]
+	if _cache.has(key):
+		return _cache[key]
+	var base := "res://assets/textures/%s/%s_%s_1k.jpg"
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load(base % [id, id, "diff"])
+	m.albedo_color = tint
+	m.normal_enabled = true
+	m.normal_texture = load(base % [id, id, "nor_gl"])
+	m.roughness_texture = load(base % [id, id, "rough"])
+	m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	m.roughness = rough
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3.ONE * scale
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_cache[key] = m
+	return m
+
+
 # ---------------------------------------------------------------- wood
 
 ## Floorboards: staggered planks with their own tint, flowing grain, the odd knot, and
