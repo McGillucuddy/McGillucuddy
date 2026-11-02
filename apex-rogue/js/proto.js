@@ -959,7 +959,7 @@ const Proto = {
     const opponents = buildOpponents(rng, 0, { aiBonus: 0 }, false).map((o) => Object.assign(o, { skill: RIVAL_SKILL(d) + randRange(rng, -0.035, 0.03) - (tut ? 0.08 : 0) }));
     if (boss) opponents[opponents.length - 1] = { name: boss.name, color: boss.color, accent: '#111', skill: RIVAL_SKILL(d) + boss.skill, isBoss: true };
     this.race = new Race({
-      track, laps: boss ? 4 : 3, playerCar: player, rng, qualify: boss && boss.mustWin ? 1 : 3,
+      track, laps: (LAYOUTS[track.layout] || LAYOUTS.circuit)[boss ? 'bossLaps' : 'laps'], playerCar: player, rng, qualify: boss && boss.mustWin ? 1 : 3,
       opponents, playerGrid: boss ? 5 : 4,
     });
     this.race.node = node;

@@ -149,21 +149,23 @@ function validateLayout(pts, step, clearance, minRadius) {
   return true;
 }
 
-// Layouts: what kind of course a race is run on. Each draws its control points its own way; hw widens or narrows the
+// Layouts: what kind of course a race is run on (laps: how many, a race and a boss race, so every race runs about
+// the same distance whatever the lap length). Each draws its control points its own way; hw widens or narrows the
 // road. circuit is the old free-form loop; the rest have a character you can feel from the first corner.
 const LAYOUTS = {
-  circuit: { name: 'Circuit', hw: 1 },
-  blocks: { name: 'Block Run', hw: 0.9, blurb: 'City blocks: right-angle corners, short straights' }, // street grid
-  switchback: { name: 'Switchbacks', hw: 0.95, blurb: 'Hairpin after hairpin, then a long run home' },
-  flyover: { name: 'Flyover', hw: 1.15, blurb: 'Fast sweepers, wide road, flat out' },
-  oval: { name: 'The Oval', hw: 1.12, blurb: 'Two long straights, two big bends: a slugfest' },
+  circuit: { name: 'Circuit', hw: 1, laps: 2, bossLaps: 3 },
+  blocks: { name: 'Block Run', hw: 0.9, laps: 2, bossLaps: 3, blurb: 'City blocks: right-angle corners, short straights' }, // street grid
+  switchback: { name: 'Switchbacks', hw: 0.95, laps: 2, bossLaps: 3, blurb: 'Hairpin after hairpin, then a long run home' },
+  flyover: { name: 'Flyover', hw: 1.15, laps: 2, bossLaps: 3, blurb: 'Fast sweepers, wide road, flat out' },
+  oval: { name: 'The Oval', hw: 1.12, laps: 2, bossLaps: 3, blurb: 'Two long straights, two big bends: a slugfest' },
+  strip: { name: 'The Strip', hw: 1.1, laps: 2, bossLaps: 2, blurb: 'A dog-bone: two drag strips and two hairpins. Pure gunfight' },
 };
 // Which layouts turn up where: the undercity is all blocks and hairpins, the upper city all sweepers and ovals.
 const ACT_LAYOUTS = [
-  [['blocks', 4], ['switchback', 2], ['circuit', 3], ['oval', 1]],
-  [['switchback', 3], ['blocks', 3], ['circuit', 3], ['flyover', 1]],
-  [['flyover', 4], ['circuit', 3], ['oval', 2], ['switchback', 1]],
-  [['oval', 3], ['flyover', 3], ['circuit', 3], ['blocks', 1]],
+  [['blocks', 4], ['switchback', 2], ['circuit', 3], ['oval', 1], ['strip', 1]],
+  [['switchback', 3], ['blocks', 3], ['circuit', 3], ['flyover', 1], ['strip', 1]],
+  [['flyover', 4], ['circuit', 3], ['oval', 2], ['switchback', 1], ['strip', 2]],
+  [['oval', 3], ['flyover', 3], ['circuit', 3], ['blocks', 1], ['strip', 2]],
 ];
 const BOSS_LAYOUT = ['blocks', 'switchback', 'flyover', 'oval']; // the Turnkey's yard, Sal's climb, Vale's motorway, the Crown's oval
 
@@ -189,7 +191,18 @@ function roundedPolygon(V, c, gap) {
 
 const LAYOUT_CTRL = {
   // The old free-form loop.
+  // A freeform loop, but always with one proper straight (the main drag, 400-550 m) along one side.
   circuit(rng, S) {
+    const L = randRange(rng, 3200, 4400) * S, R = randRange(rng, 1100, 1450) * S, n = randInt(rng, 6, 9), ctrl = [];
+    for (let k = 0; k <= 5; k++) ctrl.push({ x: -L / 2 + (L * k) / 5, y: -R * 0.85 }); // the straight
+    for (let i = 1; i < n; i++) { // and the rest, freeform, back round over the top
+      const a = (i / n) * Math.PI + randRange(rng, -0.15, 0.15), r = randRange(rng, 0.6, 1.0);
+      ctrl.push({ x: (L / 2 + R * 0.5) * Math.cos(-a) * r * 1.05, y: -R * 0.85 + R * 1.7 * Math.sin(a) * randRange(rng, 0.75, 1.0) });
+    }
+    return ctrl;
+  },
+  // The old freeform blob (only the fallback now).
+  blob(rng, S) {
     const n = randInt(rng, 8, 14), R = randRange(rng, 1100, 1500) * S, sx = randRange(rng, 0.95, 1.5), sy = randRange(rng, 0.8, 1.05), ctrl = [];
     for (let i = 0; i < n; i++) {
       const a = (i / n) * TAU + randRange(rng, -0.3, 0.3) * (TAU / n), r = R * randRange(rng, 0.42, 1.0);
@@ -198,21 +211,28 @@ const LAYOUT_CTRL = {
     return ctrl;
   },
   // A few big, wide sweepers.
+  // A motorway: long straights joined by wide, fast sweepers (a rounded four-sided loop, its corners skewed).
   flyover(rng, S) {
-    const n = randInt(rng, 5, 7), R = randRange(rng, 1350, 1600) * S, sx = randRange(rng, 1.0, 1.35), ctrl = [];
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * TAU + randRange(rng, -0.2, 0.2) * (TAU / n), r = R * randRange(rng, 0.72, 1.0);
-      ctrl.push({ x: Math.cos(a) * r * sx, y: Math.sin(a) * r });
-    }
-    return ctrl;
+    const W = randRange(rng, 4600, 5400) * S, H = randRange(rng, 1700, 2200) * S, sk = randRange(rng, -0.15, 0.15) * W;
+    const V = [{ x: -W / 2, y: -H / 2 }, { x: W / 2, y: -H / 2 }, { x: W / 2 + sk, y: H / 2 }, { x: -W / 2 + sk * 0.4, y: H / 2 }];
+    return roundedPolygon(V, randRange(rng, 560, 700) * S, 700 * S);
   },
   // Two long straights and two big bends, sometimes with a kink in the back straight.
   oval(rng, S) {
-    const Rr = randRange(rng, 500, 640) * S, Ls = randRange(rng, 1700, 2300) * S, kink = rng() < 0.5 ? randRange(rng, 160, 280) : 0, ctrl = [];
+    const Rr = randRange(rng, 500, 640) * S, Ls = randRange(rng, 3600, 4400) * S, kink = rng() < 0.5 ? randRange(rng, 160, 280) : 0, ctrl = [];
     for (let k = 0; k <= 4; k++) ctrl.push({ x: -Ls / 2 + (Ls * k) / 4, y: -Rr - (k === 2 ? kink : 0) });
     for (let k = 1; k < 7; k++) { const a = -Math.PI / 2 + (Math.PI * k) / 7; ctrl.push({ x: Ls / 2 + Math.cos(a) * Rr, y: Math.sin(a) * Rr }); }
     for (let k = 0; k <= 4; k++) ctrl.push({ x: Ls / 2 - (Ls * k) / 4, y: Rr });
     for (let k = 1; k < 7; k++) { const a = Math.PI / 2 + (Math.PI * k) / 7; ctrl.push({ x: -Ls / 2 + Math.cos(a) * Rr, y: Math.sin(a) * Rr }); }
+    return ctrl;
+  },
+  // The Strip: a dog-bone. Two drag strips side by side (550-600 m) and a bulb of a hairpin at each end.
+  strip(rng, S) {
+    const L = randRange(rng, 4400, 4800) * S, g = randRange(rng, 300, 360) * S, Rb = randRange(rng, 480, 560) * S, ctrl = [];
+    for (let k = 0; k <= 6; k++) ctrl.push({ x: -L / 2 + (L * k) / 6, y: -g });
+    for (let k = 1; k < 8; k++) { const a = -Math.PI / 2 + (Math.PI * k) / 8; ctrl.push({ x: L / 2 + Rb * 0.9 + Math.cos(a) * Rb, y: Math.sin(a) * Rb * 1.0 }); }
+    for (let k = 0; k <= 6; k++) ctrl.push({ x: L / 2 - (L * k) / 6, y: g });
+    for (let k = 1; k < 8; k++) { const a = Math.PI / 2 + (Math.PI * k) / 8; ctrl.push({ x: -L / 2 - Rb * 0.9 + Math.cos(a) * Rb, y: Math.sin(a) * Rb }); }
     return ctrl;
   },
   // City blocks: an L, U, Z or staircase of streets, square corners rounded just enough to take at speed.
@@ -224,7 +244,7 @@ const LAYOUT_CTRL = {
       [[0, 0], [3, 0], [3, 1], [2, 1], [2, 2], [1, 2], [1, 3], [0, 3]],
       [[0, 0], [4, 0], [4, 2], [3, 2], [3, 1], [1, 1], [1, 2], [0, 2]],
     ];
-    const cw = randRange(rng, 720, 900) * S, ch = randRange(rng, 720, 900) * S, rot = randInt(rng, 0, 3), flip = rng() < 0.5 ? -1 : 1;
+    const cw = randRange(rng, 1250, 1500) * S, ch = randRange(rng, 720, 900) * S, rot = randInt(rng, 0, 3), flip = rng() < 0.5 ? -1 : 1;
     const V = SHAPES[randInt(rng, 0, SHAPES.length - 1)].map(([x, y]) => {
       let X = x * cw * flip, Y = y * ch;
       for (let k = 0; k < rot; k++) [X, Y] = [-Y, X];
@@ -235,16 +255,16 @@ const LAYOUT_CTRL = {
   // A serpentine: three legs stacked up the hill joined by tight hairpins, then a long loop home round the outside.
   // Drawn straight from arcs and lines (a spline pinches hairpins too tight), so it's returned dense.
   switchback(rng, S) {
-    const rh = randRange(rng, 185, 210) * S, L = randRange(rng, 1050, 1300) * S, R2 = 540 * S, R3 = 400 * S, R4 = 215 * S, out = [];
+    const rh = randRange(rng, 185, 210) * S, L = randRange(rng, 1050, 1300) * S, E = randRange(rng, 1700, 2200) * S, R2 = 540 * S, R3 = 400 * S, R4 = 215 * S, out = [];
     const line = (x, y) => { const a = out[out.length - 1], n = Math.max(1, Math.ceil(Math.hypot(x - a.x, y - a.y) / 20)); for (let k = 1; k <= n; k++) out.push({ x: a.x + ((x - a.x) * k) / n, y: a.y + ((y - a.y) * k) / n }); };
     const arc = (cx, cy, r, a0, a1) => { const n = Math.ceil((Math.abs(a1 - a0) * r) / 20); for (let k = 1; k <= n; k++) { const a = a0 + ((a1 - a0) * k) / n; out.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }); } };
-    out.push({ x: 0, y: 0 });
-    line(L, 0); arc(L, -rh, rh, Math.PI / 2, -Math.PI / 2); // up the hill, hairpin right
+    out.push({ x: -E, y: 0 });
+    line(L, 0); arc(L, -rh, rh, Math.PI / 2, -Math.PI / 2); // a long straight up to the hill, hairpin right
     line(0, -2 * rh); arc(0, -3 * rh, rh, Math.PI / 2, Math.PI * 1.5); // back, hairpin left
     line(L, -4 * rh); // the top leg
     arc(L, -4 * rh + R2, R2, -Math.PI / 2, 0); // over the crest and down the far side
     line(L + R2, 2 * R4 - R3); arc(L + R2 - R3, 2 * R4 - R3, R3, 0, Math.PI / 2); // down the outside and round the bottom
-    line(0, 2 * R4); arc(0, R4, R4, Math.PI / 2, Math.PI * 1.5); // back along the bottom, and up into the start
+    line(-E, 2 * R4); arc(-E, R4, R4, Math.PI / 2, Math.PI * 1.5); // the long run home along the bottom, and up into the start
     out.pop(); // (that last point is the first)
     out.dense = true;
     return out;
@@ -260,13 +280,13 @@ function generateTrack(seed, biomeKey, opts = {}) {
   const sizeMul = opts.sizeMul || 1;
 
   let layout = null;
-  for (let attempt = 0; attempt < 300 && !layout && lay !== 'circuit'; attempt++) {
+  for (let attempt = 0; attempt < 300 && !layout; attempt++) {
     const ctrl = LAYOUT_CTRL[lay](rng, sizeMul), res = resampleClosed(ctrl.dense ? ctrl : catmullClosed(ctrl, 24), TRACK_SPACING);
     if (validateLayout(res.pts, res.step, clearance, hw * 1.15)) layout = res;
   }
   for (let attempt = 0; attempt < 400 && !layout; attempt++) { // the free-form loop (and the fallback if a layout won't fit)
-    const res = resampleClosed(catmullClosed(LAYOUT_CTRL.circuit(rng, sizeMul), 40), TRACK_SPACING);
-    if (validateLayout(res.pts, res.step, clearance, hw * 1.15)) { layout = res; layout.lay = 'circuit'; }
+    const res = resampleClosed(catmullClosed(LAYOUT_CTRL.blob(rng, sizeMul), 40), TRACK_SPACING);
+    if (validateLayout(res.pts, res.step, clearance, hw * 1.15)) { layout = res; layout.lay = 'circuit'; } // (named a circuit all the same)
   }
   if (!layout) {
     // Fallback: a plain stadium oval that is always valid.

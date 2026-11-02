@@ -180,12 +180,15 @@ The cockpit uses [Three.js](https://threejs.org) r158 (MIT), vendored in `vendor
 
 ### Acts and environments (prototype)
 
-**Track layouts** (`LAYOUTS` in js/track.js). Every race is run on one of five kinds of course. The TV listing names it ahead of time, because the layout is fixed per stop like the weather:
-- **Circuit:** the free-form loop.
-- **Block Run:** city blocks, with right-angle corners, short straights and a narrower road. It comes as an L, U, Z or staircase.
-- **Switchbacks:** three legs stacked up a hill joined by tight hairpins, then a long loop home round the outside.
-- **Flyover:** a few big, wide sweepers, taken flat out.
-- **The Oval:** two long straights and two big bends, sometimes with a kink in the back straight. It gets an extra ramp.
+**Track layouts** (`LAYOUTS` in js/track.js). Every race is run on one of six kinds of course. The TV listing names it ahead of time (with the lap count), because the layout is fixed per stop like the weather. Every layout has at least one proper straight of 400-700 m, where the gunfights happen, and a technical section where the driving matters:
+- **Circuit:** a long main straight, then a freeform loop round the rest.
+- **Block Run:** city blocks, long along one axis so each shape has a main drag, with right-angle corners around it.
+- **Switchbacks:** a long start straight up to the hill, hairpins up it, and a long run home along the bottom.
+- **Flyover:** a motorway, with long straights joined by wide, fast sweepers.
+- **The Oval:** two long straights (about 500 m) and two big bends, sometimes with a kink. It gets an extra ramp.
+- **The Strip:** a dog-bone, two drag strips of 550-700 m side by side with a bulb of a hairpin at each end. Pure gunfight.
+
+Laps run 1.2-1.8 km, so a race is two laps (three for a boss, two on the Strip) and covers about the same distance as before.
 
 The undercity acts lean towards blocks and hairpins, and the upper city towards sweepers and ovals. Each boss has their own course: the Turnkey's yard (Block Run), Sal's climb (Switchbacks), Vale's motorway (Flyover) and the Crown's Oval.
 
