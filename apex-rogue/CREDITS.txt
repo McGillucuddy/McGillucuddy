@@ -1,0 +1,19 @@
+DEATH ROW DERBY
+Category 2 Games
+
+Design, code, models, sound effects and music were made for the game. Every car, gun, person and track
+is built in code; every gunshot, engine and song is synthesised as you play.
+
+VOICES
+Spoken lines synthesised with Piper (MIT licence) from the LibriTTS voice model, licensed CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/). LibriTTS: H. Zen, V. Dang, R. Clark, Y. Zhang, R. J. Weiss,
+Y. Jia, Z. Chen and Y. Wu, "LibriTTS: A Corpus Derived from LibriSpeech for Text-to-Speech" (2019), derived
+from LibriSpeech and LibriVox recordings. The lines were processed (pitched, filtered, distorted) for the game.
+
+FONTS (SIL Open Font License 1.1: licenses/OFL-*.txt)
+Anton, Copyright 2020 The Anton Project Authors
+Black Ops One, Copyright 2022 The Black-Ops Project Authors
+Courier Prime, Copyright 2015 The Courier Prime Project Authors
+
+ENGINE
+three.js, MIT licence, Copyright 2010-2023 three.js authors (licenses/three.LICENSE)

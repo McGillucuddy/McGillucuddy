@@ -235,6 +235,7 @@ const Proto = {
     switch (a) {
       case 'start': this.startRace(); break;
       case 'settings': this.showSettings(); break;
+      case 'credits': this.showCredits(); break;
       case 'feedback': Playtest.show(); break;
       case 'resume': this.resume(); break;
       case 'to-briefing': this.showMap(); break;
@@ -406,7 +407,7 @@ const Proto = {
         <div class="ctl"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> Weapons · <kbd>Q</kbd>/<kbd>Wheel</kbd> switch</div>
         <div class="ctl"><kbd>RMB</kbd> Aim down the sights · <kbd>G</kbd> Grenade (land one in a rival's open hatch or window) · <kbd>E</kbd>/<kbd>F</kbd> Abilities</div>
         <div class="ctl"><kbd>Space</kbd> (hold) Slam the blast hatch: it stops bullets and most of a blast, but you can't shoot. Slam it as a rocket hits to bat it back.</div>
-        <div class="ctl"><kbd>A</kbd>/<kbd>D</kbd> Tell the driver to swerve (they dodge rockets and mines on their own too) · <kbd>B</kbd> Fit spare part</div>
+        <div class="ctl"><kbd>Shift</kbd> Focus: slow motion for a few seconds (one charge a race, more for wrecks) · <kbd>B</kbd> Fit spare part · your driver does the dodging</div>
         <div class="ctl"><kbd>L</kbd> Lean out of your window: shoot out over your side and behind you, but you're out in the open and reloads are slower · <kbd>K</kbd> Kick the windshield out: clean shots forward, but nothing between you and the front</div>
         <div class="ctl"><kbd>V</kbd> (or <kbd>4</kbd>) Climb up to the roof gun, if you've mounted one, and back down. Steadier and all the way round, but you're exposed and the blast hatch can't cover you.</div>
         <div class="ctl"><kbd>T</kbd> Emote at a rival (hold for the wheel): they get tilted. Pass or wreck them while they're seething for Infamy.</div>
@@ -424,7 +425,7 @@ const Proto = {
         <button class="btn" data-action="settings">Settings</button>
         <button class="btn" data-action="how-to">How to play</button>
         <button class="btn ghost" data-action="exit">Exit</button>
-        <p class="t-links small"><a href="#" data-action="feedback">Send feedback</a> · <a href="#" data-action="intro">Watch intro</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'} ${window.BUILD ? ` · <span class="muted">${window.BUILD}</span>` : ''}</p>
+        <p class="t-links small"><a href="#" data-action="feedback">Send feedback</a> · <a href="#" data-action="intro">Watch intro</a> · <a href="#" data-action="credits">Credits</a>${window.RELEASE ? '' : ' · <a href="models.html">Model viewer</a>'} ${window.BUILD ? ` · <span class="muted">${window.BUILD}</span>` : ''}</p>
       </div>
       ${side}
     </div>`);
@@ -1239,6 +1240,27 @@ const Proto = {
       <button class="btn" data-action="feedback">Send feedback</button>
       ${this.tutorial ? '<button class="btn ghost" data-action="menu">Leave tutorial</button>' : `<button class="btn" data-action="menu">Main menu</button>
       <button class="btn ghost" data-action="abandon">Abandon run</button>`}
+    </div>`);
+  },
+
+  // Who made what. (The voices are CC BY 4.0 and the fonts SIL OFL: both need crediting wherever the game ships.)
+  showCredits() {
+    this.setUI(`<div class="screen howto credits">
+      <h1>Credits</h1>
+      <p><b>Death Row Derby</b> · ${STUDIO.name}</p>
+      <p class="small">Design, code, models, sound effects and music: made for the game. Every car, gun, person and track is
+        built in code; every gunshot, engine and song is synthesised as you play.</p>
+      <h3>Voices</h3>
+      <p class="small">Spoken lines synthesised with <b>Piper</b> (MIT) from the <b>LibriTTS</b> voice model, licensed
+        <b>CC BY 4.0</b> (creativecommons.org/licenses/by/4.0). LibriTTS: Zen, Dang, Clark, Zhang, Weiss, Jia, Chen and
+        Wu (2019), derived from LibriSpeech and LibriVox recordings. The lines were processed (pitched, filtered,
+        distorted) for the game.</p>
+      <h3>Fonts</h3>
+      <p class="small"><b>Anton</b> © 2020 The Anton Project Authors, <b>Black Ops One</b> © 2022 The Black-Ops Project
+        Authors and <b>Courier Prime</b> © 2015 The Courier Prime Project Authors, under the SIL Open Font License 1.1.</p>
+      <h3>Engine</h3>
+      <p class="small"><b>three.js</b> (MIT licence, © 2010-2023 three.js authors).</p>
+      <button class="btn" data-action="title">Back</button>
     </div>`);
   },
 

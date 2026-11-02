@@ -13,6 +13,8 @@ sed "s#<script src=\"vendor/three.min.js\"></script>#<script>window.RELEASE = tr
 grep -q "window.RELEASE" "$OUT/index.html" || { echo "release.sh: couldn't stamp index.html"; exit 1; }
 cp style.css fonts.css "$OUT/"
 cp vendor/three.min.js vendor/three.LICENSE "$OUT/vendor/"
+# Licences: the fonts' OFL texts and three.js's MIT licence ship with the game, and the credits (also in-game).
+mkdir -p "$OUT/licenses" && cp fonts/OFL-*.txt vendor/three.LICENSE "$OUT/licenses/" && cp CREDITS.txt "$OUT/"
 for f in $(grep -o 'src="js/[^"]*"' prototype.html | sed 's/src="//; s/"$//'); do cp "$f" "$OUT/$f"; done
 ZIP="dist/death-row-derby-$(date +%Y%m%d)-${SHA}.zip"
 rm -f "$ZIP" && (cd "$OUT" && zip -qr "../$(basename "$ZIP")" .)
