@@ -42,6 +42,9 @@ Each model is the 1K glTF version (`models/<name>/<name>_1k.gltf` plus its `.bin
 - [wooden_bookshelf_worn](https://polyhaven.com/a/wooden_bookshelf_worn)
 - [wooden_stool_01](https://polyhaven.com/a/wooden_stool_01)
 
+- [hanging_industrial_lamp](https://polyhaven.com/a/hanging_industrial_lamp)
+- [industrial_wall_sconce](https://polyhaven.com/a/industrial_wall_sconce)
+
 ## Materials
 
 - [fabric_pattern_05](https://polyhaven.com/a/fabric_pattern_05)
@@ -57,3 +60,4 @@ Each model is the 1K glTF version (`models/<name>/<name>_1k.gltf` plus its `.bin
 - [wood_floor_worn](https://polyhaven.com/a/wood_floor_worn)
 - [dark_wood](https://polyhaven.com/a/dark_wood)
 - [wood_table_001](https://polyhaven.com/a/wood_table_001)
+- [brown_leather](https://polyhaven.com/a/brown_leather)

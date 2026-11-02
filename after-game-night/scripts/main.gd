@@ -1536,7 +1536,16 @@ func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: 
 		_solid(Vector3(bt, top_y + 0.05, depth), Vector3(x, (top_y + 0.05) / 2, 0), wood, true, 0.0, rack)
 	for y in [floors[0] - bt / 2, floors[1] - bt / 2, top_y - bt / 2 + 0.05]:
 		_solid(Vector3(width, bt, depth), Vector3(0, y, 0), wood, true, 0.0, rack)
-	_solid(Vector3(width, 0.1, 0.03), Vector3(0, 0.05, depth / 2 - 0.015), wood, false, 0.0, rack)
+	_solid(Vector3(width + 0.04, 0.12, 0.04), Vector3(0, 0.06, depth / 2 + 0.005), wood, false, 0.0, rack)
+	# A face frame: stiles over the dividers and rails along each shelf front, slightly proud.
+	for i in cols + 1:
+		var x := -width / 2 + bt / 2 + i * (cw + bt)
+		_solid(Vector3(bt + 0.03, top_y + 0.05, 0.022), Vector3(x, (top_y + 0.05) / 2, depth / 2 + 0.011), wood, false, 0.0, rack)
+	for fy: float in floors:
+		_solid(Vector3(width, 0.062, 0.022), Vector3(0, fy - bt / 2, depth / 2 + 0.011), wood, false, 0.0, rack)
+	# Crown moulding: a cove and a capping board that overhang the top.
+	_solid(Vector3(width + 0.06, 0.05, depth + 0.05), Vector3(0, top_y + 0.075, 0.025), wood, false, 0.0, rack)
+	_solid(Vector3(width + 0.12, 0.035, depth + 0.1), Vector3(0, top_y + 0.115, 0.04), wood, false, 0.0, rack)
 
 	for r in 2:
 		for c in cols:
@@ -1568,16 +1577,16 @@ func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: 
 			var ghost := MeshKit.mesh_node(MeshKit.box(Vector3(0.6, 0.2, 0.4)), gm, Vector3(cx, fy + 0.1, 0.02))
 			rack.add_child(ghost)
 			slot.ghost = ghost
-			rack.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.66, 0.046, 0.006)), MeshKit.mat(line.color, 0.6), Vector3(cx, fy - bt / 2, depth / 2 + 0.004)))
+			rack.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.66, 0.046, 0.006)), MeshKit.mat(line.color, 0.6), Vector3(cx, fy - bt / 2, depth / 2 + 0.0235)))
 			# The name is printed on the shelf's colour-coded label strip.
 			var ink := Color("1c1410") if (line.color as Color).get_luminance() > 0.55 else Color("fff4e4")
 			var plate_tex := LogoKit.plaque(self, line.name, Vector2i(768, 54), line.color, ink, (line.color as Color).darkened(0.4))
-			CaseKit._print(rack, Vector2(0.66, 0.046), plate_tex, Vector3(cx, fy - bt / 2, depth / 2 + 0.0076), false, 0.5)
+			CaseKit._print(rack, Vector2(0.66, 0.046), plate_tex, Vector3(cx, fy - bt / 2, depth / 2 + 0.0271), false, 0.5)
 
-	_prop("book_encyclopedia_set_01", Vector3(-width / 2 + 0.3, top_y + 0.05, 0), 0.0, Vector3(0.45, 0, 0), false, rack)
-	_plant(rack.to_global(Vector3(width / 2 - 0.2, top_y + 0.05, 0)), true)
+	_prop("book_encyclopedia_set_01", Vector3(-width / 2 + 0.3, top_y + 0.1325, 0), 0.0, Vector3(0.45, 0, 0), false, rack)
+	_plant(rack.to_global(Vector3(width / 2 - 0.2, top_y + 0.1325, 0)), true)
 	# A carved and gilded wooden sign on top of the shelf.
-	_sign(rack, title_text, Vector3(0.1, top_y + 0.2, 0.06), Vector2(1.1, 0.2))
+	_sign(rack, title_text, Vector3(0.1, top_y + 0.27, 0.06), Vector2(1.1, 0.2))
 
 
 func _fit_shelf_ghosts() -> void:
@@ -1844,9 +1853,9 @@ func _build_card_room() -> void:
 	_armchair(Vector3(-7.0, 0, 7.0), PI, leather, "GreenChair_01")
 	_floor_lamp(Vector3(-6.62, 0, 6.35), Color("e8c48a"), 1.0, false)
 	# Sconces and framed playing cards on the walls.
-	for x in [-8.4, -12.2]:
-		_sconce(Vector3(x, 1.9, 2.0), Vector3(0, 0, 1), Color("f0d2a0"))
-	_sconce(Vector3(-11.0, 1.9, 7.6), Vector3(0, 0, -1), Color("f0d2a0"))
+	for sc in [[Vector3(-8.4, 1.75, 2.0), 0.0], [Vector3(-12.2, 1.75, 2.0), 0.0], [Vector3(-11.0, 1.75, 7.6), PI]]:
+		_prop("industrial_wall_sconce", sc[0], sc[1], Vector3(0, 0.38, 0))
+		_omni(sc[0] + Vector3(0, 0.25, 0) + Vector3(0, 0, 0.22).rotated(Vector3.UP, sc[1]), Color(1.0, 0.7, 0.42), 0.7, 3.2)
 	var faces := FaceKit.faces(self, "casino", "Royal Flush", Color("7a1420"), Color("c49a3a"), "casino")
 	for i in 4:
 		var art: Material = faces[(i * 2) % faces.size()]
@@ -2556,7 +2565,11 @@ func _room_shots(dir: String) -> void:
 	for v in [["room_living", Vector3(0.6, 1.6, 4.6), Vector3(0.0, 0.7, -2.0)],
 			["room_card", Vector3(-6.5, 1.65, 5.3), Vector3(-10.5, 0.6, 4.2)],
 			["room_den", Vector3(6.6, 1.65, 5.2), Vector3(11.0, 0.6, 3.4)],
-			["room_studio", Vector3(0.3, 1.65, 8.0), Vector3(0.0, 0.6, 12.0)]]:
+			["room_studio", Vector3(0.3, 1.65, 8.0), Vector3(0.0, 0.6, 12.0)],
+			["close_shelf", Vector3(0.6, 1.35, -2.6), Vector3(0.0, 0.95, -4.7)],
+			["close_boxes", Vector3(-2.9, 1.15, 0.75), Vector3(-3.0, 0.1, -0.4)],
+			["close_vaults", Vector3(12.7, 1.15, 2.4), Vector3(13.75, 0.1, 2.4)],
+			["close_chipcases", Vector3(-11.1, 1.15, 3.45), Vector3(-11.1, 0.1, 2.5)]]:
 		await _cam_at(cam, v[1], v[2])
 		await _shot(dir, v[0])
 	get_tree().quit()

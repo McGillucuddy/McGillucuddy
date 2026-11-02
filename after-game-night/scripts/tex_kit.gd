@@ -57,8 +57,8 @@ static func _shade(c: Color, k: float) -> Color:
 
 ## A Poly Haven material (CC0) from assets/textures: colour, normal and roughness maps,
 ## mapped in world space. tint multiplies the colour, so one plaster can be any paint colour.
-static func pbr(id: String, scale := 0.5, tint := Color.WHITE, rough := 1.0) -> StandardMaterial3D:
-	var key := "pbr%s%.2f%s%.2f" % [id, scale, tint.to_html(), rough]
+static func pbr(id: String, scale := 0.5, tint := Color.WHITE, rough := 1.0, world := true) -> StandardMaterial3D:
+	var key := "pbr%s%.2f%s%.2f%s" % [id, scale, tint.to_html(), rough, world]
 	if _cache.has(key):
 		return _cache[key]
 	var base := "res://assets/textures/%s/%s_%s_1k.jpg"
@@ -71,9 +71,29 @@ static func pbr(id: String, scale := 0.5, tint := Color.WHITE, rough := 1.0) -> 
 	m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
 	m.roughness = rough
 	m.uv1_triplanar = true
-	m.uv1_world_triplanar = true
+	# Things that move (boxes, cases) map in their own space so the texture travels with them.
+	m.uv1_world_triplanar = world
 	m.uv1_scale = Vector3.ONE * scale
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_cache[key] = m
+	return m
+
+
+## A plain colour with the surface feel of another material: printed board-game card stock
+## gets the fine weave of linen paper without losing its colour.
+static func finish(c: Color, id: String, scale: float, strength: float, rough := 0.7) -> StandardMaterial3D:
+	var key := "finish%s%s%.1f%.2f" % [c.to_html(), id, scale, strength]
+	if _cache.has(key):
+		return _cache[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_color = c
+	m.normal_enabled = true
+	m.normal_texture = load("res://assets/textures/%s/%s_nor_gl_1k.jpg" % [id, id])
+	m.normal_scale = strength
+	m.roughness = rough
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE * scale
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_cache[key] = m
 	return m
 
@@ -371,6 +391,63 @@ static func pegboard(board: Color, scale := 1.6) -> StandardMaterial3D:
 			h[i] = int(clampf(0.7 - 0.6 * hole + 0.05 * f, 0.0, 1.0) * 255.0)
 	var imgs := _images(n, rgb, h)
 	var m := _material(imgs[0], imgs[1], scale, 0.85, 3.0, 1.0)
+	_cache[key] = m
+	return m
+
+
+# ---------------------------------------------------------------- board and metal
+
+## Box board, the grey-brown card that inserts are made of: pressed fibres with faint fluting,
+## tinted by the box's colour. Mapped in the object's own space so it moves with the box.
+static func cardboard(c: Color, scale := 6.0) -> StandardMaterial3D:
+	var key := "card%s%.1f" % [c.to_html(), scale]
+	if _cache.has(key):
+		return _cache[key]
+	var n := 256
+	var fibre := _noise(n, 21, 0.35, 2)
+	var cloud := _noise(n, 22, 0.03, 3)
+	var rgb := PackedByteArray()
+	rgb.resize(n * n * 3)
+	var h := PackedByteArray()
+	h.resize(n * n)
+	for y in n:
+		for x in n:
+			var i := y * n + x
+			var f := fibre[i] / 255.0
+			var cl := cloud[i] / 255.0
+			var flute := 0.5 + 0.5 * sin(x * TAU / 16.0)
+			_put(rgb, i, _shade(c, 0.9 + 0.1 * (f - 0.5) + 0.08 * (cl - 0.5) + 0.03 * flute))
+			h[i] = int(clampf(0.5 + 0.18 * (f - 0.5) + 0.06 * flute, 0.0, 1.0) * 255.0)
+	var imgs := _images(n, rgb, h)
+	var m := _material(imgs[0], imgs[1], scale, 0.92, 1.5, 0.5)
+	m.uv1_world_triplanar = false
+	_cache[key] = m
+	return m
+
+
+## Brushed aluminium: fine streaks running one way, partly metallic so it still reads indoors.
+static func brushed(c: Color, scale := 4.0) -> StandardMaterial3D:
+	var key := "brushed%s" % c.to_html()
+	if _cache.has(key):
+		return _cache[key]
+	var n := 256
+	var streak := _noise(n, 31, 0.5, 2)
+	var rgb := PackedByteArray()
+	rgb.resize(n * n * 3)
+	var h := PackedByteArray()
+	h.resize(n * n)
+	for y in n:
+		for x in n:
+			var i := y * n + x
+			# Sample the noise squashed along x, so it smears into long brush lines.
+			var st := streak[y * n + (x / 16)] / 255.0
+			_put(rgb, i, _shade(c, 0.9 + 0.12 * st))
+			h[i] = int((0.5 + 0.2 * st) * 255.0)
+	var imgs := _images(n, rgb, h)
+	var m := _material(imgs[0], imgs[1], scale, 0.32, 1.0, 0.35)
+	m.metallic = 0.45
+	m.uv1_world_triplanar = false
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_cache[key] = m
 	return m
 

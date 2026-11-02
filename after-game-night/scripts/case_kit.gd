@@ -24,15 +24,10 @@ static func _node(parent: Node3D, size: Vector3, m: Material, pos: Vector3, rot 
 static func shell_mats(case: String, c: Color, trim: Color) -> Dictionary:
 	match case:
 		"vault":
-			return {"outer": _m(Color("3a2416"), 0.45), "trim": MeshKit.metal_mat(Color("c9a24a"), 0.3)}
+			# Stitched brown leather over a wooden box, with brass corners.
+			return {"outer": TexKit.pbr("brown_leather", 3.0, Color("b08a70"), 1.0, false), "trim": MeshKit.metal_mat(Color("c9a24a"), 0.3)}
 		"chipcase":
-			# Satin aluminum: only partly metallic, since a fully metal finish has nothing to reflect indoors.
-			var al := StandardMaterial3D.new()
-			al.albedo_color = Color("c9ced4")
-			al.metallic = 0.35
-			al.roughness = 0.3
-			al.cull_mode = BaseMaterial3D.CULL_DISABLED
-			return {"outer": al, "trim": _m(Color("1c1c20"), 0.5)}
+			return {"outer": TexKit.brushed(Color("c9ced4")), "trim": _m(Color("1c1c20"), 0.5)}
 		"deckvault":
 			var g := StandardMaterial3D.new()
 			g.albedo_color = c
@@ -42,26 +37,28 @@ static func shell_mats(case: String, c: Color, trim: Color) -> Dictionary:
 			g.cull_mode = BaseMaterial3D.CULL_DISABLED
 			return {"outer": g, "trim": _m(trim, 0.3)}
 		"display":
-			return {"outer": _m(Color("6a4428"), 0.4), "trim": MeshKit.metal_mat(Color("c9a24a"), 0.3)}
+			return {"outer": TexKit.pbr("dark_wood", 3.0, Color("c89a74"), 1.0, false), "trim": MeshKit.metal_mat(Color("c9a24a"), 0.3)}
 		"paintchest":
-			return {"outer": _m(Color("9a6a3c"), 0.7), "trim": _m(Color("3a2a22"), 0.6)}
-	return {"outer": _m(c, 0.75), "trim": _m(trim, 0.6)}
+			return {"outer": TexKit.pbr("wood_table_001", 3.0, Color("e0b890"), 1.0, false), "trim": TexKit.pbr("brown_leather", 4.0, Color("8a6650"), 1.0, false)}
+	# A board-game box: printed card stock with a fine linen finish.
+	return {"outer": TexKit.finish(c, "rough_linen", 10.0, 0.35), "trim": TexKit.finish(trim, "rough_linen", 10.0, 0.35, 0.6)}
 
 
 ## Materials for the insert: {tray, floor, wall}.
 static func insert_mats(case: String, c: Color) -> Dictionary:
 	match case:
 		"vault":
-			return {"tray": _m(c.darkened(0.45), 1.0), "floor": _m(c.darkened(0.6), 1.0), "wall": _m(c.darkened(0.3), 1.0)}
+			return {"tray": TexKit.pbr("velour_velvet", 6.0, c.darkened(0.2), 1.0, false), "floor": TexKit.pbr("velour_velvet", 6.0, c.darkened(0.4), 1.0, false), "wall": TexKit.pbr("brown_leather", 4.0, Color("8a6650"), 1.0, false)}
 		"chipcase":
-			return {"tray": _m(Color("1a1a1c"), 1.0), "floor": _m(Color("111113"), 1.0), "wall": _m(Color("26262a"), 1.0)}
+			return {"tray": TexKit.pbr("velour_velvet", 6.0, Color("2a2a2e"), 1.0, false), "floor": TexKit.pbr("velour_velvet", 6.0, Color("1c1c20"), 1.0, false), "wall": _m(Color("26262a"), 1.0)}
 		"deckvault":
 			return {"tray": _m(Color("1e1a26"), 1.0), "floor": _m(Color("15121c"), 1.0), "wall": _m(c.darkened(0.5), 0.6)}
 		"display":
-			return {"tray": _m(Color("1a1418"), 1.0), "floor": _m(Color("120e12"), 1.0), "wall": _m(Color("6a4428"), 0.45)}
+			return {"tray": TexKit.pbr("velour_velvet", 6.0, Color("3a2a30"), 1.0, false), "floor": TexKit.pbr("velour_velvet", 6.0, Color("241a1e"), 1.0, false), "wall": TexKit.pbr("dark_wood", 3.0, Color("c89a74"), 1.0, false)}
 		"paintchest":
-			return {"tray": _m(Color("c8a070"), 0.8), "floor": _m(Color("b08858"), 0.8), "wall": _m(Color("d8b27c"), 0.75)}
-	return {"tray": _m(c.darkened(0.42), 0.9), "floor": _m(c.darkened(0.62), 0.95), "wall": _m(c.darkened(0.3), 0.85)}
+			return {"tray": TexKit.pbr("wood_table_001", 3.0, Color("e8c8a0"), 1.0, false), "floor": TexKit.pbr("wood_table_001", 3.0, Color("d0a878"), 1.0, false), "wall": TexKit.pbr("wood_table_001", 3.0, Color("f0d4b0"), 1.0, false)}
+	# Board-game inserts are box board, in the game's colours.
+	return {"tray": TexKit.cardboard(c.darkened(0.3).lerp(Color("b8a48a"), 0.25)), "floor": TexKit.cardboard(c.darkened(0.5).lerp(Color("8a7a66"), 0.2)), "wall": TexKit.cardboard(c.darkened(0.15).lerp(Color("c8b49a"), 0.25))}
 
 
 ## How far the lid's sides reach down over the box.
