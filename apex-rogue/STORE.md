@@ -20,7 +20,8 @@ On Steam, I'd ship **Windows and Linux** first. Steam Deck runs the Windows buil
 - [ ] **Credits.** These are in-game (title screen, then Credits) and in `CREDITS.txt` in every build. The voices are CC BY 4.0 and need that credit wherever the game ships, so keep it.
 - [ ] **Licences.** `licenses/` in every build holds the fonts' OFL texts and three.js's MIT licence.
 - [ ] **A version number.** `desktop/package.json` holds it (0.9.0 now).
-- [ ] **Screenshots and a trailer** (1920×1080), captured from the desktop build.
+- [x] **Store copy, screenshots and capsules.** These are in `store/`: `STEAM_PAGE.md` (paste-ready text for Steam and itch.io), `screenshots/` (seven at 1920×1080) and `capsules/` (every Steam capsule size).
+- [ ] **A trailer** (1920×1080, 30-60 s), recorded from the desktop build with OBS.
 
 ## itch.io (free, live the same day)
 
