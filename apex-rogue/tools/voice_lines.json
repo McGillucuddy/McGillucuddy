@@ -1,0 +1,75 @@
+{
+  "_about": "The spoken lines (tools/make_voices.py turns them into js/voices/*.js). Driver lines come in three tiers by nerve: g (green: their first races, terrified), m (steadier), h (hardened: nothing scares them). The gunner (you) only grunts and gasps. Each entry is the subtitle; add a second string to say it differently from how it's written.",
+  "driver": {
+    "start": {
+      "g": ["Oh god. Okay. Okay, here we go.", "I can't feel my hands.", "Please don't let me die tonight."],
+      "m": ["Here we go.", "Eyes up. Let's do this."],
+      "h": ["Let's go to work.", "Time to get paid."]
+    },
+    "jump": {
+      "g": ["Oh fuck!", "Shit shit shit!", "Aaaaagh!"],
+      "m": ["Hold on!", "Here we go!"],
+      "h": ["Yeehaw!", "Hold on to something!"]
+    },
+    "land": {
+      "g": ["Fuck! My back!", "Oh god. Oh god."],
+      "m": ["Still in one piece.", "We're down. We're down."],
+      "h": ["Stuck it!", "Smooth."]
+    },
+    "crash": {
+      "g": ["Oh fuck!", "Shit! Sorry! Sorry!", "Fuck fuck fuck!"],
+      "m": ["Damn it!", "Shit!"],
+      "h": ["My bad.", "Damn. Hold on."]
+    },
+    "rocket": {
+      "g": ["Oh fuck, rocket!", "Rocket! Oh god!"],
+      "m": ["Rocket! Hold on!", "Incoming!"],
+      "h": ["Incoming. Hold on.", "Not today."]
+    },
+    "mine": {
+      "g": ["Shit! Mine!", "Oh god, a mine!"],
+      "m": ["Mine!", "Watch it, mine!"],
+      "h": ["Mine. Seen it.", "Easy."]
+    },
+    "lock": {
+      "g": ["They've got a lock on us! Oh fuck!"],
+      "m": ["It's locked on us! Hatch!"],
+      "h": ["Locked on. Get the hatch."]
+    },
+    "blast": {
+      "g": ["We're gonna die!", "Oh Jesus!", "Aaaaagh!"],
+      "m": ["Whoa!", "Hold on!"],
+      "h": ["That all you got?", "Ha! Missed us!"]
+    },
+    "hit": {
+      "g": ["I'm hit! I'm hit! Oh god!", "Oh god, I'm bleeding!"],
+      "m": ["I'm hit!", "Ah! They got me!"],
+      "h": ["Just a scratch. Keep shooting.", "Still driving. Still driving."]
+    },
+    "shot": {
+      "g": ["What the fuck?! Stop shooting me!", "Are you shooting me?!"],
+      "m": ["Watch it!", "Not the driver!"],
+      "h": ["Point it out the window!", "Whose side are you on?!"]
+    },
+    "kill": {
+      "g": ["Holy shit! You got him!", "Oh my god, you got him!"],
+      "m": ["Got him!", "Nice shot!"],
+      "h": ["Scratch one.", "That's one more."]
+    },
+    "finish": {
+      "g": ["We made it! We actually made it!", "I'm alive! I'm alive!"],
+      "m": ["We made it!", "That's a finish."],
+      "h": ["Told you. Easy money.", "Another one."]
+    },
+    "order": {
+      "g": ["Okay! Okay!", "Okay okay okay!"],
+      "m": ["On it!", "Got it!"],
+      "h": ["You got it.", "On it."]
+    }
+  },
+  "gunner": {
+    "impact": ["Ugh!", "Oof!", "Agh!", "Huh!"],
+    "hurt": ["Aaaaagh!", "Argh!", "Gah!", "Ahh!"],
+    "effort": ["Hah!", "Hup!", "Ugh!"]
+  }
+}
