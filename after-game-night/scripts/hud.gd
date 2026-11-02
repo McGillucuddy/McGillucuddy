@@ -9,6 +9,9 @@ signal quit_pressed
 signal tool_changed(i: int)
 signal buy_pressed(id: String)
 signal shop_closed
+signal tour_pressed
+signal tour_step(dir: int)
+signal tour_done
 
 const HONEY := Color("f3b648")
 const CREAM := Color("fff1de")
@@ -38,6 +41,14 @@ var _tokens: Label
 var _shop: Control
 var _shop_rows: VBoxContainer
 var _shop_tokens: Label
+var _banner: Control
+var _banner_title: Label
+var _banner_sub: Label
+var _banner_tw: Tween
+var _tour: Control
+var _tour_name: Label
+var _tour_sub: Label
+var _tour_count: Label
 
 
 class Crosshair extends Control:
@@ -153,9 +164,11 @@ func _ready() -> void:
 		[["Keep tidying", resume_pressed], ["Start over", restart_pressed], ["Quit", quit_pressed]])
 	_pause.hide()
 	_end = _overlay(root, "Everything's put away", "The shelf is full and the table is clear.", "",
-		[["Play again", restart_pressed], ["Quit", quit_pressed]])
+		[["See your collection", tour_pressed], ["Play again", restart_pressed], ["Quit", quit_pressed]])
 	_end_stats = _end.get_meta("extra")
 	_end.hide()
+	_build_banner(root)
+	_build_tour(root)
 
 
 func _style_buttons(th: Theme) -> void:
@@ -303,6 +316,120 @@ func show_end(stats: String) -> void:
 	_end_stats.text = stats
 	_end.show()
 	(_end.get_meta("first_button") as Button).grab_focus()
+
+
+func hide_end() -> void:
+	_end.hide()
+
+
+# ---------------------------------------------------------------- "sorted!" banner and collection tour
+
+func _build_banner(root: Control) -> void:
+	_banner = CenterContainer.new()
+	_banner.anchor_left = 0; _banner.anchor_right = 1
+	_banner.anchor_top = 0.08; _banner.anchor_bottom = 0.08
+	_banner.offset_bottom = 150
+	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_banner.modulate.a = 0.0
+	root.add_child(_banner)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_banner.add_child(v)
+	_banner_title = Label.new()
+	_banner_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner_title.add_theme_font_size_override("font_size", 64)
+	_banner_title.add_theme_color_override("font_color", HONEY)
+	_banner_title.add_theme_constant_override("outline_size", 14)
+	_banner_title.add_theme_color_override("font_outline_color", Color("5a2f10"))
+	v.add_child(_banner_title)
+	_banner_sub = Label.new()
+	_banner_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner_sub.add_theme_font_size_override("font_size", 22)
+	_banner_sub.add_theme_color_override("font_color", CREAM)
+	_banner_sub.add_theme_constant_override("outline_size", 8)
+	_banner_sub.add_theme_color_override("font_outline_color", Color(0.1, 0.05, 0.05, 0.9))
+	v.add_child(_banner_sub)
+
+
+## A big title across the top of the screen that pops in, holds, and fades.
+func banner(title: String, sub: String, secs := 3.0) -> void:
+	_banner_title.text = title
+	_banner_sub.text = sub
+	if _banner_tw:
+		_banner_tw.kill()
+	_banner.pivot_offset = _banner.size / 2
+	_banner.scale = Vector2(0.85, 0.85)
+	_banner_tw = create_tween().set_parallel(true)
+	_banner_tw.tween_property(_banner, "modulate:a", 1.0, 0.25)
+	_banner_tw.tween_property(_banner, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_banner_tw.chain().tween_interval(secs)
+	_banner_tw.chain().tween_property(_banner, "modulate:a", 0.0, 0.5)
+
+
+func _build_tour(root: Control) -> void:
+	_tour = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = PANEL
+	sb.set_corner_radius_all(18)
+	sb.content_margin_left = 28; sb.content_margin_right = 28
+	sb.content_margin_top = 14; sb.content_margin_bottom = 16
+	_tour.add_theme_stylebox_override("panel", sb)
+	_tour.anchor_left = 0.5; _tour.anchor_right = 0.5
+	_tour.anchor_top = 1; _tour.anchor_bottom = 1
+	_tour.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_tour.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_tour.offset_bottom = -26
+	root.add_child(_tour)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	_tour.add_child(v)
+	_tour_count = Label.new()
+	_tour_count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tour_count.add_theme_font_size_override("font_size", 15)
+	_tour_count.add_theme_color_override("font_color", DIM)
+	v.add_child(_tour_count)
+	_tour_name = Label.new()
+	_tour_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tour_name.add_theme_font_size_override("font_size", 34)
+	_tour_name.add_theme_color_override("font_color", HONEY)
+	v.add_child(_tour_name)
+	_tour_sub = Label.new()
+	_tour_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tour_sub.add_theme_font_size_override("font_size", 18)
+	v.add_child(_tour_sub)
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	v.add_child(row)
+	for b in [["◀  Previous", -1], ["Next  ▶", 1]]:
+		var btn := Button.new()
+		btn.text = b[0]
+		var d: int = b[1]
+		btn.pressed.connect(func(): tour_step.emit(d))
+		row.add_child(btn)
+	var done := Button.new()
+	done.text = "Done"
+	done.pressed.connect(func(): tour_done.emit())
+	row.add_child(done)
+	var keys := Label.new()
+	keys.text = "← →  browse     drag  turn it     Esc  done"
+	keys.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	keys.add_theme_font_size_override("font_size", 13)
+	keys.add_theme_color_override("font_color", DIM)
+	v.add_child(keys)
+	_tour.hide()
+
+
+func show_tour(on: bool) -> void:
+	_tour.visible = on
+	_crosshair.visible = not on
+
+
+func set_tour(i: int, n: int, name: String, sub: String) -> void:
+	_tour_count.text = "%d of %d" % [i + 1, n]
+	_tour_name.text = name
+	_tour_sub.text = sub
 
 
 # ---------------------------------------------------------------- tidiness and streak

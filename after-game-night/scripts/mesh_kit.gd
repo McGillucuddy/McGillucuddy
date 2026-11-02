@@ -404,6 +404,16 @@ static func piece(type: String, c: Color, accent := Color(0, 0, 0, 0), style := 
 			shape = _cyl_shape(0.014, 0.044)
 			offset = Vector3(0, -0.001, 0)
 			rest = Vector3(0, 0, PI / 2)
+		"chip", "plaque", "dealer":
+			return casino_piece(type, c, accent, style)
+		"toploader", "deckbox", "counter":
+			return ccg_piece(type, c, accent, style)
+		"shard", "cluster", "geode", "cutgem":
+			return crystal_piece(type, c)
+		"cateye", "shooter", "pearl", "steelie", "galaxymarble":
+			return marble_piece(type, c)
+		"pot", "dropper", "brush", "spray":
+			return paint_piece(type, c, style)
 		"cake":
 			var wedge := PackedVector2Array([Vector2(-0.03, 0.0), Vector2(0.03, -0.024), Vector2(0.03, 0.024)])
 			v.add_child(mesh_node(extrude(wedge, 0.028), mat(Color("e9c48f"), 0.8), Vector3.ZERO, Vector3(-PI / 2, 0, 0)))

@@ -21,6 +21,7 @@ func place(box: GameBox) -> bool:
 	if filled() or box.line_id != line_id or placed.has(box):
 		return false
 	placed.append(box)
+	box.peek(false, true)
 	box.held = false
 	box.shelved = true
 	box.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC

@@ -9,6 +9,7 @@ signal piece_landed(box: GameBox, k: int, at: Vector3)
 signal compartment_filled(box: GameBox, at: Vector3)
 signal packed(box: GameBox)
 signal bounced(box: GameBox, reason: String)
+signal sorted(box: GameBox)   # every piece and card is in its spot (the board and rulebook may still be out)
 
 const T := 0.012
 const IW := 0.76
@@ -43,6 +44,10 @@ var has_board := false
 var has_rules := true
 var contents: Node3D
 var lid_pivot: Node3D
+var is_sorted := false
+var peeking := false
+## How long a box with nothing left to go on top stays open after it's sorted, so you can admire it.
+static var hold_open := 4.2
 
 var _spots := {}        # group key -> Array of {xf, ghost, idx, filled}
 var _stored := {}       # group key -> MultiMesh of pieces packed away
@@ -425,6 +430,7 @@ func accept_pieces(list: Array, proxies: Array) -> String:
 		var t := create_tween()
 		t.tween_interval(end)
 		t.tween_callback(func(): compartment_filled.emit(self, contents.to_global(c)))
+	_check_sorted(end)
 	_check_done(end)
 	return ""
 
@@ -499,13 +505,26 @@ func try_accept(item: Item) -> String:
 	items_in += 1
 	progress_changed.emit(self, n_units, group_done)
 	piece_landed.emit(self, 0, to_global(target_pos))
+	_check_sorted(0.5)
 	_check_done(0.5)
 	return ""
+
+
+func _check_sorted(delay: float) -> void:
+	if is_sorted or not insert_full():
+		return
+	is_sorted = true
+	var t := create_tween()
+	t.tween_interval(delay)
+	t.tween_callback(func(): sorted.emit(self))
 
 
 func _check_done(delay: float) -> void:
 	if items_in >= items_needed and not complete:
 		complete = true
+		# If the very last thing in was a piece or card pile, the insert is still on show: let it be seen.
+		if not has_board and not has_rules:
+			delay += hold_open
 		var tw := create_tween()
 		tw.tween_interval(delay)
 		tw.tween_property(lid_pivot, "rotation:x", 0.0, 0.55).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
@@ -516,6 +535,81 @@ func _check_done(delay: float) -> void:
 		hop.tween_interval(delay + 0.55)
 		hop.tween_property(visual, "scale", Vector3(1.05, 0.92, 1.05), 0.08)
 		hop.tween_property(visual, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+
+## Where every compartment and card tray is, in world space, for the "sorted" light-up.
+func tray_points() -> Array:
+	var pts := []
+	for key in _spots:
+		var c := Vector3.ZERO
+		for sp in _spots[key]:
+			c += sp.xf.origin
+		pts.append(contents.to_global(c / maxf(1.0, _spots[key].size()) + Vector3(0, 0.02, 0)))
+	for set_name in _card_sets:
+		for st in _card_sets[set_name].stacks:
+			if st.cards > 0:
+				pts.append(contents.to_global(st.pos + Vector3(0, 0.02, 0)))
+	return pts
+
+
+func piece_count() -> int:
+	var n := 0
+	for key in _spots:
+		n += _spots[key].size()
+	return n
+
+
+func cards_in() -> int:
+	var n := 0
+	for set_name in _card_sets:
+		for st in _card_sets[set_name].stacks:
+			n += st.cards
+	return n
+
+
+func compartment_count() -> int:
+	return _spots.size() + _card_sets.size()
+
+
+## The middle of the top of the insert, in world space.
+func insert_top() -> Vector3:
+	return contents.to_global(Vector3(0, T + well_h, 0))
+
+
+## Opens a packed box to show the sorted insert: the lid swings up and the board and rulebook
+## lift out of the way. Closing puts everything back.
+func peek(open: bool, instant := false) -> void:
+	if open == peeking or not complete:
+		return
+	peeking = open
+	var lid_to := deg_to_rad(-105) if open else 0.0
+	var tops := contents.get_children().filter(func(n: Node): return n is Item and ((n as Item).kind == "board" or (n as Item).kind == "rules"))
+	if instant:
+		lid_pivot.rotation.x = lid_to
+	else:
+		var tw := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(lid_pivot, "rotation:x", lid_to, 0.45)
+	for k in tops.size():
+		var it: Item = tops[k]
+		if not it.has_meta("rest_pos"):
+			it.set_meta("rest_pos", it.position)
+			it.set_meta("rest_scale", it.visual.scale if it.visual else Vector3.ONE)
+		var rest_pos: Vector3 = it.get_meta("rest_pos")
+		var rest_scale: Vector3 = it.get_meta("rest_scale")
+		var up_pos := rest_pos + Vector3(0, 0.22 + k * 0.03, 0)
+		if instant:
+			it.position = up_pos if open else rest_pos
+			if it.visual:
+				it.visual.scale = Vector3.ZERO if open else rest_scale
+			it.visible = not open
+			continue
+		it.visible = true
+		var t := create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		t.tween_property(it, "position", up_pos if open else rest_pos, 0.35)
+		if it.visual:
+			t.tween_property(it.visual, "scale", Vector3.ZERO if open else rest_scale, 0.35)
+		if open:
+			t.chain().tween_callback(func(): it.visible = false)
 
 
 func shake() -> void:

@@ -135,7 +135,7 @@ void fragment() {
 	m.uv1_scale = Vector3(sc.x, sc.y, 1)
 	# Matte card stock, so a lamp overhead doesn't wash the printing out.
 	m.roughness = 0.85
-	m.specular = 0.2
+	m.metallic_specular = 0.2
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	if style == "neon":

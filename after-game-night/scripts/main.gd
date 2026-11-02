@@ -57,6 +57,18 @@ var _firefly_until := 0.0
 var _beams: Array = []
 var _spark_mat: StandardMaterial3D
 var _spark_mesh: SphereMesh
+var showcases := true          # fly the camera over each box as it's sorted
+var sorted_count := 0
+var _showcase_queue: Array = []
+var _showcasing := false
+var _skip_showcase := false
+var _show_cam: Camera3D
+var _touring := false
+var _tour_i := 0
+var _tour_home := {}           # box -> [parent, global transform, lid rotation]
+var _tour_stand: Node3D
+var _tour_yaw := 0.0
+var _tour_drag := false
 
 
 ## A height map over a play surface, so pieces pile on top of each other instead of overlapping.
@@ -154,6 +166,9 @@ func _ready() -> void:
 	hud.buy_pressed.connect(_buy)
 	_apply_upgrades()
 	hud.shop_closed.connect(func(): _toggle_shop(false))
+	hud.tour_pressed.connect(_tour_start)
+	hud.tour_step.connect(_tour_show_step)
+	hud.tour_done.connect(_tour_end)
 	_refresh_hud()
 	_update_tidy()
 	hud.show_title(true)
@@ -176,6 +191,7 @@ func _setup_input() -> void:
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"sprint": [KEY_SHIFT], "crouch": [KEY_C, KEY_CTRL], "interact": [KEY_E],
 		"throw": [KEY_Q], "hint": [KEY_H], "pause": [KEY_ESCAPE, KEY_P], "shop": [KEY_TAB, KEY_B],
+		"peek": [KEY_F],
 	}
 	for a in keys:
 		if not InputMap.has_action(a):
@@ -187,6 +203,14 @@ func _setup_input() -> void:
 
 
 func _unhandled_input(e: InputEvent) -> void:
+	if _touring:
+		_tour_input(e)
+		return
+	if _showcasing:
+		if (e is InputEventMouseButton and e.pressed) or e.is_action_pressed("interact") or e.is_action_pressed("pause"):
+			_skip_showcase = true
+			get_viewport().set_input_as_handled()
+		return
 	if not started or finished:
 		return
 	if e.is_action_pressed("shop") and not paused:
@@ -297,6 +321,7 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 		box.piece_landed.connect(_on_piece_landed)
 		box.compartment_filled.connect(_on_compartment_filled)
 		box.packed.connect(_on_box_packed)
+		box.sorted.connect(_on_box_sorted)
 		box.bounced.connect(_on_box_bounced)
 
 	# Lay the game out on its surface: boards first, then everything else on top and around.
@@ -519,6 +544,13 @@ func _on_prompt(text: String) -> void:
 
 
 func _on_player_acted(kind: String, data: Variant) -> void:
+	if kind == "peek":
+		var pb := data as GameBox
+		pb.peek(not pb.peeking)
+		sfx.at("thunk", pb.global_position, -8.0, 1.6)
+		if pb.peeking:
+			_sparkle(pb.insert_top(), 16, 0.6, Color("ffe7a8"))
+		return
 	match kind:
 		"pick":
 			var it := data as Item
@@ -604,6 +636,224 @@ func _on_box_packed(box: GameBox) -> void:
 	hud.toast("%s is packed. Take it to the shelf." % box.game_name, 3.0)
 	_refresh_hud()
 	_update_tidy()
+
+
+# ---------------------------------------------------------------- sorted! showcase
+
+func _on_box_sorted(box: GameBox) -> void:
+	sorted_count += 1
+	var reward := 2 + box.compartment_count() / 3
+	_earn(reward)
+	_light_up(box)
+	var bits := []
+	if box.piece_count() > 0:
+		bits.append("%d pieces" % box.piece_count())
+	if box.cards_in() > 0:
+		bits.append("%d cards" % box.cards_in())
+	var next := ""
+	if not box.complete:
+		next = "   ·   the board and rulebook go on top" if box.has_board else "   ·   the rulebook goes on top"
+	hud.banner("Sorted!", "%s   ·   %s, every one in its place   ·   +%d ✦%s" % [box.game_name, " and ".join(bits), reward, next], 3.0)
+	if not showcases:
+		return
+	_showcase_queue.append(box)
+	if not _showcasing:
+		_run_showcases()
+
+
+## Every tray lights up in a wave across the insert, with a rising run of notes and a warm glow.
+func _light_up(box: GameBox) -> void:
+	var pts := box.tray_points()
+	var right := box.global_basis.x
+	pts.sort_custom(func(a: Vector3, b: Vector3): return a.dot(right) < b.dot(right))
+	var glow := OmniLight3D.new()
+	glow.light_color = Color("ffd9a0")
+	glow.light_energy = 0.0
+	glow.omni_range = 1.1
+	glow.shadow_enabled = false
+	world.add_child(glow)
+	glow.global_position = box.insert_top() + Vector3(0, 0.35, 0)
+	var gt := glow.create_tween()
+	gt.tween_property(glow, "light_energy", 1.6, 0.5)
+	gt.tween_interval(2.2)
+	gt.tween_property(glow, "light_energy", 0.0, 1.0)
+	gt.tween_callback(glow.queue_free)
+	for i in pts.size():
+		var t := get_tree().create_timer(0.25 + i * 0.09)
+		var at: Vector3 = pts[i]
+		var k := i
+		t.timeout.connect(func():
+			_sparkle(at, 10, 0.45, Color("fff1c8"))
+			sfx.note(PENTA[mini(k, PENTA.size() - 1)], -14.0))
+	get_tree().create_timer(0.35 + pts.size() * 0.09).timeout.connect(func():
+		sfx.chord([PENTA[0], PENTA[4], PENTA[7], PENTA[9]], 0.07, -9.0))
+
+
+func _run_showcases() -> void:
+	_showcasing = true
+	while not _showcase_queue.is_empty():
+		var box: GameBox = _showcase_queue.pop_front()
+		if is_instance_valid(box) and not box.shelved:
+			await _showcase(box)
+	_showcasing = false
+
+
+## The camera floats up over the box and slowly drifts around it, so you can take in the sorted insert.
+## Click (or E, or Esc) to skip.
+func _showcase(box: GameBox) -> void:
+	_skip_showcase = false
+	var was_enabled := player.enabled
+	player.enabled = false
+	if _show_cam == null:
+		_show_cam = Camera3D.new()
+		_show_cam.fov = 50
+		_show_cam.near = 0.02
+		add_child(_show_cam)
+	var from := player.cam.global_transform
+	_show_cam.global_transform = from
+	_show_cam.current = true
+	var target := box.insert_top()
+	var side := player.global_position - box.global_position
+	side.y = 0
+	side = side.normalized() if side.length() > 0.1 else box.global_basis.z
+	var orbit := func(a: float) -> Transform3D:
+		var d := side.rotated(Vector3.UP, a)
+		var eye := target + d * 0.48 + Vector3(0, 0.66, 0)
+		return Transform3D(Basis.looking_at(target - eye, Vector3.UP), eye)
+	var t := 0.0
+	var fly_in := 0.8
+	var hold := 3.4
+	while t < fly_in + hold and not _skip_showcase:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		var a := lerpf(-0.22, 0.22, clampf((t - fly_in) / hold, 0.0, 1.0))
+		var goal: Transform3D = orbit.call(a)
+		var k := smoothstep(0.0, 1.0, clampf(t / fly_in, 0.0, 1.0))
+		_show_cam.global_transform = from.interpolate_with(goal, k)
+	# Glide back to the player's eyes.
+	var at := _show_cam.global_transform
+	t = 0.0
+	while t < 0.5:
+		await get_tree().process_frame
+		t += get_process_delta_time()
+		_show_cam.global_transform = at.interpolate_with(player.cam.global_transform, smoothstep(0.0, 1.0, t / 0.5))
+	player.cam.current = true
+	player.enabled = was_enabled and not finished
+
+
+# ---------------------------------------------------------------- collection tour
+
+## After everything's shelved: bring each box down to a lit stand, opened up, one at a time.
+func _tour_start() -> void:
+	if _touring:
+		return
+	_touring = true
+	hud.hide_end()
+	hud.show_tour(true)
+	if _tour_stand == null:
+		_tour_stand = Node3D.new()
+		world.add_child(_tour_stand)
+		_tour_stand.global_position = Vector3(0.6, 0.0, 3.3)
+		var wood := MeshKit.mat(Color("6b4026"), 0.5)
+		_tour_stand.add_child(MeshKit.mesh_node(MeshKit.cyl(0.62, 0.68, 0.05, 40), wood, Vector3(0, 0.025, 0)))
+		_tour_stand.add_child(MeshKit.mesh_node(MeshKit.cyl(0.12, 0.16, 0.6, 24), wood, Vector3(0, 0.35, 0)))
+		_tour_stand.add_child(MeshKit.mesh_node(MeshKit.cyl(0.58, 0.58, 0.04, 40), MeshKit.mat(Color("2c4a3a"), 0.9), Vector3(0, 0.67, 0)))
+		var spot := SpotLight3D.new()
+		spot.light_color = Color("ffe2b8")
+		spot.light_energy = 3.0
+		spot.spot_range = 3.0
+		spot.spot_angle = 28.0
+		spot.shadow_enabled = true
+		spot.position = Vector3(0.0, 2.1, 0.5)
+		_tour_stand.add_child(spot)
+		spot.look_at(_tour_stand.global_position + Vector3(0, 0.7, 0))
+	_tour_stand.show()
+	if _show_cam == null:
+		_show_cam = Camera3D.new()
+		_show_cam.fov = 50
+		_show_cam.near = 0.02
+		add_child(_show_cam)
+	_show_cam.current = true
+	_tour_i = 0
+	_tour_show(0)
+
+
+func _tour_order() -> Array:
+	var order := []
+	for slot in slots:
+		for b in slot.placed:
+			order.append(b)
+	for b in boxes:
+		if not order.has(b):
+			order.append(b)
+	return order
+
+
+func _tour_show_step(d: int) -> void:
+	_tour_show(d)
+
+
+func _tour_show(step: int) -> void:
+	var order := _tour_order()
+	var prev: GameBox = order[_tour_i] if _tour_home.has(order[_tour_i]) else null
+	if prev:
+		_tour_put_back(prev)
+	_tour_i = posmod(_tour_i + step, order.size())
+	var box: GameBox = order[_tour_i]
+	_tour_home[box] = box.global_transform
+	_tour_yaw = 0.0
+	box.global_transform = Transform3D(Basis(), _tour_stand.global_position + Vector3(0, 0.69, 0))
+	box.peek(true)
+	_sparkle(box.insert_top(), 24, 0.7, Color("ffe7a8"))
+	sfx.chord([PENTA[2], PENTA[4], PENTA[7]], 0.06, -12.0)
+	var bits := []
+	if box.piece_count() > 0:
+		bits.append("%d pieces" % box.piece_count())
+	if box.cards_in() > 0:
+		bits.append("%d cards" % box.cards_in())
+	bits.append("%d compartments" % box.compartment_count())
+	hud.set_tour(_tour_i, order.size(), box.game_name, "   ·   ".join(bits))
+	_tour_frame()
+
+
+func _tour_frame() -> void:
+	var box: GameBox = _tour_order()[_tour_i]
+	var target := box.insert_top()
+	var eye := target + Vector3(0, 0.72, 0.62).rotated(Vector3.UP, _tour_yaw)
+	_show_cam.global_transform = Transform3D(Basis.looking_at(target - eye + Vector3(0, 0.0, 0), Vector3.UP), eye)
+
+
+func _tour_put_back(box: GameBox) -> void:
+	box.peek(false, true)
+	box.global_transform = _tour_home[box]
+	_tour_home.erase(box)
+
+
+func _tour_input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo:
+		if e.physical_keycode == KEY_RIGHT or e.physical_keycode == KEY_D:
+			_tour_show(1)
+		elif e.physical_keycode == KEY_LEFT or e.physical_keycode == KEY_A:
+			_tour_show(-1)
+		elif e.is_action_pressed("pause"):
+			_tour_end()
+	elif e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+		_tour_drag = e.pressed
+	elif e is InputEventMouseMotion and _tour_drag:
+		_tour_yaw -= e.relative.x * 0.006
+		_tour_frame()
+
+
+func _tour_end() -> void:
+	if not _touring:
+		return
+	for b in _tour_home.keys():
+		_tour_put_back(b)
+	_touring = false
+	_tour_stand.hide()
+	hud.show_tour(false)
+	player.cam.current = true
+	hud.show_end(hud._end_stats.text)
 
 
 func _set_streak(n: int) -> void:
@@ -1689,6 +1939,8 @@ func _pack_all(b: GameBox) -> void:
 
 
 func _autotest() -> void:
+	showcases = false
+	GameBox.hold_open = 0.0
 	_start()
 	await get_tree().create_timer(3.0).timeout
 	var cards := 0
@@ -1813,7 +2065,22 @@ func _autotest() -> void:
 		if not wrong.place(b) and right.place(b):
 			wrong_ok += 1
 	print("boxes shelved correctly: ", wrong_ok, "/", boxes.size())
+	print("sorted moments: ", sorted_count, "/", boxes.size())
 	await get_tree().create_timer(2.5).timeout
+	# The collection tour brings every box down, opened, and puts each one back where it was.
+	var homes := boxes.map(func(b: GameBox): return b.global_position)
+	_tour_start()
+	var opened := 0
+	for i in boxes.size():
+		var shown: GameBox = _tour_order()[_tour_i]
+		await get_tree().create_timer(0.5).timeout
+		opened += 1 if shown.peeking and shown.global_position.distance_to(_tour_stand.global_position) < 1.0 else 0
+		_tour_show(1)
+	_tour_end()
+	var back := 0
+	for i in boxes.size():
+		back += 1 if boxes[i].global_position.distance_to(homes[i]) < 0.001 and not boxes[i].peeking else 0
+	print("collection tour: %d/%d shown open on the stand, %d/%d back on the shelf and closed" % [opened, boxes.size(), back, boxes.size()])
 	print("finished=", finished, " mixups=", mixups)
 	get_tree().quit()
 
@@ -1834,6 +2101,7 @@ func _screenshots() -> void:
 	var args := OS.get_cmdline_user_args()
 	var dir := args[args.find("--shot") + 1]
 	await get_tree().create_timer(3.0).timeout
+	showcases = false
 	_start()
 	hud.visible = false
 	var cam := Camera3D.new()
@@ -1853,7 +2121,13 @@ func _screenshots() -> void:
 	for b: GameBox in [wy, by_id.call("ccg/starter"), by_id.call("crowns/base")]:
 		_pack_pieces_and_cards(b)
 		print("half packed ", b.ed_id, " at ", Time.get_ticks_msec())
-	await get_tree().create_timer(2.5).timeout
+	await get_tree().create_timer(0.6).timeout
+	# The "sorted!" moment, from where the showcase camera hangs.
+	hud.visible = true
+	await _cam_at(cam, wy.insert_top() + Vector3(0, 0.66, 0.48), wy.insert_top())
+	await _shot(dir, "sorted_wyrm")
+	await get_tree().create_timer(3.0).timeout
+	hud.visible = false
 	await _cam_at(cam, wy.global_position + Vector3(0, 0.6, 0.45), wy.global_position)
 	await _shot(dir, "box_wyrm_cards")
 	var cg: GameBox = by_id.call("ccg/starter")
@@ -1883,6 +2157,15 @@ func _screenshots() -> void:
 	await _shot(dir, "shelf_games")
 	await _cam_at(cam, Vector3(3.2, 1.3, -3.1), Vector3(5.5, 1.0, -3.1))
 	await _shot(dir, "shelf_hobby")
+	# The collection tour on the end screen.
+	hud.visible = true
+	_tour_start()
+	await get_tree().create_timer(1.0).timeout
+	await _shot(dir, "tour_1")
+	_tour_show(3)
+	await get_tree().create_timer(1.0).timeout
+	await _shot(dir, "tour_2")
+	_tour_end()
 	get_tree().quit()
 
 

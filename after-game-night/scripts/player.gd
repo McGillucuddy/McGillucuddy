@@ -128,6 +128,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		_sweeping = false
 	elif e.is_action_pressed("throw"):
 		throw()
+	elif e.is_action_pressed("peek"):
+		var c: Variant = hovered
+		if c is GameBox and is_instance_valid(c) and (c as GameBox).complete and not (c as GameBox).shelved and not (c as GameBox).held:
+			acted.emit("peek", c)
 
 
 func _physics_process(dt: float) -> void:
@@ -250,7 +254,7 @@ func _update_hover() -> void:
 		if c is GameBox:
 			var b := c as GameBox
 			if b.can_pick():
-				text = "Pick up the %s box" % b.game_name
+				text = ("%s  ·  F  close the lid" % b.game_name) if b.peeking else ("Pick up the %s box  ·  F  peek inside" % b.game_name)
 				b.set_highlight(true)
 			elif not b.shelved:
 				text = "%s  ·  %d of %d put away" % [b.game_name, b.units, b.units_needed]
@@ -328,6 +332,8 @@ func primary() -> void:
 		return
 	if held == null:
 		if c is Item and (c as Item).can_pick():
+			if c is GameBox:
+				(c as GameBox).peek(false, true)
 			held = c as Item
 			held.on_pick()
 			acted.emit("pick", held)
