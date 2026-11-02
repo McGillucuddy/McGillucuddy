@@ -120,14 +120,16 @@ static func lathe(profile: Array, seg := 18) -> ArrayMesh:
 		for j in seg:
 			var a0 := TAU * j / seg
 			var a1 := TAU * (j + 1) / seg
-			var am := (a0 + a1) * 0.5
 			var v00 := Vector3(cos(a0) * p0.x, p0.y, sin(a0) * p0.x)
 			var v01 := Vector3(cos(a1) * p0.x, p0.y, sin(a1) * p0.x)
 			var v10 := Vector3(cos(a0) * p1.x, p1.y, sin(a0) * p1.x)
 			var v11 := Vector3(cos(a1) * p1.x, p1.y, sin(a1) * p1.x)
-			for v in [v00, v10, v11, v00, v11, v01]:
-				st.set_normal(Vector3(cos(am) * n2.x, n2.y, sin(am) * n2.x))
-				st.add_vertex(v)
+			# Normals follow each vertex round the axis, so turned shapes shade smoothly.
+			var n_a := Vector3(cos(a0) * n2.x, n2.y, sin(a0) * n2.x)
+			var n_b := Vector3(cos(a1) * n2.x, n2.y, sin(a1) * n2.x)
+			for e in [[v00, n_a], [v10, n_a], [v11, n_b], [v00, n_a], [v11, n_b], [v01, n_b]]:
+				st.set_normal(e[1])
+				st.add_vertex(e[0])
 	return st.commit()
 
 
@@ -989,16 +991,37 @@ static func die(type: String, c: Color, ink: Color, style: String) -> Array:
 ## A cube with softly rounded edges: the faces are inset and joined by bevels whose normals blend
 ## from one face to the next, so the edges catch the light like a real moulded die.
 static func rounded_cube(size: float, bevel: float) -> ArrayMesh:
+	return rounded_box(Vector3.ONE * size, bevel)
+
+
+static var _rounded := {}
+
+
+## A box with bevelled edges and corners, shaded smoothly round them, so furniture and walls
+## catch a highlight along every edge instead of looking cut from a block. Cached by size.
+static func rounded_box(size: Vector3, bevel: float) -> ArrayMesh:
+	var key := "%.4f,%.4f,%.4f,%.4f" % [size.x, size.y, size.z, bevel]
+	if _rounded.has(key):
+		return _rounded[key]
 	var h := size * 0.5
-	var k := h - bevel
+	var k := h - Vector3.ONE * bevel
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var polys := []
+	var pt := func(sgn: Vector3, flat: int) -> Vector3:
+		# The corner of the inset box, pushed out to the full size along one axis.
+		var p := Vector3(sgn.x * k.x, sgn.y * k.y, sgn.z * k.z)
+		p[flat] = sgn[flat] * h[flat]
+		return p
 	for ax in 3:
 		for sa in [-1.0, 1.0]:
 			var f := []
 			for c in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
-				f.append(_rc(ax, sa, c, h, k))
+				var sg := Vector3.ZERO
+				sg[ax] = sa
+				sg[(ax + 1) % 3] = c.x
+				sg[(ax + 2) % 3] = c.y
+				f.append(pt.call(sg, ax))
 			polys.append(f)
 	for ax in 3:
 		for bx in range(ax + 1, 3):
@@ -1007,22 +1030,23 @@ static func rounded_cube(size: float, bevel: float) -> ArrayMesh:
 				for sb in [-1.0, 1.0]:
 					var f := []
 					for t in [-1.0, 1.0]:
-						var p := Vector3.ZERO
-						p[ax] = sa * h
-						p[bx] = sb * k
-						p[third] = t * k
-						f.append(p)
+						var sg := Vector3.ZERO
+						sg[ax] = sa
+						sg[bx] = sb
+						sg[third] = t
+						f.append(pt.call(sg, ax))
 					for t in [1.0, -1.0]:
-						var p := Vector3.ZERO
-						p[ax] = sa * k
-						p[bx] = sb * h
-						p[third] = t * k
-						f.append(p)
+						var sg := Vector3.ZERO
+						sg[ax] = sa
+						sg[bx] = sb
+						sg[third] = t
+						f.append(pt.call(sg, bx))
 					polys.append(f)
 	for sx in [-1.0, 1.0]:
 		for sy in [-1.0, 1.0]:
 			for sz in [-1.0, 1.0]:
-				polys.append([Vector3(sx * h, sy * k, sz * k), Vector3(sx * k, sy * h, sz * k), Vector3(sx * k, sy * k, sz * h)])
+				var sg := Vector3(sx, sy, sz)
+				polys.append([pt.call(sg, 0), pt.call(sg, 1), pt.call(sg, 2)])
 	for f: Array in polys:
 		var n := _face_normal(f)
 		var a: Vector3 = f[0]
@@ -1031,22 +1055,52 @@ static func rounded_cube(size: float, bevel: float) -> ArrayMesh:
 			var c: Vector3 = f[i + 1]
 			var tri := [a, b, c] if (b - a).cross(c - a).dot(n) < 0.0 else [a, c, b]
 			for q: Vector3 in tri:
-				# The normal of a vertex is the face it sits on, so bevels shade smoothly.
+				# A vertex's normal is the face it sits on, so the bevels shade smoothly.
 				var vn := Vector3.ZERO
 				for ax in 3:
-					if absf(absf(q[ax]) - h) < 1e-6:
+					if absf(absf(q[ax]) - h[ax]) < 1e-6:
 						vn[ax] = signf(q[ax])
 				st.set_normal(vn.normalized())
 				st.add_vertex(q)
-	return st.commit()
+	var mesh := st.commit()
+	_rounded[key] = mesh
+	return mesh
 
 
-static func _rc(ax: int, sa: float, c: Vector2, h: float, k: float) -> Vector3:
-	var p := Vector3.ZERO
-	p[ax] = sa * h
-	p[(ax + 1) % 3] = c.x * k
-	p[(ax + 2) % 3] = c.y * k
-	return p
+static var _leaves := {}
+
+
+## One leaf: a tapered blade folded along its midrib and drooping towards the tip.
+## It grows along +z from the origin. Both sides are drawn.
+static func leaf_mesh(length: float, width: float, droop := 0.3) -> ArrayMesh:
+	var key := "%.3f,%.3f,%.2f" % [length, width, droop]
+	if _leaves.has(key):
+		return _leaves[key]
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var segs := 10
+	var rows := []
+	for i in segs + 1:
+		var t := float(i) / segs
+		var w := width * 0.5 * pow(sin(PI * clampf(t * 0.92 + 0.04, 0.0, 1.0)), 0.75)
+		var y := -droop * length * t * t
+		var fold := w * 0.35
+		rows.append([Vector3(-w, y - fold, t * length), Vector3(0, y, t * length), Vector3(w, y - fold, t * length)])
+	for i in segs:
+		var a: Array = rows[i]
+		var b: Array = rows[i + 1]
+		for side in 2:
+			var p0: Vector3 = a[side]
+			var p1: Vector3 = a[side + 1]
+			var q0: Vector3 = b[side]
+			var q1: Vector3 = b[side + 1]
+			for tri in [[p0, q0, p1], [p1, q0, q1]]:
+				for v: Vector3 in tri:
+					st.add_vertex(v)
+	st.generate_normals()
+	var mesh := st.commit()
+	_leaves[key] = mesh
+	return mesh
 
 
 ## Flat textured squares lying on a surface: [centre, normal, up, size, uv rect] each.
