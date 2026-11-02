@@ -8,6 +8,8 @@ const STRAY_CHANCE := 0.08
 const VOLUME := 3.0
 ## Share of each game that has spilled onto the floor beside its table.
 const SPILL := 0.22
+## Share of card piles left face up (hands are always face up).
+const FACE_UP := 0.7
 const PIECE_SCALE := 0.9
 const CARD_SCALE := 1.0
 ## Which surface each game line is played on.
@@ -45,6 +47,7 @@ var streak := 0
 var _last_sort_ms := 0
 var _tidy_step := 0
 var tokens := 0
+var faces_root: Node
 var levels := {}
 var _beacons := {}
 var _beacon_t := 0.0
@@ -111,6 +114,9 @@ func _ready() -> void:
 	_build_extra_lights()
 	_build_hobby_nook()
 
+	faces_root = Node.new()
+	faces_root.name = "CardFaces"
+	add_child(faces_root)
 	pieces = Pieces.new()
 	add_child(pieces)
 	pieces.clacked.connect(_on_piece_clack)
@@ -158,6 +164,8 @@ func _ready() -> void:
 		_autotest()
 	elif "--shot" in args:
 		_screenshots()
+	elif "--map" in args:
+		_render_map(args[args.find("--map") + 1])
 
 
 # ---------------------------------------------------------------- input
@@ -249,10 +257,14 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 			var left := total
 			var piles := 0
 			while left > 0:
-				var n := mini(left, rng.randi_range(4, 6) if rng.randf() < 0.18 else rng.randi_range(12, 48))
+				# A mix of fanned hands, face-up spreads and draw piles.
+				var roll := rng.randf()
+				var mode := "fan" if roll < 0.3 else ("spread" if roll < 0.55 else "stack")
+				var n := mini(left, {"fan": rng.randi_range(4, 6), "spread": rng.randi_range(6, 10), "stack": rng.randi_range(12, 48)}[mode])
 				if left - n < 4:
 					n = left
-				card_items.append(_make_cards(ed_key, ed_name, back, stripe, set_name, n, n <= 6, back_style))
+					mode = "stack" if n > 10 else mode
+				card_items.append(_make_cards(ed_key, ed_name, back, stripe, set_name, n, mode, back_style, line.id))
 				left -= n
 				piles += 1
 			card_piles[set_name] = {"cards": total, "piles": piles, "stripe": stripe}
@@ -436,7 +448,7 @@ func _put_item(it: Item, spot: Dictionary, at: Vector3, yaw: float) -> void:
 		it.clacked.connect(_on_clack)
 
 
-func _make_cards(ed_key: String, ed_name: String, c: Color, stripe: Color, set_name: String, n: int, fanned: bool, back_style := "") -> Item:
+func _make_cards(ed_key: String, ed_name: String, c: Color, stripe: Color, set_name: String, n: int, mode: String, back_style := "", line_id := "") -> Item:
 	var it := Item.new()
 	it.game_id = ed_key
 	it.kind = "cards"
@@ -446,7 +458,20 @@ func _make_cards(ed_key: String, ed_name: String, c: Color, stripe: Color, set_n
 	it.card_style = back_style
 	it.card_back = c
 	it.label = "%d %s cards (%s)" % [n, set_name, ed_name]
-	_attach(it, MeshKit.card_hand(c, n, stripe, back_style) if fanned else MeshKit.card_stack(c, n, stripe, back_style), CARD_SCALE)
+	# Card fronts: hands lie face up, and most piles show their top card, so you can see the cards
+	# just by looking around the room.
+	it.card_faces = FaceKit.faces(faces_root, line_id, set_name, c, stripe, back_style)
+	if mode != "stack" or rng.randf() < FACE_UP:
+		it.card_top_face = it.card_faces[rng.randi_range(0, it.card_faces.size() - 1)]
+	var parts: Array
+	match mode:
+		"fan":
+			parts = MeshKit.card_hand(c, n, stripe, back_style, it.card_faces)
+		"spread":
+			parts = MeshKit.card_spread(n, it.card_faces)
+		_:
+			parts = MeshKit.card_stack(c, n, stripe, back_style, it.card_top_face)
+	_attach(it, parts, CARD_SCALE)
 	it.mass = 0.02 + n * 0.002
 	return it
 
@@ -1798,30 +1823,61 @@ func _screenshots() -> void:
 	await get_tree().create_timer(3.0).timeout
 	_start()
 	hud.toast("", 0.0)
-	# Open cases along the front wall of the hobby nook.
-	await _view(Vector3(-2.2, 0.05, 6.15), PI, -0.55)
-	await _shot(dir, "cases_open_left")
-	await _view(Vector3(2.6, 0.05, 6.15), PI, -0.55)
-	await _shot(dir, "cases_open_right")
-	# Pack and shelve everything, then look at the closed boxes on both shelves.
-	for b in boxes:
-		_pack_all(b)
-	await get_tree().create_timer(6.0).timeout
-	# Close-ups of closed lids before they go on the shelf.
 	hud.get_child(0).hide()
-	for id in ["crowns/base", "plum/base", "wyrm/vault", "honey/base", "harbor/storm", "atlas/base"]:
-		var bx: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == id)[0]
-		var fwd := bx.global_transform.basis.z
-		await _view(bx.global_position + fwd * 0.62 + Vector3(0, -0.45, 0), atan2(fwd.x, fwd.z), -0.95)
-		await _shot(dir, "lid_" + id.replace("/", "_"))
-	for b in boxes:
-		for s in slots:
-			if s.place(b):
-				break
-	await get_tree().create_timer(1.5).timeout
-	hud.show_end("")
-	await _view(Vector3(-0.9, 0.05, -2.9), 0.25, -0.12)
-	await _shot(dir, "game_shelf")
-	await _view(Vector3(3.6, 0.05, -3.1), -PI / 2, -0.12)
-	await _shot(dir, "hobby_shelf")
+	await _view(Vector3(-3.0, 0.05, -0.6), 0.0, -0.95)
+	await _shot(dir, "cards_dining")
+	await _view(Vector3(0.9, 0.05, 5.0), PI, -1.05)
+	await _shot(dir, "cards_ccg")
+	await _view(Vector3(-1.6, 0.05, 4.95), PI, -1.0)
+	await _shot(dir, "cards_poker")
+	await _view(Vector3(0.55, 0.05, 1.75), 0.0, -1.05)
+	await _shot(dir, "cards_rpg")
+	get_tree().quit()
+
+
+
+## A labelled top-down plan of the room, for documentation.
+func _render_map(dir: String) -> void:
+	await get_tree().create_timer(3.0).timeout
+	hud.visible = false
+	var cam := Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = 13.4
+	cam.near = 0.05
+	cam.far = 6.0
+	# Just below the lamps, so the ceiling, beams and pendants don't hide the room.
+	cam.position = Vector3(0, 1.98, 1.3)
+	cam.rotation = Vector3(-PI / 2, 0, 0)
+	add_child(cam)
+	cam.current = true
+	var font: Font = load("res://fonts/righteous-latin-400-normal.woff2")
+	var tags := [
+		["GAME SHELF", Vector3(0, 0, -4.25), 0.0], ["HOBBY SHELF", Vector3(5.2, 0, -3.1), PI / 2],
+		["Plum Parlor\ndining table", Vector3(-3.0, 0, -1.5), 0.0], ["Mossy Crowns\non the rug", Vector3(-2.4, 0, 2.5), 0.0],
+		["Starfall Atlas\ngame table", Vector3(0.4, 0, -2.3), 0.0], ["Lantern Harbor\ncard table", Vector3(3.6, 0, -2.6), 0.0],
+		["Honeycomb Hustle\ncoffee table", Vector3(3.0, 0, 1.0), 0.0], ["Orchard Hollow\nwindow seat", Vector3(-5.2, 0, 0.5), 0.0],
+		["Wyrmlight Tales\nround table", Vector3(0.55, 0, 0.75), 0.0], ["Dice Hoard\nottoman", Vector3(4.72, 0, 0.35), 0.0],
+		["Velvet Card Room\npoker table", Vector3(-1.6, 0, 5.75), 0.0], ["Prismatic Legends\ncard table", Vector3(0.9, 0, 5.75), 0.0],
+		["Crystal Caverns\ncurio", Vector3(3.3, 0, 5.75), 0.0], ["Marble Jar\nring", Vector3(5.0, 0, 5.75), 0.0],
+		["Brushwork Hobby\nhobby desk", Vector3(-4.6, 0, 5.75), 0.0],
+		["FIREPLACE", Vector3(5.75, 0, 0.2), PI / 2], ["COUCH", Vector3(3.0, 0, 3.0), 0.0], ["WINDOW", Vector3(-5.85, 0, 1.9), PI / 2],
+		["★ START", Vector3(0.6, 0, 3.9), 0.0], ["HOBBY NOOK", Vector3(0.0, 0, 4.75), 0.0],
+	]
+	for t in tags:
+		var l := Label3D.new()
+		l.text = String(t[0]).replace("\\n", "\n")
+		l.font = font
+		l.font_size = 64
+		l.pixel_size = 0.0042
+		l.modulate = Color("fff1de") if not String(t[0]).begins_with("★") else Color("f3c860")
+		l.outline_size = 22
+		l.outline_modulate = Color("1a0f0a")
+		l.no_depth_test = true
+		l.rotation = Vector3(-PI / 2, t[2], 0)
+		l.position = (t[1] as Vector3) + Vector3(0, 1.9, 0)
+		world.add_child(l)
+	for i in 2:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(dir + "/map.png")
 	get_tree().quit()

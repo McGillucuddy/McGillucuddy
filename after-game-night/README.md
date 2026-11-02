@@ -51,6 +51,19 @@ Board games come in traditional boxes: a deep lid that slides over the base, ill
 
 The logo fonts are open-source (SIL Open Font License) and bundled in `fonts/`, with their licenses in `fonts/licenses/`: Cinzel Decorative, Lobster, Audiowide, Alfa Slab One, Bungee, Rye, MedievalSharp and Righteous. Logos are styled in `scripts/logo_kit.gd`; the cases are built in `scripts/case_kit.gd`.
 
+### Cards you can see
+
+Every card set has its own printed fronts: a frame in the set's colour, a named title bar, an illustrated art window, a type line, rules text and a cost gem. Casino decks have real playing-card faces, holofoils shimmer over their art and neon cards glow. On the tables, hands are fanned face up, some piles are dealt out in face-up rows, and most draw piles show their top card, so you can see what's what just by looking around. Faces are drawn in `scripts/face_kit.gd`.
+
+### Catalogue and map renders
+
+`tools/gallery.gd` renders a sheet of every model and card set per game line, and `-- --map <dir>` renders a labelled top-down plan of the room:
+
+```
+godot --path . --resolution 1600x900 --script res://tools/gallery.gd -- <out_dir>
+godot --path . --resolution 1300x1400 -- --map <out_dir>
+```
+
 ### Tidy Tokens and the Tool Chest
 
 You earn Tidy Tokens (✦) as you sort:

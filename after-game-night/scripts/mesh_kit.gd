@@ -3,7 +3,7 @@ extends RefCounted
 ## Builds every model in the game from code: pieces, cards, boards, rulebooks, textures and materials.
 
 const BOARD_SIZE := 0.5
-const CARD := Vector3(0.075, 0.0012, 0.105)
+const CARD := Vector3(0.075, 0.0006, 0.105)
 
 static var _mats := {}
 
@@ -502,6 +502,16 @@ static func _pips(n: int) -> Array:
 
 # ---------------------------------------------------------------- cards and books
 
+## A single card face up: plain white card stock with a printed face on top.
+static func _face_card(face: Material) -> Node3D:
+	var n := Node3D.new()
+	n.add_child(mesh_node(box(CARD), mat(Color("fbf1e1"), 0.6)))
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(CARD.x - 0.002, CARD.z - 0.002)
+	n.add_child(mesh_node(plane, face, Vector3(0, CARD.y / 2 + 0.0002, 0)))
+	return n
+
+
 static func _card(c: Color, stripe: Color, style := "") -> Node3D:
 	var n := Node3D.new()
 	if style == "neon":
@@ -528,28 +538,42 @@ static func _card(c: Color, stripe: Color, style := "") -> Node3D:
 	return n
 
 
-## A fanned hand of cards, the way a player leaves them face down on the table.
-static func card_hand(c: Color, count: int, stripe: Color, style := "") -> Array:
+## A fanned hand of cards. With faces, it's laid down face up so you can see every card.
+static func card_hand(c: Color, count: int, stripe: Color, style := "", faces: Array = []) -> Array:
 	var v := Node3D.new()
 	for i in count:
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, i * 0.0022, 0.035)
 		pivot.rotation.y = (i - (count - 1) / 2.0) * 0.26
-		var card := _card(c, stripe, style)
+		var card := _face_card(faces[(i * 3) % faces.size()]) if not faces.is_empty() else _card(c, stripe, style)
 		card.position = Vector3(0, 0, -0.04)
 		pivot.add_child(card)
 		v.add_child(pivot)
 	return [v, _box_shape(Vector3(0.12, 0.004 + count * 0.0022, 0.11)), Vector3(0, count * 0.001, -0.005), Vector3.ZERO]
 
 
+## Cards dealt out in an overlapping row, face up, like a tableau mid-game.
+static func card_spread(count: int, faces: Array) -> Array:
+	var v := Node3D.new()
+	var step := 0.034
+	var w := step * (count - 1) + CARD.x
+	for i in count:
+		var card := _face_card(faces[(i * 5) % faces.size()])
+		card.position = Vector3(-w / 2 + CARD.x / 2 + i * step, i * 0.0009, 0)
+		card.rotation.y = (i % 2) * 0.03 - 0.015
+		v.add_child(card)
+	return [v, _box_shape(Vector3(w, 0.004 + count * 0.0009, CARD.z)), Vector3(0, count * 0.00045, 0), Vector3.ZERO]
+
+
 ## A neat stack of cards: a draw pile, or how cards sit once they're put away.
-static func card_stack(c: Color, count: int, stripe: Color, style := "") -> Array:
+## Given a face, the top card is turned face up.
+static func card_stack(c: Color, count: int, stripe: Color, style := "", face: Material = null) -> Array:
 	var v := Node3D.new()
 	var h := count * CARD.y
 	v.add_child(mesh_node(box(Vector3(CARD.x, h, CARD.z)), mat(Color("f4ead8"), 0.7), Vector3(0, h / 2, 0)))
 	# Stripes down the side of the stack so you can tell sets apart from any angle.
 	v.add_child(mesh_node(box(Vector3(CARD.x + 0.001, h * 0.9, 0.012)), mat(stripe.darkened(0.15), 0.6), Vector3(0, h / 2, -0.036)))
-	var top := _card(c, stripe, style)
+	var top := _face_card(face) if face else _card(c, stripe, style)
 	top.position = Vector3(0, h, 0)
 	v.add_child(top)
 	return [v, _box_shape(Vector3(CARD.x, h + 0.002, CARD.z)), Vector3(0, h / 2, 0), Vector3.ZERO]

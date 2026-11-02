@@ -476,7 +476,7 @@ func try_accept(item: Item) -> String:
 					break
 			for c in item.visual.get_children():
 				c.queue_free()
-			item.visual.add_child(MeshKit.card_stack(item.card_back, item.card_count, item.card_stripe, item.card_style)[0])
+			item.visual.add_child(MeshKit.card_stack(item.card_back, item.card_count, item.card_stripe, item.card_style, item.card_top_face)[0])
 			item.visual.scale = Vector3.ONE * item.base_scale
 			target_pos = stack.pos + Vector3(0, stack.cards * MeshKit.CARD.y * tray.scale, 0)
 			target_rot = Vector3(0, randf_range(-0.04, 0.04), 0)

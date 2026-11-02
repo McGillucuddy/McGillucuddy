@@ -15,6 +15,8 @@ var card_set := ""
 var card_stripe := Color.WHITE
 var card_style := ""
 var card_back := Color.WHITE
+var card_faces: Array = []   # the set's face materials
+var card_top_face: Material  # face showing on top of the pile, if face up
 var piece_type := ""
 var label := ""
 var held := false
