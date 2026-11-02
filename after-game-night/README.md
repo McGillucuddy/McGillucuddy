@@ -47,6 +47,18 @@ Each line was played with its expansions mixed in, so the pieces from every box 
 - **Pour:** pieces hop over the rim and drop into their spots one after another, each with a woody click, rising notes and little glints.
 - **Card piles:** pick up one pile, then click more piles to carry up to eight at once. They sift into boxes the same way.
 
+### Seeing your sorting
+
+- **Sorted!** When the last piece or card pile lands, the camera floats up over the box and slowly drifts around it.
+  - Every compartment and card tray lights up in a wave across the insert, with a rising run of notes and a warm glow.
+  - A banner shows how many pieces and cards are in place, and you earn Tidy Tokens.
+  - Click to skip. Then the board and rulebook go on top and the lid closes.
+- **Peek:** look at any packed box that isn't shelved yet and press F. The lid swings open and the board and rulebook lift out of the way so you can see the insert again. Press F again to close it.
+- **Your collection:** when everything's shelved, choose *See your collection* on the end screen.
+  - Each box comes down to a lit display stand, opened up, with its piece, card and compartment counts.
+  - Browse with the arrow keys or the buttons, drag to turn the view, and press Esc when you're done.
+  - Every box goes back on the shelf as it was.
+
 ### Boxes and cases
 
 Board games come in traditional boxes: a deep lid that slides over the base, with the whole lid printed as one image. The illustrated lid art and the game's logo are rendered together into the lid, so the title is part of the print and doesn't sit on top. The front edge is printed the same way. Each game has its own display typeface, a backing plate (ribbon, cartouche, plaque, hanging sign or honeycomb badge), a drop shadow, a thick outline and a bevel highlight; some titles arch. Collections get proper cases instead: a brass-cornered dice vault with an engraved brass plate, an aluminum chip case with a stamped plate, a glossy deck vault with a printed logo strip, a glass-topped marble display case with a brass plaque, and a leather-strapped paint chest with a stencilled name. Rulebook covers and the shelf labels are printed the same way.
@@ -128,6 +140,7 @@ All the boxes in a line share a footprint, so they stack together in that line's
 | 1 to 4 / mouse wheel | Switch tools |
 | Tab | Open the Tool Chest |
 | Right click / Q | Toss what you're holding (pieces scatter) |
+| F | Peek inside a packed box (lid opens, board and rulebook lift aside) |
 | H | Hint: an arrow points at something that can go in next |
 | Esc / P | Pause |
 
