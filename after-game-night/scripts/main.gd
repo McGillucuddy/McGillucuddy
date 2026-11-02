@@ -1100,7 +1100,7 @@ func _build_environment() -> void:
 	env.glow_intensity = 0.9
 	env.glow_strength = 1.1
 	env.glow_bloom = 0.06
-	env.glow_hdr_threshold = 0.95
+	env.glow_hdr_threshold = 1.25
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
 	env.ssao_enabled = true
 	env.ssao_radius = 0.7
@@ -1389,7 +1389,7 @@ func _build_decor() -> void:
 	pend.position = Vector3(-3.0, 2.25, -1.5)
 	pend.rotation.x = -PI / 2
 	pend.light_color = Color(1.0, 0.72, 0.45)
-	pend.light_energy = 4.0
+	pend.light_energy = 2.7
 	pend.spot_range = 4.0
 	pend.spot_angle = 52.0
 	pend.spot_attenuation = 0.8
@@ -1464,7 +1464,7 @@ func _build_rpg_corner() -> void:
 	lamp.position = Vector3(0.55, 2.1, 0.75)
 	lamp.rotation.x = -PI / 2
 	lamp.light_color = Color(1.0, 0.7, 0.42)
-	lamp.light_energy = 4.0
+	lamp.light_energy = 2.8
 	lamp.spot_range = 3.0
 	lamp.spot_angle = 40.0
 	lamp.shadow_enabled = true
@@ -1489,7 +1489,7 @@ func _build_extra_lights() -> void:
 	spot.position = Vector3(0.4, 2.06, -2.3)
 	spot.rotation.x = -PI / 2
 	spot.light_color = Color(1.0, 0.72, 0.45)
-	spot.light_energy = 5.0
+	spot.light_energy = 3.3
 	spot.spot_range = 3.5
 	spot.spot_angle = 50.0
 	spot.shadow_enabled = true
