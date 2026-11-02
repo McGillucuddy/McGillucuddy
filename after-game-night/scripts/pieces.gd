@@ -49,7 +49,7 @@ var _outline_mat: StandardMaterial3D
 var _hidden := Transform3D(Basis.from_scale(Vector3.ZERO), Vector3(0, -50, 0))
 
 
-func make_group(line: String, ed: String, ed_name: String, type: String, body: Color, accent: Color, scale: float) -> Group:
+func make_group(line: String, ed: String, ed_name: String, type: String, body: Color, accent: Color, scale: float, style := "") -> Group:
 	var key := ed + "/" + type
 	if groups.has(key):
 		return groups[key]
@@ -59,7 +59,7 @@ func make_group(line: String, ed: String, ed_name: String, type: String, body: C
 	g.ed = ed
 	g.ed_name = ed_name
 	g.type = type
-	var parts := MeshKit.piece(type, body, accent)
+	var parts := MeshKit.piece(type, body, accent, style)
 	var v: Node3D = parts[0]
 	g.mesh = MeshKit.bake(v, scale)
 	g.shape = MeshKit.scaled_shape(parts[1], scale)
@@ -153,7 +153,7 @@ func piece_at(rid: RID) -> P:
 
 
 ## The clicked piece plus nearby loose pieces of the exact same kind, closest first.
-func handful(p: P, radius := 0.32) -> Array:
+func handful(p: P, radius := 0.32, cap := -1) -> Array:
 	var near := []
 	var o := p.xf.origin
 	for q: P in p.g.members:
@@ -162,7 +162,23 @@ func handful(p: P, radius := 0.32) -> Array:
 	near.sort_custom(func(a: P, b: P): return a.xf.origin.distance_squared_to(o) < b.xf.origin.distance_squared_to(o))
 	if not near.has(p):
 		near.push_front(p)
-	return near.slice(0, p.g.handful)
+	return near.slice(0, p.g.handful if cap < 0 else cap)
+
+
+## Every loose piece of any kind within a radius of a point, closest first (for the dustpan).
+func in_radius(point: Vector3, radius: float, cap: int) -> Array:
+	var near := []
+	var r2 := radius * radius
+	for q: P in all:
+		if q.state == LOOSE and q.xf.origin.distance_squared_to(point) < r2:
+			near.append(q)
+	near.sort_custom(func(a: P, b: P): return a.xf.origin.distance_squared_to(point) < b.xf.origin.distance_squared_to(point))
+	return near.slice(0, cap)
+
+
+## Loose pieces that belong in a given edition's box.
+func loose_for(ed: String) -> Array:
+	return all.filter(func(q: P): return q.g.ed == ed and (q.state == LOOSE or q.state == PHYS))
 
 
 func loose_count(g: Group) -> int:

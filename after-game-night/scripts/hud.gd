@@ -6,6 +6,7 @@ signal start_pressed
 signal resume_pressed
 signal restart_pressed
 signal quit_pressed
+signal tool_changed(i: int)
 
 const HONEY := Color("f3b648")
 const CREAM := Color("fff1de")
@@ -29,6 +30,7 @@ var _tidy_track: Control
 var _streak: Label
 var _streak_tw: Tween
 var _tidy_shown := 0.0
+var _toolbar: HBoxContainer
 
 
 class Crosshair extends Control:
@@ -127,6 +129,12 @@ func _ready() -> void:
 	lv.add_child(_list)
 
 	_build_meters(root)
+	_toolbar = HBoxContainer.new()
+	_toolbar.anchor_top = 1; _toolbar.anchor_bottom = 1
+	_toolbar.offset_left = 22; _toolbar.offset_top = -78; _toolbar.offset_bottom = -22
+	_toolbar.add_theme_constant_override("separation", 8)
+	_toolbar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(_toolbar)
 
 	_title = _overlay(root, "After Game Night",
 		"Everyone's gone home and the games are everywhere.\nPut every piece back in its own box, then shelve the boxes.",
@@ -346,3 +354,28 @@ func set_streak(n: int) -> void:
 	_streak_tw.tween_property(_streak, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_streak_tw.tween_interval(2.5)
 	_streak_tw.tween_property(_streak, "modulate:a", 0.0, 0.8)
+
+
+# ---------------------------------------------------------------- tool belt
+
+func set_tools(defs: Array, unlocked: Array, active: int) -> void:
+	for c in _toolbar.get_children():
+		c.queue_free()
+	for i in defs.size():
+		var on: bool = unlocked[i]
+		var p := _panel(Color(HONEY, 0.95) if i == active else PANEL)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 0)
+		v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var k := Label.new()
+		k.text = str(i + 1)
+		k.add_theme_font_size_override("font_size", 12)
+		k.add_theme_color_override("font_color", Color("3b2630") if i == active else DIM)
+		v.add_child(k)
+		var n := Label.new()
+		n.text = defs[i][0] if on else "Locked  (%d%% tidy)" % int(round(defs[i][1] * 100.0))
+		n.add_theme_font_size_override("font_size", 16)
+		n.add_theme_color_override("font_color", Color("3b2630") if i == active else (CREAM if on else DIM))
+		v.add_child(n)
+		p.add_child(v)
+		_toolbar.add_child(p)

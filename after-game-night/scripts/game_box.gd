@@ -34,6 +34,7 @@ var lid_closed := false
 var shelved := false
 var board_in := false
 var has_board := false
+var has_rules := true
 var contents: Node3D
 var lid_pivot: Node3D
 
@@ -109,7 +110,7 @@ func setup(line: Dictionary, ed: Dictionary, ed_idx: int, groups: Array, card_pi
 	line_id = line.id
 	ed_id = "%s/%s" % [line.id, ed.id]
 	game_name = GameData.full_name(line, ed)
-	var style := GameData.edition_style(line.color, ed_idx)
+	var style := GameData.edition_style(line.color, ed_idx, ed)
 	color = style.body
 	trim_color = style.trim
 	kind = "box"
@@ -117,6 +118,7 @@ func setup(line: Dictionary, ed: Dictionary, ed_idx: int, groups: Array, card_pi
 	game_id = ed_id
 	mass = 0.9
 	has_board = ed.board
+	has_rules = ed.get("rules", true)
 	well_h = lay.wh
 	H = T + well_h + TOP_SPACE
 	D = depth + 2 * T
@@ -131,8 +133,8 @@ func setup(line: Dictionary, ed: Dictionary, ed_idx: int, groups: Array, card_pi
 		units_needed += info.cards
 		items_needed += info.piles
 		_card_piles_left += info.piles
-	units_needed += 1 + (1 if has_board else 0)
-	items_needed += 1 + (1 if has_board else 0)
+	units_needed += (1 if has_rules else 0) + (1 if has_board else 0)
+	items_needed += (1 if has_rules else 0) + (1 if has_board else 0)
 
 	_build_shell(ed_idx)
 	_build_insert(lay, depth, groups, card_piles)

@@ -11,7 +11,9 @@ const SPILL := 0.22
 const PIECE_SCALE := 0.9
 const CARD_SCALE := 1.0
 ## Which surface each game line is played on.
-const PLAYED_ON := {"crowns": "rug", "plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench"}
+const PLAYED_ON := {"crowns": "rug", "plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench", "wyrm": "round", "hoard": "ottoman"}
+## Tools unlock as the room gets tidier: [name, share of the room tidied].
+const TOOL_UNLOCKS := [["Hands", 0.0], ["Seeker Lantern", 0.0], ["Dustpan", 0.02], ["Magnet", 0.06]]
 
 var player: Player
 var hud: Hud
@@ -40,6 +42,10 @@ var _last_note_ms := 0
 var streak := 0
 var _last_sort_ms := 0
 var _tidy_step := 0
+var _fireflies: MultiMeshInstance3D
+var _firefly_targets: Array = []
+var _firefly_until := 0.0
+var _beams: Array = []
 var _spark_mat: StandardMaterial3D
 var _spark_mesh: SphereMesh
 
@@ -125,6 +131,9 @@ func _ready() -> void:
 	hud.resume_pressed.connect(func(): _set_paused(false))
 	hud.restart_pressed.connect(_restart)
 	hud.quit_pressed.connect(func(): get_tree().quit())
+	hud.tool_changed.connect(func(i): player.set_tool(i))
+	player.tool_changed.connect(func(i): hud.set_tools(TOOL_UNLOCKS, player.unlocked, i))
+	hud.set_tools(TOOL_UNLOCKS, player.unlocked, 0)
 	_refresh_hud()
 	_update_tidy()
 	hud.show_title(true)
@@ -195,13 +204,13 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 	var depth := 0.3
 	for ei in line.editions.size():
 		var ed: Dictionary = line.editions[ei]
-		var style := GameData.edition_style(line.color, ei)
+		var style := GameData.edition_style(line.color, ei, ed)
 		var ed_key := "%s/%s" % [line.id, ed.id]
 		var ed_name := GameData.full_name(line, ed)
 		var groups := []
 		var where := {}
 		for part in ed.parts:
-			var g := pieces.make_group(line.id, ed_key, ed_name, part[0], style.body, style.accent, PIECE_SCALE)
+			var g := pieces.make_group(line.id, ed_key, ed_name, part[0], style.body, style.accent, PIECE_SCALE, style.get("style", ""))
 			groups.append(g)
 			where[g.key] = part[2]
 			for n in int(round(part[1] * VOLUME)):
@@ -229,7 +238,9 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 			entries.append({"key": "cards:" + set_name, "cards": card_piles[set_name].cards})
 		var lay := GameBox.plan(entries)
 		depth = maxf(depth, lay.depth)
-		var extra: Array[Item] = [_make_rules(ed_key, ed_name, style.body)]
+		var extra: Array[Item] = []
+		if ed.get("rules", true):
+			extra.append(_make_rules(ed_key, ed_name, style.body))
 		if ed.board:
 			extra.append(_make_board(ed_key, ed_name, style.body))
 		plans.append({"ed": ed, "ei": ei, "groups": groups, "where": where, "card_piles": card_piles,
@@ -468,6 +479,15 @@ func _on_player_acted(kind: String, data: Variant) -> void:
 			_float_text(box.global_position + Vector3(0, box.H + 0.15, 0), "+%d" % d.n if kind == "poured" else "+%d" % d.n)
 			if d.left > 0:
 				hud.toast("%d left in your hand belong somewhere else." % d.left, 1.6)
+		"seek_box":
+			_seek_box(data as GameBox)
+		"seek_for":
+			_seek_home(data)
+		"magnet":
+			var n: int = data
+			for i in mini(n, 10):
+				sfx.ui("tick", -11.0, 1.4 + i * 0.05, i * 0.03)
+			sfx.ui("note", -16.0, 2.0, 0.0)
 		"wrong_box":
 			var b := data as GameBox
 			mixups += 1
@@ -544,6 +564,13 @@ func _update_tidy() -> void:
 		un += b.units_needed
 	var frac := float(u) / maxf(1.0, un)
 	hud.set_tidy(frac)
+	for i in TOOL_UNLOCKS.size():
+		if not player.unlocked[i] and frac >= TOOL_UNLOCKS[i][1]:
+			player.unlocked[i] = true
+			if started:
+				sfx.chord([PENTA[4], PENTA[6], PENTA[9]], 0.08, -8.0, 0.3)
+				hud.toast("New tool: %s. Press %d to use it." % [TOOL_UNLOCKS[i][0], i + 1], 3.5)
+			hud.set_tools(TOOL_UNLOCKS, player.unlocked, player.tool)
 	var step := int(frac * 10.0)
 	if step > _tidy_step:
 		_tidy_step = step
@@ -726,6 +753,7 @@ func _process(_dt: float) -> void:
 	for f in _flames:
 		var n := _noise.get_noise_1d(t * 3.0 + f.seed)
 		f.node.scale = Vector3(1.0 - n * 0.15, f.base * (1.0 + n * 0.35), 1.0 - n * 0.15)
+	_update_fireflies(t)
 	if _hint_marker and _hint_marker.visible:
 		var pos := Vector3.ZERO
 		var tg: Variant = _hint_target
@@ -1112,7 +1140,41 @@ func _plant(pos: Vector3) -> void:
 	world.add_child(p)
 
 
+func _build_rpg_corner() -> void:
+	# A round table for the roleplaying game, under its own little lamp.
+	var wood := MeshKit.mat(Color("5e3620"), 0.55)
+	var top := StaticBody3D.new()
+	top.collision_layer = Item.LAYER_WORLD
+	var tcs := CollisionShape3D.new()
+	tcs.shape = MeshKit._cyl_shape(0.62, 0.05)
+	top.add_child(tcs)
+	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.62, 0.62, 0.05, 40), wood))
+	top.add_child(MeshKit.mesh_node(MeshKit.cyl(0.56, 0.56, 0.004, 40), MeshKit.mat(Color("5a1e2c"), 1.0), Vector3(0, 0.026, 0)))
+	top.position = Vector3(0.55, 0.715, 0.75)
+	world.add_child(top)
+	_solid(Vector3(0.12, 0.69, 0.12), Vector3(0.55, 0.345, 0.75), wood)
+	_solid(Vector3(0.5, 0.04, 0.5), Vector3(0.55, 0.02, 0.75), wood)
+	var lamp := SpotLight3D.new()
+	lamp.position = Vector3(0.55, 2.1, 0.75)
+	lamp.rotation.x = -PI / 2
+	lamp.light_color = Color(1.0, 0.7, 0.42)
+	lamp.light_energy = 4.0
+	lamp.spot_range = 3.0
+	lamp.spot_angle = 40.0
+	lamp.shadow_enabled = true
+	world.add_child(lamp)
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.006, 0.006, 0.8), MeshKit.mat(Color("222222")), Vector3(0.55, 2.6, 0.75)))
+	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.06, 0.24, 0.2, 24), MeshKit.mat(Color("6b1e2c"), 0.5), Vector3(0.55, 2.15, 0.75)))
+	world.add_child(MeshKit.mesh_node(MeshKit.sphere(0.05), MeshKit.mat(Color("ffe2b0"), 0.5, 6.0), Vector3(0.55, 2.06, 0.75)))
+	# A felt-topped dice ottoman by the fire, for the dice hoard.
+	_solid(Vector3(0.82, 0.38, 1.12), Vector3(4.72, 0.19, 0.35), MeshKit.mat(Color("4a2a3a"), 0.95))
+	_solid(Vector3(0.78, 0.03, 1.08), Vector3(4.72, 0.395, 0.35), MeshKit.mat(Color("2a3f5a"), 1.0))
+	for z in [-0.2, 0.9]:
+		_solid(Vector3(0.82, 0.03, 0.04), Vector3(4.72, 0.425, z), MeshKit.mat(Color("b08d4a"), 0.35), false)
+
+
 func _build_extra_lights() -> void:
+	_build_rpg_corner()
 	# A low pendant over the big game table in the middle of the room.
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.006, 0.006, 0.75), MeshKit.mat(Color("222222")), Vector3(0.4, 2.65, -2.3)))
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.07, 0.3, 0.22, 28), MeshKit.mat(Color("8a4a2a"), 0.5), Vector3(0.4, 2.18, -2.3)))
@@ -1134,7 +1196,7 @@ func _build_extra_lights() -> void:
 func _build_shelf(order: Array) -> void:
 	var wood := MeshKit.mat(Color("5e3620"), 0.6)
 	var back := MeshKit.mat(Color("3a2216"), 0.8)
-	var cols := 3
+	var cols := 4
 	var cw := 0.9
 	var ch := 0.82
 	var bt := 0.05
@@ -1230,6 +1292,10 @@ func _define_spots() -> void:
 		"cardtable": {"center": Vector3(3.6, 0.74, -2.6), "ext": Vector2(0.47, 0.47), "row_start": Vector3(2.45, 0.0, -3.5), "rot": -PI / 2, "spill": "floor_card"},
 		"coffee": {"center": Vector3(3.0, 0.44, 1.0), "ext": Vector2(0.57, 0.3), "row_start": Vector3(1.75, 0.0, 0.55), "rot": -PI / 2, "spill": "floor_coffee"},
 		"bench": {"center": Vector3(-5.65, 0.5, 0.5), "ext": Vector2(0.29, 1.02), "row_start": Vector3(-4.8, 0.0, 1.45), "rot": PI / 2, "spill": "floor_bench"},
+		"round": {"center": Vector3(0.55, 0.743, 0.75), "ext": Vector2(0.4, 0.4), "row_start": Vector3(-0.3, 0.0, -0.45), "rot": 0.0, "spill": "floor_round"},
+		"ottoman": {"center": Vector3(4.72, 0.41, 0.35), "ext": Vector2(0.36, 0.5), "row_start": Vector3(4.0, 0.0, 4.45), "rot": PI, "spill": "floor_ottoman"},
+		"floor_round": {"center": Vector3(0.55, 0.0, 1.75), "ext": Vector2(0.35, 0.2), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_ottoman": {"center": Vector3(4.75, 0.0, 1.45), "ext": Vector2(0.35, 0.22), "row_start": Vector3.ZERO, "rot": 0.0},
 		"couch": {"center": Vector3(3.0, 0.44, 2.92), "ext": Vector2(0.95, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
 		# Floor patches where each game has spilled over.
 		"floor_dining": {"center": Vector3(-4.55, 0.0, -0.75), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
@@ -1243,6 +1309,101 @@ func _define_spots() -> void:
 		s["name"] = k
 		s["hmap"] = HMap.new(s.center, s.ext)
 		spots[k] = s
+
+
+# ---------------------------------------------------------------- the seeker lantern
+
+## Fireflies drift over every piece and card pile of this box that's still out in the room.
+func _seek_box(box: GameBox) -> void:
+	var targets: Array = pieces.loose_for(box.ed_id)
+	for it in items:
+		if it.game_id == box.ed_id and not it.stored and not it.held:
+			targets.append(it)
+	_firefly_targets = targets.slice(0, 600)
+	_firefly_until = Time.get_ticks_msec() / 1000.0 + 10.0
+	sfx.chord([PENTA[5], PENTA[7], PENTA[9]], 0.12, -11.0)
+	if targets.is_empty():
+		hud.toast("Everything for %s is already in its box." % box.game_name, 2.5)
+	else:
+		hud.toast("%d things still out for %s. Follow the fireflies." % [targets.size(), box.game_name], 3.5)
+
+
+## A beam of light rises from the box this thing belongs in.
+func _seek_home(what: Variant) -> void:
+	var ed := ""
+	if what is Pieces.P:
+		ed = (what as Pieces.P).g.ed
+	elif what is Item:
+		ed = (what as Item).game_id
+	for b in boxes:
+		if b.ed_id == ed:
+			_beam(b)
+			sfx.chord([PENTA[7], PENTA[9]], 0.1, -11.0)
+			hud.toast("That goes in %s%s." % [b.game_name, " (already on the shelf)" if b.shelved else ""], 2.5)
+			return
+
+
+func _beam(b: GameBox) -> void:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.albedo_color = Color(1.0, 0.8, 0.45, 0.22)
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var mi := MeshKit.mesh_node(MeshKit.cyl(0.16, 0.32, 2.6, 20), m)
+	world.add_child(mi)
+	mi.global_position = b.global_position + Vector3(0, 1.3, 0)
+	b.set_highlight(true)
+	var tw := mi.create_tween()
+	tw.tween_interval(2.8)
+	tw.tween_property(m, "albedo_color:a", 0.0, 0.8)
+	tw.tween_callback(func():
+		mi.queue_free()
+		if is_instance_valid(b) and not b.held:
+			b.set_highlight(false))
+
+
+func _update_fireflies(t: float) -> void:
+	if _fireflies == null:
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_color = Color(1.0, 0.85, 0.45)
+		m.emission_enabled = true
+		m.emission = Color(1.0, 0.8, 0.4)
+		m.emission_energy_multiplier = 8.0
+		m.albedo_color = Color(1.0, 0.95, 0.7)
+		var sm := MeshKit.sphere(0.015, 8)
+		sm.material = m
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = sm
+		mm.instance_count = 600
+		mm.visible_instance_count = 0
+		_fireflies = MultiMeshInstance3D.new()
+		_fireflies.multimesh = mm
+		_fireflies.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		world.add_child(_fireflies)
+	var mm := _fireflies.multimesh
+	if t > _firefly_until or _firefly_targets.is_empty():
+		mm.visible_instance_count = 0
+		return
+	var n := 0
+	for k in _firefly_targets.size():
+		var tg: Variant = _firefly_targets[k]
+		var pos: Vector3
+		if tg is Pieces.P:
+			if (tg as Pieces.P).state != Pieces.LOOSE:
+				continue
+			pos = (tg as Pieces.P).xf.origin
+		elif tg is Item and is_instance_valid(tg) and not (tg as Item).stored and not (tg as Item).held:
+			pos = (tg as Item).global_position
+		else:
+			continue
+		var ph := k * 1.7
+		pos += Vector3(sin(t * 1.3 + ph) * 0.03, 0.11 + sin(t * 2.1 + ph) * 0.03, cos(t * 1.1 + ph) * 0.03)
+		mm.set_instance_transform(n, Transform3D(Basis.from_scale(Vector3.ONE * (0.8 + 0.4 * sin(t * 5.0 + ph))), pos))
+		n += 1
+	mm.visible_instance_count = n
 
 
 # ---------------------------------------------------------------- testing hooks
@@ -1310,6 +1471,22 @@ func _autotest() -> void:
 		if not took.has(i):
 			(mixed_nodes[i] as Node).queue_free()
 			pieces.set_loose(mixed[i], (mixed[i] as Pieces.P).xf)
+	# Tools.
+	var seed_p: Pieces.P = pieces.all.filter(func(p: Pieces.P): return p.g.line == "hoard" and p.state == Pieces.LOOSE)[0]
+	var pan := pieces.in_radius(seed_p.xf.origin, Player.PAN_RADIUS, Player.PAN_MAX)
+	var kinds := {}
+	for p: Pieces.P in pan:
+		kinds[p.g.key] = true
+	print("dustpan at the dice ottoman: ", pan.size(), " pieces of ", kinds.size(), " kinds")
+	print("magnet pulls ", pieces.handful(seed_p, Player.MAGNET_RADIUS, Player.HAND_MAX).size(), " matching ", seed_p.g.key, " vs a hand scoop of ", pieces.handful(seed_p).size())
+	var vault: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == "wyrm/vault")[0]
+	_seek_box(vault)
+	print("lantern on Monster Vault marks ", _firefly_targets.size(), " things (", pieces.loose_for("wyrm/vault").size(), " pieces + card piles)")
+	player.unlocked = [true, true, true, true]
+	for i in 4:
+		player.set_tool(i)
+	print("tool switching ok: ", player.tool == Player.MAGNET)
+	player.set_tool(0)
 	var t0 := Time.get_ticks_msec()
 	for b in boxes:
 		_pack_all(b)
@@ -1347,50 +1524,27 @@ func _screenshots() -> void:
 	await get_tree().create_timer(3.0).timeout
 	_start()
 	hud.toast("", 0.0)
-	await _view(Vector3(0.6, 0.05, 3.9), 0.05, -0.15)
-	await _shot(dir, "room")
-	await _view(Vector3(-0.9, 0.05, 2.5), PI / 2, -0.75)
-	await _shot(dir, "rug")
-	await _view(Vector3(-3.0, 0.05, -0.2), 0.0, -0.75)
-	await _shot(dir, "dining")
-	await _view(Vector3(0.4, 0.05, -1.0), 0.0, -0.85)
-	await _shot(dir, "gametable")
-	# A mixed handful being poured: the box takes its own, the rest stay in hand.
-	var cb: GameBox = boxes.filter(func(x: GameBox): return x.line_id == "crowns")[0]
-	var line_ps := pieces.all.filter(func(p: Pieces.P): return p.g.line == "crowns" and p.state == Pieces.LOOSE)
-	line_ps.shuffle()
-	var cfwd := cb.global_transform.basis.z
-	await _view(cb.global_position + cfwd * 0.9 + Vector3(0, 0, 0), atan2(cfwd.x, cfwd.z), -0.95)
-	player._scoop(line_ps.slice(0, 40))
-	await get_tree().create_timer(0.8).timeout
-	await _shot(dir, "hand")
-	player._pour_into(cb)
-	await get_tree().create_timer(0.55).timeout
-	await _shot(dir, "pour")
-	await get_tree().create_timer(2.0).timeout
-	player._drop_hand(Vector3.ZERO)
-	# Half-pack the first Mossy Crowns box to show its insert.
-	var b: GameBox = boxes.filter(func(x: GameBox): return x.line_id == "crowns")[0]
-	var mine := pieces.all.filter(func(p: Pieces.P): return p.g.ed == b.ed_id)
-	mine = mine.filter(func(p: Pieces.P): return p.state == Pieces.LOOSE)
-	var half := mine.slice(0, mine.size() * 2 / 3)
-	var nodes := []
-	for p: Pieces.P in half:
-		nodes.append(pieces.proxy(p))
-		pieces.take(p)
-	b.accept_pieces(half, nodes)
-	await get_tree().create_timer(4.0).timeout
-	var fwd := b.global_transform.basis.z
-	await _view(b.global_position + fwd * 0.6, atan2(fwd.x, fwd.z), -1.2)
-	await _shot(dir, "insert")
-	for bx in boxes:
-		_pack_all(bx)
-	await get_tree().create_timer(5.0).timeout
-	for bx in boxes:
-		for s in slots:
-			if s.place(bx):
-				break
-	await get_tree().create_timer(1.5).timeout
-	await _view(Vector3(0.0, 0.05, -3.25), 0.0, -0.2)
-	await _shot(dir, "shelf")
+	await _view(Vector3(4.72, 0.05, -0.75), 0.0, -1.05)
+	await _view(Vector3(4.72, 0.05, -0.62), PI, -1.15)
+	await _shot(dir, "dice")
+	await _view(Vector3(0.55, 0.05, 1.95), 0.0, -0.95)
+	await _shot(dir, "rpg")
+	# The seeker lantern lighting up everything that belongs in one dice box.
+	player.unlocked = [true, true, true, true]
+	player.set_tool(1)
+	var frost: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == "hoard/frost")[0]
+	_seek_box(frost)
+	await _view(Vector3(3.3, 0.05, 0.4), -PI / 2, -0.55)
+	await _shot(dir, "lantern")
+	# The dustpan with a mixed sweep, aimed at a dice box.
+	player.set_tool(2)
+	var seed_p: Pieces.P = pieces.all.filter(func(p: Pieces.P): return p.g.line == "hoard" and p.state == Pieces.LOOSE)[0]
+	player._scoop(pieces.in_radius(seed_p.xf.origin, 0.25, 120))
+	var fwd := frost.global_transform.basis.z
+	await _view(frost.global_position + fwd * 0.95, atan2(fwd.x, fwd.z), -0.75)
+	await get_tree().create_timer(0.4).timeout
+	await _shot(dir, "dustpan")
+	player._pour_into(frost)
+	await get_tree().create_timer(0.7).timeout
+	await _shot(dir, "dustpan_pour")
 	get_tree().quit()

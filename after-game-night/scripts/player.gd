@@ -7,6 +7,12 @@ extends CharacterBody3D
 
 signal prompt_changed(text: String)
 signal acted(kind: String, data: Variant)
+signal tool_changed(i: int)
+
+enum { HANDS, LANTERN, DUSTPAN, MAGNET }
+const PAN_MAX := 150
+const PAN_RADIUS := 0.2
+const MAGNET_RADIUS := 2.0
 
 const WALK := 2.6
 const RUN := 4.4
@@ -35,6 +41,10 @@ var _cam_height := 1.55
 var _preview: Array = []
 var _sweeping := false
 var _sweep_t := 0.0
+var tool := HANDS
+var unlocked := [true, true, false, false]
+var _tool_models: Array[Node3D] = []
+var _preview_t := 0.0
 
 
 func _ready() -> void:
@@ -60,6 +70,7 @@ func _ready() -> void:
 	ray.collision_mask = Item.LAYER_WORLD | Item.LAYER_ITEMS | Item.LAYER_SLOTS
 	cam.add_child(ray)
 
+	_build_tools()
 	_hand_root = Node3D.new()
 	_hand_root.position = Vector3(0.1, -0.23, -0.5)
 	cam.add_child(_hand_root)
@@ -87,6 +98,16 @@ func _unhandled_input(e: InputEvent) -> void:
 		_pitch = clampf(_pitch - e.relative.y * sensitivity, -1.5, 1.45)
 		rotation.y = _yaw
 		cam.rotation.x = _pitch
+	elif e is InputEventKey and e.pressed and not e.echo and e.physical_keycode >= KEY_1 and e.physical_keycode <= KEY_4:
+		set_tool(e.physical_keycode - KEY_1)
+	elif e is InputEventMouseButton and e.pressed and (e.button_index == MOUSE_BUTTON_WHEEL_UP or e.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		var step := 1 if e.button_index == MOUSE_BUTTON_WHEEL_DOWN else -1
+		var i := tool
+		for k in 4:
+			i = posmod(i + step, 4)
+			if unlocked[i]:
+				break
+		set_tool(i)
 	elif e is InputEventMouseButton:
 		if e.button_index == MOUSE_BUTTON_LEFT:
 			if e.pressed:
@@ -150,6 +171,10 @@ func _hand_label() -> String:
 	return "%d pieces (%d kinds)" % [hand.size(), kinds.size()]
 
 
+func _cap() -> int:
+	return PAN_MAX if tool == DUSTPAN else HAND_MAX
+
+
 func _card_count() -> int:
 	return 1 + extra_cards.size() if held and held.kind == "cards" else 0
 
@@ -163,8 +188,39 @@ func _update_hover() -> void:
 	var text := ""
 	var preview: Array = []
 	var loose_piece: bool = c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE
+	var hit_ok := ray.is_colliding()
 	if not enabled:
 		text = ""
+	elif tool == LANTERN and hand.is_empty() and held == null:
+		if c is GameBox and not (c as GameBox).complete:
+			text = "Hold up the lantern  ·  show everything that belongs in %s" % (c as GameBox).game_name
+			(c as GameBox).set_highlight(true)
+		elif loose_piece:
+			var p := c as Pieces.P
+			text = "Where does this %s go?" % GameData.type_name(p.g.type, 1)
+		elif c is Item and (c as Item).kind != "box" and (c as Item).can_pick():
+			text = "Where does this go?  ·  %s" % (c as Item).label
+		else:
+			text = "Seeker Lantern  ·  aim at a box or a piece"
+	elif tool == DUSTPAN and held == null and hit_ok and not (c is GameBox) and hand.size() < PAN_MAX:
+		# Refresh the preview ten times a second; it's a scan over every piece in the room.
+		_preview_t -= get_physics_process_delta_time()
+		if _preview_t <= 0.0:
+			_preview_t = 0.1
+			preview = pieces.in_radius(ray.get_collision_point(), PAN_RADIUS, mini(30, PAN_MAX - hand.size()))
+		else:
+			preview = _preview
+		var shown := ("%d+" % preview.size()) if preview.size() >= 30 else str(preview.size())
+		text = ("Sweep up %s pieces  ·  hold to keep sweeping" % shown) if not preview.is_empty() else "Dustpan  ·  aim at a pile"
+		if not hand.is_empty():
+			text += "  ·  pan holds %d" % hand.size()
+	elif tool == MAGNET and held == null and loose_piece and hand.size() < HAND_MAX:
+		var p := c as Pieces.P
+		preview = pieces.handful(p, MAGNET_RADIUS, mini(30, HAND_MAX - hand.size()))
+		var n := pieces.handful(p, MAGNET_RADIUS, HAND_MAX - hand.size()).size()
+		text = "Magnet: pull in %d %s %s from nearby" % [n, p.g.ed_name, GameData.type_name(p.g.type, n)]
+	elif tool == MAGNET and held == null and hand.is_empty():
+		text = "Magnet  ·  aim at a piece to pull in every match nearby"
 	elif held == null and loose_piece and hand.size() < HAND_MAX:
 		preview = pieces.handful(c)
 		var p := c as Pieces.P
@@ -232,6 +288,26 @@ func primary() -> void:
 	var c: Variant = hovered
 	if c is Object and not is_instance_valid(c):
 		c = null
+	var aiming_box: bool = c is GameBox and not (c as GameBox).complete
+	if tool == LANTERN and hand.is_empty() and held == null:
+		if c is GameBox:
+			acted.emit("seek_box", c)
+		elif (c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE) or (c is Item and (c as Item).kind != "box"):
+			acted.emit("seek_for", c)
+		return
+	if tool == DUSTPAN and held == null and not aiming_box and ray.is_colliding():
+		if hand.size() < PAN_MAX:
+			var got := pieces.in_radius(ray.get_collision_point(), PAN_RADIUS, PAN_MAX - hand.size())
+			if not got.is_empty():
+				_scoop(got)
+		_sweeping = true
+		_sweep_t = SWEEP_EVERY * 3.0
+		return
+	if tool == MAGNET and held == null and c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE and hand.size() < HAND_MAX:
+		var got := pieces.handful(c, MAGNET_RADIUS, HAND_MAX - hand.size())
+		_scoop(got, true)
+		acted.emit("magnet", got.size())
+		return
 	# Scooping: any loose piece, even into a mixed handful.
 	if held == null and c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE and hand.size() < HAND_MAX:
 		_scoop(pieces.handful(c).slice(0, HAND_MAX - hand.size()))
@@ -316,7 +392,16 @@ func _update_sweep(dt: float) -> void:
 		_sweeping = false
 		return
 	_sweep_t -= dt
-	if _sweep_t > 0.0 or hand.size() >= HAND_MAX:
+	if _sweep_t > 0.0 or hand.size() >= _cap():
+		return
+	if tool == DUSTPAN:
+		if ray.is_colliding() and not (hovered is GameBox):
+			var got := pieces.in_radius(ray.get_collision_point(), PAN_RADIUS, mini(20, PAN_MAX - hand.size()))
+			if not got.is_empty():
+				_scoop(got)
+		_sweep_t = SWEEP_EVERY * 1.5
+		return
+	if tool != HANDS:
 		return
 	var c: Variant = hovered
 	if c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE:
@@ -327,13 +412,14 @@ func _update_sweep(dt: float) -> void:
 
 
 func _hand_slot(k: int) -> Transform3D:
-	var ring := k / 10
-	var a := (k % 10) * TAU / 10.0 + ring * 0.3
-	var r := 0.02 + ring * 0.012
-	return Transform3D(Basis(Vector3.UP, k * 0.7), Vector3(cos(a) * r * 1.6, ring * 0.012, sin(a) * r))
+	var layer := k / 25
+	var i := k % 25
+	var x := (i % 5 - 2) * 0.024 + (layer % 2) * 0.012
+	var z := (i / 5 - 2) * 0.02
+	return Transform3D(Basis(Vector3.UP, k * 0.7), Vector3(x, layer * 0.013, z))
 
 
-func _scoop(list: Array) -> void:
+func _scoop(list: Array, stream := false) -> void:
 	var start := hand.size()
 	for i in list.size():
 		var p: Pieces.P = list[i]
@@ -341,8 +427,8 @@ func _scoop(list: Array) -> void:
 		pieces.take(p)
 		mi.reparent(_hand_root)
 		var tw := mi.create_tween()
-		tw.tween_interval(i * 0.015)
-		tw.tween_property(mi, "transform", _hand_slot(start + i), 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(i * (0.025 if stream else 0.012))
+		tw.tween_property(mi, "transform", _hand_slot(start + i), 0.45 if stream else 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		hand.append(p)
 		_hand_nodes.append(mi)
 	pieces.show_outline([])
@@ -404,3 +490,66 @@ func _update_held(dt: float) -> void:
 		t.basis = Basis(q)
 		it.global_transform = t
 		lift += 0.012 + it.card_count * MeshKit.CARD.y * it.base_scale
+
+
+# ---------------------------------------------------------------- tools
+
+func set_tool(i: int) -> void:
+	if i < 0 or i >= unlocked.size() or not unlocked[i]:
+		return
+	tool = i
+	_sweeping = false
+	for k in _tool_models.size():
+		_tool_models[k].visible = k == i
+	pieces.show_outline([]) if pieces else null
+	_preview = []
+	tool_changed.emit(i)
+
+
+func _build_tools() -> void:
+	var brass := MeshKit.mat(Color("b08d4a"), 0.35)
+	var wood := MeshKit.mat(Color("7a4a26"), 0.7)
+	# 0: hands (nothing to show)
+	var hands := Node3D.new()
+	cam.add_child(hands)
+	_tool_models.append(hands)
+	# 1: the seeker lantern, with its own warm light.
+	var lantern := Node3D.new()
+	lantern.position = Vector3(0.24, -0.22, -0.42)
+	lantern.add_child(MeshKit.mesh_node(MeshKit.cyl(0.035, 0.04, 0.012, 12), brass, Vector3(0, -0.05, 0)))
+	lantern.add_child(MeshKit.mesh_node(MeshKit.cyl(0.03, 0.03, 0.08, 12), MeshKit.mat(Color(1.0, 0.85, 0.6), 0.2, 2.5), Vector3(0, 0.0, 0)))
+	for a in 4:
+		var ang := a * PI / 2 + PI / 4
+		lantern.add_child(MeshKit.mesh_node(MeshKit.cyl(0.003, 0.003, 0.09, 4), brass, Vector3(cos(ang) * 0.033, 0, sin(ang) * 0.033)))
+	lantern.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.04, 0.025, 12), brass, Vector3(0, 0.052, 0)))
+	lantern.add_child(MeshKit.mesh_node(MeshKit.torus(0.012, 0.017), brass, Vector3(0, 0.075, 0), Vector3(PI / 2, 0, 0)))
+	var glow := OmniLight3D.new()
+	glow.light_color = Color(1.0, 0.75, 0.45)
+	glow.light_energy = 0.9
+	glow.omni_range = 2.2
+	lantern.add_child(glow)
+	cam.add_child(lantern)
+	_tool_models.append(lantern)
+	# 2: the dustpan.
+	var pan := Node3D.new()
+	pan.position = Vector3(0.1, -0.25, -0.5)
+	pan.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.17, 0.004, 0.13)), MeshKit.mat(Color("6f8f86"), 0.5), Vector3(0, -0.004, 0)))
+	for sx in [-1.0, 1.0]:
+		pan.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.004, 0.03, 0.13)), MeshKit.mat(Color("6f8f86"), 0.5), Vector3(sx * 0.085, 0.01, 0)))
+	pan.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.17, 0.04, 0.004)), MeshKit.mat(Color("6f8f86"), 0.5), Vector3(0, 0.015, 0.065)))
+	pan.add_child(MeshKit.mesh_node(MeshKit.cyl(0.008, 0.008, 0.14, 8), wood, Vector3(0, 0.02, 0.13), Vector3(PI / 2 - 0.3, 0, 0)))
+	cam.add_child(pan)
+	_tool_models.append(pan)
+	# 3: the magnet.
+	var mag := Node3D.new()
+	mag.position = Vector3(0.22, -0.2, -0.42)
+	mag.rotation = Vector3(-0.4, 0.3, 0)
+	var horseshoe := MeshKit.mesh_node(MeshKit.torus(0.022, 0.04), MeshKit.mat(Color("c8323a"), 0.35), Vector3.ZERO, Vector3(PI / 2, 0, 0))
+	horseshoe.scale = Vector3(1, 1, 1)
+	mag.add_child(horseshoe)
+	for sx in [-1.0, 1.0]:
+		mag.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.018, 0.02, 0.018)), MeshKit.mat(Color("d8dde2"), 0.2), Vector3(sx * 0.031, -0.03, 0)))
+	cam.add_child(mag)
+	_tool_models.append(mag)
+	for k in _tool_models.size():
+		_tool_models[k].visible = k == tool

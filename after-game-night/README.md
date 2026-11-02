@@ -4,7 +4,7 @@ A cozy first-person tidying game made in Godot 4. Game night is over. Six board 
 
 ## The collection
 
-There are six game lines. Each has a base game and one or two expansions, and every one comes in its own box. That makes 15 boxes holding about 4,000 pieces and 4,100 cards: roughly 8,000 things to sort. Real big-box games set the starting point (*Slay the Spire: The Board Game* ships with 650+ cards and 113 tokens; a Warhammer 40,000 starter set has about 40 miniatures), and then everything is tripled. Some of every game has also spilled onto the floor beside its table.
+There are eight game lines, each with several boxes: 21 boxes holding about 6,100 pieces and 4,700 cards, roughly 10,800 things to sort. Real big-box games set the starting point (*Slay the Spire: The Board Game* ships with 650+ cards and 113 tokens; a Warhammer 40,000 starter set has about 40 miniatures), and then everything is tripled. Some of every game has also spilled onto the floor beside its table.
 
 | Game line | Boxes | What's in them |
 | --- | --- | --- |
@@ -14,6 +14,21 @@ There are six game lines. Each has a base game and one or two expansions, and ev
 | Lantern Harbor (trading game) | base, Stormwatch, Deep Tides | boats, glowing lanterns, lighthouse towers, coins, cargo cubes, pearls (1,225 things) |
 | Honeycomb Hustle (tile laying) | base, Wildflower Fields | 270 hex tiles, bees, honey drops, cubes, flower gems (933 things) |
 | Orchard Hollow (farming) | base, Cider Press | 234 apples, baskets, farmers, cider drops, teacups (945 things) |
+| Wyrmlight Tales (tabletop RPG) | Starter Adventure, Monster Vault | heroes, skeletons, slimes, dragons, dungeon tiles, treasure chests, potion bottles, spell and monster cards, and full dice sets in bone and obsidian (1,599 things) |
+| The Dice Hoard (dice collection) | Ember, Frost, Galaxy, Jade | 294 polyhedral dice per box: d4, d6, d8, d10, percentile d10, d12 and d20 (1,176 dice) |
+
+### The dice
+
+The dice are real polyhedra: tetrahedron, cube, octahedron, pentagonal trapezohedron, dodecahedron and icosahedron. Each has an inked glyph on every face, and percentile dice have a doubled one so you can tell them from plain d10s. Each finish has its own material:
+
+| Finish | Look |
+| --- | --- |
+| Ember | glowing orange with glowing gold numerals |
+| Frost | glassy ice blue with a bright rim glint |
+| Galaxy | deep purple with star specks and glowing silver numerals |
+| Jade | polished green with metallic gold numerals |
+| Bone | matte ivory with dark numerals (Wyrmlight Tales) |
+| Obsidian | glossy black with glowing red numerals (Monster Vault) |
 
 Each line was played with its expansions mixed in, so the pieces from every box in a line are jumbled together on one table. You can tell them apart by color: base game pieces are the line's own color, the first expansion's are darker with gold accents, and the second expansion's are lighter with cream accents. Card sets have their own colored stripe on the back.
 
@@ -24,6 +39,17 @@ Each line was played with its expansions mixed in, so the pieces from every box 
 - **Sift:** handfuls can be mixed. Pour one into a box and it takes only its own pieces; the rest stay in your hand for the next box. The prompt tells you how many of your handful belong in the box you're aiming at.
 - **Pour:** pieces hop over the rim and drop into their spots one after another, each with a woody click, rising notes and little glints.
 - **Card piles:** pick up one pile, then click more piles to carry up to eight at once. They sift into boxes the same way.
+
+### Tools
+
+Switch tools with 1 to 4 or the mouse wheel. The last two unlock as the room gets tidier.
+
+| Tool | What it does |
+| --- | --- |
+| 1. Hands | Scoop, sweep, pour and carry, as above. |
+| 2. Seeker Lantern | A warm lantern with its own light. Aim it at a box and fireflies drift over every piece and card pile of that box still out in the room. Aim it at a piece and a beam of light rises from the box it belongs in. |
+| 3. Dustpan (2% tidy) | Sweeps up every loose piece in a wide circle, any kind, up to 150. Hold to keep sweeping, then pour into boxes to sift. |
+| 4. Magnet (6% tidy) | Pulls every matching piece within 2 meters into your hand in a stream. Good for strays. |
 
 Rewards along the way: a full compartment chimes and sparkles, a packed box closes with a thunk and a puff of light, a streak counter climbs while you sort without mix-ups, and the room tidiness meter at the top celebrates every 10%.
 
@@ -45,6 +71,7 @@ All the boxes in a line share a footprint, so they stack together in that line's
 | C / Ctrl | Crouch (for pieces on the floor) |
 | Left click / E | Scoop up pieces or pick something up, pour into a box, shelve a box, set down |
 | Hold left click | Sweep up a pile |
+| 1 to 4 / mouse wheel | Switch tools |
 | Right click / Q | Toss what you're holding (pieces scatter) |
 | H | Hint: an arrow points at something that can go in next |
 | Esc / P | Pause |
@@ -54,7 +81,7 @@ All the boxes in a line share a footprint, so they stack together in that line's
 Everything is made in code. Models, textures and sounds are all generated when the game starts, so there are no asset files.
 
 - `scripts/main.gd` builds the room, deals out the games and runs the game flow.
-- `scripts/player.gd` handles first-person movement, picking up, carrying and placing.
+- `scripts/player.gd` handles first-person movement, picking up, carrying, placing and the tools.
 - `scripts/pieces.gd` manages all the small pieces. Resting pieces are drawn in batches with lightweight colliders for aiming; only pieces in flight get full physics. This keeps 1,300+ pieces running smoothly.
 - `scripts/item.gd` is for the bigger things you carry one at a time: card piles, boards, rulebooks and boxes.
 - `scripts/game_box.gd` is a box with a fitted insert. It sizes its compartments, stacking depth and height to fit its own contents, accepts things in packing order, then closes its lid.
@@ -78,4 +105,4 @@ The lighting is designed for Godot's default Forward+ renderer, which adds the w
 godot --headless --path . -- --autotest
 ```
 
-This checks that handfuls only scoop matching pieces, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, then packs and shelves all 15 boxes and confirms the game ends.
+This checks that handfuls only scoop matching pieces, that the dustpan, magnet and lantern find what they should, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, then packs and shelves all 21 boxes and confirms the game ends.

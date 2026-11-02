@@ -186,9 +186,11 @@ static func _sphere_shape(r: float) -> SphereShape3D:
 
 ## Returns [visual: Node3D, shape: Shape3D, shape_offset: Vector3, rest_rotation: Vector3].
 ## rest_rotation is how the piece lies in its box compartment.
-static func piece(type: String, c: Color, accent := Color(0, 0, 0, 0)) -> Array:
+static func piece(type: String, c: Color, accent := Color(0, 0, 0, 0), style := "") -> Array:
 	if accent.a == 0.0:
 		accent = c.lightened(0.45)
+	if DICE.has(type):
+		return die(type, c, accent, style)
 	var v := Node3D.new()
 	var body := mat(c, 0.42)
 	var light := mat(accent, 0.5)
@@ -377,6 +379,96 @@ static func piece(type: String, c: Color, accent := Color(0, 0, 0, 0)) -> Array:
 			shape = _cyl_shape(0.024, 0.08)
 			offset = Vector3(0, 0.005, 0)
 			rest = Vector3(0, 0, PI / 2)
+		"skeleton":
+			var bone := mat(Color("e8e0cc"), 0.6)
+			v.add_child(mesh_node(cyl(0.017, 0.018, 0.005, 16), body, Vector3(0, -0.028, 0)))
+			for sx in [-1.0, 1.0]:
+				v.add_child(mesh_node(cyl(0.0022, 0.0022, 0.022, 6), bone, Vector3(sx * 0.004, -0.015, 0)))
+				v.add_child(mesh_node(cyl(0.0018, 0.0018, 0.02, 6), bone, Vector3(sx * 0.009, 0.006, 0), Vector3(0, 0, sx * 0.35)))
+			v.add_child(mesh_node(cyl(0.007, 0.006, 0.02, 8), bone, Vector3(0, 0.006, 0)))
+			for k in 3:
+				v.add_child(mesh_node(torus(0.0055, 0.0075), bone, Vector3(0, 0.0 + k * 0.005, 0)))
+			v.add_child(mesh_node(sphere(0.0072, 8), bone, Vector3(0, 0.024, 0)))
+			for sx in [-1.0, 1.0]:
+				v.add_child(mesh_node(sphere(0.0018, 6), mat(Color("1a1010"), 0.8), Vector3(sx * 0.0028, 0.025, 0.006)))
+			v.add_child(mesh_node(box(Vector3(0.0025, 0.03, 0.005)), light, Vector3(0.014, 0.014, 0.0), Vector3(0, 0, -0.3)))
+			shape = _cyl_shape(0.018, 0.064)
+			offset = Vector3(0, 0.002, 0)
+			rest = Vector3(0, 0, PI / 2)
+		"slime":
+			var goo := StandardMaterial3D.new()
+			goo.albedo_color = c.lightened(0.15)
+			goo.roughness = 0.05
+			goo.emission_enabled = true
+			goo.emission = c.lightened(0.2)
+			goo.emission_energy_multiplier = 0.6
+			goo.rim_enabled = true
+			goo.rim = 0.7
+			goo.cull_mode = BaseMaterial3D.CULL_DISABLED
+			var blob := mesh_node(sphere(0.017, 12), goo)
+			blob.scale = Vector3(1.25, 0.8, 1.25)
+			v.add_child(blob)
+			var top := mesh_node(sphere(0.008, 8), goo, Vector3(0.002, 0.011, 0))
+			v.add_child(top)
+			for sx in [-1.0, 1.0]:
+				v.add_child(mesh_node(sphere(0.0032, 6), mat(Color("ffffff"), 0.3), Vector3(sx * 0.0055, 0.006, 0.013)))
+				v.add_child(mesh_node(sphere(0.0017, 6), mat(Color("120a10"), 0.3), Vector3(sx * 0.0055, 0.006, 0.0158)))
+			shape = _sphere_shape(0.018)
+			offset = Vector3(0, -0.002, 0)
+		"tile":
+			var stone := mat(Color("8d8678").lerp(c, 0.12), 0.9)
+			v.add_child(mesh_node(box(Vector3(0.052, 0.006, 0.052)), stone))
+			var grout := mat(Color("4a443c"), 0.95)
+			for k in [-1.0, 1.0]:
+				v.add_child(mesh_node(box(Vector3(0.052, 0.0062, 0.0015)), grout, Vector3(0, 0, k * 0.009)))
+			v.add_child(mesh_node(box(Vector3(0.0015, 0.0062, 0.052)), grout, Vector3(0.0, 0, 0)))
+			v.add_child(mesh_node(cyl(0.004, 0.004, 0.0066, 8), mat(accent, 0.4, 0.4), Vector3(0.016, 0, 0.018)))
+			shape = _box_shape(Vector3(0.052, 0.006, 0.052))
+		"chest":
+			var oak := mat(Color("7a4a26"), 0.75)
+			v.add_child(mesh_node(box(Vector3(0.034, 0.018, 0.024)), oak))
+			var lid := mesh_node(cyl(0.012, 0.012, 0.034, 10), oak, Vector3(0, 0.009, 0), Vector3(0, 0, PI / 2))
+			lid.scale = Vector3(1, 1, 1)
+			v.add_child(lid)
+			for x in [-0.011, 0.011]:
+				v.add_child(mesh_node(box(Vector3(0.004, 0.032, 0.0255)), gold, Vector3(x, 0.004, 0)))
+			v.add_child(mesh_node(box(Vector3(0.006, 0.007, 0.002)), gold, Vector3(0, 0.006, 0.0125)))
+			v.add_child(mesh_node(box(Vector3(0.03, 0.003, 0.02)), body, Vector3(0, -0.0105, 0)))
+			shape = _box_shape(Vector3(0.035, 0.034, 0.026))
+			offset = Vector3(0, 0.004, 0)
+		"potion":
+			var glass := StandardMaterial3D.new()
+			glass.albedo_color = Color(0.92, 0.95, 1.0, 0.35)
+			glass.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			glass.roughness = 0.04
+			glass.rim_enabled = true
+			glass.cull_mode = BaseMaterial3D.CULL_DISABLED
+			var prof := [Vector2(0, -0.02), Vector2(0.012, -0.02), Vector2(0.014, -0.01), Vector2(0.012, 0.002),
+				Vector2(0.0045, 0.008), Vector2(0.0045, 0.016), Vector2(0.0, 0.016)]
+			v.add_child(mesh_node(sphere(0.0105, 10), mat(accent, 0.2, 1.2), Vector3(0, -0.009, 0)))
+			v.add_child(mesh_node(lathe(prof, 12), glass))
+			v.add_child(mesh_node(cyl(0.0045, 0.004, 0.006, 8), wood, Vector3(0, 0.019, 0)))
+			v.add_child(mesh_node(cyl(0.0125, 0.0125, 0.004, 12), body, Vector3(0, -0.006, 0)))
+			shape = _cyl_shape(0.014, 0.044)
+			offset = Vector3(0, -0.001, 0)
+			rest = Vector3(0, 0, PI / 2)
+		"dragon":
+			v.add_child(mesh_node(cyl(0.024, 0.025, 0.005, 18), mat(Color("2a2420"), 0.7), Vector3(0, -0.03, 0)))
+			var torso := mesh_node(sphere(0.016, 10), body, Vector3(0, -0.012, 0))
+			torso.scale = Vector3(1.45, 0.95, 1.0)
+			v.add_child(torso)
+			v.add_child(mesh_node(cyl(0.006, 0.009, 0.032, 8), body, Vector3(0.018, 0.006, 0), Vector3(0, 0, -0.6)))
+			v.add_child(mesh_node(box(Vector3(0.018, 0.01, 0.011)), body, Vector3(0.03, 0.021, 0)))
+			for sx in [-1.0, 1.0]:
+				v.add_child(mesh_node(cyl(0.0, 0.0025, 0.01, 6), light, Vector3(0.027, 0.029, sx * 0.004), Vector3(0, 0, 0.5)))
+				v.add_child(mesh_node(sphere(0.0018, 6), mat(Color("ffd25a"), 0.3, 2.0), Vector3(0.038, 0.023, sx * 0.004)))
+				var wing := PackedVector2Array([Vector2(0, 0), Vector2(-0.006, 0.034), Vector2(0.018, 0.026), Vector2(0.03, 0.006)])
+				v.add_child(mesh_node(extrude(wing, 0.0025), light, Vector3(-0.01, 0.0, sx * 0.01), Vector3(sx * 0.55, 0, 0)))
+			v.add_child(mesh_node(cyl(0.0, 0.007, 0.034, 8), body, Vector3(-0.028, -0.016, 0), Vector3(0, 0, 1.25)))
+			for k in 4:
+				v.add_child(mesh_node(cyl(0.0, 0.003, 0.007, 4), light, Vector3(-0.012 + k * 0.007, 0.004, 0)))
+			shape = _cyl_shape(0.026, 0.07)
+			offset = Vector3(0, 0.002, 0)
 		"cake":
 			var wedge := PackedVector2Array([Vector2(-0.03, 0.0), Vector2(0.03, -0.024), Vector2(0.03, 0.024)])
 			v.add_child(mesh_node(extrude(wedge, 0.028), mat(Color("e9c48f"), 0.8), Vector3.ZERO, Vector3(-PI / 2, 0, 0)))
@@ -686,3 +778,218 @@ static func brick_texture() -> ImageTexture:
 		row += 1
 	img.generate_mipmaps()
 	return ImageTexture.create_from_image(img)
+
+
+# ---------------------------------------------------------------- polyhedral dice
+
+const DICE := ["d4", "d6p", "d8", "d10", "d10p", "d12", "d20"]
+const _PHI := 1.6180339887
+
+static var _style_mats := {}
+
+
+## Finishes for dice: each style has its own body material and ink for the numerals.
+static func dice_mats(style: String, c: Color, ink: Color) -> Array:
+	var key := "%s|%s|%s" % [style, c.to_html(), ink.to_html()]
+	if _style_mats.has(key):
+		return _style_mats[key]
+	var b := StandardMaterial3D.new()
+	b.albedo_color = c
+	b.cull_mode = BaseMaterial3D.CULL_DISABLED
+	b.roughness = 0.25
+	b.clearcoat_enabled = true
+	b.clearcoat = 0.8
+	var i := StandardMaterial3D.new()
+	i.albedo_color = ink
+	i.cull_mode = BaseMaterial3D.CULL_DISABLED
+	i.roughness = 0.4
+	match style:
+		"ember":
+			b.roughness = 0.15
+			b.emission_enabled = true
+			b.emission = c
+			b.emission_energy_multiplier = 0.45
+			i.emission_enabled = true
+			i.emission = ink
+			i.emission_energy_multiplier = 1.2
+		"frost":
+			b.roughness = 0.04
+			b.rim_enabled = true
+			b.rim = 1.0
+			b.rim_tint = 0.2
+			b.metallic = 0.15
+		"galaxy":
+			b.roughness = 0.12
+			b.metallic = 0.25
+			b.emission_enabled = true
+			b.emission = c.lightened(0.25)
+			b.emission_energy_multiplier = 0.35
+			i.emission_enabled = true
+			i.emission = ink
+			i.emission_energy_multiplier = 1.5
+		"jade":
+			b.roughness = 0.28
+			i.metallic = 0.9
+			i.roughness = 0.25
+		"bone":
+			b.roughness = 0.6
+			b.clearcoat_enabled = false
+		"obsidian":
+			b.roughness = 0.06
+			b.metallic = 0.35
+			i.emission_enabled = true
+			i.emission = ink
+			i.emission_energy_multiplier = 1.6
+	_style_mats[key] = [b, i]
+	return [b, i]
+
+
+static func _norm_all(pts: Array) -> Array:
+	return pts.map(func(p: Vector3): return p.normalized())
+
+
+static func _faces_from_normals(verts: Array, normals: Array) -> Array:
+	var faces := []
+	for n0: Vector3 in normals:
+		var n := n0.normalized()
+		var best := -INF
+		for v: Vector3 in verts:
+			best = maxf(best, v.dot(n))
+		var f := []
+		for v: Vector3 in verts:
+			if v.dot(n) > best - 0.0005:
+				f.append(v)
+		faces.append(_sort_face(f, n))
+	return faces
+
+
+static func _sort_face(f: Array, n: Vector3) -> Array:
+	var c := Vector3.ZERO
+	for v: Vector3 in f:
+		c += v
+	c /= f.size()
+	var u := ((f[0] as Vector3) - c).normalized()
+	var w := n.cross(u)
+	f.sort_custom(func(a: Vector3, b: Vector3): return atan2((a - c).dot(w), (a - c).dot(u)) < atan2((b - c).dot(w), (b - c).dot(u)))
+	return f
+
+
+static func _poly_faces(type: String) -> Array:
+	var p := _PHI
+	var ico := [Vector3(0, 1, p), Vector3(0, 1, -p), Vector3(0, -1, p), Vector3(0, -1, -p),
+		Vector3(1, p, 0), Vector3(1, -p, 0), Vector3(-1, p, 0), Vector3(-1, -p, 0),
+		Vector3(p, 0, 1), Vector3(p, 0, -1), Vector3(-p, 0, 1), Vector3(-p, 0, -1)]
+	var dod := []
+	for x in [-1.0, 1.0]:
+		for y in [-1.0, 1.0]:
+			for z in [-1.0, 1.0]:
+				dod.append(Vector3(x, y, z))
+	for a in [-1.0, 1.0]:
+		for b in [-1.0, 1.0]:
+			# Permuted to match the icosahedron above, so each one's faces line up with the other's corners.
+			dod.append(Vector3(0, a * p, b / p))
+			dod.append(Vector3(a * p, b / p, 0))
+			dod.append(Vector3(a / p, 0, b * p))
+	match type:
+		"d4":
+			var v := _norm_all([Vector3(1, 1, 1), Vector3(1, -1, -1), Vector3(-1, 1, -1), Vector3(-1, -1, 1)])
+			return _faces_from_normals(v, v.map(func(x: Vector3): return -x))
+		"d6p":
+			return _faces_from_normals(_norm_all(dod.slice(0, 8)), [Vector3.UP, Vector3.DOWN, Vector3.LEFT, Vector3.RIGHT, Vector3.FORWARD, Vector3.BACK])
+		"d8":
+			return _faces_from_normals([Vector3.UP, Vector3.DOWN, Vector3.LEFT, Vector3.RIGHT, Vector3.FORWARD, Vector3.BACK], dod.slice(0, 8))
+		"d12":
+			return _faces_from_normals(_norm_all(dod), ico)
+		"d20":
+			return _faces_from_normals(_norm_all(ico), dod)
+	# d10 and the percentile die: a pentagonal trapezohedron, built from its kites.
+	var cs := cos(PI / 5.0)
+	var h := 1.0
+	var e := h * (1.0 - cs) / (1.0 + cs)
+	var top := Vector3(0, h, 0)
+	var bot := Vector3(0, -h, 0)
+	var up := []
+	var lo := []
+	for i in 5:
+		var a := TAU * i / 5.0
+		up.append(Vector3(cos(a), e, sin(a)))
+		var b := a + PI / 5.0
+		lo.append(Vector3(cos(b), -e, sin(b)))
+	var faces := []
+	for i in 5:
+		var j := (i + 1) % 5
+		faces.append([top, up[i], lo[i], up[j]])
+		faces.append([bot, lo[i], up[j], lo[j]])
+	return faces
+
+
+## A polyhedral die with inked numerals, resting on one face.
+static func die(type: String, c: Color, ink: Color, style: String) -> Array:
+	var r := {"d4": 0.027, "d6p": 0.021, "d8": 0.022, "d10": 0.021, "d10p": 0.021, "d12": 0.022, "d20": 0.023}[type] as float
+	var faces := _poly_faces(type)
+	# Turn it so the first face lies flat on the table.
+	var n0 := _face_normal(faces[0])
+	var turn := Basis(Quaternion(n0, Vector3.DOWN))
+	var ms := dice_mats(style if style != "" else "bone", c, ink)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var pts := PackedVector3Array()
+	var v := Node3D.new()
+	var ink_bits := []
+	for f: Array in faces:
+		var fv := f.map(func(p: Vector3): return turn * p * r)
+		var n := _face_normal(fv)
+		for i in range(1, fv.size() - 1):
+			for q in [fv[0], fv[i], fv[i + 1]]:
+				st.set_normal(n)
+				st.add_vertex(q)
+		for q in fv:
+			pts.append(q)
+		var cen := Vector3.ZERO
+		for q: Vector3 in fv:
+			cen += q
+		cen /= fv.size()
+		var reach := INF
+		for q: Vector3 in fv:
+			reach = minf(reach, cen.distance_to(q))
+		ink_bits.append([cen, n, reach])
+	v.add_child(mesh_node(st.commit(), ms[0]))
+	# Numerals: a little inked glyph on every face. Percentile dice get a doubled one.
+	for b in ink_bits:
+		var cen: Vector3 = b[0]
+		var n: Vector3 = b[1]
+		var reach: float = b[2]
+		var basis := Basis(Quaternion(Vector3.UP, n))
+		var size := reach * 0.42
+		if type == "d10p":
+			var side := basis * Vector3.RIGHT * size * 0.55
+			for s in [-1.0, 1.0]:
+				var g := mesh_node(cyl(size * 0.42, size * 0.42, 0.0008, 8), ms[1], cen + n * 0.0002 + side * s)
+				g.basis = basis
+				v.add_child(g)
+		else:
+			var g := mesh_node(cyl(size * 0.6, size * 0.6, 0.0008, 3 if type == "d4" else 6), ms[1], cen + n * 0.0002)
+			g.basis = basis
+			v.add_child(g)
+			var bar := mesh_node(box(Vector3(size * 0.25, 0.0009, size * 1.1)), ms[1], cen + n * 0.0003)
+			bar.basis = basis
+			v.add_child(bar)
+	if style == "galaxy":
+		var speck := mat(Color("ffffff"), 0.3, 4.0)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = type.hash()
+		for i in 7:
+			var p: Vector3 = pts[rng.randi_range(0, pts.size() - 1)].lerp(pts[rng.randi_range(0, pts.size() - 1)], 0.5)
+			v.add_child(mesh_node(sphere(0.0011, 4), speck, p * 1.01))
+	var shape := ConvexPolygonShape3D.new()
+	shape.points = pts
+	return [v, shape, Vector3.ZERO, Vector3.ZERO]
+
+
+static func _face_normal(f: Array) -> Vector3:
+	var c := Vector3.ZERO
+	for p: Vector3 in f:
+		c += p
+	c /= f.size()
+	var n := ((f[1] as Vector3) - (f[0] as Vector3)).cross((f[2] as Vector3) - (f[0] as Vector3)).normalized()
+	return -n if n.dot(c) < 0.0 else n
