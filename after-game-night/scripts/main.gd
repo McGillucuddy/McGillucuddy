@@ -12,8 +12,7 @@ const PIECE_SCALE := 0.9
 const CARD_SCALE := 1.0
 ## Which surface each game line is played on.
 const PLAYED_ON := {"crowns": "rug", "plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench", "wyrm": "round", "hoard": "ottoman"}
-## Tools unlock as the room gets tidier: [name, share of the room tidied].
-const TOOL_UNLOCKS := [["Hands", 0.0], ["Seeker Lantern", 0.0], ["Dustpan", 0.02], ["Magnet", 0.06]]
+const TOOL_NAMES := [["Hands"], ["Seeker Lantern"], ["Dustpan"], ["Magnet"]]
 
 var player: Player
 var hud: Hud
@@ -42,6 +41,10 @@ var _last_note_ms := 0
 var streak := 0
 var _last_sort_ms := 0
 var _tidy_step := 0
+var tokens := 0
+var levels := {}
+var _beacons := {}
+var _beacon_t := 0.0
 var _fireflies: MultiMeshInstance3D
 var _firefly_targets: Array = []
 var _firefly_until := 0.0
@@ -120,6 +123,7 @@ func _ready() -> void:
 	player = Player.new()
 	add_child(player)
 	player.pieces = pieces
+	player.boxes_ref = boxes
 	player.global_position = Vector3(0.6, 0.05, 3.9)
 	player.look_at_yaw(0.05, -0.12)
 	player.prompt_changed.connect(_on_prompt)
@@ -132,8 +136,11 @@ func _ready() -> void:
 	hud.restart_pressed.connect(_restart)
 	hud.quit_pressed.connect(func(): get_tree().quit())
 	hud.tool_changed.connect(func(i): player.set_tool(i))
-	player.tool_changed.connect(func(i): hud.set_tools(TOOL_UNLOCKS, player.unlocked, i))
-	hud.set_tools(TOOL_UNLOCKS, player.unlocked, 0)
+	player.tool_changed.connect(func(i): hud.set_tools(TOOL_NAMES, player.unlocked, i))
+	hud.set_tools(TOOL_NAMES, player.unlocked, 0)
+	hud.buy_pressed.connect(_buy)
+	_apply_upgrades()
+	hud.shop_closed.connect(func(): _toggle_shop(false))
 	_refresh_hud()
 	_update_tidy()
 	hud.show_title(true)
@@ -153,7 +160,7 @@ func _setup_input() -> void:
 		"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"sprint": [KEY_SHIFT], "crouch": [KEY_C, KEY_CTRL], "interact": [KEY_E],
-		"throw": [KEY_Q], "hint": [KEY_H], "pause": [KEY_ESCAPE, KEY_P],
+		"throw": [KEY_Q], "hint": [KEY_H], "pause": [KEY_ESCAPE, KEY_P], "shop": [KEY_TAB, KEY_B],
 	}
 	for a in keys:
 		if not InputMap.has_action(a):
@@ -166,6 +173,13 @@ func _setup_input() -> void:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not started or finished:
+		return
+	if e.is_action_pressed("shop") and not paused:
+		_toggle_shop(not hud.shop_open())
+		return
+	if hud.shop_open():
+		if e.is_action_pressed("pause"):
+			_toggle_shop(false)
 		return
 	if e.is_action_pressed("pause"):
 		_set_paused(not paused)
@@ -534,14 +548,17 @@ func _on_piece_landed(box: GameBox, k: int, at: Vector3) -> void:
 func _on_compartment_filled(box: GameBox, at: Vector3) -> void:
 	sfx.chord([PENTA[4], PENTA[7], PENTA[9]], 0.06, -11.0)
 	_sparkle(at + Vector3(0, 0.03, 0), 22, 0.8, Color("ffe7a8"))
-	_float_text(at + Vector3(0, 0.12, 0), "Full!")
+	_float_text(at + Vector3(0, 0.12, 0), "Full!  +1 ✦")
+	_earn(1)
 
 
 func _on_box_packed(box: GameBox) -> void:
 	sfx.at("thunk", box.global_position, 2.0)
 	sfx.chord([PENTA[0], PENTA[2], PENTA[4], PENTA[5], PENTA[7]], 0.08, -9.0, 0.05)
 	_sparkle(box.global_position + Vector3(0, box.H, 0), 40, 1.2, Color("fff1d0"))
-	_float_text(box.global_position + Vector3(0, box.H + 0.2, 0), "Packed!")
+	var reward := 3 + box.units_needed / 150
+	_float_text(box.global_position + Vector3(0, box.H + 0.2, 0), "Packed!  +%d ✦" % reward)
+	_earn(reward)
 	hud.toast("%s is packed. Take it to the shelf." % box.game_name, 3.0)
 	_refresh_hud()
 	_update_tidy()
@@ -564,13 +581,7 @@ func _update_tidy() -> void:
 		un += b.units_needed
 	var frac := float(u) / maxf(1.0, un)
 	hud.set_tidy(frac)
-	for i in TOOL_UNLOCKS.size():
-		if not player.unlocked[i] and frac >= TOOL_UNLOCKS[i][1]:
-			player.unlocked[i] = true
-			if started:
-				sfx.chord([PENTA[4], PENTA[6], PENTA[9]], 0.08, -8.0, 0.3)
-				hud.toast("New tool: %s. Press %d to use it." % [TOOL_UNLOCKS[i][0], i + 1], 3.5)
-			hud.set_tools(TOOL_UNLOCKS, player.unlocked, player.tool)
+
 	var step := int(frac * 10.0)
 	if step > _tidy_step:
 		_tidy_step = step
@@ -649,7 +660,8 @@ func _on_shelved(slot: ShelfSlot, box: GameBox) -> void:
 		get_tree().create_timer(1.4).timeout.connect(_finish)
 	elif slot.filled():
 		sfx.chord([PENTA[0], PENTA[4], PENTA[7], PENTA[9]], 0.12, -8.0, 0.6)
-		hud.toast("All of %s is home." % slot.game_name, 2.5)
+		hud.toast("All of %s is home.  +8 ✦" % slot.game_name, 2.5)
+		_earn(8)
 
 
 func _finish() -> void:
@@ -754,6 +766,7 @@ func _process(_dt: float) -> void:
 		var n := _noise.get_noise_1d(t * 3.0 + f.seed)
 		f.node.scale = Vector3(1.0 - n * 0.15, f.base * (1.0 + n * 0.35), 1.0 - n * 0.15)
 	_update_fireflies(t)
+	_update_beacons(_dt)
 	if _hint_marker and _hint_marker.visible:
 		var pos := Vector3.ZERO
 		var tg: Variant = _hint_target
@@ -1311,6 +1324,108 @@ func _define_spots() -> void:
 		spots[k] = s
 
 
+# ---------------------------------------------------------------- tidy tokens and the tool chest
+
+func _earn(n: int) -> void:
+	tokens += n
+	hud.set_tokens(tokens)
+	sfx.ui("note", -14.0, 2.0, 0.15)
+	if hud.shop_open():
+		hud.fill_shop(levels, tokens)
+	# A gentle nudge the first time something becomes affordable.
+	for u in Upgrades.LIST:
+		var lvl: int = levels.get(u.id, 0)
+		if lvl < u.costs.size() and tokens >= u.costs[lvl] and tokens - n < u.costs[lvl]:
+			hud.toast("You can afford %s. Press Tab to open the Tool Chest." % u.name, 3.0)
+			break
+
+
+func _toggle_shop(on: bool) -> void:
+	hud.show_shop(on, levels, tokens)
+	player.enabled = not on
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if on else Input.MOUSE_MODE_CAPTURED
+	sfx.ui("thunk", -14.0, 1.6)
+
+
+func _buy(id: String) -> void:
+	var u := Upgrades.find(id)
+	var lvl: int = levels.get(id, 0)
+	if u.is_empty() or lvl >= u.costs.size() or tokens < u.costs[lvl]:
+		return
+	tokens -= u.costs[lvl]
+	levels[id] = lvl + 1
+	_apply_upgrades()
+	hud.set_tokens(tokens)
+	hud.fill_shop(levels, tokens)
+	sfx.chord([PENTA[2], PENTA[4], PENTA[7], PENTA[9]], 0.06, -8.0)
+	hud.toast("%s %s." % [u.name, "bought" if lvl == 0 else "upgraded"], 2.0)
+
+
+func _apply_upgrades() -> void:
+	var lv := func(id: String) -> int: return levels.get(id, 0)
+	player.unlocked = [true, lv.call("lantern") > 0, lv.call("dustpan") > 0, lv.call("magnet") > 0]
+	player.hand_max = [80, 140, 220, 320][lv.call("caddy")]
+	player.hand_mult = [1.0, 1.5, 2.0, 3.0][lv.call("caddy")]
+	player.pan_max = [150, 150, 250, 400][lv.call("dustpan")]
+	player.pan_radius = [0.2, 0.2, 0.28, 0.36][lv.call("dustpan")]
+	player.magnet_radius = [2.0, 2.0, 4.0, 14.0][lv.call("magnet")]
+	player.card_stack_max = [8, 16, 30][lv.call("satchel")]
+	player.chute_range = [0.0, 4.0, 30.0][lv.call("chute")]
+	GameBox.pour_speed = [1.0, 1.5, 2.0, 3.0][lv.call("pour")]
+	hud.set_tools(TOOL_NAMES, player.unlocked, player.tool)
+
+
+## Box Beacons: while you're holding pieces, every box that wants some of them glows with a count.
+func _update_beacons(dt: float) -> void:
+	_beacon_t -= dt
+	if _beacon_t > 0.0:
+		return
+	_beacon_t = 0.2
+	var want := {}
+	if levels.get("beacons", 0) > 0 and player and not player.hand.is_empty():
+		for p: Pieces.P in player.hand:
+			want[p.g.ed] = want.get(p.g.ed, 0) + 1
+	for b in boxes:
+		var n: int = want.get(b.ed_id, 0) if not b.complete else 0
+		if n == 0:
+			if _beacons.has(b):
+				_beacons[b].hide()
+			continue
+		if not _beacons.has(b):
+			_beacons[b] = _make_beacon()
+		var node: Node3D = _beacons[b]
+		node.show()
+		node.global_position = b.global_position
+		(node.get_child(1) as Label3D).text = "×%d" % n
+		var through: bool = levels.get("beacons", 0) >= 2
+		(node.get_child(1) as Label3D).no_depth_test = through
+		((node.get_child(0) as MeshInstance3D).material_override as StandardMaterial3D).no_depth_test = through
+
+
+func _make_beacon() -> Node3D:
+	var root := Node3D.new()
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.albedo_color = Color(0.55, 0.85, 1.0, 0.16)
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var beam := MeshKit.mesh_node(MeshKit.cyl(0.12, 0.3, 1.8, 18), m, Vector3(0, 0.95, 0))
+	beam.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	root.add_child(beam)
+	var l := Label3D.new()
+	l.font_size = 72
+	l.pixel_size = 0.0014
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.modulate = Color(0.75, 0.92, 1.0)
+	l.outline_size = 14
+	l.outline_modulate = Color("10202e")
+	l.position = Vector3(0, 0.55, 0)
+	root.add_child(l)
+	world.add_child(root)
+	return root
+
+
 # ---------------------------------------------------------------- the seeker lantern
 
 ## Fireflies drift over every piece and card pile of this box that's still out in the room.
@@ -1320,7 +1435,7 @@ func _seek_box(box: GameBox) -> void:
 		if it.game_id == box.ed_id and not it.stored and not it.held:
 			targets.append(it)
 	_firefly_targets = targets.slice(0, 600)
-	_firefly_until = Time.get_ticks_msec() / 1000.0 + 10.0
+	_firefly_until = Time.get_ticks_msec() / 1000.0 + [10.0, 10.0, 25.0, 1e9][levels.get("lantern", 0)]
 	sfx.chord([PENTA[5], PENTA[7], PENTA[9]], 0.12, -11.0)
 	if targets.is_empty():
 		hud.toast("Everything for %s is already in its box." % box.game_name, 2.5)
@@ -1473,12 +1588,12 @@ func _autotest() -> void:
 			pieces.set_loose(mixed[i], (mixed[i] as Pieces.P).xf)
 	# Tools.
 	var seed_p: Pieces.P = pieces.all.filter(func(p: Pieces.P): return p.g.line == "hoard" and p.state == Pieces.LOOSE)[0]
-	var pan := pieces.in_radius(seed_p.xf.origin, Player.PAN_RADIUS, Player.PAN_MAX)
+	var pan := pieces.in_radius(seed_p.xf.origin, player.pan_radius, player.pan_max)
 	var kinds := {}
 	for p: Pieces.P in pan:
 		kinds[p.g.key] = true
 	print("dustpan at the dice ottoman: ", pan.size(), " pieces of ", kinds.size(), " kinds")
-	print("magnet pulls ", pieces.handful(seed_p, Player.MAGNET_RADIUS, Player.HAND_MAX).size(), " matching ", seed_p.g.key, " vs a hand scoop of ", pieces.handful(seed_p).size())
+	print("magnet pulls ", pieces.handful(seed_p, player.magnet_radius, player.hand_max).size(), " matching ", seed_p.g.key, " vs a hand scoop of ", pieces.handful(seed_p).size())
 	var vault: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == "wyrm/vault")[0]
 	_seek_box(vault)
 	print("lantern on Monster Vault marks ", _firefly_targets.size(), " things (", pieces.loose_for("wyrm/vault").size(), " pieces + card piles)")
@@ -1487,6 +1602,38 @@ func _autotest() -> void:
 		player.set_tool(i)
 	print("tool switching ok: ", player.tool == Player.MAGNET)
 	player.set_tool(0)
+	# The Tool Chest: earn, buy every level, and check the effects.
+	_earn(2000)
+	for u in Upgrades.LIST:
+		for i in u.costs.size():
+			_buy(u.id)
+	print("shop: all bought=", Upgrades.LIST.all(func(u): return levels.get(u.id, 0) == u.costs.size()),
+		" tokens left=", tokens, " hand_max=", player.hand_max, " pan=", player.pan_max, "/", player.pan_radius,
+		" magnet=", player.magnet_radius, " chute=", player.chute_range, " pour x", GameBox.pour_speed)
+	# Box Beacons light every box that wants something in a mixed handful.
+	var mixed_line := pieces.all.filter(func(p: Pieces.P): return p.g.line == "hoard" and p.state == Pieces.LOOSE)
+	mixed_line.shuffle()
+	mixed_line = mixed_line.slice(0, 60)
+	player._scoop(mixed_line)
+	_beacon_t = 0.0
+	_update_beacons(1.0)
+	var lit := _beacons.values().filter(func(n: Node3D): return n.visible).size()
+	var eds := {}
+	for p: Pieces.P in mixed_line:
+		eds[p.g.ed] = true
+	print("beacons lit: ", lit, " (boxes wanted: ", eds.size(), ")")
+	# The Sorting Chute: pour a mixed handful into one dice box; every piece should find its own box.
+	var ember: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == "hoard/ember")[0]
+	var before := 0
+	for b in boxes:
+		before += b.units
+	player._pour_into(ember)
+	var after := 0
+	for b in boxes:
+		after += b.units
+	print("chute: poured 60 mixed dice into one box, ", after - before, " went to their boxes, ", player.hand.size(), " left in hand")
+	player._drop_hand(Vector3.ZERO)
+	await get_tree().create_timer(2.0).timeout
 	var t0 := Time.get_ticks_msec()
 	for b in boxes:
 		_pack_all(b)
@@ -1530,7 +1677,8 @@ func _screenshots() -> void:
 	await _view(Vector3(0.55, 0.05, 1.95), 0.0, -0.95)
 	await _shot(dir, "rpg")
 	# The seeker lantern lighting up everything that belongs in one dice box.
-	player.unlocked = [true, true, true, true]
+	levels = {"lantern": 1, "dustpan": 1, "magnet": 1}
+	_apply_upgrades()
 	player.set_tool(1)
 	var frost: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == "hoard/frost")[0]
 	_seek_box(frost)
@@ -1547,4 +1695,19 @@ func _screenshots() -> void:
 	player._pour_into(frost)
 	await get_tree().create_timer(0.7).timeout
 	await _shot(dir, "dustpan_pour")
+	# Box Beacons over the dice boxes while holding a mixed pan.
+	levels["beacons"] = 2
+	_beacon_t = 0.0
+	await _view(Vector3(2.6, 0.05, 2.6), PI * 0.8, -0.3)
+	await get_tree().create_timer(0.5).timeout
+	await _shot(dir, "beacons")
+	# The Tool Chest, partway through a game.
+	player._drop_hand(Vector3.ZERO)
+	levels = {"lantern": 1, "caddy": 1, "pour": 1}
+	tokens = 0
+	_earn(17)
+	_apply_upgrades()
+	_toggle_shop(true)
+	await get_tree().create_timer(0.4).timeout
+	await _shot(dir, "shop")
 	get_tree().quit()

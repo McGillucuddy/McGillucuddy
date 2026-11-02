@@ -10,15 +10,10 @@ signal acted(kind: String, data: Variant)
 signal tool_changed(i: int)
 
 enum { HANDS, LANTERN, DUSTPAN, MAGNET }
-const PAN_MAX := 150
-const PAN_RADIUS := 0.2
-const MAGNET_RADIUS := 2.0
 
 const WALK := 2.6
 const RUN := 4.4
 const REACH := 2.8
-const HAND_MAX := 80
-const CARD_STACK_MAX := 8
 const SWEEP_EVERY := 0.045
 
 var cam: Camera3D
@@ -42,7 +37,18 @@ var _preview: Array = []
 var _sweeping := false
 var _sweep_t := 0.0
 var tool := HANDS
-var unlocked := [true, true, false, false]
+var unlocked := [true, false, false, false]
+
+# Tuned by upgrades from the Tool Chest.
+var hand_max := 80
+var hand_mult := 1.0
+var pan_max := 150
+var pan_radius := 0.2
+var magnet_radius := 2.0
+var card_stack_max := 8
+var chute_range := 0.0
+var boxes_ref: Array = []
+var caddy_model: Node3D
 var _tool_models: Array[Node3D] = []
 var _preview_t := 0.0
 
@@ -172,7 +178,7 @@ func _hand_label() -> String:
 
 
 func _cap() -> int:
-	return PAN_MAX if tool == DUSTPAN else HAND_MAX
+	return pan_max if tool == DUSTPAN else hand_max
 
 
 func _card_count() -> int:
@@ -202,29 +208,29 @@ func _update_hover() -> void:
 			text = "Where does this go?  ·  %s" % (c as Item).label
 		else:
 			text = "Seeker Lantern  ·  aim at a box or a piece"
-	elif tool == DUSTPAN and held == null and hit_ok and not (c is GameBox) and hand.size() < PAN_MAX:
+	elif tool == DUSTPAN and held == null and hit_ok and not (c is GameBox) and hand.size() < pan_max:
 		# Refresh the preview ten times a second; it's a scan over every piece in the room.
 		_preview_t -= get_physics_process_delta_time()
 		if _preview_t <= 0.0:
 			_preview_t = 0.1
-			preview = pieces.in_radius(ray.get_collision_point(), PAN_RADIUS, mini(30, PAN_MAX - hand.size()))
+			preview = pieces.in_radius(ray.get_collision_point(), pan_radius, mini(30, pan_max - hand.size()))
 		else:
 			preview = _preview
 		var shown := ("%d+" % preview.size()) if preview.size() >= 30 else str(preview.size())
 		text = ("Sweep up %s pieces  ·  hold to keep sweeping" % shown) if not preview.is_empty() else "Dustpan  ·  aim at a pile"
 		if not hand.is_empty():
 			text += "  ·  pan holds %d" % hand.size()
-	elif tool == MAGNET and held == null and loose_piece and hand.size() < HAND_MAX:
+	elif tool == MAGNET and held == null and loose_piece and hand.size() < hand_max:
 		var p := c as Pieces.P
-		preview = pieces.handful(p, MAGNET_RADIUS, mini(30, HAND_MAX - hand.size()))
-		var n := pieces.handful(p, MAGNET_RADIUS, HAND_MAX - hand.size()).size()
+		preview = pieces.handful(p, magnet_radius, mini(30, hand_max - hand.size()))
+		var n := pieces.handful(p, magnet_radius, hand_max - hand.size()).size()
 		text = "Magnet: pull in %d %s %s from nearby" % [n, p.g.ed_name, GameData.type_name(p.g.type, n)]
 	elif tool == MAGNET and held == null and hand.is_empty():
 		text = "Magnet  ·  aim at a piece to pull in every match nearby"
-	elif held == null and loose_piece and hand.size() < HAND_MAX:
-		preview = pieces.handful(c)
+	elif held == null and loose_piece and hand.size() < hand_max:
+		preview = pieces.handful(c, 0.32, int(ceil((c as Pieces.P).g.handful * hand_mult)))
 		var p := c as Pieces.P
-		var n := mini(preview.size(), HAND_MAX - hand.size())
+		var n := mini(preview.size(), hand_max - hand.size())
 		if hand.is_empty():
 			text = "Scoop %d %s %s  ·  hold to sweep" % [n, p.g.ed_name, GameData.type_name(p.g.type, n)]
 		else:
@@ -254,7 +260,7 @@ func _update_hover() -> void:
 		elif c is ShelfSlot and not (c as ShelfSlot).filled():
 			text = "Shelf cubby for %s" % (c as ShelfSlot).game_name
 	else:
-		if held.kind == "cards" and c is Item and (c as Item).kind == "cards" and (c as Item).can_pick() and extra_cards.size() < CARD_STACK_MAX - 1:
+		if held.kind == "cards" and c is Item and (c as Item).kind == "cards" and (c as Item).can_pick() and extra_cards.size() < card_stack_max - 1:
 			text = "Add %s to your stack  ·  carrying %d piles" % [(c as Item).label, _card_count()]
 			(c as Item).set_highlight(true)
 		elif held.kind != "box" and c is GameBox and not (c as GameBox).complete:
@@ -296,21 +302,21 @@ func primary() -> void:
 			acted.emit("seek_for", c)
 		return
 	if tool == DUSTPAN and held == null and not aiming_box and ray.is_colliding():
-		if hand.size() < PAN_MAX:
-			var got := pieces.in_radius(ray.get_collision_point(), PAN_RADIUS, PAN_MAX - hand.size())
+		if hand.size() < pan_max:
+			var got := pieces.in_radius(ray.get_collision_point(), pan_radius, pan_max - hand.size())
 			if not got.is_empty():
 				_scoop(got)
 		_sweeping = true
 		_sweep_t = SWEEP_EVERY * 3.0
 		return
-	if tool == MAGNET and held == null and c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE and hand.size() < HAND_MAX:
-		var got := pieces.handful(c, MAGNET_RADIUS, HAND_MAX - hand.size())
+	if tool == MAGNET and held == null and c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE and hand.size() < hand_max:
+		var got := pieces.handful(c, magnet_radius, hand_max - hand.size())
 		_scoop(got, true)
 		acted.emit("magnet", got.size())
 		return
 	# Scooping: any loose piece, even into a mixed handful.
-	if held == null and c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE and hand.size() < HAND_MAX:
-		_scoop(pieces.handful(c).slice(0, HAND_MAX - hand.size()))
+	if held == null and c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE and hand.size() < hand_max:
+		_scoop(pieces.handful(c, 0.32, int(ceil((c as Pieces.P).g.handful * hand_mult))).slice(0, hand_max - hand.size()))
 		_sweeping = true
 		_sweep_t = SWEEP_EVERY * 3.0
 		return
@@ -327,7 +333,7 @@ func primary() -> void:
 			acted.emit("pick", held)
 		return
 	# Carrying card piles: grab more of them.
-	if held.kind == "cards" and c is Item and (c as Item).kind == "cards" and (c as Item).can_pick() and extra_cards.size() < CARD_STACK_MAX - 1:
+	if held.kind == "cards" and c is Item and (c as Item).kind == "cards" and (c as Item).can_pick() and extra_cards.size() < card_stack_max - 1:
 		var it := c as Item
 		it.on_pick()
 		extra_cards.append(it)
@@ -348,7 +354,7 @@ func primary() -> void:
 
 func _pour_into(box: GameBox) -> void:
 	var took := box.sift(hand, _hand_nodes)
-	if took.is_empty():
+	if took.is_empty() and chute_range <= 0.0:
 		box.shake()
 		acted.emit("wrong_box", box)
 		return
@@ -360,8 +366,34 @@ func _pour_into(box: GameBox) -> void:
 			keep_nodes.append(_hand_nodes[i])
 	hand = keep
 	_hand_nodes = keep_nodes
+	if not took.is_empty():
+		acted.emit("poured", {"box": box, "n": took.size(), "left": hand.size()})
+	# The Sorting Chute sends what's left to every other open box that wants it.
+	var chuted := 0
+	if chute_range > 0.0:
+		for other: GameBox in boxes_ref:
+			if hand.is_empty():
+				break
+			if other == box or other.complete or other.held or other.global_position.distance_to(box.global_position) > chute_range:
+				continue
+			var t2 := other.sift(hand, _hand_nodes)
+			if t2.is_empty():
+				continue
+			var k2: Array = []
+			var kn2: Array = []
+			for i in hand.size():
+				if not t2.has(i):
+					k2.append(hand[i])
+					kn2.append(_hand_nodes[i])
+			hand = k2
+			_hand_nodes = kn2
+			chuted += t2.size()
+			acted.emit("poured", {"box": other, "n": t2.size(), "left": hand.size()})
+	if took.is_empty() and chuted == 0:
+		box.shake()
+		acted.emit("wrong_box", box)
+		return
 	_arrange_hand()
-	acted.emit("poured", {"box": box, "n": took.size(), "left": hand.size()})
 
 
 func _put_items_in(box: GameBox) -> void:
@@ -396,7 +428,7 @@ func _update_sweep(dt: float) -> void:
 		return
 	if tool == DUSTPAN:
 		if ray.is_colliding() and not (hovered is GameBox):
-			var got := pieces.in_radius(ray.get_collision_point(), PAN_RADIUS, mini(20, PAN_MAX - hand.size()))
+			var got := pieces.in_radius(ray.get_collision_point(), pan_radius, mini(20, pan_max - hand.size()))
 			if not got.is_empty():
 				_scoop(got)
 		_sweep_t = SWEEP_EVERY * 1.5
@@ -405,7 +437,7 @@ func _update_sweep(dt: float) -> void:
 		return
 	var c: Variant = hovered
 	if c is Pieces.P and (c as Pieces.P).state == Pieces.LOOSE:
-		var got: Array = pieces.handful(c).slice(0, mini(6, HAND_MAX - hand.size()))
+		var got: Array = pieces.handful(c).slice(0, mini(6, hand_max - hand.size()))
 		if not got.is_empty():
 			_scoop(got)
 			_sweep_t = SWEEP_EVERY

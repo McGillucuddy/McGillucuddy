@@ -392,7 +392,7 @@ func accept_pieces(list: Array, proxies: Array) -> String:
 		return why
 	var group_done := false
 	var done_keys := []
-	var gap := clampf(1.6 / maxf(list.size(), 1), 0.022, 0.05)
+	var gap := clampf(1.6 / maxf(list.size(), 1), 0.022, 0.05) / pour_speed
 	for k in list.size():
 		var p: Pieces.P = list[k]
 		var proxy: Node3D = proxies[k]
@@ -527,6 +527,8 @@ func shake() -> void:
 
 
 var pieces_ref: Pieces
+## Raised by the Quick Pour upgrade.
+static var pour_speed := 1.0
 
 
 func _on_intake(body: Node3D) -> void:

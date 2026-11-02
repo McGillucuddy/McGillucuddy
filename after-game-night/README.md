@@ -40,16 +40,28 @@ Each line was played with its expansions mixed in, so the pieces from every box 
 - **Pour:** pieces hop over the rim and drop into their spots one after another, each with a woody click, rising notes and little glints.
 - **Card piles:** pick up one pile, then click more piles to carry up to eight at once. They sift into boxes the same way.
 
-### Tools
+### Tidy Tokens and the Tool Chest
 
-Switch tools with 1 to 4 or the mouse wheel. The last two unlock as the room gets tidier.
+You earn Tidy Tokens (✦) as you sort:
 
-| Tool | What it does |
+- **+1** for every compartment you fill
+- **+3 or more** for every box you pack (bigger boxes pay more)
+- **+8** for every game line that's fully shelved
+
+Press **Tab** to open the Tool Chest and spend them. Every upgrade has levels, so there's always something to save up for. Tools you've bought go on your belt; switch with 1 to 4 or the mouse wheel.
+
+| Upgrade | Levels |
 | --- | --- |
-| 1. Hands | Scoop, sweep, pour and carry, as above. |
-| 2. Seeker Lantern | A warm lantern with its own light. Aim it at a box and fireflies drift over every piece and card pile of that box still out in the room. Aim it at a piece and a beam of light rises from the box it belongs in. |
-| 3. Dustpan (2% tidy) | Sweeps up every loose piece in a wide circle, any kind, up to 150. Hold to keep sweeping, then pour into boxes to sift. |
-| 4. Magnet (6% tidy) | Pulls every matching piece within 2 meters into your hand in a stream. Good for strays. |
+| Seeker Lantern (✦3, 8, 16) | Aim at a box and fireflies mark everything of it still out; aim at a piece and a beam shows its box. Fireflies then linger longer, then stay until it's all put away. |
+| Sorting Caddy (✦5, 12, 22) | Carry 140, then 220, then 320 pieces, with scoops 1.5×, 2× and 3× bigger. |
+| Box Beacons (✦8, 14) | While you're holding pieces, every box that wants some of them glows with a count. Level 2 shows them through walls and furniture. |
+| Dustpan (✦10, 18, 30) | Sweep up loose pieces of any kind, up to 150, then 250, then 400, in a wider circle each time. |
+| Magnet (✦14, 22, 34) | Pull every matching piece within 2 m, then 4 m, then across the whole room. |
+| Quick Pour (✦4, 9, 16) | Pieces pour into boxes 1.5×, 2× and 3× faster. |
+| Card Satchel (✦6, 14) | Carry 16, then 30, card piles at once. |
+| Sorting Chute (✦40, 60) | When you pour, leftovers fly on to their own open boxes within 4 m, then anywhere in the room. |
+
+A full game earns roughly 400 tokens, and buying everything costs about 365, so you'll own most of the chest by the end. The upgrade list lives in `scripts/upgrades.gd`, and `_apply_upgrades()` in `scripts/main.gd` sets what each level does.
 
 Rewards along the way: a full compartment chimes and sparkles, a packed box closes with a thunk and a puff of light, a streak counter climbs while you sort without mix-ups, and the room tidiness meter at the top celebrates every 10%.
 
@@ -72,6 +84,7 @@ All the boxes in a line share a footprint, so they stack together in that line's
 | Left click / E | Scoop up pieces or pick something up, pour into a box, shelve a box, set down |
 | Hold left click | Sweep up a pile |
 | 1 to 4 / mouse wheel | Switch tools |
+| Tab | Open the Tool Chest |
 | Right click / Q | Toss what you're holding (pieces scatter) |
 | H | Hint: an arrow points at something that can go in next |
 | Esc / P | Pause |
@@ -105,4 +118,4 @@ The lighting is designed for Godot's default Forward+ renderer, which adds the w
 godot --headless --path . -- --autotest
 ```
 
-This checks that handfuls only scoop matching pieces, that the dustpan, magnet and lantern find what they should, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, then packs and shelves all 21 boxes and confirms the game ends.
+This checks that handfuls only scoop matching pieces, that the dustpan, magnet and lantern find what they should, that buying upgrades applies them, that Box Beacons light the right boxes and that the Sorting Chute sends every piece home, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, then packs and shelves all 21 boxes and confirms the game ends.

@@ -7,6 +7,8 @@ signal resume_pressed
 signal restart_pressed
 signal quit_pressed
 signal tool_changed(i: int)
+signal buy_pressed(id: String)
+signal shop_closed
 
 const HONEY := Color("f3b648")
 const CREAM := Color("fff1de")
@@ -31,6 +33,11 @@ var _streak: Label
 var _streak_tw: Tween
 var _tidy_shown := 0.0
 var _toolbar: HBoxContainer
+var _tokens_panel: PanelContainer
+var _tokens: Label
+var _shop: Control
+var _shop_rows: VBoxContainer
+var _shop_tokens: Label
 
 
 class Crosshair extends Control:
@@ -135,6 +142,8 @@ func _ready() -> void:
 	_toolbar.add_theme_constant_override("separation", 8)
 	_toolbar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_toolbar)
+	_build_tokens(root)
+	_build_shop(root)
 
 	_title = _overlay(root, "After Game Night",
 		"Everyone's gone home and the games are everywhere.\nPut every piece back in its own box, then shelve the boxes.",
@@ -150,6 +159,13 @@ func _ready() -> void:
 
 
 func _style_buttons(th: Theme) -> void:
+	var off := StyleBoxFlat.new()
+	off.bg_color = Color(0.35, 0.28, 0.24, 0.8)
+	off.set_corner_radius_all(14)
+	off.content_margin_left = 26; off.content_margin_right = 26
+	off.content_margin_top = 12; off.content_margin_bottom = 12
+	th.set_stylebox("disabled", "Button", off)
+	th.set_color("font_disabled_color", "Button", Color("a89484"))
 	for state in ["normal", "hover", "pressed", "focus"]:
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = HONEY if state != "hover" else HONEY.lightened(0.15)
@@ -373,9 +389,146 @@ func set_tools(defs: Array, unlocked: Array, active: int) -> void:
 		k.add_theme_color_override("font_color", Color("3b2630") if i == active else DIM)
 		v.add_child(k)
 		var n := Label.new()
-		n.text = defs[i][0] if on else "Locked  (%d%% tidy)" % int(round(defs[i][1] * 100.0))
+		n.text = defs[i][0] if on else "%s  (Tool Chest)" % defs[i][0]
 		n.add_theme_font_size_override("font_size", 16)
 		n.add_theme_color_override("font_color", Color("3b2630") if i == active else (CREAM if on else DIM))
 		v.add_child(n)
 		p.add_child(v)
 		_toolbar.add_child(p)
+
+
+# ---------------------------------------------------------------- tidy tokens and the tool chest
+
+func _build_tokens(root: Control) -> void:
+	_tokens_panel = _panel(PANEL)
+	_tokens_panel.anchor_left = 1; _tokens_panel.anchor_right = 1
+	_tokens_panel.offset_left = -250; _tokens_panel.offset_right = -22
+	_tokens_panel.offset_top = 22
+	_tokens_panel.pivot_offset = Vector2(110, 24)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 10)
+	h.alignment = BoxContainer.ALIGNMENT_END
+	var coin := Label.new()
+	coin.text = "✦"
+	coin.add_theme_font_size_override("font_size", 24)
+	coin.add_theme_color_override("font_color", HONEY)
+	h.add_child(coin)
+	_tokens = Label.new()
+	_tokens.add_theme_font_size_override("font_size", 22)
+	h.add_child(_tokens)
+	var hint := Label.new()
+	hint.text = "Tab: Tool Chest"
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_color_override("font_color", DIM)
+	h.add_child(hint)
+	_tokens_panel.add_child(h)
+	root.add_child(_tokens_panel)
+	set_tokens(0, false)
+
+
+func set_tokens(n: int, bump := true) -> void:
+	_tokens.text = "%d" % n
+	if bump:
+		_tokens_panel.scale = Vector2(1.15, 1.15)
+		create_tween().tween_property(_tokens_panel, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+func _build_shop(root: Control) -> void:
+	_shop = ColorRect.new()
+	(_shop as ColorRect).color = Color(0.09, 0.05, 0.08, 0.84)
+	_shop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.add_child(_shop)
+	var cc := CenterContainer.new()
+	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_shop.add_child(cc)
+	var card := _panel(Color(0.2, 0.12, 0.1, 0.97))
+	card.mouse_filter = Control.MOUSE_FILTER_STOP
+	cc.add_child(card)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 12)
+	v.custom_minimum_size = Vector2(820, 0)
+	card.add_child(v)
+	var head := HBoxContainer.new()
+	var t := Label.new()
+	t.text = "Tool Chest"
+	t.add_theme_font_size_override("font_size", 44)
+	t.add_theme_color_override("font_color", HONEY)
+	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(t)
+	_shop_tokens = Label.new()
+	_shop_tokens.add_theme_font_size_override("font_size", 26)
+	head.add_child(_shop_tokens)
+	v.add_child(head)
+	var sub := Label.new()
+	sub.text = "Earn Tidy Tokens by filling compartments, packing boxes and shelving whole games."
+	sub.add_theme_color_override("font_color", DIM)
+	sub.add_theme_font_size_override("font_size", 17)
+	v.add_child(sub)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 440)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
+	_shop_rows = VBoxContainer.new()
+	_shop_rows.add_theme_constant_override("separation", 8)
+	_shop_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(_shop_rows)
+	var close := Button.new()
+	close.text = "Back to tidying  (Tab)"
+	close.pressed.connect(func(): shop_closed.emit())
+	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(close)
+	_shop.hide()
+
+
+func shop_open() -> bool:
+	return _shop.visible
+
+
+func show_shop(on: bool, levels := {}, tokens := 0) -> void:
+	_shop.visible = on
+	if on:
+		fill_shop(levels, tokens)
+
+
+func fill_shop(levels: Dictionary, tokens: int) -> void:
+	_shop_tokens.text = "✦ %d" % tokens
+	for c in _shop_rows.get_children():
+		c.queue_free()
+	for u in Upgrades.LIST:
+		var lvl: int = levels.get(u.id, 0)
+		var maxed: bool = lvl >= u.costs.size()
+		var row := _panel(Color(1, 1, 1, 0.05))
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 16)
+		var left := VBoxContainer.new()
+		left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var name := Label.new()
+		var pips := ""
+		for i in u.costs.size():
+			pips += "●" if i < lvl else "○"
+		name.text = "%s   %s" % [u.name, pips]
+		name.add_theme_font_size_override("font_size", 21)
+		name.add_theme_color_override("font_color", HONEY if lvl > 0 else CREAM)
+		left.add_child(name)
+		var d := Label.new()
+		d.text = "All upgrades bought." if maxed else u.levels[lvl]
+		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		d.custom_minimum_size.x = 560
+		d.add_theme_font_size_override("font_size", 16)
+		d.add_theme_color_override("font_color", DIM)
+		left.add_child(d)
+		h.add_child(left)
+		var b := Button.new()
+		b.custom_minimum_size.x = 150
+		if maxed:
+			b.text = "Owned"
+			b.disabled = true
+		else:
+			var cost: int = u.costs[lvl]
+			b.text = "%s  ✦ %d" % ["Buy" if lvl == 0 else "Upgrade", cost]
+			b.disabled = tokens < cost
+			var id: String = u.id
+			b.pressed.connect(func(): buy_pressed.emit(id))
+		h.add_child(b)
+		row.add_child(h)
+		_shop_rows.add_child(row)
