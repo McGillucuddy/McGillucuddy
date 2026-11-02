@@ -61,7 +61,8 @@ static func layout(entries: Array, f: float, wh: float) -> Dictionary:
 	for e: Dictionary in entries:
 		var w := {"e": e}
 		if e.has("cards"):
-			var sv := minf(f, 1.0)
+			var base: float = e.get("base", 1.0)
+			var sv := minf(f * base, base)
 			var cap := maxi(10, int(floor(wh * 0.95 / (MeshKit.CARD.y * sv))))
 			var stacks := ceili(float(e.cards) / cap) + (1 if e.cards > cap else 0)
 			w.merge({"sv": sv, "fx": MeshKit.CARD.x * sv, "fz": MeshKit.CARD.z * sv, "h": 0.0, "cells": stacks, "cap": cap})
@@ -173,7 +174,7 @@ func _build_shell(ed_idx: int) -> void:
 		cs.shape = bs
 		cs.position = p[1]
 		add_child(cs)
-	CaseKit.dress_base(case_style, visual, W, H, D, T, color, trim, game_name, ed_idx)
+	CaseKit.dress_base(self, case_style, visual, W, H, D, T, color, trim, game_name, ed_idx)
 
 	lid_pivot = Node3D.new()
 	lid_pivot.position = Vector3(0, H, -D / 2)
@@ -181,11 +182,8 @@ func _build_shell(ed_idx: int) -> void:
 	visual.add_child(lid_pivot)
 	var lw := W + 0.012
 	var ld := D + 0.012
-	var logo: Texture2D = null
-	if case_style == CaseKit.BOARDGAME:
-		logo = LogoKit.make(self, _line_short, _title_main, _title_sub)
-	CaseKit.build_lid(case_style, lid_pivot, lw, ld, T, CaseKit.skirt(case_style, H), color, accent, outer, trim,
-		game_name, _line_short, ed_idx, line_id_seed, logo)
+	CaseKit.build_lid(self, case_style, lid_pivot, lw, ld, T, CaseKit.skirt(case_style, H), color, accent, outer, trim,
+		game_name, _title_main, _title_sub, _line_short, ed_idx, line_id_seed)
 
 	contents = Node3D.new()
 	contents.name = "Contents"
@@ -306,24 +304,18 @@ func _make_card_tray(set_name: String, wl: Dictionary, wx: float, wz: float, car
 		var c: int = i % cols
 		var r: int = i / cols
 		stacks.append({"pos": Vector3(wx + GAP + fx / 2 + c * (fx + GAP), T, wz + GAP + fz / 2 + r * (fz + GAP)), "cards": 0})
+	# A divider in the set's colour stands behind each stack, with a tab sticking up, like a real card box.
+	var tab_m := MeshKit.mat(info.stripe, 0.5)
+	for st in stacks:
+		var p: Vector3 = st.pos
+		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(fx, well_h * 0.85, 0.003)), tab_m, Vector3(p.x, T + well_h * 0.425, p.z - fz / 2 - 0.002)))
+		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(fx * 0.4, 0.02, 0.003)), tab_m, Vector3(p.x - fx * 0.25, T + well_h * 0.85 + 0.01, p.z - fz / 2 - 0.002)))
 	var g: Node3D = MeshKit.card_stack(color, 1, info.stripe)[0]
 	MeshKit.ghostify(g, ghost_m)
 	g.position = stacks[0].pos
 	g.scale = Vector3.ONE * sv
 	visual.add_child(g)
 	_card_sets[set_name] = {"stacks": stacks, "cap": wl.cap, "scale": sv, "left": info.piles, "ghost": g}
-
-
-func _label(text: String, size: int) -> Label3D:
-	var l := Label3D.new()
-	l.text = text
-	l.font_size = size
-	l.pixel_size = 0.0009
-	l.outline_size = 12
-	l.modulate = Color("fff4e4")
-	l.outline_modulate = color.darkened(0.6)
-	l.double_sided = false
-	return l
 
 
 func _ready() -> void:
@@ -476,7 +468,11 @@ func try_accept(item: Item) -> String:
 					break
 			for c in item.visual.get_children():
 				c.queue_free()
-			item.visual.add_child(MeshKit.card_stack(item.card_back, item.card_count, item.card_stripe, item.card_style, item.card_top_face)[0])
+			# In the box every pile lies face up, so you can see what's in each tray.
+			var face: Material = item.card_top_face
+			if face == null and not item.card_faces.is_empty():
+				face = item.card_faces[0]
+			item.visual.add_child(MeshKit.card_stack(item.card_back, item.card_count, item.card_stripe, item.card_style, face)[0])
 			item.visual.scale = Vector3.ONE * item.base_scale
 			target_pos = stack.pos + Vector3(0, stack.cards * MeshKit.CARD.y * tray.scale, 0)
 			target_rot = Vector3(0, randf_range(-0.04, 0.04), 0)

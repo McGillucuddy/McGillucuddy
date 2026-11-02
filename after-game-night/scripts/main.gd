@@ -11,7 +11,7 @@ const SPILL := 0.22
 ## Share of card piles left face up (hands are always face up).
 const FACE_UP := 0.7
 const PIECE_SCALE := 0.9
-const CARD_SCALE := 1.0
+const CARD_SCALE := 1.5
 ## Which surface each game line is played on.
 const PLAYED_ON := {"crowns": "rug", "plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench", "wyrm": "round", "hoard": "ottoman",
 	"casino": "poker", "ccg": "ccgtable", "caverns": "curio", "marbles": "ring", "paints": "paintdesk"}
@@ -272,12 +272,12 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 		for g in groups:
 			entries.append({"key": g.key, "aabb": g.aabb_rest, "n": g.members.size()})
 		for set_name in card_piles:
-			entries.append({"key": "cards:" + set_name, "cards": card_piles[set_name].cards})
+			entries.append({"key": "cards:" + set_name, "cards": card_piles[set_name].cards, "base": CARD_SCALE})
 		var lay := GameBox.plan(entries)
 		depth = maxf(depth, lay.depth)
 		var extra: Array[Item] = []
 		if ed.get("rules", true):
-			extra.append(_make_rules(ed_key, ed_name, style.body))
+			extra.append(_make_rules(ed_key, ed_name, style.body, line, ed))
 		if ed.board:
 			extra.append(_make_board(ed_key, ed_name, style.body))
 		plans.append({"ed": ed, "ei": ei, "groups": groups, "where": where, "card_piles": card_piles,
@@ -476,12 +476,16 @@ func _make_cards(ed_key: String, ed_name: String, c: Color, stripe: Color, set_n
 	return it
 
 
-func _make_rules(ed_key: String, ed_name: String, c: Color) -> Item:
+func _make_rules(ed_key: String, ed_name: String, c: Color, line: Dictionary, ed: Dictionary) -> Item:
 	var it := Item.new()
 	it.game_id = ed_key
 	it.kind = "rules"
 	it.label = "%s rulebook" % ed_name
-	_attach(it, MeshKit.rulebook(c, ed_name), 1.0)
+	# A printed cover: the game's logo on the cover colour, and a RULEBOOK band near the bottom.
+	var cover := LogoKit.print_surface(faces_root, line.id, line.name, ed.name, Vector2i(512, 694), null, c.darkened(0.15),
+		Rect2(16, 70, 480, 300), c.lightened(0.35))
+	var band := LogoKit.plaque(faces_root, "RULEBOOK", Vector2i(512, 82), c.lightened(0.35), c.darkened(0.6), c.darkened(0.35))
+	_attach(it, MeshKit.rulebook(c, ed_name, cover, band), 1.0)
 	it.mass = 0.15
 	return it
 
@@ -1300,14 +1304,10 @@ func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: 
 			rack.add_child(ghost)
 			slot.ghost = ghost
 			rack.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.66, 0.046, 0.006)), MeshKit.mat(line.color, 0.6), Vector3(cx, fy - bt / 2, depth / 2 + 0.004)))
-			var lbl := Label3D.new()
-			lbl.text = line.name
-			lbl.font_size = 40
-			lbl.pixel_size = 0.0009
-			lbl.outline_size = 6
-			lbl.outline_modulate = Color(line.color).darkened(0.6)
-			lbl.position = Vector3(cx, fy - bt / 2, depth / 2 + 0.009)
-			rack.add_child(lbl)
+			# The name is printed on the shelf's colour-coded label strip.
+			var ink := Color("1c1410") if (line.color as Color).get_luminance() > 0.55 else Color("fff4e4")
+			var plate_tex := LogoKit.plaque(self, line.name, Vector2i(768, 54), line.color, ink, (line.color as Color).darkened(0.4))
+			CaseKit._print(rack, Vector2(0.66, 0.046), plate_tex, Vector3(cx, fy - bt / 2, depth / 2 + 0.0076), false, 0.5)
 
 	var bx := -width / 2 + 0.15
 	for i in 7:
@@ -1316,15 +1316,8 @@ func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: 
 		rack.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(0.05, h, 0.2)), MeshKit.mat(col.darkened(0.2), 0.8), Vector3(bx, top_y + 0.05 + h / 2, 0)))
 		bx += 0.06
 	_plant(rack.to_global(Vector3(width / 2 - 0.25, top_y + 0.05, 0)))
-	var title := Label3D.new()
-	title.text = title_text
-	title.font_size = 64
-	title.pixel_size = 0.0018
-	title.modulate = Color("f3b648")
-	title.outline_size = 12
-	title.outline_modulate = Color("3a1f0f")
-	title.position = Vector3(0.1, top_y + 0.24, 0.05)
-	rack.add_child(title)
+	# A carved and gilded wooden sign on top of the shelf.
+	_sign(rack, title_text, Vector3(0.1, top_y + 0.2, 0.06), Vector2(1.1, 0.2))
 
 
 func _fit_shelf_ghosts() -> void:
@@ -1401,16 +1394,11 @@ func _build_hobby_nook() -> void:
 	world.add_child(lamp)
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.012, 0.6), MeshKit.mat(Color("2a2a2a"), 0.4), Vector3(-3.95, 1.07, 6.05)))
 	world.add_child(MeshKit.mesh_node(MeshKit.cyl(0.04, 0.08, 0.1, 16), MeshKit.mat(Color("2f5a46"), 0.4), Vector3(-4.2, 1.47, 5.85), Vector3(0.6, 0, 0.5)))
-	var sign := Label3D.new()
-	sign.text = "Hobby Desk"
-	sign.font_size = 48
-	sign.pixel_size = 0.0014
-	sign.modulate = Color("f3b648")
-	sign.outline_size = 10
-	sign.outline_modulate = Color("3a1f0f")
-	sign.position = Vector3(-4.6, 1.15, 6.17)
-	sign.rotation.y = PI
-	world.add_child(sign)
+	var sign_root := Node3D.new()
+	sign_root.position = Vector3(-4.6, 1.17, 6.17)
+	sign_root.rotation.y = PI
+	world.add_child(sign_root)
+	_sign(sign_root, "Hobby Desk", Vector3.ZERO, Vector2(0.62, 0.13))
 	# An oval felt poker table under a green banker's lamp.
 	var poker := StaticBody3D.new()
 	poker.collision_layer = Item.LAYER_WORLD
@@ -1738,6 +1726,30 @@ func _autotest() -> void:
 		if not took.has(i):
 			(mixed_nodes[i] as Node).queue_free()
 			pieces.set_loose(mixed[i], (mixed[i] as Pieces.P).xf)
+	# Dropping: pieces tossed onto the floor and onto a table should come to rest on top, not inside.
+	var droppers := pieces.all.filter(func(p: Pieces.P): return p.state == Pieces.LOOSE and p.g.line == "hoard").slice(0, 20) \
+		+ pieces.all.filter(func(p: Pieces.P): return p.state == Pieces.LOOSE and p.g.line == "casino").slice(0, 20)
+	for i in droppers.size():
+		var p: Pieces.P = droppers[i]
+		pieces.take(p)
+		var over := Vector3(0.6 + randf_range(-0.3, 0.3), 1.2, 3.6 + randf_range(-0.3, 0.3)) if i % 2 == 0 else Vector3(-3.0 + randf_range(-0.4, 0.4), 1.4, -1.5 + randf_range(-0.2, 0.2))
+		pieces.drop(p, Transform3D(Basis.from_euler(Vector3(randf(), randf(), randf()) * TAU), over), Vector3(randf_range(-1, 1), -1.0, randf_range(-1, 1)))
+	await get_tree().create_timer(7.0).timeout
+	var worst := 0.0
+	var fell := 0
+	for p: Pieces.P in droppers:
+		if p.xf.origin.y < -0.5:
+			fell += 1
+			continue
+		var bb: AABB = Transform3D(p.xf.basis) * p.g.aabb_table
+		var q := PhysicsRayQueryParameters3D.create(p.xf.origin + Vector3(0, 0.03, 0), p.xf.origin - Vector3(0, 0.4, 0), Item.LAYER_WORLD | Item.LAYER_ITEMS)
+		q.exclude = [p.body]
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		# Only measure pieces resting on the floor or furniture; one leaning over the edge of a card
+		# pile or another piece would read as "sinking" when it isn't.
+		if not hit.is_empty() and hit.collider is StaticBody3D:
+			worst = maxf(worst, (hit.position as Vector3).y - (p.xf.origin.y + bb.position.y))
+	print("drop test: %d pieces, %d fell through, deepest sink into floor or furniture %.1f mm" % [droppers.size(), fell, worst * 1000.0])
 	# Tools.
 	var seed_p: Pieces.P = pieces.all.filter(func(p: Pieces.P): return p.g.line == "hoard" and p.state == Pieces.LOOSE)[0]
 	var pan := pieces.in_radius(seed_p.xf.origin, player.pan_radius, player.pan_max)
@@ -1807,6 +1819,7 @@ func _autotest() -> void:
 
 
 func _shot(dir: String, name: String) -> void:
+	print("shot ", name, " at ", Time.get_ticks_msec())
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, name])
 
@@ -1822,17 +1835,79 @@ func _screenshots() -> void:
 	var dir := args[args.find("--shot") + 1]
 	await get_tree().create_timer(3.0).timeout
 	_start()
-	hud.toast("", 0.0)
-	hud.get_child(0).hide()
-	await _view(Vector3(-3.0, 0.05, -0.6), 0.0, -0.95)
+	hud.visible = false
+	var cam := Camera3D.new()
+	cam.fov = 50
+	add_child(cam)
+	cam.current = true
+	var by_id := func(id: String) -> GameBox: return boxes.filter(func(x: GameBox): return x.ed_id == id)[0]
+	# The cards as you walk past the tables.
+	await _cam_at(cam, Vector3(-3.0, 1.45, -0.3), Vector3(-3.0, 0.75, -1.5))
 	await _shot(dir, "cards_dining")
-	await _view(Vector3(0.9, 0.05, 5.0), PI, -1.05)
+	await _cam_at(cam, Vector3(0.9, 1.45, 4.7), Vector3(0.9, 0.75, 5.75))
 	await _shot(dir, "cards_ccg")
-	await _view(Vector3(-1.6, 0.05, 4.95), PI, -1.0)
-	await _shot(dir, "cards_poker")
-	await _view(Vector3(0.55, 0.05, 1.75), 0.0, -1.05)
-	await _shot(dir, "cards_rpg")
+	# Open boxes waiting to be filled, then half packed (pieces and cards, board still out).
+	var wy: GameBox = by_id.call("wyrm/base")
+	await _cam_at(cam, wy.global_position + Vector3(0, 0.75, 0.55), wy.global_position)
+	await _shot(dir, "box_open_empty")
+	for b: GameBox in [wy, by_id.call("ccg/starter"), by_id.call("crowns/base")]:
+		_pack_pieces_and_cards(b)
+		print("half packed ", b.ed_id, " at ", Time.get_ticks_msec())
+	await get_tree().create_timer(2.5).timeout
+	await _cam_at(cam, wy.global_position + Vector3(0, 0.6, 0.45), wy.global_position)
+	await _shot(dir, "box_wyrm_cards")
+	var cg: GameBox = by_id.call("ccg/starter")
+	await _cam_at(cam, cg.global_position + Vector3(0, 0.6, 0.45), cg.global_position)
+	await _shot(dir, "box_ccg_cards")
+	# Every box packed and closed: lids and cases where they sit.
+	for b in boxes:
+		_pack_all(b)
+	await get_tree().create_timer(4.0).timeout
+	var cr: GameBox = by_id.call("crowns/base")
+	await _cam_at(cam, cr.global_position + Vector3(0.1, 0.65, 0.6), cr.global_position)
+	await _shot(dir, "lid_crowns")
+	var at: GameBox = by_id.call("atlas/base")
+	await _cam_at(cam, at.global_position + Vector3(0.1, 0.65, 0.6), at.global_position)
+	await _shot(dir, "lid_atlas")
+	for id in ["hoard/ember", "casino/clay", "ccg/starter", "marbles/cateye", "paints/base"]:
+		var b: GameBox = by_id.call(id)
+		var fwd := Vector3(0, 0, 0.6).rotated(Vector3.UP, b.global_rotation.y)
+		await _cam_at(cam, b.global_position + Vector3(0, 0.5, 0) + fwd, b.global_position)
+		await _shot(dir, "case_" + id.get_slice("/", 0))
+	# On the shelves.
+	for b in boxes:
+		var right: ShelfSlot = slots.filter(func(s: ShelfSlot): return s.line_id == b.line_id)[0]
+		right.place(b)
+	await get_tree().create_timer(2.5).timeout
+	await _cam_at(cam, Vector3(0, 1.3, -2.2), Vector3(0, 1.0, -4.5))
+	await _shot(dir, "shelf_games")
+	await _cam_at(cam, Vector3(3.2, 1.3, -3.1), Vector3(5.5, 1.0, -3.1))
+	await _shot(dir, "shelf_hobby")
 	get_tree().quit()
+
+
+func _cam_at(cam: Camera3D, eye: Vector3, target: Vector3) -> void:
+	cam.global_position = eye
+	cam.look_at(target)
+	await get_tree().create_timer(0.6).timeout
+
+
+## Packs a box's pieces and card piles but leaves the board and rulebook out, so it stays open.
+func _pack_pieces_and_cards(b: GameBox) -> void:
+	var mine := pieces.all.filter(func(p: Pieces.P): return p.g.ed == b.ed_id and p.state == Pieces.LOOSE)
+	var by_group := {}
+	for p: Pieces.P in mine:
+		if not by_group.has(p.g.key):
+			by_group[p.g.key] = []
+		by_group[p.g.key].append(p)
+	for key in by_group:
+		var nodes := []
+		for p: Pieces.P in by_group[key]:
+			nodes.append(pieces.proxy(p))
+			pieces.take(p)
+		b.accept_pieces(by_group[key], nodes)
+	for it: Item in items.filter(func(i: Item): return i.game_id == b.ed_id and not i.stored and i.kind == "cards"):
+		b.try_accept(it)
 
 
 
@@ -1881,3 +1956,12 @@ func _render_map(dir: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(dir + "/map.png")
 	get_tree().quit()
+
+
+
+## A wooden board with gilded lettering printed on its face.
+func _sign(parent: Node3D, text: String, at: Vector3, size: Vector2) -> void:
+	parent.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(size.x + 0.04, size.y + 0.04, 0.025)), MeshKit.mat(Color("3a2216"), 0.6), at))
+	var tex := LogoKit.plaque(self, text, Vector2i(1024, int(1024.0 * size.y / size.x)), Color("4a2c1a"), Color("f3c860"), Color("8a6a1a"),
+		"res://fonts/CinzelDecorative-Black.woff2")
+	CaseKit._print(parent, size, tex, at + Vector3(0, 0, 0.0131), false, 0.45, 0.2)

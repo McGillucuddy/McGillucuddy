@@ -212,6 +212,18 @@ func show_outline(list: Array) -> void:
 			mi.hide()
 
 
+## Makes sure a settled piece rests on whatever is under it instead of sinking into it.
+func _on_surface(p: P, xf: Transform3D) -> Transform3D:
+	var bb: AABB = Transform3D(xf.basis) * p.g.aabb_table
+	var lowest := xf.origin.y + bb.position.y
+	var q := PhysicsRayQueryParameters3D.create(xf.origin + Vector3(0, 0.03, 0), xf.origin - Vector3(0, 0.4, 0), Item.LAYER_WORLD | Item.LAYER_ITEMS)
+	q.exclude = [p.body]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty() and lowest < (hit.position as Vector3).y - 0.0005:
+		xf.origin.y += (hit.position as Vector3).y - lowest
+	return xf
+
+
 ## Gives a piece real physics, for when it's dropped or tossed.
 func drop(p: P, xf: Transform3D, vel: Vector3) -> RigidBody3D:
 	p.state = PHYS
@@ -235,6 +247,8 @@ func drop(p: P, xf: Transform3D, vel: Vector3) -> RigidBody3D:
 	rb.add_child(cs)
 	rb.set_meta("piece", p)
 	add_child(rb)
+	# Never start a drop below the floor, or the physics engine pushes it out the wrong way.
+	xf.origin.y = maxf(xf.origin.y, p.g.aabb_table.size.y + 0.01)
 	rb.global_transform = xf
 	rb.linear_velocity = vel
 	rb.angular_velocity = Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * 6.0
@@ -273,5 +287,5 @@ func _physics_process(dt: float) -> void:
 			continue
 		if e.t > 0.5 and (rb.sleeping or (rb.linear_velocity.length() < 0.02 and rb.angular_velocity.length() < 0.2) or e.t > 6.0):
 			_phys.remove_at(i)
-			set_loose(p, rb.global_transform)
+			set_loose(p, _on_surface(p, rb.global_transform))
 			rb.queue_free()

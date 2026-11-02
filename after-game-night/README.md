@@ -24,14 +24,16 @@ There are thirteen game lines across two shelves: 34 boxes holding about 9,200 p
 
 ### The dice
 
-The dice are real polyhedra: tetrahedron, cube, octahedron, pentagonal trapezohedron, dodecahedron and icosahedron. Each has an inked glyph on every face, and percentile dice have a doubled one so you can tell them from plain d10s. Each finish has its own material:
+The board-game d6 is a rounded-edge cube with drilled, painted pips (light pips on dark dice, dark pips on pale ones), laid out like a real die so opposite faces add up to 7.
+
+The polyhedral dice are real polyhedra: tetrahedron, cube, octahedron, pentagonal trapezohedron, dodecahedron and icosahedron. Every face has a printed numeral in a slab font, and opposite faces add up the way they do on real dice. The 6 and 9 are underlined, the d10 runs 0–9, the percentile die reads 00–90, and the d4 has three numbers per face, one at each corner, so the corner pointing up gives the roll. Numerals always contrast with the die. Each finish has its own material:
 
 | Finish | Look |
 | --- | --- |
 | Ember | glowing orange with glowing gold numerals |
 | Frost | glassy ice blue with a bright rim glint |
 | Galaxy | deep purple with star specks and glowing silver numerals |
-| Jade | polished green with metallic gold numerals |
+| Jade | polished green with gold numerals |
 | Bone | matte ivory with dark numerals (Wyrmlight Tales) |
 | Obsidian | glossy black with glowing red numerals (Monster Vault) |
 
@@ -47,20 +49,36 @@ Each line was played with its expansions mixed in, so the pieces from every box 
 
 ### Boxes and cases
 
-Board games come in traditional boxes: a deep lid that slides over the base, illustrated lid art drawn for each game, and a printed logo on the lid and the front. Each game has its own display typeface, a backing plate (ribbon, cartouche, plaque, hanging sign or honeycomb badge), a drop shadow, a thick outline and a bevel highlight; some titles arch. Expansions add a subtitle plate and a corner ribbon. Collections get proper cases instead: a brass-cornered dice vault, an aluminum chip case, a glossy deck vault with a clear window, a glass-topped marble display case and a leather-strapped paint chest.
+Board games come in traditional boxes: a deep lid that slides over the base, with the whole lid printed as one image. The illustrated lid art and the game's logo are rendered together into the lid, so the title is part of the print and doesn't sit on top. The front edge is printed the same way. Each game has its own display typeface, a backing plate (ribbon, cartouche, plaque, hanging sign or honeycomb badge), a drop shadow, a thick outline and a bevel highlight; some titles arch. Collections get proper cases instead: a brass-cornered dice vault with an engraved brass plate, an aluminum chip case with a stamped plate, a glossy deck vault with a printed logo strip, a glass-topped marble display case with a brass plaque, and a leather-strapped paint chest with a stencilled name. Rulebook covers and the shelf labels are printed the same way.
 
 The logo fonts are open-source (SIL Open Font License) and bundled in `fonts/`, with their licenses in `fonts/licenses/`: Cinzel Decorative, Lobster, Audiowide, Alfa Slab One, Bungee, Rye, MedievalSharp and Righteous. Logos are styled in `scripts/logo_kit.gd`; the cases are built in `scripts/case_kit.gd`.
 
 ### Cards you can see
 
-Every card set has its own printed fronts: a frame in the set's colour, a named title bar, an illustrated art window, a type line, rules text and a cost gem. Casino decks have real playing-card faces, holofoils shimmer over their art and neon cards glow. On the tables, hands are fanned face up, some piles are dealt out in face-up rows, and most draw piles show their top card, so you can see what's what just by looking around. Faces are drawn in `scripts/face_kit.gd`.
+Cards are 1.5× life size so you can read them from standing height. Every card set has its own printed fronts on matte card stock: a frame in the set's colour, a named title bar, an illustrated art window, a type line, rules text and a cost gem. Casino decks have real playing-card faces, holofoils shimmer over their art and neon cards glow. On the tables, hands are fanned face up, some piles are dealt out in face-up rows, and most draw piles show their top card, so you can see what's what just by looking around. In the box, each set has a tray with a divider and tab in the set's colour, and the stack shows its top card face up. Faces are drawn in `scripts/face_kit.gd`.
+
+### Miniatures
+
+The miniatures are sculpted from capsule limbs on bevelled slate bases with grass and tufts:
+- an armoured knight with a great helm, plume, sword and heater shield
+- a hunched goblin with big ears and a spiked club
+- a robed hero with a hood and a glowing staff
+- a skeleton with ribs, a round shield and a spear
+- a winged dragon with horns, spines and a curling tail
+
+### Physics
+
+Physics runs at 120 ticks per second with extra solver iterations and a tight penetration allowance. When a piece settles, it is snapped onto the surface below, and anything dropped is kept above the floor, so nothing sinks into tables or falls through the ground. The autotest drops pieces from head height and checks this.
 
 ### Catalogue and map renders
 
-`tools/gallery.gd` renders a sheet of every model and card set per game line, and `-- --map <dir>` renders a labelled top-down plan of the room:
+`tools/gallery.gd` renders a sheet of every model and card set per game line. `tools/figures.gd` and `tools/dice.gd` render close-ups of the miniatures and the dice, `-- --shot <dir>` renders in-game close-ups of cards, open boxes, lids, cases and shelves, and `-- --map <dir>` renders a labelled top-down plan of the room:
 
 ```
 godot --path . --resolution 1600x900 --script res://tools/gallery.gd -- <out_dir>
+godot --path . --resolution 1600x900 --script res://tools/figures.gd -- <out_dir>
+godot --path . --resolution 1600x900 --script res://tools/dice.gd -- <out_dir>
+godot --path . --resolution 1600x900 -- --shot <out_dir>
 godot --path . --resolution 1300x1400 -- --map <out_dir>
 ```
 

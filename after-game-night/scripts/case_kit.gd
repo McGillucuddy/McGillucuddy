@@ -20,18 +20,6 @@ static func _node(parent: Node3D, size: Vector3, m: Material, pos: Vector3, rot 
 	return mi
 
 
-static func _label(text: String, size: int, fg: Color, outline: Color, outline_px := 10) -> Label3D:
-	var l := Label3D.new()
-	l.text = text
-	l.font_size = size
-	l.pixel_size = 0.0009
-	l.outline_size = outline_px
-	l.modulate = fg
-	l.outline_modulate = outline
-	l.double_sided = false
-	return l
-
-
 ## Materials for the box shell: {outer, trim}.
 static func shell_mats(case: String, c: Color, trim: Color) -> Dictionary:
 	match case:
@@ -91,14 +79,43 @@ static func skirt(case: String, h: float) -> float:
 
 
 ## Everything on the outside of the box itself: printing, corners, handles, latches.
-static func dress_base(case: String, v: Node3D, w: float, h: float, d: float, t: float, c: Color, trim: Material, name: String, ed_idx: int) -> void:
+## A flat printed or engraved surface, laid flush on a face of the box (no floating text).
+static func _print(parent: Node3D, size: Vector2, tex: Texture2D, pos: Vector3, facing_up: bool, rough := 0.55, metal := 0.0, alpha := false) -> MeshInstance3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.roughness = rough
+	m.metallic = metal
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	if alpha:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
+	var mesh: Mesh
+	if facing_up:
+		var pm := PlaneMesh.new()
+		pm.size = size
+		mesh = pm
+	else:
+		var qm := QuadMesh.new()
+		qm.size = size
+		mesh = qm
+	var mi := MeshKit.mesh_node(mesh, m, pos)
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	parent.add_child(mi)
+	return mi
+
+
+## An engraved, stamped or stencilled name plate texture sized to a plate of `size` metres.
+static func _plate_tex(owner: Node, text: String, size: Vector2, bg: Color, fg: Color, border: Color, font := "res://fonts/alfa-slab-one-latin-400-normal.woff2", sub := "", transparent := false) -> Texture2D:
+	var px := Vector2i(512, maxi(48, int(512.0 * size.y / size.x)))
+	return LogoKit.plaque(owner, text, px, bg, fg, border, font, sub, transparent)
+
+
+## Everything on the outside of the box itself: printing, corners, handles, latches.
+static func dress_base(owner: Node, case: String, v: Node3D, w: float, h: float, d: float, t: float, c: Color, trim: Material, name: String, ed_idx: int) -> void:
+	var front_z := d / 2 + 0.0006
 	match case:
 		BOARDGAME:
-			# A printed band and a little row of "players / age / time" icons, like a real box side.
+			# The base's printed side band (the lid covers most of the base when it's closed).
 			_node(v, Vector3(w + 0.002, 0.016, t + 0.002), trim, Vector3(0, h * 0.25, d / 2 - t / 2))
-			for i in 3:
-				var dot := MeshKit.mesh_node(MeshKit.cyl(0.008, 0.008, 0.002, 12), _m(Color("f4ede0"), 0.5), Vector3(w / 2 - 0.05 - i * 0.025, h * 0.25, d / 2 + 0.002), Vector3(PI / 2, 0, 0))
-				v.add_child(dot)
 		"vault":
 			# Brass corner guards and a clasp plate.
 			for sx in [-1.0, 1.0]:
@@ -107,7 +124,6 @@ static func dress_base(case: String, v: Node3D, w: float, h: float, d: float, t:
 			_node(v, Vector3(0.05, 0.03, 0.006), trim, Vector3(0, h - 0.02, d / 2 + 0.002))
 			_node(v, Vector3(w + 0.004, 0.01, d + 0.004), trim, Vector3(0, 0.005, 0))
 		"chipcase":
-			# Aluminum edge rails, a carry handle and two latches.
 			for y in [0.006, h - 0.006]:
 				_node(v, Vector3(w + 0.006, 0.012, 0.012), trim, Vector3(0, y, d / 2))
 				_node(v, Vector3(w + 0.006, 0.012, 0.012), trim, Vector3(0, y, -d / 2))
@@ -120,32 +136,30 @@ static func dress_base(case: String, v: Node3D, w: float, h: float, d: float, t:
 				_node(v, Vector3(0.04, 0.03, 0.01), MeshKit.metal_mat(Color("e4e8ec"), 0.15), Vector3(sx * w * 0.32, h - 0.018, d / 2 + 0.006))
 		"deckvault":
 			_node(v, Vector3(w + 0.002, 0.012, d + 0.002), trim, Vector3(0, 0.006, 0))
-			var lbl := _label(name, 40, Color("ffffff"), c.darkened(0.6))
-			lbl.position = Vector3(0, h * 0.25, d / 2 + 0.0016)
-			v.add_child(lbl)
+			var sz := Vector2(w * 0.7, h * 0.36)
+			_print(v, sz, _plate_tex(owner, name, sz, c.darkened(0.45), Color("ffffff"), c.lightened(0.4), "res://fonts/righteous-latin-400-normal.woff2"), Vector3(0, h * 0.3, front_z), false, 0.2)
 		"display":
-			# A brass name plaque on a wooden case.
-			_node(v, Vector3(0.24, 0.035, 0.004), trim, Vector3(0, h * 0.45, d / 2 + 0.002))
-			var lbl := _label(name, 30, Color("2a1a0e"), Color(0, 0, 0, 0), 0)
-			lbl.position = Vector3(0, h * 0.45, d / 2 + 0.0045)
-			v.add_child(lbl)
+			# An engraved brass name plaque on the wooden case.
+			var sz := Vector2(0.26, 0.04)
+			_node(v, Vector3(sz.x + 0.008, sz.y + 0.008, 0.004), trim, Vector3(0, h * 0.45, d / 2 + 0.002))
+			_print(v, sz, _plate_tex(owner, name, sz, Color("c9a24a"), Color("3a240e"), Color("8a6a1a")), Vector3(0, h * 0.45, d / 2 + 0.0046), false, 0.35, 0.6)
 			_node(v, Vector3(w + 0.012, 0.014, d + 0.012), _m(Color("4a2c18"), 0.4), Vector3(0, 0.007, 0))
 		"paintchest":
-			# Iron corner straps and two leather straps down the front.
 			for sx in [-1.0, 1.0]:
 				for sz in [-1.0, 1.0]:
 					_node(v, Vector3(0.016, h, 0.016), trim, Vector3(sx * (w / 2 - 0.006), h / 2, sz * (d / 2 - 0.006)))
 			for sx in [-1.0, 1.0]:
 				_node(v, Vector3(0.04, h, 0.006), _m(Color("6a3a1e"), 0.7), Vector3(sx * w * 0.28, h / 2, d / 2 + 0.003))
-			var lbl := _label(name, 34, Color("f4e6cc"), Color("2a1a0e"), 6)
-			lbl.position = Vector3(0, h * 0.5, d / 2 + 0.002)
-			v.add_child(lbl)
+			# Stencilled straight onto the wood.
+			var sz := Vector2(w * 0.4, h * 0.42)
+			_print(v, sz, _plate_tex(owner, name, sz, Color(0, 0, 0, 0), Color("2a1a0e"), Color(0, 0, 0, 0), "res://fonts/bungee-latin-400-normal.woff2", "", true), Vector3(0, h * 0.5, front_z), false, 0.8, 0.0, true)
 
 
 ## The lid: built at the hinge, extending toward +z, top face up when closed.
-static func build_lid(case: String, lid: Node3D, lw: float, ld: float, t: float, sk: float, c: Color, accent: Color, outer: Material, trim: Material,
-		name: String, line_id: String, ed_idx: int, seed_val: int, logo: Texture2D = null) -> void:
+static func build_lid(owner: Node, case: String, lid: Node3D, lw: float, ld: float, t: float, sk: float, c: Color, accent: Color, outer: Material, trim: Material,
+		name: String, title: String, subtitle: String, line_id: String, ed_idx: int, seed_val: int) -> void:
 	var z0 := ld / 2 - 0.006
+	var top_y := t + 0.0006
 	if case == "display":
 		# A wooden frame around a glass panel, so the collection stays on show.
 		for sx in [-1.0, 1.0]:
@@ -155,72 +169,53 @@ static func build_lid(case: String, lid: Node3D, lw: float, ld: float, t: float,
 		_node(lid, Vector3(lw - 0.05, 0.003, ld - 0.05), MeshKit.glass_mat(Color(0.85, 0.92, 1.0)), Vector3(0, t / 2, z0))
 	else:
 		_node(lid, Vector3(lw, t, ld), outer, Vector3(0, t / 2, z0))
-	# Lid sides.
 	for sx in [-1.0, 1.0]:
 		_node(lid, Vector3(t, sk, ld), outer, Vector3(sx * (lw / 2 - t / 2), -sk / 2 + t, z0))
 	_node(lid, Vector3(lw, sk, t), outer, Vector3(0, -sk / 2 + t, ld - 0.012))
 	_node(lid, Vector3(lw, sk, t), outer, Vector3(0, -sk / 2 + t, 0.0))
+	var front_z := ld - 0.012 + t / 2 + 0.0006
 
 	match case:
 		BOARDGAME:
-			# Full-colour lid art, printed edge to edge.
-			var art := StandardMaterial3D.new()
-			art.albedo_texture = lid_art(line_id, c, accent, ed_idx, seed_val)
-			art.roughness = 0.55
-			art.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-			var plane := PlaneMesh.new()
-			plane.size = Vector2(lw - 0.004, ld - 0.004)
-			lid.add_child(MeshKit.mesh_node(plane, art, Vector3(0, t + 0.0012, z0)))
-			# The title is printed artwork, not text: the game's logo sits over the illustration...
-			var ink := StandardMaterial3D.new()
-			ink.albedo_texture = logo
-			ink.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			ink.roughness = 0.5
-			ink.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
-			var lw_logo := lw * 0.86
-			var top_logo := PlaneMesh.new()
-			top_logo.size = Vector2(lw_logo, lw_logo * LogoKit.H / LogoKit.W)
-			lid.add_child(MeshKit.mesh_node(top_logo, ink, Vector3(0, t + 0.0022, z0 + ld * 0.14)))
-			# ...and again on the front of the lid, which is what faces you on the shelf.
-			var fh := sk * 0.92
-			var front := QuadMesh.new()
-			front.size = Vector2(minf(fh * LogoKit.W / LogoKit.H, lw * 0.9), fh)
-			lid.add_child(MeshKit.mesh_node(front, ink, Vector3(0, -sk / 2 + t, ld - 0.012 + t / 2 + 0.0015)))
-			_node(lid, Vector3(lw + 0.002, 0.014, t + 0.002), trim, Vector3(0, -sk + t + 0.012, ld - 0.012))
+			# The lid is printed as one piece of art: illustration with the logo printed into it.
+			var px := Vector2i(1024, int(1024.0 * ld / lw))
+			var lid_tex := LogoKit.print_surface(owner, line_id, title, subtitle, px, lid_art(line_id, c, accent, ed_idx, seed_val), c,
+				Rect2(px.x * 0.04, px.y * 0.36, px.x * 0.92, px.y * 0.6))
+			_print(lid, Vector2(lw - 0.002, ld - 0.002), lid_tex, Vector3(0, top_y, z0), true, 0.5)
+			# The front of the lid gets the logo too, printed on the box colour between two print bands.
+			var fpx := Vector2i(1024, maxi(96, int(1024.0 * sk / lw)))
+			var front_tex := LogoKit.print_surface(owner, line_id, title, subtitle, fpx, null, c.darkened(0.08),
+				Rect2(fpx.x * 0.12, fpx.y * 0.12, fpx.x * 0.76, fpx.y * 0.76), accent)
+			_print(lid, Vector2(lw - 0.002, sk - 0.002), front_tex, Vector3(0, -sk / 2 + t, front_z), false, 0.5)
 		"vault":
 			_node(lid, Vector3(lw - 0.04, 0.004, ld - 0.04), _m(Color("4a2e1c"), 0.4), Vector3(0, t + 0.002, z0))
 			for sx in [-1.0, 1.0]:
 				for z in [0.012, ld - 0.024]:
 					_node(lid, Vector3(0.04, t + 0.004, 0.04), trim, Vector3(sx * (lw / 2 - 0.02), t / 2, z))
-			_node(lid, Vector3(0.2, 0.004, 0.06), trim, Vector3(0, t + 0.003, z0 + ld * 0.18))
-			var plate := _label(name, 44, Color("2a1a0e"), Color(0, 0, 0, 0), 0)
-			plate.position = Vector3(0, t + 0.0055, z0 + ld * 0.18)
-			plate.rotation.x = -PI / 2
-			lid.add_child(plate)
-			# A die-shaped emblem in the middle.
-			var gem := MeshKit.mesh_node(MeshKit.cyl(0.035, 0.035, 0.006, 6), _m(c, 0.15, 0.0, 0.6), Vector3(0, t + 0.004, z0 - ld * 0.08))
+			# An engraved brass plate.
+			var sz := Vector2(0.3, 0.075)
+			_node(lid, Vector3(sz.x + 0.01, 0.004, sz.y + 0.01), trim, Vector3(0, t + 0.003, z0 + ld * 0.2))
+			_print(lid, sz, _plate_tex(owner, title, sz, Color("c9a24a"), Color("3a240e"), Color("8a6a1a"), "res://fonts/CinzelDecorative-Black.woff2", subtitle), Vector3(0, t + 0.0056, z0 + ld * 0.2), true, 0.35, 0.6)
+			var gem := MeshKit.mesh_node(MeshKit.cyl(0.035, 0.035, 0.006, 6), _m(c, 0.15, 0.0, 0.6), Vector3(0, t + 0.004, z0 - ld * 0.1))
 			lid.add_child(gem)
 			_node(lid, Vector3(0.05, 0.03, 0.008), trim, Vector3(0, -0.01, ld - 0.006))
 		"chipcase":
-			_node(lid, Vector3(lw - 0.03, 0.002, 0.03), _m(accent, 0.3, 0.0, 0.4 if accent.get_luminance() > 0.6 else 0.0), Vector3(0, t + 0.001, z0 + ld * 0.3))
-			var plate := _label(name, 50, Color("1c1c20"), Color(0, 0, 0, 0), 0)
-			plate.position = Vector3(0, t + 0.0022, z0 - ld * 0.05)
-			plate.rotation.x = -PI / 2
-			lid.add_child(plate)
 			for x in range(-3, 4):
 				_node(lid, Vector3(0.01, 0.003, ld - 0.08), _m(Color("b4b9bf"), 0.4, 1.0), Vector3(x * 0.1, t + 0.0005, z0 - ld * 0.05))
+			# A black stamped name plate riveted to the aluminum, with the set's colour stripe beside it.
+			var sz := Vector2(0.34, 0.07)
+			_node(lid, Vector3(sz.x + 0.012, 0.004, sz.y + 0.012), _m(Color("1c1c20"), 0.4), Vector3(0, t + 0.003, z0 + ld * 0.22))
+			_print(lid, sz, _plate_tex(owner, title, sz, Color("1c1c20"), Color("e4e8ec"), accent, "res://fonts/alfa-slab-one-latin-400-normal.woff2", subtitle), Vector3(0, t + 0.0056, z0 + ld * 0.22), true, 0.3, 0.3)
 		"deckvault":
-			# A clear window shows the cards inside; a holographic stripe runs across the lid.
 			_node(lid, Vector3(lw * 0.55, 0.003, ld * 0.45), MeshKit.glass_mat(Color(0.9, 0.95, 1.0)), Vector3(0, t + 0.001, z0 - ld * 0.08))
-			_node(lid, Vector3(lw, 0.003, 0.05), MeshKit.holo_mat(accent), Vector3(0, t + 0.0012, z0 + ld * 0.32))
-			var title := _label(name, 60, Color("ffffff"), c.darkened(0.6), 12)
-			title.position = Vector3(0, t + 0.003, z0 + ld * 0.32)
-			title.rotation.x = -PI / 2
-			lid.add_child(title)
+			_node(lid, Vector3(lw, 0.003, 0.06), MeshKit.holo_mat(accent), Vector3(0, t + 0.0012, z0 + ld * 0.33))
+			# The game's logo printed across the lid.
+			var px := Vector2i(1024, 300)
+			var tex := LogoKit.print_surface(owner, line_id, title, subtitle, px, null, c.darkened(0.2), Rect2(40, 10, 944, 280))
+			_print(lid, Vector2(lw * 0.8, lw * 0.8 * px.y / px.x), tex, Vector3(0, t + 0.0028, z0 + ld * 0.24), true, 0.15)
 		"display":
 			_node(lid, Vector3(0.05, 0.02, 0.012), trim, Vector3(0, -0.006, ld - 0.006))
 		"paintchest":
-			# A carry handle on top and the leather straps running over the lid.
 			var handle := MeshKit.mesh_node(MeshKit.torus(0.035, 0.045), _m(Color("2a1a12"), 0.5), Vector3(0, t + 0.02, z0), Vector3(0, 0, 0))
 			handle.rotation = Vector3(0, 0, PI / 2)
 			handle.scale = Vector3(1, 1, 1.6)
@@ -228,17 +223,12 @@ static func build_lid(case: String, lid: Node3D, lw: float, ld: float, t: float,
 			for sx in [-1.0, 1.0]:
 				_node(lid, Vector3(0.04, 0.004, ld), _m(Color("6a3a1e"), 0.7), Vector3(sx * lw * 0.28, t + 0.002, z0))
 				_node(lid, Vector3(0.045, 0.012, 0.01), MeshKit.metal_mat(Color("c9cfd6"), 0.3), Vector3(sx * lw * 0.28, -0.012, ld - 0.004))
-			var stencil := _label(name, 56, Color("2a1a0e"), Color(0, 0, 0, 0), 0)
-			stencil.position = Vector3(0, t + 0.0012, z0 + ld * 0.25)
-			stencil.rotation.x = -PI / 2
-			lid.add_child(stencil)
-			# A painted swatch row, like a hobbyist's chest.
+			# Stencilled paint on the wood.
+			var sz := Vector2(lw * 0.42, ld * 0.22)
+			_print(lid, sz, _plate_tex(owner, title.to_upper(), sz, Color(0, 0, 0, 0), Color("2a1a0e"), Color(0, 0, 0, 0), "res://fonts/bungee-latin-400-normal.woff2", subtitle, true), Vector3(0, top_y, z0 + ld * 0.24), true, 0.8, 0.0, true)
 			var sw := [Color("c8323a"), Color("e8742a"), Color("f2c94e"), Color("4f9e3a"), Color("2a6fb5"), Color("6a3fa0")]
 			for i in sw.size():
 				lid.add_child(MeshKit.mesh_node(MeshKit.cyl(0.012, 0.012, 0.002, 12), _m(sw[i], 0.4), Vector3(-0.15 + i * 0.06, t + 0.001, z0 - ld * 0.22)))
-	if ed_idx > 0 and case == BOARDGAME:
-		# Expansions get a corner ribbon so they read differently from the base game.
-		_node(lid, Vector3(0.18, 0.003, 0.05), _m(accent, 0.4), Vector3(lw / 2 - 0.06, t + 0.0018, 0.07), Vector3(0, PI / 4, 0))
 
 
 # ---------------------------------------------------------------- lid art

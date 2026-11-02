@@ -26,6 +26,8 @@ const SPECS := {
 		"plate": "sign", "plate_color": Color("7a4a26"), "arc": 0.0, "tracking": 3, "upper": false},
 	"wyrm": {"font": "res://fonts/medievalsharp-latin-400-normal.woff2", "fill": Color("ffcf6a"), "outline": Color("1a0a0a"), "edge": Color("c8323a"),
 		"plate": "ribbon", "plate_color": Color("6a1420"), "arc": 1600.0, "tracking": 3, "upper": false, "glow": Color(1.0, 0.45, 0.2, 0.35)},
+	"ccg": {"font": "res://fonts/righteous-latin-400-normal.woff2", "fill": Color("fff2fa"), "outline": Color("3a0f2a"), "edge": Color("ff6fb5"),
+		"plate": "none", "plate_color": Color("3a0f2a"), "arc": 0.0, "tracking": 4, "upper": true, "glow": Color(1.0, 0.45, 0.75, 0.55)},
 	"caverns": {"font": "res://fonts/righteous-latin-400-normal.woff2", "fill": Color("e6fbff"), "outline": Color("2a1440"), "edge": Color("c58bff"),
 		"plate": "none", "plate_color": Color("2a1440"), "arc": 0.0, "tracking": 6, "upper": true, "glow": Color(0.75, 0.55, 1.0, 0.6)},
 }
@@ -33,11 +35,107 @@ const SPECS := {
 
 ## Builds the logo in an offscreen viewport parented to `owner`, and returns its texture.
 static func make(owner: Node, line_id: String, title: String, subtitle: String) -> Texture2D:
-	var spec: Dictionary = SPECS.get(line_id, SPECS["crowns"])
 	var vp := SubViewport.new()
 	vp.size = Vector2i(W, H)
 	vp.transparent_bg = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var holder := Control.new()
+	holder.size = Vector2(W, H)
+	vp.add_child(holder)
+	_logo_into(holder, line_id, title, subtitle)
+	owner.add_child(vp)
+	return vp.get_texture()
+
+
+## Prints a whole surface as one image: a background (artwork or a flat colour with print bands)
+## with the game's logo printed into it, so nothing floats on top of the box.
+static func print_surface(owner: Node, line_id: String, title: String, subtitle: String, size: Vector2i,
+		bg_tex: Texture2D, bg_color: Color, logo_rect: Rect2, bands := Color(0, 0, 0, 0)) -> Texture2D:
+	var vp := SubViewport.new()
+	vp.size = size
+	vp.transparent_bg = false
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var bg := ColorRect.new()
+	bg.color = bg_color
+	bg.size = Vector2(size)
+	vp.add_child(bg)
+	if bg_tex:
+		var tr := TextureRect.new()
+		tr.texture = bg_tex
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		tr.size = Vector2(size)
+		vp.add_child(tr)
+	if bands.a > 0.0:
+		for y in [0.1, 0.86]:
+			var b := ColorRect.new()
+			b.color = bands
+			b.position = Vector2(0, size.y * y)
+			b.size = Vector2(size.x, maxf(2.0, size.y * 0.04))
+			vp.add_child(b)
+	var holder := Control.new()
+	var sc := minf(logo_rect.size.x / W, logo_rect.size.y / H)
+	holder.size = Vector2(W, H)
+	holder.scale = Vector2(sc, sc)
+	holder.position = logo_rect.position + (logo_rect.size - Vector2(W, H) * sc) / 2.0
+	vp.add_child(holder)
+	_logo_into(holder, line_id, title, subtitle)
+	owner.add_child(vp)
+	return vp.get_texture()
+
+
+## A name plate: engraved on brass, stamped on metal, stencilled on wood, or printed.
+static func plaque(owner: Node, text: String, size: Vector2i, bg: Color, fg: Color, border: Color,
+		font_path := "res://fonts/alfa-slab-one-latin-400-normal.woff2", sub := "", transparent := false) -> Texture2D:
+	var vp := SubViewport.new()
+	vp.size = size
+	vp.transparent_bg = transparent
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var panel := Panel.new()
+	panel.size = Vector2(size)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = bg if not transparent else Color(0, 0, 0, 0)
+	sb.border_color = border
+	sb.set_border_width_all(0 if transparent else maxi(2, size.y / 18))
+	sb.set_corner_radius_all(size.y / 10)
+	panel.add_theme_stylebox_override("panel", sb)
+	vp.add_child(panel)
+	var font: Font = load(font_path)
+	var fs := int(size.y * (0.42 if sub != "" else 0.56))
+	while fs > 8 and font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > size.x * 0.86:
+		fs -= 1
+	var ls := LabelSettings.new()
+	ls.font = font
+	ls.font_size = fs
+	ls.font_color = fg
+	# A faint edge under the letters reads as engraving or embossing.
+	ls.shadow_color = Color(1, 1, 1, 0.18) if bg.get_luminance() < 0.6 else Color(0, 0, 0, 0.25)
+	ls.shadow_offset = Vector2(0, maxf(1.0, fs * 0.05))
+	var l := Label.new()
+	l.text = text
+	l.label_settings = ls
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.size = Vector2(size.x, size.y * (0.68 if sub != "" else 1.0))
+	vp.add_child(l)
+	if sub != "":
+		var ss := LabelSettings.new()
+		ss.font = font
+		ss.font_size = int(fs * 0.48)
+		ss.font_color = fg
+		var l2 := Label.new()
+		l2.text = sub.to_upper()
+		l2.label_settings = ss
+		l2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l2.position = Vector2(0, size.y * 0.62)
+		l2.size = Vector2(size.x, size.y * 0.3)
+		vp.add_child(l2)
+	owner.add_child(vp)
+	return vp.get_texture()
+
+
+static func _logo_into(holder: Control, line_id: String, title: String, subtitle: String) -> void:
+	var spec: Dictionary = SPECS.get(line_id, SPECS["crowns"])
 	# The plate is custom-drawn; the lettering is built from Label nodes. (Custom-drawn glyphs came
 	# out as solid boxes in the compatibility renderer, while Labels render reliably.)
 	var plate := LogoArt.new()
@@ -46,10 +144,8 @@ static func make(owner: Node, line_id: String, title: String, subtitle: String) 
 	plate.subtitle = subtitle
 	plate.layer = "plate"
 	plate.size = Vector2(W, H)
-	vp.add_child(plate)
-	_lettering(vp, spec, title, subtitle)
-	owner.add_child(vp)
-	return vp.get_texture()
+	holder.add_child(plate)
+	_lettering(holder, spec, title, subtitle)
 
 
 ## Measures the title, then stacks per-letter Labels: shadow, thick outline, bevel highlight, fill.

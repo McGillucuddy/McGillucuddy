@@ -5,8 +5,12 @@ extends RefCounted
 ## rules text and a cost gem. Casino decks get real playing-card faces with ranks and suits.
 ## Each face is a material that shows one cell of the sheet; holofoils and neon cards get their own finish.
 
-const CW := 192
-const CH := 268
+const CW := 240
+const CH := 335
+## Faces are laid out on a 192 x 268 design grid and scaled up to the sheet resolution.
+const DW := 192
+const DH := 268
+const K := float(CW) / DW
 const COLS := 4
 const ROWS := 2
 
@@ -61,15 +65,15 @@ static func faces(owner: Node, line_id: String, set_name: String, back: Color, s
 			var rank: String = ["A", "K", "Q", "J", "10", "7", "5", "2"][i]
 			var red := i % 2 == 0
 			var ink := Color("c8202e") if red else Color("1a1a1a")
-			for corner in [Vector2(10, 6), Vector2(CW - 38, CH - 44)]:
-				_text(vp, rank, font, 26, ink, Color(0, 0, 0, 0), 0, origin + corner, 28)
+			for corner in [Vector2(10, 6), Vector2(DW - 38, DH - 44)]:
+				_text(vp, rank, font, int(26 * K), ink, Color(0, 0, 0, 0), 0, origin + corner * K, 28 * K)
 		else:
 			var words: Array = NAMES.get(line_id, NAMES["ccg"])
 			var name := "%s %s" % [words[0][rng.randi_range(0, 7)], words[1][rng.randi_range(0, 7)]]
 			var ink := Color("fff8ec") if style != "neon" else stripe.lightened(0.4)
-			_text(vp, name, font, 15, ink, Color(0, 0, 0, 0.8), 4, origin + Vector2(14, 13), CW - 52)
-			_text(vp, set_name, font, 11, Color("2a1e18"), Color(0, 0, 0, 0), 0, origin + Vector2(16, 154), CW - 32)
-			_text(vp, str(rng.randi_range(0, 7)), font, 17, Color("ffffff"), Color(0, 0, 0, 0.8), 4, origin + Vector2(CW - 33, 11), 22)
+			_text(vp, name, font, int(15 * K), ink, Color(0, 0, 0, 0.8), 4, origin + Vector2(14, 13) * K, (DW - 52) * K)
+			_text(vp, set_name, font, int(11 * K), Color("2a1e18"), Color(0, 0, 0, 0), 0, origin + Vector2(16, 154) * K, (DW - 32) * K)
+			_text(vp, str(rng.randi_range(0, 7)), font, int(17 * K), Color("ffffff"), Color(0, 0, 0, 0.8), 4, origin + Vector2(DW - 33, 11) * K, 22 * K)
 	owner.add_child(vp)
 	var tex := vp.get_texture()
 	var mats := []
@@ -129,7 +133,9 @@ void fragment() {
 	m.albedo_texture = tex
 	m.uv1_offset = Vector3(off.x, off.y, 0)
 	m.uv1_scale = Vector3(sc.x, sc.y, 1)
-	m.roughness = 0.45
+	# Matte card stock, so a lamp overhead doesn't wash the printing out.
+	m.roughness = 0.85
+	m.specular = 0.2
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	if style == "neon":
@@ -152,8 +158,9 @@ class FaceArt:
 	func _draw() -> void:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = seed_val
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(K, K))
 		for i in COLS * ROWS:
-			var o := Vector2((i % COLS) * CW, (i / COLS) * CH)
+			var o := Vector2((i % COLS) * DW, (i / COLS) * DH)
 			if playing:
 				_playing_face(o, i)
 			else:
@@ -171,17 +178,17 @@ class FaceArt:
 		# Each set's own colour drives the frame and art, so sets are easy to tell apart.
 		var frame := stripe.darkened(0.5) if not neon else Color("120e18")
 		var trim := stripe
-		draw_rect(Rect2(o, Vector2(CW, CH)), Color("15100e"))
-		_rr(Rect2(o + Vector2(3, 3), Vector2(CW - 6, CH - 6)), frame, 12)
-		_rr(Rect2(o + Vector2(8, 8), Vector2(CW - 16, CH - 16)), trim if not neon else Color("1c1626"), 9)
+		draw_rect(Rect2(o, Vector2(DW, DH)), Color("15100e"))
+		_rr(Rect2(o + Vector2(3, 3), Vector2(DW - 6, DH - 6)), frame, 12)
+		_rr(Rect2(o + Vector2(8, 8), Vector2(DW - 16, DH - 16)), trim if not neon else Color("1c1626"), 9)
 		if neon:
 			for k in 2:
-				var r := Rect2(o + Vector2(8 + k * 2, 8 + k * 2), Vector2(CW - 16 - k * 4, CH - 16 - k * 4))
+				var r := Rect2(o + Vector2(8 + k * 2, 8 + k * 2), Vector2(DW - 16 - k * 4, DH - 16 - k * 4))
 				draw_rect(r, stripe, false, 2.0)
 		# Title bar.
-		_rr(Rect2(o + Vector2(12, 12), Vector2(CW - 24, 28)), back.darkened(0.25) if not neon else Color("241a33"), 6)
+		_rr(Rect2(o + Vector2(12, 12), Vector2(DW - 24, 28)), back.darkened(0.25) if not neon else Color("241a33"), 6)
 		# Art window: sky, ground and a centrepiece.
-		var art := Rect2(o + Vector2(14, 44), Vector2(CW - 28, 104))
+		var art := Rect2(o + Vector2(14, 44), Vector2(DW - 28, 104))
 		var top := stripe.lightened(0.3) if not neon else Color("2a1a4a")
 		var bottom := back.darkened(0.25) if not neon else Color("0e0a18")
 		for y in int(art.size.y):
@@ -214,31 +221,31 @@ class FaceArt:
 					draw_colored_polygon(q, trim if k % 2 == 0 else trim.darkened(0.25))
 		draw_rect(art, frame, false, 2.0)
 		# Type line, rules text box and a cost gem.
-		_rr(Rect2(o + Vector2(12, 152), Vector2(CW - 24, 18)), Color("e8dcc4") if not neon else stripe.darkened(0.3), 4)
-		_rr(Rect2(o + Vector2(14, 174), Vector2(CW - 28, CH - 190)), Color("f4ead6") if not neon else Color("1a1424"), 5)
+		_rr(Rect2(o + Vector2(12, 152), Vector2(DW - 24, 18)), Color("e8dcc4") if not neon else stripe.darkened(0.3), 4)
+		_rr(Rect2(o + Vector2(14, 174), Vector2(DW - 28, DH - 190)), Color("f4ead6") if not neon else Color("1a1424"), 5)
 		var line_col := Color("8a7a66") if not neon else stripe.darkened(0.2)
 		for k in 5:
-			var w := (CW - 48) * (0.55 + rng.randf() * 0.4)
+			var w := (DW - 48) * (0.55 + rng.randf() * 0.4)
 			draw_rect(Rect2(o + Vector2(22, 184 + k * 13), Vector2(w, 4)), line_col)
-		draw_circle(o + Vector2(CW - 24, 26), 14, Color("1a1410"))
-		draw_circle(o + Vector2(CW - 24, 26), 11, trim.darkened(0.15))
+		draw_circle(o + Vector2(DW - 24, 26), 14, Color("1a1410"))
+		draw_circle(o + Vector2(DW - 24, 26), 11, trim.darkened(0.15))
 
 	func _playing_face(o: Vector2, i: int) -> void:
-		draw_rect(Rect2(o, Vector2(CW, CH)), Color("15100e"))
-		_rr(Rect2(o + Vector2(3, 3), Vector2(CW - 6, CH - 6)), Color("fbf8f0") if style != "neon" else Color("141018"), 12)
+		draw_rect(Rect2(o, Vector2(DW, DH)), Color("15100e"))
+		_rr(Rect2(o + Vector2(3, 3), Vector2(DW - 6, DH - 6)), Color("fbf8f0") if style != "neon" else Color("141018"), 12)
 		var red := i % 2 == 0
 		var ink := Color("c8202e") if red else Color("1a1a1a")
 		if style == "neon":
 			ink = stripe
-			draw_rect(Rect2(o + Vector2(8, 8), Vector2(CW - 16, CH - 16)), stripe, false, 2.0)
+			draw_rect(Rect2(o + Vector2(8, 8), Vector2(DW - 16, DH - 16)), stripe, false, 2.0)
 		var suit := i % 4
-		var c := o + Vector2(CW / 2.0, CH / 2.0)
+		var c := o + Vector2(DW / 2.0, DH / 2.0)
 		_suit(c, 36.0, suit, ink)
-		for corner in [o + Vector2(24, 62), o + Vector2(CW - 24, CH - 62)]:
+		for corner in [o + Vector2(24, 62), o + Vector2(DW - 24, DH - 62)]:
 			_suit(corner, 9.0, suit, ink)
 		if i < 4:
 			# Court and ace cards get a framed centre panel.
-			draw_rect(Rect2(o + Vector2(36, 70), Vector2(CW - 72, CH - 140)), ink, false, 3.0)
+			draw_rect(Rect2(o + Vector2(36, 70), Vector2(DW - 72, DH - 140)), ink, false, 3.0)
 
 	func _suit(c: Vector2, s: float, suit: int, col: Color) -> void:
 		match suit:

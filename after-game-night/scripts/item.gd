@@ -90,6 +90,9 @@ func on_release(vel: Vector3) -> void:
 	collision_layer = LAYER_ITEMS
 	collision_mask = LAYER_WORLD | LAYER_ITEMS
 	freeze = false
+	# Don't let anything start its fall inside the floor.
+	if global_position.y < 0.06:
+		global_position.y = 0.06
 	linear_velocity = vel
 	angular_velocity = Vector3(randf() - 0.5, randf() - 0.5, randf() - 0.5) * 3.0
 	sleeping = false

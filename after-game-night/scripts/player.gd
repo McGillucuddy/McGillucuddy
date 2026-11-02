@@ -516,6 +516,8 @@ func _update_held(dt: float) -> void:
 	var lift := 0.0
 	for it: Item in [held] + extra_cards:
 		var target := cam.global_transform * (offset + Vector3(0, lift, 0))
+		# Carried things can't be pushed down into the floor.
+		target.y = maxf(target.y, 0.07 + lift)
 		var t := it.global_transform
 		t.origin = t.origin.lerp(target, minf(1.0, 16.0 * dt))
 		var q := Quaternion(t.basis.orthonormalized()).slerp(want, minf(1.0, 10.0 * dt))

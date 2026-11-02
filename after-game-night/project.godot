@@ -20,6 +20,9 @@ window/stretch/aspect="expand"
 
 common/physics_ticks_per_second=120
 3d/default_gravity=9.8
+3d/solver/solver_iterations=24
+3d/solver/contact_max_allowed_penetration=0.0008
+3d/solver/contact_recycle_radius=0.002
 
 [rendering]
 
