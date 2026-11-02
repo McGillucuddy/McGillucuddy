@@ -4,7 +4,7 @@ A cozy first-person tidying game made in Godot 4. Game night is over. Six board 
 
 ## The collection
 
-There are thirteen game lines across two shelves: 34 boxes holding about 9,200 pieces and 6,900 cards, roughly 16,100 things to sort. The room has a main play area and a hobby nook at the front with a painting desk, a felt poker table, a card table, a crystal curio table and a marble ring. Real big-box games set the starting point (*Slay the Spire: The Board Game* ships with 650+ cards and 113 tokens; a Warhammer 40,000 starter set has about 40 miniatures), and then everything is tripled. Some of every game has also spilled onto the floor beside its table.
+There are thirteen game lines across two shelves: 34 boxes holding about 9,200 pieces and 6,900 cards, roughly 16,100 things to sort. The room has a main play area and a hobby nook at the front with a hobby desk, a felt poker table, a card table, a crystal curio table and a marble ring. Real big-box games set the starting point (*Slay the Spire: The Board Game* ships with 650+ cards and 113 tokens; a Warhammer 40,000 starter set has about 40 miniatures), and then everything is tripled. Some of every game has also spilled onto the floor beside its table.
 
 | Game line | Boxes | What's in them |
 | --- | --- | --- |
@@ -21,10 +21,6 @@ There are thirteen game lines across two shelves: 34 boxes holding about 9,200 p
 | Crystal Caverns (crystal mining game) | base, Deep Geodes | glowing translucent crystal shards and clusters in amethyst, rose quartz and citrine; split-open geodes; cut emeralds, rubies and sapphires (783 things) |
 | Marble Jar (marble collection) | Cat's Eyes, Pearls & Steelies | clear cat's-eye marbles with colored vanes, shooters, pearlescents, chrome steelies and galaxy marbles (642 things) |
 | Brushwork Hobby (painting supplies) | Base Paints, Metallics & Washes, Brushes & Primers | paint pots in 16 colors including metallics, wash bottles, brushes and spray primers (528 things) |
-
-### Painting miniatures
-
-About 45% of the Mossy Crowns and Wyrmlight Tales miniatures start out as bare grey plastic, and their boxes won't take them that way. Carry a handful to the **painting desk** in the hobby nook and click it: each bare mini hops up, gets a splash of paint and comes back finished. Every six you paint earns a Tidy Token, and the Airbrush upgrade makes painting faster.
 
 ### The dice
 
@@ -49,6 +45,12 @@ Each line was played with its expansions mixed in, so the pieces from every box 
 - **Pour:** pieces hop over the rim and drop into their spots one after another, each with a woody click, rising notes and little glints.
 - **Card piles:** pick up one pile, then click more piles to carry up to eight at once. They sift into boxes the same way.
 
+### Boxes and cases
+
+Board games come in traditional boxes: a deep lid that slides over the base, illustrated lid art drawn for each game, and a printed logo on the lid and the front. Each game has its own display typeface, a backing plate (ribbon, cartouche, plaque, hanging sign or honeycomb badge), a drop shadow, a thick outline and a bevel highlight; some titles arch. Expansions add a subtitle plate and a corner ribbon. Collections get proper cases instead: a brass-cornered dice vault, an aluminum chip case, a glossy deck vault with a clear window, a glass-topped marble display case and a leather-strapped paint chest.
+
+The logo fonts are open-source (SIL Open Font License) and bundled in `fonts/`, with their licenses in `fonts/licenses/`: Cinzel Decorative, Lobster, Audiowide, Alfa Slab One, Bungee, Rye, MedievalSharp and Righteous. Logos are styled in `scripts/logo_kit.gd`; the cases are built in `scripts/case_kit.gd`.
+
 ### Tidy Tokens and the Tool Chest
 
 You earn Tidy Tokens (✦) as you sort:
@@ -68,7 +70,6 @@ Press **Tab** to open the Tool Chest and spend them. Every upgrade has levels, s
 | Magnet (✦14, 22, 34) | Pull every matching piece within 2 m, then 4 m, then across the whole room. |
 | Quick Pour (✦4, 9, 16) | Pieces pour into boxes 1.5×, 2× and 3× faster. |
 | Card Satchel (✦6, 14) | Carry 16, then 30, card piles at once. |
-| Airbrush (✦5, 10, 18) | Paint miniatures at the desk faster and faster. |
 | Sorting Chute (✦40, 60) | When you pour, leftovers fly on to their own open boxes within 4 m, then anywhere in the room. |
 
 A full game earns roughly 400 tokens, and buying everything costs about 365, so you'll own most of the chest by the end. The upgrade list lives in `scripts/upgrades.gd`, and `_apply_upgrades()` in `scripts/main.gd` sets what each level does.
@@ -128,4 +129,4 @@ The lighting is designed for Godot's default Forward+ renderer, which adds the w
 godot --headless --path . -- --autotest
 ```
 
-This checks that handfuls only scoop matching pieces, that the dustpan, magnet and lantern find what they should, that buying upgrades applies them, that Box Beacons light the right boxes and that the Sorting Chute sends every piece home, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, that bare miniatures are refused until painted at the desk, then packs and shelves all 34 boxes and confirms the game ends.
+This checks that handfuls only scoop matching pieces, that the dustpan, magnet and lantern find what they should, that buying upgrades applies them, that Box Beacons light the right boxes and that the Sorting Chute sends every piece home, that a mixed handful poured into a box gives up exactly that box's pieces, that expansion pieces, an early board and wrong shelf cubbies are refused, then packs and shelves all 34 boxes and confirms the game ends.

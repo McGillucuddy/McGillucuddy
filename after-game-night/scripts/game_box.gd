@@ -29,6 +29,8 @@ var accent := Color.WHITE
 var case_style := CaseKit.BOARDGAME
 var line_id_seed := 0
 var _line_short := ""
+var _title_main := ""
+var _title_sub := ""
 var units_needed := 0    # pieces + cards + board + rulebook, for the progress readout
 var units := 0
 var items_needed := 0    # things that have to go in: pieces, card piles, board, rulebook
@@ -120,6 +122,8 @@ func setup(line: Dictionary, ed: Dictionary, ed_idx: int, groups: Array, card_pi
 	accent = style.accent
 	case_style = line.get("case", CaseKit.BOARDGAME)
 	_line_short = line.id
+	_title_main = line.name
+	_title_sub = ed.name
 	line_id_seed = ed_id.hash()
 	kind = "box"
 	label = "%s box" % game_name
@@ -177,8 +181,11 @@ func _build_shell(ed_idx: int) -> void:
 	visual.add_child(lid_pivot)
 	var lw := W + 0.012
 	var ld := D + 0.012
+	var logo: Texture2D = null
+	if case_style == CaseKit.BOARDGAME:
+		logo = LogoKit.make(self, _line_short, _title_main, _title_sub)
 	CaseKit.build_lid(case_style, lid_pivot, lw, ld, T, CaseKit.skirt(case_style, H), color, accent, outer, trim,
-		game_name, _line_short, ed_idx, line_id_seed)
+		game_name, _line_short, ed_idx, line_id_seed, logo)
 
 	contents = Node3D.new()
 	contents.name = "Contents"

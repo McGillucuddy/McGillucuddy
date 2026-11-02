@@ -1807,13 +1807,19 @@ func _screenshots() -> void:
 	for b in boxes:
 		_pack_all(b)
 	await get_tree().create_timer(6.0).timeout
+	# Close-ups of closed lids before they go on the shelf.
+	hud.get_child(0).hide()
+	for id in ["crowns/base", "plum/base", "wyrm/vault", "honey/base", "harbor/storm", "atlas/base"]:
+		var bx: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == id)[0]
+		var fwd := bx.global_transform.basis.z
+		await _view(bx.global_position + fwd * 0.62 + Vector3(0, -0.45, 0), atan2(fwd.x, fwd.z), -0.95)
+		await _shot(dir, "lid_" + id.replace("/", "_"))
 	for b in boxes:
 		for s in slots:
 			if s.place(b):
 				break
 	await get_tree().create_timer(1.5).timeout
 	hud.show_end("")
-	hud.get_child(0).hide()
 	await _view(Vector3(-0.9, 0.05, -2.9), 0.25, -0.12)
 	await _shot(dir, "game_shelf")
 	await _view(Vector3(3.6, 0.05, -3.1), -PI / 2, -0.12)

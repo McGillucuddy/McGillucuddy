@@ -144,7 +144,7 @@ static func dress_base(case: String, v: Node3D, w: float, h: float, d: float, t:
 
 ## The lid: built at the hinge, extending toward +z, top face up when closed.
 static func build_lid(case: String, lid: Node3D, lw: float, ld: float, t: float, sk: float, c: Color, accent: Color, outer: Material, trim: Material,
-		name: String, line_id: String, ed_idx: int, seed_val: int) -> void:
+		name: String, line_id: String, ed_idx: int, seed_val: int, logo: Texture2D = null) -> void:
 	var z0 := ld / 2 - 0.006
 	if case == "display":
 		# A wooden frame around a glass panel, so the collection stays on show.
@@ -171,14 +171,21 @@ static func build_lid(case: String, lid: Node3D, lw: float, ld: float, t: float,
 			var plane := PlaneMesh.new()
 			plane.size = Vector2(lw - 0.004, ld - 0.004)
 			lid.add_child(MeshKit.mesh_node(plane, art, Vector3(0, t + 0.0012, z0)))
-			var title := _label(name, 76 if name.length() < 24 else 58, Color("fff4e4"), c.darkened(0.7), 18)
-			title.position = Vector3(0, t + 0.002, z0 + ld * 0.31)
-			title.rotation.x = -PI / 2
-			lid.add_child(title)
-			# The front of the lid is printed too, since that's what faces you on the shelf.
-			var front := _label(name, 44, Color("fff4e4"), c.darkened(0.7), 10)
-			front.position = Vector3(0, -sk / 2 + t, ld - 0.012 + t / 2 + 0.0015)
-			lid.add_child(front)
+			# The title is printed artwork, not text: the game's logo sits over the illustration...
+			var ink := StandardMaterial3D.new()
+			ink.albedo_texture = logo
+			ink.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			ink.roughness = 0.5
+			ink.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+			var lw_logo := lw * 0.86
+			var top_logo := PlaneMesh.new()
+			top_logo.size = Vector2(lw_logo, lw_logo * LogoKit.H / LogoKit.W)
+			lid.add_child(MeshKit.mesh_node(top_logo, ink, Vector3(0, t + 0.0022, z0 + ld * 0.14)))
+			# ...and again on the front of the lid, which is what faces you on the shelf.
+			var fh := sk * 0.92
+			var front := QuadMesh.new()
+			front.size = Vector2(minf(fh * LogoKit.W / LogoKit.H, lw * 0.9), fh)
+			lid.add_child(MeshKit.mesh_node(front, ink, Vector3(0, -sk / 2 + t, ld - 0.012 + t / 2 + 0.0015)))
 			_node(lid, Vector3(lw + 0.002, 0.014, t + 0.002), trim, Vector3(0, -sk + t + 0.012, ld - 0.012))
 		"vault":
 			_node(lid, Vector3(lw - 0.04, 0.004, ld - 0.04), _m(Color("4a2e1c"), 0.4), Vector3(0, t + 0.002, z0))
@@ -355,10 +362,7 @@ static func lid_art(line_id: String, c: Color, accent: Color, ed_idx: int, seed_
 		_:
 			for i in 12:
 				_circle(img, rng.randi_range(0, w), rng.randi_range(0, h), rng.randi_range(10, 50), light if i % 2 == 0 else dark)
-	# Title banner and frame.
-	img.fill_rect(Rect2i(0, h - 92, w, 70), c.darkened(0.55))
-	img.fill_rect(Rect2i(0, h - 96, w, 4), accent)
-	img.fill_rect(Rect2i(0, h - 22, w, 4), accent)
+	# Frame.
 	for b in [Rect2i(0, 0, w, 8), Rect2i(0, h - 8, w, 8), Rect2i(0, 0, 8, h), Rect2i(w - 8, 0, 8, h)]:
 		img.fill_rect(b, accent)
 	if ed_idx > 0:
