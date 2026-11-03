@@ -1271,6 +1271,7 @@ func _tour_show(step: int) -> void:
 	box.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 	box.freeze = true
 	box.global_transform = Transform3D(Basis(), _tour_stand.global_position + Vector3(0, 0.69, 0))
+	box._snap_contents()
 	box.peek(true)
 	_sparkle(box.insert_top(), 24, 0.7, Color("ffe7a8"))
 	sfx.chord([PENTA[2], PENTA[4], PENTA[7]], 0.06, -12.0)

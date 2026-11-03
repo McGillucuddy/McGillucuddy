@@ -34,6 +34,7 @@ func place(box: GameBox) -> bool:
 	var tw := box.create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	tw.tween_property(box, "global_position", target, 0.55)
 	tw.tween_property(box, "global_rotation", Vector3(0, global_rotation.y + randf_range(-0.03, 0.03), 0), 0.55)
+	tw.chain().tween_callback(box._snap_contents)
 	if ghost and filled():
 		var g := ghost.create_tween()
 		g.tween_property(ghost, "scale", Vector3(1.05, 1.05, 1.05), 0.15)

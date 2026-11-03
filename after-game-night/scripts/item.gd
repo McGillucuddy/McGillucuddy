@@ -110,6 +110,9 @@ func make_passenger() -> void:
 	collision_layer = 0
 	collision_mask = 0
 	contact_monitor = false
+	# Out of the physics world entirely: a packed item just rides along inside its box, and
+	# the physics engine must never write a stale position back onto it when the box moves.
+	PhysicsServer3D.body_set_space(get_rid(), RID())
 
 
 func _on_body_entered(_other: Node) -> void:

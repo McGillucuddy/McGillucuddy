@@ -542,13 +542,16 @@ func _check_done(delay: float) -> void:
 		hop.tween_property(visual, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 
-## Puts every packed item exactly where it belongs (in case a slide-in was cut short).
+## Puts every packed item exactly where it belongs inside the box, wherever the box is now.
+## Packed items are physics bodies, which keep their place in the world rather than riding
+## along when their box is moved, so this runs whenever a box has been moved.
 func _snap_contents() -> void:
 	for it in contents.get_children():
 		if it is Item and it.has_meta("packed"):
 			var pk: Array = it.get_meta("packed")
-			(it as Item).position = pk[0]
-			(it as Item).rotation = pk[1]
+			var xf := contents.global_transform * Transform3D(Basis.from_euler(pk[1]), pk[0])
+			(it as Item).global_transform = xf
+			PhysicsServer3D.body_set_state((it as Item).get_rid(), PhysicsServer3D.BODY_STATE_TRANSFORM, xf)
 			if (it as Item).visual:
 				(it as Item).visual.scale = pk[2]
 
@@ -597,6 +600,7 @@ func insert_top() -> Vector3:
 func peek(open: bool, instant := false) -> void:
 	if open == peeking or not complete:
 		return
+	_snap_contents()
 	peeking = open
 	var lid_to := deg_to_rad(-105) if open else 0.0
 	var tops := contents.get_children().filter(func(n: Node): return n is Item and ((n as Item).kind == "board" or (n as Item).kind == "rules"))
