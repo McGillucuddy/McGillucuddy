@@ -365,7 +365,11 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 			var home := spot
 			if rng.randf() < STRAY_CHANCE:
 				home = _stray_spot(spot)
-			_put_item(it, home, _free_point(home, 0.06), rng.randf_range(0, TAU))
+			var at := _free_point(home, 0.06)
+			if home.has("spill") and (_in_play(home, at) or (home.hmap as HMap).top(at.x, at.z, 0.06) > (home.center as Vector3).y + 0.09):
+				home = spots[home.spill]
+				at = _free_point(home, 0.06)
+			_put_item(it, home, at, rng.randf_range(0, TAU))
 		for it: Item in plan.extra:
 			if it.kind == "rules":
 				_put_item(it, spot, _free_point(spot, 0.14), rng.randf_range(0, TAU))
@@ -391,10 +395,21 @@ func _free_point(spot: Dictionary, r: float) -> Vector3:
 		var l := inv * p
 		var on_board := absf(l.x) < 0.27 and absf(l.z) < 0.27
 		var hh := hm.top(p.x, p.z, r) + (0.05 if on_board else 0.0) + rng.randf() * 0.01
+		if _in_play(spot, p):
+			hh += 10.0
 		if hh < best_h:
 			best_h = hh
 			best = p
 	return best
+
+
+## Whether a point is in the part of the table where the game is being played.
+func _in_play(spot: Dictionary, p: Vector3) -> bool:
+	if not spot.has("play"):
+		return false
+	var c: Vector3 = spot.center
+	var pl: Vector2 = spot.play
+	return absf(p.x - c.x) < pl.x and absf(p.z - c.z) < pl.y
 
 
 ## Sets a piece down on top of whatever is already there. If the pile would get taller than
@@ -411,6 +426,12 @@ func _place_piece(p: Pieces.P, spot: Dictionary, x: float, z: float, yaw: float,
 		z = q.z + rng.randf_range(-r, r)
 		y = hm.top(x, z, r)
 		tries += 1
+	if max_pile < 0.5 and spot.has("spill") and (_in_play(spot, Vector3(x, 0, z)) or y + bb.size.y - (spot.center as Vector3).y > max_pile):
+		# No room round the game: it has ended up on the floor beside the table.
+		var fl: Dictionary = spots[spot.spill]
+		var q := _free_point(fl, r * 2.0)
+		_place_piece(p, fl, q.x, q.z, yaw, 0.12)
+		return
 	hm.raise(x, z, r, y + bb.size.y)
 	p.xf = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, y - bb.position.y + 0.0005, z))
 	p.home = spot
@@ -1903,8 +1924,8 @@ func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: 
 	world.add_child(rack)
 	rack.position = at
 	rack.rotation.y = rot
-	var wood := TexKit.pbr("dark_wood", 1.2, Color("c8a080"))
-	var back := TexKit.pbr("dark_wood", 1.2, Color("7a5a44"))
+	var wood := TexKit.pbr("dark_wood", 0.6, Color("c8a080"))
+	var back := TexKit.pbr("dark_wood", 0.6, Color("7a5a44"))
 	var cw := 1.0
 	var ch := CUBBY_H
 	var bt := 0.05
@@ -1994,28 +2015,38 @@ func _define_spots() -> void:
 		"coffee": {"room": "living", "center": Vector3(3.0, 0.44, 1.0), "ext": Vector2(0.57, 0.3), "row_start": Vector3(1.75, 0.0, 0.55), "rot": -PI / 2, "spill": "floor_coffee"},
 		"bench": {"room": "living", "center": Vector3(-5.65, 0.5, 0.5), "ext": Vector2(0.29, 1.02), "row_start": Vector3(-4.8, 0.0, 1.45), "rot": PI / 2, "spill": "floor_bench"},
 		"couch": {"room": "living", "center": Vector3(3.0, 0.44, 2.92), "ext": Vector2(0.95, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_dining": {"room": "living", "center": Vector3(-4.55, 0.0, -0.75), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_game": {"room": "living", "center": Vector3(1.65, 0.0, -2.55), "ext": Vector2(0.3, 0.35), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_dining": {"room": "living", "center": Vector3(-4.55, 0.0, -0.7), "ext": Vector2(0.4, 0.5), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_game": {"room": "living", "center": Vector3(1.75, 0.0, -2.6), "ext": Vector2(0.4, 0.45), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_card": {"room": "living", "center": Vector3(3.95, 0.0, -1.45), "ext": Vector2(0.45, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_coffee": {"room": "living", "center": Vector3(3.0, 0.0, 1.95), "ext": Vector2(0.85, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_bench": {"room": "living", "center": Vector3(-5.25, 0.0, -1.35), "ext": Vector2(0.4, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
 		# The card room, through the west doorway.
 		"poker": {"room": "card", "center": Vector3(-10.6, 0.763, 4.0), "ext": Vector2(0.5, 0.27), "row_start": Vector3(-12.0, 0.0, 2.5), "rot": 0.0, "spill": "floor_poker"},
 		"ccgtable": {"room": "card", "center": Vector3(-8.3, 0.746, 6.0), "ext": Vector2(0.62, 0.48), "row_start": Vector3(-10.3, 0.0, 7.15), "rot": PI, "spill": "floor_ccg"},
-		"floor_poker": {"room": "card", "center": Vector3(-10.6, 0.0, 5.3), "ext": Vector2(0.45, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_ccg": {"room": "card", "center": Vector3(-7.45, 0.0, 3.3), "ext": Vector2(0.35, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_poker": {"room": "card", "center": Vector3(-10.6, 0.0, 5.35), "ext": Vector2(0.6, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_ccg": {"room": "card", "center": Vector3(-7.6, 0.0, 3.6), "ext": Vector2(0.5, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
 		# The dragon's den, through the east doorway.
 		"round": {"room": "den", "center": Vector3(9.6, 0.743, 3.6), "ext": Vector2(0.56, 0.56), "row_start": Vector3(10.3, 0.0, 0.35), "rot": 0.0, "spill": "floor_round"},
-		"curio": {"room": "den", "center": Vector3(12.3, 0.706, 2.0), "ext": Vector2(0.33, 0.33), "row_start": Vector3(12.2, 0.0, 0.35), "rot": 0.0},
+		"curio": {"room": "den", "center": Vector3(12.3, 0.706, 2.0), "ext": Vector2(0.33, 0.33), "row_start": Vector3(12.2, 0.0, 0.35), "rot": 0.0, "spill": "floor_curio"},
 		"dicetable": {"room": "den", "center": Vector3(12.4, 0.624, 4.1), "ext": Vector2(0.34, 0.34), "row_start": Vector3(13.75, 0.0, 1.1), "rot": -PI / 2, "spill": "floor_dice"},
 		"war": {"room": "den", "center": Vector3(10.9, 0.763, 6.45), "ext": Vector2(0.9, 0.48), "row_start": Vector3(13.75, 0.0, 4.9), "rot": -PI / 2, "spill": "floor_war"},
-		"floor_round": {"room": "den", "center": Vector3(8.0, 0.0, 2.3), "ext": Vector2(0.35, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_round": {"room": "den", "center": Vector3(7.9, 0.0, 2.1), "ext": Vector2(0.45, 0.4), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_dice": {"room": "den", "center": Vector3(11.3, 0.0, 5.0), "ext": Vector2(0.35, 0.28), "row_start": Vector3.ZERO, "rot": 0.0},
-		"floor_war": {"room": "den", "center": Vector3(8.9, 0.0, 6.9), "ext": Vector2(0.35, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_curio": {"room": "den", "center": Vector3(11.0, 0.0, 1.55), "ext": Vector2(0.35, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
+		"floor_war": {"room": "den", "center": Vector3(8.75, 0.0, 6.75), "ext": Vector2(0.5, 0.45), "row_start": Vector3.ZERO, "rot": 0.0},
 		# The hobby studio, through the front doorway.
-		"paintdesk": {"room": "studio", "center": Vector3(-1.6, 0.763, 12.77), "ext": Vector2(0.7, 0.22), "row_start": Vector3(-2.95, 0.0, 11.6), "rot": PI / 2},
-		"ring": {"room": "studio", "center": Vector3(1.0, 0.014, 10.4), "ext": Vector2(0.38, 0.38), "row_start": Vector3(2.95, 0.0, 8.6), "rot": -PI / 2},
+		"paintdesk": {"room": "studio", "center": Vector3(-1.6, 0.763, 12.77), "ext": Vector2(0.7, 0.22), "row_start": Vector3(-2.95, 0.0, 11.6), "rot": PI / 2, "spill": "floor_paint"},
+		"floor_paint": {"room": "studio", "center": Vector3(-0.75, 0.0, 12.35), "ext": Vector2(0.3, 0.2), "row_start": Vector3.ZERO, "rot": 0.0},
+		"ring": {"room": "studio", "center": Vector3(1.0, 0.014, 10.4), "ext": Vector2(0.38, 0.38), "row_start": Vector3(2.95, 0.0, 8.6), "rot": -PI / 2, "spill": "floor_ring"},
+		"floor_ring": {"room": "studio", "center": Vector3(1.05, 0.0, 11.45), "ext": Vector2(0.45, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
 	}
+	# The part of each table where the game is being played; supply goes round it, not on it.
+	var play := {"war": Vector2(0.62, 0.43), "dining": Vector2(0.72, 0.46), "gametable": Vector2(0.62, 0.48),
+		"cardtable": Vector2(0.3, 0.3), "coffee": Vector2(0.3, 0.3), "bench": Vector2(0.29, 1.02), "round": Vector2(0.42, 0.42),
+		"dicetable": Vector2(0.26, 0.26), "curio": Vector2(0.33, 0.33), "poker": Vector2(0.5, 0.27),
+		"ccgtable": Vector2(0.62, 0.48), "paintdesk": Vector2(0.7, 0.22), "ring": Vector2(0.38, 0.38)}
+	for k in play:
+		defs[k]["play"] = play[k]
 	for k in defs:
 		var s: Dictionary = defs[k]
 		s["name"] = k
@@ -2983,7 +3014,9 @@ func _table_shots(dir: String) -> void:
 		var c: Vector3 = sp.center
 		var ext: Vector2 = sp.ext
 		var reach := maxf(ext.x, ext.y)
-		await _cam_at(cam, c + Vector3(0.0, 0.55 + reach * 0.9, 0.45 + reach * 0.75), c)
+		var away := Vector3((sp.row_start as Vector3).x - c.x, 0, (sp.row_start as Vector3).z - c.z)
+		away = away.normalized() if away.length() > 0.1 else Vector3(0, 0, 1)
+		await _cam_at(cam, c + Vector3(0, 0.55 + reach * 0.9, 0) + away * (0.45 + reach * 0.75), c)
 		await _shot(dir, "table_" + sname)
 	get_tree().quit()
 

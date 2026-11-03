@@ -180,6 +180,8 @@ func _build_shell(ed_idx: int) -> void:
 		cs.position = p[1]
 		add_child(cs)
 	CaseKit.dress_base(self, case_style, visual, W, H, D, T, color, trim, game_name, ed_idx)
+	if case_style == CaseKit.BOARDGAME:
+		CaseKit.line_base(visual, W, H, D, T)
 
 	lid_pivot = Node3D.new()
 	lid_pivot.position = Vector3(0, H, -D / 2)

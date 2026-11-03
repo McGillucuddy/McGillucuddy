@@ -25,7 +25,7 @@ static func shell_mats(case: String, c: Color, trim: Color) -> Dictionary:
 	match case:
 		"vault":
 			# Stitched brown leather over a wooden box, with brass corners.
-			return {"outer": TexKit.pbr("brown_leather", 3.0, Color("b08a70"), 1.0, false), "trim": MeshKit.metal_mat(Color("c9a24a"), 0.3)}
+			return {"outer": TexKit.pbr("brown_leather", 3.0, Color("e0b896"), 1.0, false), "trim": MeshKit.metal_mat(Color("d8b45a"), 0.3)}
 		"chipcase":
 			return {"outer": TexKit.brushed(Color("c9ced4")), "trim": _m(Color("1c1c20"), 0.5)}
 		"deckvault":
@@ -59,6 +59,50 @@ static func insert_mats(case: String, c: Color) -> Dictionary:
 			return {"tray": TexKit.pbr("wood_table_001", 3.0, Color("e8c8a0"), 1.0, false), "floor": TexKit.pbr("wood_table_001", 3.0, Color("d0a878"), 1.0, false), "wall": TexKit.pbr("wood_table_001", 3.0, Color("f0d4b0"), 1.0, false)}
 	# Board-game inserts are box board, in the game's colours.
 	return {"tray": TexKit.cardboard(c.darkened(0.3).lerp(Color("b8a48a"), 0.25)), "floor": TexKit.cardboard(c.darkened(0.5).lerp(Color("8a7a66"), 0.2)), "wall": TexKit.cardboard(c.darkened(0.15).lerp(Color("c8b49a"), 0.25))}
+
+
+## A real game box is printed only on the outside: inside it's plain card, and the cut edges
+## show the grey board it's made from. These thin linings go just inside each printed wall.
+const LINER := 0.0015
+
+
+static func liner_mats() -> Array:
+	return [TexKit.cardboard(Color("ddd6c8"), 8.0), TexKit.cardboard(Color("8e887e"), 10.0)]
+
+
+static func line_base(v: Node3D, w: float, h: float, d: float, t: float) -> void:
+	var m := liner_mats()
+	var card: Material = m[0]
+	var board: Material = m[1]
+	var hy := t + (h - t) / 2.0
+	_node(v, Vector3(w - 2 * t, h - t, LINER), card, Vector3(0, hy, d / 2 - t - LINER / 2))
+	_node(v, Vector3(w - 2 * t, h - t, LINER), card, Vector3(0, hy, -d / 2 + t + LINER / 2))
+	for sx in [-1.0, 1.0]:
+		_node(v, Vector3(LINER, h - t, d - 2 * t), card, Vector3(sx * (w / 2 - t - LINER / 2), hy, 0))
+	# Grey board along the top of the walls.
+	for sz in [-1.0, 1.0]:
+		_node(v, Vector3(w, 0.0012, t), board, Vector3(0, h + 0.0006, sz * (d / 2 - t / 2)))
+	for sx in [-1.0, 1.0]:
+		_node(v, Vector3(t, 0.0012, d - 2 * t), board, Vector3(sx * (w / 2 - t / 2), h + 0.0006, 0))
+
+
+static func line_lid(lid: Node3D, lw: float, ld: float, t: float, sk: float, z0: float) -> void:
+	var m := liner_mats()
+	var card: Material = m[0]
+	var board: Material = m[1]
+	var inner_h := sk - t
+	var cy := (t - sk) / 2.0
+	_node(lid, Vector3(lw - 2 * t, LINER, ld - 2 * t), card, Vector3(0, -LINER / 2, z0))
+	for sx in [-1.0, 1.0]:
+		_node(lid, Vector3(LINER, inner_h, ld - 2 * t), card, Vector3(sx * (lw / 2 - t - LINER / 2), cy, z0))
+	_node(lid, Vector3(lw - 2 * t, inner_h, LINER), card, Vector3(0, cy, ld - 0.012 - t / 2 - LINER / 2))
+	_node(lid, Vector3(lw - 2 * t, inner_h, LINER), card, Vector3(0, cy, t / 2 + LINER / 2))
+	# Grey board along the bottom edge of the lid's skirt.
+	var ey := t - sk - 0.0006
+	for sx in [-1.0, 1.0]:
+		_node(lid, Vector3(t, 0.0012, ld), board, Vector3(sx * (lw / 2 - t / 2), ey, z0))
+	_node(lid, Vector3(lw, 0.0012, t), board, Vector3(0, ey, ld - 0.012))
+	_node(lid, Vector3(lw, 0.0012, t), board, Vector3(0, ey, 0.0))
 
 
 ## How far the lid's sides reach down over the box.
@@ -174,6 +218,7 @@ static func build_lid(owner: Node, case: String, lid: Node3D, lw: float, ld: flo
 
 	match case:
 		BOARDGAME:
+			line_lid(lid, lw, ld, t, sk, z0)
 			# The lid is printed as one piece of art: illustration with the logo printed into it.
 			var px := Vector2i(1024, int(1024.0 * ld / lw))
 			var lid_tex := LogoKit.print_surface(owner, line_id, title, subtitle, px, lid_art(line_id, c, accent, ed_idx, seed_val), c,
