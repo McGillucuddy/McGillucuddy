@@ -297,7 +297,7 @@ static func _boxed_mesh(mesh: ArrayMesh) -> ArrayMesh:
 ## in each of the first `n` cells (round, or a rounded rectangle) and the rest left solid.
 func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, n: int, foot: Vector2, round: bool, depth: float) -> void:
 	var top := _insert_mats.get("tray", MeshKit.mat(Color("c8b8a0"), 0.9)) as Material
-	var inner := _insert_mats.get("floor", MeshKit.mat(Color("6e665c"), 0.95)) as Material
+	var inner := MeshKit.mat(Color("2a2420"), 0.95)
 	var st_top := SurfaceTool.new()
 	st_top.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var st_in := SurfaceTool.new()
@@ -315,8 +315,9 @@ func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, 
 			_quad(st_top, Vector3(cc.x - hx, y1, cc.y - hz), Vector3(cc.x + hx, y1, cc.y - hz), Vector3(cc.x + hx, y1, cc.y + hz), Vector3(cc.x - hx, y1, cc.y + hz), Vector3.UP)
 			continue
 		# A little clearance round the piece, never more than the cell.
-		var a := minf(foot.x / 2 + 0.0018, hx - 0.0015)
-		var b := minf(foot.y / 2 + 0.0018, hz - 0.0015)
+		# Enough clearance that a dark ring shows round the piece, as in a real insert.
+		var a := minf(foot.x / 2 + 0.0045, hx - 0.002)
+		var b := minf(foot.y / 2 + 0.0045, hz - 0.002)
 		if round:
 			a = minf(a, b)
 			b = a
@@ -343,6 +344,7 @@ func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, 
 			var e1: Vector2 = cc + edge[k2]
 			_quad(st_top, Vector3(h0.x, y1, h0.y), Vector3(e0.x, y1, e0.y), Vector3(e1.x, y1, e1.y), Vector3(h1.x, y1, h1.y), Vector3.UP)
 			# The wall of the hole, facing in towards the piece.
+			_tri(st_in, Vector3(cc.x, y0 + 0.0003, cc.y), Vector3(h0.x, y0 + 0.0003, h0.y), Vector3(h1.x, y0 + 0.0003, h1.y), Vector3.UP)
 			var n_in := -Vector3((h0 + h1).x / 2 - cc.x, 0, (h0 + h1).y / 2 - cc.y).normalized()
 			_quad(st_in, Vector3(h0.x, y1, h0.y), Vector3(h1.x, y1, h1.y), Vector3(h1.x, y0, h1.y), Vector3(h0.x, y0, h0.y), n_in)
 	var mi := MeshInstance3D.new()
@@ -353,6 +355,13 @@ func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, 
 	mw.mesh = st_in.commit()
 	mw.material_override = inner
 	visual.add_child(mw)
+
+
+static func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, n: Vector3) -> void:
+	var flip := (b - a).cross(c - a).dot(n) > 0.0
+	for v in ([a, c, b] if flip else [a, b, c]):
+		st.set_normal(n)
+		st.add_vertex(v)
 
 
 ## Two triangles for a quad, wound to face along n.
@@ -426,7 +435,7 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: floa
 		arr.append({"xf": xf, "ghost": gi, "idx": i, "filled": false})
 	# The insert block: a hole the shape of the piece in every cell, solid card in any cell left over.
 	var foot := Vector2(bb.size.x, bb.size.z) * sv
-	var depth := clampf(h * 0.45, 0.004, minf(0.016, well_h * 0.5))
+	var depth := clampf(h * 0.45, 0.007, minf(0.018, well_h * 0.5))
 	_cutouts(wx + GAP / 2, wz + GAP / 2, cols, rows, px, pz, cells, foot, ROUND.has(g.type), depth)
 	_spots[g.key] = arr
 	_stored[g.key] = stored
