@@ -372,7 +372,13 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 			_put_item(it, home, at, rng.randf_range(0, TAU))
 		for it: Item in plan.extra:
 			if it.kind == "rules":
-				_put_item(it, spot, _free_point(spot, 0.14), rng.randf_range(0, TAU))
+				# Set aside off the play area: at the table's edge, or on the floor beside it.
+				var home := spot
+				var at := _free_point(spot, 0.14)
+				if spot.has("spill") and (_in_play(spot, at) or (spot.hmap as HMap).top(at.x, at.z, 0.14) > (spot.center as Vector3).y + 0.09):
+					home = spots[spot.spill]
+					at = _free_point(home, 0.14)
+				_put_item(it, home, at, rng.randf_range(0, TAU))
 
 
 ## Somewhere else in the same room, for the odd card pile that wandered off.
