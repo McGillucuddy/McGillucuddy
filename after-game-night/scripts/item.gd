@@ -20,6 +20,7 @@ var card_top_face: Material  # face showing on top of the pile, if face up
 var piece_type := ""
 var label := ""
 var held := false
+var handled := false   # the player has picked this up at least once
 var stored := false
 var rest_rotation := Vector3.ZERO
 var home: Dictionary = {}
@@ -78,6 +79,7 @@ func set_highlight(on: bool) -> void:
 
 func on_pick() -> void:
 	held = true
+	handled = true
 	set_highlight(false)
 	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 	freeze = true

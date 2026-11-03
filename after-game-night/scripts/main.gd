@@ -10,8 +10,8 @@ const VOLUME := 3.0
 const SPILL := 0.22
 ## Share of card piles left face up (hands are always face up).
 const FACE_UP := 0.7
-const PIECE_SCALE := 0.9
-const CARD_SCALE := 1.5
+const PIECE_SCALE := 1.1
+const CARD_SCALE := 1.65
 ## Which surface each game line is played on.
 const PLAYED_ON := {"plum": "dining", "atlas": "gametable", "harbor": "cardtable", "honey": "coffee", "orchard": "bench",
 	"casino": "poker", "ccg": "ccgtable",
@@ -19,11 +19,13 @@ const PLAYED_ON := {"plum": "dining", "atlas": "gametable", "harbor": "cardtable
 	"paints": "paintdesk", "marbles": "ring"}
 ## Every room has its own shelf for the games played in it: [line ids, position, turn, columns, sign].
 const ROOM_SHELVES := [
-	[["plum", "atlas", "harbor", "honey", "orchard"], Vector3(0, 0, -4.72), 0.0, 3, "Game Shelf"],
-	[["casino", "ccg"], Vector3(-12.9, 0, 4.8), PI / 2, 1, "Card Room"],
-	[["wyrm", "hoard", "caverns", "crowns"], Vector3(7.6, 0, 0.1), 0.0, 2, "Dragon's Den"],
-	[["paints", "marbles"], Vector3(1.6, 0, 13.1), PI, 1, "Hobby Studio"],
+	[["plum", "atlas", "harbor", "honey", "orchard"], Vector3(0, 0, -4.69), 0.0, 3, "Game Shelf"],
+	[["casino", "ccg"], Vector3(-12.89, 0, 4.8), PI / 2, 1, "Card Room"],
+	[["wyrm", "hoard", "caverns", "crowns"], Vector3(7.6, 0, 0.11), 0.0, 2, "Dragon's Den"],
+	[["paints", "marbles"], Vector3(1.6, 0, 13.09), PI, 1, "Hobby Studio"],
 ]
+## Height of each shelf cubby; every game's stack of boxes has to fit with room to spare.
+const CUBBY_H := 1.0
 const DOOR_W := 1.4
 const DOOR_H := 2.3
 const TOOL_NAMES := [["Hands"], ["Seeker Lantern"], ["Dustpan"], ["Magnet"]]
@@ -472,6 +474,16 @@ func _lay_out_group(g: Pieces.Group, how: String, spot: Dictionary) -> void:
 				_place_piece(p, spot, q.x, q.z, rng.randf_range(0, TAU))
 
 
+## When something is lifted off a pile, whatever was resting on it settles down naturally.
+func _release_above(at: Vector3) -> void:
+	for other: Item in items:
+		if other.freeze and not other.held and not other.stored and other.kind != "box" \
+				and other.global_position.y > at.y - 0.01 \
+				and Vector2(other.global_position.x - at.x, other.global_position.z - at.z).length() < 0.35:
+			other.freeze = false
+			other.sleeping = false
+
+
 func _put_item(it: Item, spot: Dictionary, at: Vector3, yaw: float) -> void:
 	var hm: HMap = spot.hmap
 	var bb := MeshKit.scaled_aabb(MeshKit.visual_aabb(it.visual, Vector3.ZERO), it.base_scale)
@@ -482,6 +494,10 @@ func _put_item(it: Item, spot: Dictionary, at: Vector3, yaw: float) -> void:
 	world.add_child(it)
 	it.global_position = Vector3(at.x, y - bb.position.y + 0.002, at.z)
 	it.rotation.y = yaw
+	# Like the pieces, anything laid out on a table stays exactly where it was left until
+	# the player picks it up, so nothing slides off into a box by itself.
+	it.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+	it.freeze = true
 	if not items.has(it):
 		items.append(it)
 		it.clacked.connect(_on_clack)
@@ -570,6 +586,7 @@ func _on_player_acted(kind: String, data: Variant) -> void:
 			var it := data as Item
 			sfx.at("tick", it.global_position, -4.0, 1.2)
 			_clear_hint(it)
+			_release_above(it.global_position)
 		"scoop":
 			var n: int = data
 			for i in mini(n, 5):
@@ -1522,10 +1539,10 @@ func _build_shelf(order: Array, at: Vector3, rot: float, cols: int, title_text: 
 	rack.rotation.y = rot
 	var wood := TexKit.pbr("dark_wood", 1.2, Color("c8a080"))
 	var back := TexKit.pbr("dark_wood", 1.2, Color("7a5a44"))
-	var cw := 0.9
-	var ch := 0.82
+	var cw := 1.0
+	var ch := CUBBY_H
 	var bt := 0.05
-	var depth := 0.55
+	var depth := 0.6
 	var width := cols * cw + (cols + 1) * bt
 	var floors := [0.12]
 	floors.append(floors[0] + ch + bt)
@@ -1625,7 +1642,7 @@ func _define_spots() -> void:
 		"round": {"room": "den", "center": Vector3(9.6, 0.743, 3.6), "ext": Vector2(0.56, 0.56), "row_start": Vector3(10.3, 0.0, 0.35), "rot": 0.0, "spill": "floor_round"},
 		"curio": {"room": "den", "center": Vector3(12.3, 0.706, 2.0), "ext": Vector2(0.33, 0.33), "row_start": Vector3(12.2, 0.0, 0.35), "rot": 0.0},
 		"dicetable": {"room": "den", "center": Vector3(12.4, 0.624, 4.1), "ext": Vector2(0.34, 0.34), "row_start": Vector3(13.75, 0.0, 1.1), "rot": -PI / 2, "spill": "floor_dice"},
-		"war": {"room": "den", "center": Vector3(10.9, 0.763, 6.45), "ext": Vector2(0.9, 0.48), "row_start": Vector3(13.75, 0.0, 4.75), "rot": -PI / 2, "spill": "floor_war"},
+		"war": {"room": "den", "center": Vector3(10.9, 0.763, 6.45), "ext": Vector2(0.9, 0.48), "row_start": Vector3(13.75, 0.0, 4.9), "rot": -PI / 2, "spill": "floor_war"},
 		"floor_round": {"room": "den", "center": Vector3(8.0, 0.0, 2.3), "ext": Vector2(0.35, 0.25), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_dice": {"room": "den", "center": Vector3(11.3, 0.0, 5.0), "ext": Vector2(0.35, 0.28), "row_start": Vector3.ZERO, "rot": 0.0},
 		"floor_war": {"room": "den", "center": Vector3(8.9, 0.0, 6.9), "ext": Vector2(0.35, 0.3), "row_start": Vector3.ZERO, "rot": 0.0},
@@ -2339,7 +2356,7 @@ func _autotest() -> void:
 		for b in boxes:
 			if b.line_id == s.line_id:
 				h += b.H
-		print("  shelf stack %-18s %.2f m (cubby 0.82)" % [s.game_name, h])
+		print("  shelf stack %-18s %.2f m (cubby %.2f)%s" % [s.game_name, h, CUBBY_H, "  TOO TALL" if h > CUBBY_H - 0.04 else ""])
 	# Pieces from an expansion must not go in the base game's box, and vice versa.
 	var base := boxes[0]
 	var other: Pieces.P = pieces.all.filter(func(p: Pieces.P): return p.g.line == base.line_id and p.g.ed != base.ed_id)[0]

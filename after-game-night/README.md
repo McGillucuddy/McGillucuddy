@@ -67,7 +67,7 @@ The logo fonts are open-source (SIL Open Font License) and bundled in `fonts/`, 
 
 ### Cards you can see
 
-Cards are 1.5× life size so you can read them from standing height. Every card set has its own printed fronts on matte card stock: a frame in the set's colour, a named title bar, an illustrated art window, a type line, rules text and a cost gem. Casino decks have real playing-card faces, holofoils shimmer over their art and neon cards glow. On the tables, hands are fanned face up, some piles are dealt out in face-up rows, and most draw piles show their top card, so you can see what's what just by looking around. In the box, each set has a tray with a divider and tab in the set's colour, and the stack shows its top card face up. Faces are drawn in `scripts/face_kit.gd`.
+Cards are 1.65× life size and pieces 1.1×, so you can read them from standing height. Packed pieces stay at least 90% of that size in their boxes, so a finished insert is easy to look over. Every card set has its own printed fronts on matte card stock: a frame in the set's colour, a named title bar, an illustrated art window, a type line, rules text and a cost gem. Casino decks have real playing-card faces, holofoils shimmer over their art and neon cards glow. On the tables, hands are fanned face up, some piles are dealt out in face-up rows, and most draw piles show their top card, so you can see what's what just by looking around. In the box, each set has a tray with a divider and tab in the set's colour, and the stack shows its top card face up. Faces are drawn in `scripts/face_kit.gd`.
 
 ### Miniatures
 
@@ -176,7 +176,7 @@ Each new game shuffles where pieces sit, how they're piled, and the order of the
 
 ### Tweaking
 
-`VOLUME` at the top of `scripts/main.gd` multiplies every piece and card count (3.0 by default). `SPILL`, `STRAY_CHANCE` and `PIECE_SCALE` control how much ends up on the floor, how much wanders to other tables, and how big pieces are. Edit `LINES` in `scripts/game_data.gd` to change what's in each box; the inserts and boxes resize themselves. `HANDFUL` sets how many of each piece one click scoops up.
+`VOLUME` at the top of `scripts/main.gd` multiplies every piece and card count (3.0 by default). `SPILL`, `STRAY_CHANCE` and `PIECE_SCALE` control how much ends up on the floor, how much wanders to other tables, and how big pieces are; `CARD_SCALE` sets card size. Boxes and their inserts grow to fit (`IW` and `MAX_ID` in `scripts/game_box.gd`), and `CUBBY_H` sets shelf cubby height. The autotest prints every shelf stack and flags any that is too tall. Edit `LINES` in `scripts/game_data.gd` to change what's in each box; the inserts and boxes resize themselves. `HANDFUL` sets how many of each piece one click scoops up.
 
 The lighting is designed for Godot's default Forward+ renderer, which adds the warm haze and soft bounce light.
 

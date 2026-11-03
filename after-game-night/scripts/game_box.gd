@@ -12,8 +12,8 @@ signal bounced(box: GameBox, reason: String)
 signal sorted(box: GameBox)   # every piece and card is in its spot (the board and rulebook may still be out)
 
 const T := 0.012
-const IW := 0.76
-const MAX_ID := 0.48
+const IW := 0.86
+const MAX_ID := 0.5
 const GAP := 0.007
 const TOP_SPACE := 0.05   # room above the insert for the folded board and rulebook
 
@@ -104,7 +104,7 @@ static func layout(entries: Array, f: float, wh: float) -> Dictionary:
 
 ## Finds the shallowest insert that fits the contents within the shelf depth.
 static func plan(entries: Array) -> Dictionary:
-	var f := 0.8
+	var f := 0.9
 	for attempt in 8:
 		var wh := 0.04
 		while wh <= 0.2601:
@@ -649,4 +649,6 @@ func _on_intake(body: Node3D) -> void:
 	if why != "" and why != "done":
 		it.linear_velocity = Vector3(randf_range(-1.0, 1.0), 2.4, randf_range(-1.0, 1.0))
 		shake()
-		bounced.emit(self, why)
+		# Only something the player dropped in counts as a mix-up.
+		if it.handled:
+			bounced.emit(self, why)
