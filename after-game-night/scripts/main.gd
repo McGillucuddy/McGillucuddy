@@ -3094,15 +3094,19 @@ func _set_shots(dir: String) -> void:
 	hud.visible = false
 	if "--empty" in OS.get_cmdline_user_args():
 		# The inserts with nothing in them, to see the cutouts.
-		var b0: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == "crowns/base")[0]
+		var pick_id := "crowns/base"
+		for arg in OS.get_cmdline_user_args():
+			if (arg as String).contains("/") and not (arg as String).begins_with("/"):
+				pick_id = arg
+		var b0: GameBox = boxes.filter(func(x: GameBox): return x.ed_id == pick_id)[0]
 		var cam := Camera3D.new()
 		cam.fov = 45
 		add_child(cam)
 		cam.current = true
-		await _cam_at(cam, b0.insert_top() + Vector3(0, 0.55, 0.42), b0.insert_top())
+		await _cam_at(cam, b0.insert_top() + Vector3(0, 0.75, 0.05), b0.insert_top())
 		for f in 6:
 			await get_tree().process_frame
-		await _shot(dir, "empty_crowns")
+		await _shot(dir, "empty_" + pick_id.replace("/", "_"))
 		get_tree().quit()
 		return
 	for b in boxes:

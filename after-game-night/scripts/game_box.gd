@@ -297,7 +297,11 @@ static func _boxed_mesh(mesh: ArrayMesh) -> ArrayMesh:
 ## in each of the first `n` cells (round, or a rounded rectangle) and the rest left solid.
 func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, n: int, foot: Vector2, round: bool, depth: float) -> void:
 	var top := _insert_mats.get("tray", MeshKit.mat(Color("c8b8a0"), 0.9)) as Material
-	var inner := MeshKit.mat(Color("2a2420"), 0.95)
+	# The walls of each hole are cut card (mid brown); its floor is a shade darker.
+	var inner := MeshKit.mat(Color("7a6650"), 0.95)
+	var hole_floor := MeshKit.mat(Color("4e4034"), 0.95)
+	var st_floor := SurfaceTool.new()
+	st_floor.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var st_top := SurfaceTool.new()
 	st_top.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var st_in := SurfaceTool.new()
@@ -345,7 +349,7 @@ func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, 
 			var e1: Vector2 = cc + edge[k2]
 			_quad(st_top, Vector3(h0.x, y1, h0.y), Vector3(e0.x, y1, e0.y), Vector3(e1.x, y1, e1.y), Vector3(h1.x, y1, h1.y), Vector3.UP)
 			# The wall of the hole, facing in towards the piece.
-			_tri(st_in, Vector3(cc.x, y0 + 0.0003, cc.y), Vector3(h0.x, y0 + 0.0003, h0.y), Vector3(h1.x, y0 + 0.0003, h1.y), Vector3.UP)
+			_tri(st_floor, Vector3(cc.x, y0 + 0.0003, cc.y), Vector3(h0.x, y0 + 0.0003, h0.y), Vector3(h1.x, y0 + 0.0003, h1.y), Vector3.UP)
 			var n_in := -Vector3((h0 + h1).x / 2 - cc.x, 0, (h0 + h1).y / 2 - cc.y).normalized()
 			_quad(st_in, Vector3(h0.x, y1, h0.y), Vector3(h1.x, y1, h1.y), Vector3(h1.x, y0, h1.y), Vector3(h0.x, y0, h0.y), n_in)
 	var mi := MeshInstance3D.new()
@@ -356,6 +360,10 @@ func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, 
 	mw.mesh = st_in.commit()
 	mw.material_override = inner
 	visual.add_child(mw)
+	var mf := MeshInstance3D.new()
+	mf.mesh = st_floor.commit()
+	mf.material_override = hole_floor
+	visual.add_child(mf)
 
 
 static func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, n: Vector3) -> void:
@@ -436,7 +444,8 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: floa
 		arr.append({"xf": xf, "ghost": gi, "idx": i, "filled": false})
 	# The insert block: a hole the shape of the piece in every cell, solid card in any cell left over.
 	var foot := Vector2(bb.size.x, bb.size.z) * sv
-	var depth := clampf(h * 0.45, 0.007, minf(0.018, well_h * 0.5))
+	# A real insert is a solid block level with the top of the tray, the pieces sitting down in it.
+	var depth := well_h - 0.003
 	_cutouts(wx + GAP / 2, wz + GAP / 2, cols, rows, px, pz, cells, foot, ROUND.has(g.type), depth)
 	_spots[g.key] = arr
 	_stored[g.key] = stored
@@ -469,15 +478,14 @@ func _make_card_tray(set_name: String, wl: Dictionary, wx: float, wz: float, ww:
 		var cx := wx + GAP / 2 + px / 2 + c * px
 		var cz := wz + GAP / 2 + pz / 2 + r * pz
 		stacks.append({"pos": Vector3(cx, T, cz), "cards": 0, "slot": Vector2(px - GAP, pz - GAP)})
-	_cutouts(wx + GAP / 2, wz + GAP / 2, cols, rows, px, pz, cells, Vector2(MeshKit.CARD.x, MeshKit.CARD.z) * sv, false, minf(0.012, well_h * 0.4))
+	_cutouts(wx + GAP / 2, wz + GAP / 2, cols, rows, px, pz, cells, Vector2(MeshKit.CARD.x, MeshKit.CARD.z) * sv, false, well_h - 0.003)
 	var tab_m := MeshKit.mat(info.stripe, 0.5)
 	var fz := MeshKit.CARD.z * sv
 	for st in stacks:
 		var p: Vector3 = st.pos
 		var slot: Vector2 = st.slot
 		var back_z := p.z - fz / 2 - 0.004
-		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(slot.x, well_h * 0.85, 0.003)), tab_m, Vector3(p.x, T + well_h * 0.425, back_z)))
-		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(slot.x * 0.4, 0.02, 0.003)), tab_m, Vector3(p.x - slot.x * 0.25, T + well_h * 0.85 + 0.01, back_z)))
+		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(fz * 0.0 + MeshKit.CARD.x * sv * 0.4, 0.02, 0.003)), tab_m, Vector3(p.x - MeshKit.CARD.x * sv * 0.25, T + well_h + 0.008, back_z + 0.003)))
 	var g: Node3D = MeshKit.card_stack(color, 1, info.stripe)[0]
 	MeshKit.ghostify(g, ghost_m)
 	g.position = stacks[0].pos
