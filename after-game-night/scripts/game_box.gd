@@ -316,8 +316,9 @@ func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, 
 			continue
 		# A little clearance round the piece, never more than the cell.
 		# Enough clearance that a dark ring shows round the piece, as in a real insert.
-		var a := minf(foot.x / 2 + 0.0045, hx - 0.002)
-		var b := minf(foot.y / 2 + 0.0045, hz - 0.002)
+		var gap := 0.003 + minf(foot.x, foot.y) * 0.1
+		var a := minf(foot.x / 2 + gap, hx - 0.002)
+		var b := minf(foot.y / 2 + gap, hz - 0.002)
 		if round:
 			a = minf(a, b)
 			b = a
