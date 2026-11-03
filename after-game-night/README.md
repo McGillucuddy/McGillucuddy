@@ -47,6 +47,30 @@ Each line was played with its expansions mixed in, so the pieces from every box 
 - **Pour:** pieces hop over the rim and drop into their spots one after another, each with a woody click, rising notes and little glints.
 - **Card piles:** pick up one pile, then click more piles to carry up to eight at once. They sift into boxes the same way.
 
+### Every game mid-play
+
+Each game is set out as if the players had just stood up from the table. Each table has a play area where the game is laid out. Leftover supply goes round its edges, and what doesn't fit has ended up in heaps on the floor beside the table.
+
+| Game | On the table |
+| --- | --- |
+| Mossy Crowns | Ranks of knights facing a goblin horde across the board, towers with crowns on the castles, dice mid-roll, coin stacks and order cards on each side |
+| Plum Parlor | Four seats, each with a hero, coins, gems, cubes, a cup of tea and a slice of cake, a hand and a draw pile; the card market down the middle |
+| Starfall Atlas | Stars charted across the board, a honeycomb map of explored space beside it, dice and gems |
+| Lantern Harbor | Coins and lanterns by each captain, cargo cubes at the docks |
+| Honeycomb Hustle | Hex tiles laid in a honeycomb across the board, bees and honey on the tiles |
+| Orchard Hollow | Baskets down the window seat with apples in them |
+| Wyrmlight Tales | A dungeon mapped in tiles: the party at the door, skeletons in the next room, slimes, a dragon guarding the treasure; dice, potions, character sheets and spell hands at each seat |
+| The Dice Hoard | Four sets rolled out in the tray, one of each die, and a line of d20s |
+| Velvet Card Room | Chip stacks at six seats, the pot in the middle, the dealer button, hands at each seat and the flop |
+| Prismatic Legends | A duel: each side's battlefield of face-up cards with counters, decks, hands, deck boxes and toploaders |
+| Crystal Caverns | Crystals set out in rings: shards outside, clusters, cut gems round a geode |
+| Marble Jar | A game of ringer: thirteen marbles in a cross, shooters at the edge, a few knocked loose |
+| Brushwork Hobby | Pots lined up in rows along the desk, washes in front, brushes side by side, primers standing at the end |
+
+Nothing floats. The layout plans heights with a coarse height map, then a settling pass sets every piece, card pile, board and rulebook onto what's really beneath it. It casts rays at the centre and corners of each footprint, lowest things first, and repeats until nothing hovers. The autotest reports the result (0 floating over 2 mm). Everything laid out stays put until you pick it up, so nothing slides off a table into a box by itself.
+
+`-- --tables <dir>` renders a close-up of every game.
+
 ### Seeing your sorting
 
 - **Sorted!** When the last piece or card pile lands, the camera floats up over the box and slowly drifts around it.
