@@ -1294,6 +1294,9 @@ func _tour_frame() -> void:
 
 func _tour_put_back(box: GameBox) -> void:
 	box.peek(false, true)
+	for tw in box._peek_tweens:
+		if tw and tw.is_valid():
+			tw.kill()
 	var home: Array = _tour_home[box]
 	box.global_transform = home[0]
 	box.freeze_mode = home[2]
@@ -2967,6 +2970,8 @@ func _autotest() -> void:
 
 
 func _shot(dir: String, name: String) -> void:
+	if DisplayServer.get_name() == "headless":
+		return
 	print("shot ", name, " at ", Time.get_ticks_msec())
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, name])
@@ -3106,7 +3111,15 @@ func _set_shots(dir: String) -> void:
 			if (order[i] as GameBox).ed_id == id:
 				_tour_i = i
 		_tour_show(0)
+		# Count frames as well as time: rendering is slow here, and the lid has to finish opening.
+		for f in 12:
+			await get_tree().process_frame
 		await get_tree().create_timer(1.2).timeout
+		var strays := []
+		for it: Item in items:
+			if it.stored and it.game_id != id and it.visible and it.global_position.distance_to(_tour_stand.global_position) < 1.2:
+				strays.append(it.label)
+		print("set %s: %d stray items near the stand %s" % [id, strays.size(), str(strays.slice(0, 3))])
 		await _shot(dir, "set_" + id.replace("/", "_"))
 	get_tree().quit()
 

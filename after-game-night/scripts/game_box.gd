@@ -46,6 +46,7 @@ var contents: Node3D
 var lid_pivot: Node3D
 var is_sorted := false
 var peeking := false
+var _peek_tweens: Array[Tween] = []
 ## How long a box with nothing left to go on top stays open after it's sorted, so you can admire it.
 static var hold_open := 4.2
 
@@ -600,6 +601,11 @@ func insert_top() -> Vector3:
 func peek(open: bool, instant := false) -> void:
 	if open == peeking or not complete:
 		return
+	# A peek still sliding things about would fight this one (or a move of the box).
+	for tw in _peek_tweens:
+		if tw and tw.is_valid():
+			tw.kill()
+	_peek_tweens.clear()
 	_snap_contents()
 	peeking = open
 	var lid_to := deg_to_rad(-105) if open else 0.0
@@ -609,6 +615,7 @@ func peek(open: bool, instant := false) -> void:
 	else:
 		var tw := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tw.tween_property(lid_pivot, "rotation:x", lid_to, 0.45)
+		_peek_tweens.append(tw)
 	for k in tops.size():
 		var it: Item = tops[k]
 		if not it.has_meta("rest_pos"):
@@ -628,6 +635,7 @@ func peek(open: bool, instant := false) -> void:
 			continue
 		it.visible = true
 		var t := create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		_peek_tweens.append(t)
 		t.tween_property(it, "position", up_pos if open else rest_pos, 0.35)
 		if it.visual:
 			t.tween_property(it.visual, "scale", Vector3.ZERO if open else rest_scale, 0.35)
