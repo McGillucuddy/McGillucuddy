@@ -80,6 +80,9 @@ var _tour_home := {}           # box -> [parent, global transform, lid rotation]
 var _tour_stand: Node3D
 var _tour_yaw := 0.0
 var _tour_drag := false
+var _staged := {}
+var settled := false           # everything has been set down onto what's really under it
+var ground_report := {}              # pieces and card piles already placed by a game's mid-game scene
 
 
 ## A height map over a play surface, so pieces pile on top of each other instead of overlapping.
@@ -185,6 +188,7 @@ func _ready() -> void:
 	_update_tidy()
 	hud.show_title(true)
 	_quiet_until = Time.get_ticks_msec() / 1000.0 + 3.0
+	_settle_everything()
 
 	var args := OS.get_cmdline_user_args()
 	if "--autotest" in args:
@@ -195,6 +199,8 @@ func _ready() -> void:
 		_render_map(args[args.find("--map") + 1])
 	elif "--rooms" in args:
 		_room_shots(args[args.find("--rooms") + 1])
+	elif "--tables" in args:
+		_table_shots(args[args.find("--tables") + 1])
 
 
 # ---------------------------------------------------------------- input
@@ -348,10 +354,14 @@ func _deal_line(line: Dictionary, spot: Dictionary) -> void:
 				hm.raise(spot.center.x, spot.center.z, MeshKit.BOARD_SIZE / 2 - 0.01, spot.center.y + 0.013)
 				spot["spaces"] = MeshKit.board_spaces()
 				spot.spaces.shuffle()
+	# First the game as it was being played; then everything else around it as supply and mess.
+	_stage_line(line.id, plans, spot)
 	for plan in plans:
 		for g: Pieces.Group in plan.groups:
 			_lay_out_group(g, plan.where[g.key], spot)
 		for it: Item in plan.cards:
+			if _staged.has(it):
+				continue
 			var home := spot
 			if rng.randf() < STRAY_CHANCE:
 				home = _stray_spot(spot)
@@ -407,7 +417,7 @@ func _place_piece(p: Pieces.P, spot: Dictionary, x: float, z: float, yaw: float,
 
 
 func _lay_out_group(g: Pieces.Group, how: String, spot: Dictionary) -> void:
-	var list := g.members.duplicate()
+	var list := g.members.filter(func(p: Pieces.P): return not _staged.has(p))
 	var bb := g.aabb_table
 	var step := maxf(bb.size.x, bb.size.z) + 0.006
 	# Some of every game has spilled off the table onto the floor beside it.
@@ -474,6 +484,361 @@ func _lay_out_group(g: Pieces.Group, how: String, spot: Dictionary) -> void:
 				_place_piece(p, spot, q.x, q.z, rng.randf_range(0, TAU))
 
 
+# ---------------------------------------------------------------- mid-game scenes
+
+## Up to n pieces of a type (and colour, if given) from this game line that haven't been placed
+## yet, base game first.
+func _pick(plans: Array, type: String, n: int, tint := "") -> Array:
+	var out := []
+	for plan in plans:
+		for g: Pieces.Group in plan.groups:
+			if g.type != type or (tint != "" and g.tint_name != tint):
+				continue
+			for p: Pieces.P in g.members:
+				if out.size() >= n:
+					return out
+				if not _staged.has(p):
+					out.append(p)
+	return out
+
+
+## Places a piece at a spot relative to the table's centre, exactly there (no wandering off).
+func _put(p: Pieces.P, spot: Dictionary, lx: float, lz: float, yaw: float) -> void:
+	var c: Vector3 = spot.center
+	_staged[p] = true
+	_place_piece(p, spot, c.x + lx, c.z + lz, yaw, 1.0)
+
+
+## Places a list of pieces along a path given by f(i) -> Vector3(lx, lz, yaw).
+func _put_all(list: Array, spot: Dictionary, f: Callable) -> void:
+	for i in list.size():
+		var v: Vector3 = f.call(i)
+		_put(list[i], spot, v.x, v.y, v.z)
+
+
+## Board-local coordinates (metres from the board's centre) to table-local ones.
+func _bpos(spot: Dictionary, bx: float, bz: float) -> Vector2:
+	var w: Vector3 = (spot.get("board_xf", Transform3D(Basis(), spot.center)) as Transform3D) * Vector3(bx, 0, bz)
+	return Vector2(w.x - (spot.center as Vector3).x, w.z - (spot.center as Vector3).z)
+
+
+## Tessellates hex tiles (pointy along x) into a honeycomb of the given columns and rows.
+func _honeycomb(list: Array, spot: Dictionary, lx: float, lz: float, cols: int) -> Array:
+	if list.is_empty():
+		return []
+	var r: float = (list[0] as Pieces.P).g.aabb_table.size.x / 2.0 + 0.001
+	var cells := []
+	for i in list.size():
+		var c := i % cols
+		var row := i / cols
+		var x := lx + (c - (cols - 1) / 2.0) * r * 1.5
+		var z := lz + row * r * sqrt(3.0) + (r * sqrt(3.0) / 2.0 if c % 2 == 1 else 0.0)
+		_put(list[i], spot, x, z, 0.0)
+		cells.append(Vector2(x, z))
+	return cells
+
+
+## Lays card piles out like a game in progress: a hand and a draw pile at each seat, and the
+## face-up rows (a market, a battlefield) along the middle. seats: [lx, lz, facing yaw].
+func _stage_cards(plans: Array, spot: Dictionary, seats: Array, rows: Array) -> void:
+	var by_mode := {"fan": [], "stack": [], "spread": []}
+	for plan in plans:
+		for it: Item in plan.cards:
+			by_mode[it.get_meta("mode", "stack")].append(it)
+	var c: Vector3 = spot.center
+	for s in seats:
+		var out := Vector2(s[0], s[1]).normalized()
+		var side := Vector2(-out.y, out.x)
+		if not by_mode.fan.is_empty():
+			var h: Item = by_mode.fan.pop_front()
+			_staged[h] = true
+			_put_item(h, spot, c + Vector3(s[0], 0, s[1]), s[2])
+		if not by_mode.stack.is_empty():
+			var d: Item = by_mode.stack.pop_front()
+			_staged[d] = true
+			var at := Vector2(s[0], s[1]) - out * 0.12 + side * 0.16
+			_put_item(d, spot, c + Vector3(at.x, 0, at.y), s[2] + 0.05)
+	for r in rows:
+		if by_mode.spread.is_empty():
+			break
+		var it: Item = by_mode.spread.pop_front()
+		_staged[it] = true
+		_put_item(it, spot, c + Vector3(r[0], 0, r[1]), r[2])
+
+
+## Sets each game up as if the players had just stood up from the table mid-game.
+func _stage_line(id: String, plans: Array, spot: Dictionary) -> void:
+	var j := func(a: float) -> float: return rng.randf_range(-a, a)
+	match id:
+		"crowns":
+			# Two armies facing off across the battlefield: knights in ranks, a goblin horde.
+			var knights := _pick(plans, "knight", 24)
+			_put_all(knights, spot, func(i: int): return Vector3(-0.36 - (i / 8) * 0.065, -0.23 + (i % 8) * 0.065, PI / 2 + j.call(0.06)))
+			var gob := _pick(plans, "goblin", 30)
+			_put_all(gob, spot, func(i: int):
+				var a := i * 2.4
+				var rr := 0.035 * sqrt(float(i))
+				return Vector3(0.5 + cos(a) * rr * 0.8, sin(a) * rr * 1.3, -PI / 2 + j.call(0.5)))
+			var towers := _pick(plans, "tower", 4)
+			var tp := [Vector3(-0.8, -0.3, 0.0), Vector3(0.8, 0.3, 0.0), Vector3(-0.1, -0.12, 0.3), Vector3(0.12, 0.14, 0.0)]
+			_put_all(towers, spot, func(i: int): return tp[i])
+			_put_all(_pick(plans, "crown", 2), spot, func(i: int): return [Vector3(-0.8, -0.3, 0.0), Vector3(0.8, 0.3, 0.0)][i])
+			_put_all(_pick(plans, "die", 6), spot, func(i: int): return Vector3(-0.05 + i * 0.07 + j.call(0.02), 0.38 + j.call(0.03), randf() * TAU))
+			_put_all(_pick(plans, "coin", 12), spot, func(i: int): return Vector3(-0.82 if i < 6 else 0.82, 0.38 if i < 6 else -0.38, randf() * TAU))
+			_put_all(_pick(plans, "cube", 8), spot, func(i: int): return Vector3(0.28 + j.call(0.04), -0.15 + i * 0.04, randf() * TAU))
+			_stage_cards(plans, spot, [[-0.6, 0.42, 0.0], [0.6, -0.42, PI]], [[-0.3, 0.3, 0.0], [0.3, -0.3, 0.0]])
+		"plum":
+			# Four players round the table, each with a hero, coins, gems, a cup of tea and cake;
+			# the card market runs along the middle.
+			var seats := [[-0.5, 0.36, 0.0], [0.5, 0.36, 0.0], [-0.5, -0.36, PI], [0.5, -0.36, PI]]
+			var heroes := _pick(plans, "hero", 4)
+			for k in seats.size():
+				var sx: float = seats[k][0]
+				var sz: float = seats[k][1]
+				var inward := -signf(sz)
+				if k < heroes.size():
+					_put(heroes[k], spot, sx, sz + inward * 0.12, 0.0 if sz > 0 else PI)
+				for coin in _pick(plans, "coin", 7):
+					_put(coin, spot, sx - 0.17, sz + inward * 0.08, randf() * TAU)
+				_put_all(_pick(plans, "gem", 4), spot, func(i: int): return Vector3(sx + 0.15 + j.call(0.03), sz + inward * 0.08 + j.call(0.03), randf() * TAU))
+				_put_all(_pick(plans, "cube", 4), spot, func(i: int): return Vector3(sx + 0.24 + j.call(0.02), sz + inward * 0.02 + j.call(0.03), randf() * TAU))
+				_put_all(_pick(plans, "teacup", 1), spot, func(_i: int): return Vector3(sx + 0.3, sz + inward * 0.1, randf() * TAU))
+				_put_all(_pick(plans, "cake", 1), spot, func(_i: int): return Vector3(sx + 0.36, sz + inward * 0.02, randf() * TAU))
+			_put_all(_pick(plans, "hex", 8), spot, func(i: int): return Vector3(0.0, -0.32 + j.call(0.002), 0.0))
+			_put_all(_pick(plans, "die", 1), spot, func(_i: int): return Vector3(0.18, 0.05, randf() * TAU))
+			_stage_cards(plans, spot, seats, [[-0.62, 0.0, PI / 2], [0.62, 0.0, PI / 2], [-0.38, 0.0, PI / 2], [0.38, 0.0, PI / 2]])
+		"atlas":
+			# Stars charted across the board, a hex map of explored space beside it.
+			_put_all(_pick(plans, "star", 14), spot, func(i: int):
+				var b := _bpos(spot, rng.randf_range(-0.16, 0.16), rng.randf_range(-0.16, 0.16))
+				return Vector3(b.x, b.y, randf() * TAU))
+			_honeycomb(_pick(plans, "hex", 16), spot, 0.5, -0.32, 4)
+			_put_all(_pick(plans, "die", 4), spot, func(i: int): return Vector3(-0.42 + j.call(0.05), 0.3 + i * 0.05, randf() * TAU))
+			_put_all(_pick(plans, "gem", 10), spot, func(i: int): return Vector3(-0.5 + (i % 5) * 0.035, -0.32 + (i / 5) * 0.04, randf() * TAU))
+		"harbor":
+			# Coins and lanterns by each captain; cubes of cargo loaded at the docks.
+			for k in 4:
+				var a := k * PI / 2 + PI / 4
+				var sp := Vector2(cos(a), sin(a)) * 0.38
+				for coin in _pick(plans, "coin", 6):
+					_put(coin, spot, sp.x, sp.y, randf() * TAU)
+				_put_all(_pick(plans, "lantern", 2), spot, func(i: int): return Vector3(sp.x * 0.75 + (i - 0.5) * 0.06, sp.y * 0.75, randf() * TAU))
+			_put_all(_pick(plans, "cube", 12), spot, func(i: int):
+				var b := _bpos(spot, -0.2 + (i % 4) * 0.035, -0.2 + (i / 4) * 0.035)
+				return Vector3(b.x, b.y, 0.0))
+		"honey":
+			# Tiles laid in a honeycomb across the board, with bees and honey on them.
+			var cells := _honeycomb(_pick(plans, "hex", 18), spot, 0.0, -0.17, 6)
+			var bees := _pick(plans, "bee", 8)
+			for k in mini(bees.size(), cells.size()):
+				var cl: Vector2 = cells[(k * 5) % cells.size()]
+				_put(bees[k], spot, cl.x, cl.y, randf() * TAU)
+			var honey := _pick(plans, "honey", 6)
+			for k in mini(honey.size(), cells.size()):
+				var cl: Vector2 = cells[(k * 7 + 3) % cells.size()]
+				_put(honey[k], spot, cl.x, cl.y, randf() * TAU)
+		"orchard":
+			# Baskets down the bench, each with apples in it; farmers at work in between.
+			var baskets := _pick(plans, "basket", 6)
+			for k in baskets.size():
+				var z := (-0.85 + k * 0.12) if k < 3 else (0.55 + (k - 3) * 0.12)
+				_put(baskets[k], spot, 0.0, z, j.call(0.3))
+				for apple in _pick(plans, "apple", 3):
+					_put(apple, spot, j.call(0.012), z + j.call(0.012), randf() * TAU)
+			_put_all(_pick(plans, "teacup", 1), spot, func(_i: int): return Vector3(0.18, 0.95, 0.0))
+		"wyrm":
+			# A dungeon mapped out in tiles on the board: the party at the door, skeletons in the
+			# next room, a dragon guarding the treasure at the far end.
+			var tiles := _pick(plans, "tile", 20)
+			var ts: float = 0.0
+			if not tiles.is_empty():
+				ts = (tiles[0] as Pieces.P).g.aabb_table.size.x + 0.002
+			_put_all(tiles, spot, func(i: int):
+				var b := _bpos(spot, (i % 5 - 2) * ts, (i / 5 - 1.5) * ts)
+				return Vector3(b.x, b.y, 0.0))
+			var cell := func(cx: int, cz: int) -> Vector2: return _bpos(spot, (cx - 2) * ts, (cz - 1.5) * ts)
+			var heroes := _pick(plans, "hero", 4)
+			for k in heroes.size():
+				var cc: Vector2 = cell.call(0, k)
+				_put(heroes[k], spot, cc.x, cc.y, PI / 2)
+			var skel := _pick(plans, "skeleton", 5)
+			for k in skel.size():
+				var cc: Vector2 = cell.call(2 + k % 2, k / 2 + 1)
+				_put(skel[k], spot, cc.x, cc.y, -PI / 2)
+			var sl := _pick(plans, "slime", 2)
+			for k in sl.size():
+				var cc: Vector2 = cell.call(2, k * 3)
+				_put(sl[k], spot, cc.x, cc.y, randf() * TAU)
+			for d in _pick(plans, "dragon", 1):
+				var cc: Vector2 = cell.call(4, 1)
+				_put(d, spot, cc.x, cc.y, -PI / 2)
+			for ch in _pick(plans, "chest", 1):
+				var cc: Vector2 = cell.call(4, 3)
+				_put(ch, spot, cc.x, cc.y, -PI / 2)
+			var seats := [[-0.5, 0.0, -PI / 2], [0.5, 0.0, PI / 2], [0.0, -0.5, PI], [0.0, 0.5, 0.0]]
+			for s in seats:
+				var sp := Vector2(s[0], s[1]) * 0.8
+				_put_all(_pick(plans, "potion", 1), spot, func(_i: int): return Vector3(sp.x + 0.08, sp.y + 0.08, 0.0))
+				for t in ["d20", "d12", "d8", "d6p", "d4"]:
+					_put_all(_pick(plans, t, 1), spot, func(_i: int): return Vector3(sp.x + j.call(0.06), sp.y + j.call(0.06), randf() * TAU))
+			_stage_cards(plans, spot, seats, [])
+		"hoard":
+			# Four sets rolled out in the tray, one of each die, and a neat line of d20s.
+			var types := ["d4", "d6p", "d8", "d10", "d10p", "d12", "d20"]
+			for q in 4:
+				var a := q * PI / 2 + PI / 4
+				var cpos := Vector2(cos(a), sin(a)) * 0.17
+				for t in types:
+					for d in _pick(plans, t, 1):
+						_put(d, spot, cpos.x + j.call(0.06), cpos.y + j.call(0.06), randf() * TAU)
+			_put_all(_pick(plans, "d20", 7), spot, func(i: int): return Vector3(-0.18 + i * 0.06, 0.0, 0.0))
+		"casino":
+			# A hand of poker interrupted: chip stacks at six seats, the pot in the middle, the
+			# dealer button at one seat and the flop face up.
+			var colors := ["white", "red", "blue", "green", "black", "purple", "gold", "pink", "cyan", "lime"]
+			for k in 6:
+				var a := k * TAU / 6.0
+				var sp := Vector2(cos(a) * 0.52, sin(a) * 0.3)
+				for st in 3:
+					var col: String = colors[(k + st * 3) % colors.size()]
+					var off := Vector2(-sin(a), cos(a)) * ((st - 1) * 0.045)
+					for chip in _pick(plans, "chip", 6 - st, col):
+						_put(chip, spot, sp.x + off.x + j.call(0.0015), sp.y + off.y + j.call(0.0015), randf() * TAU)
+			for k in 18:
+				for chip in _pick(plans, "chip", 1, colors[k % 6]):
+					var a := k * 2.4
+					var rr := 0.012 * sqrt(float(k))
+					_put(chip, spot, 0.12 + cos(a) * rr, sin(a) * rr, randf() * TAU)
+			_put_all(_pick(plans, "dealer", 1), spot, func(_i: int): return Vector3(0.36, 0.18, 0.0))
+			_put_all(_pick(plans, "plaque", 3), spot, func(i: int): return Vector3(-0.42, -0.1 + i * 0.002, 0.2))
+			var seats := []
+			for k in 6:
+				var a := k * TAU / 6.0
+				seats.append([cos(a) * 0.4, sin(a) * 0.22, -a + PI / 2])
+			_stage_cards(plans, spot, seats, [[-0.1, 0.0, PI / 2]])
+		"ccg":
+			# A duel: each player's battlefield of face-up cards with counters on them, a deck,
+			# a hand, deck boxes and toploaders to the side.
+			_stage_cards(plans, spot, [[0.0, 0.42, 0.0], [0.0, -0.42, PI]], [[-0.2, 0.15, 0.0], [0.2, 0.15, 0.0], [-0.2, -0.15, PI], [0.2, -0.15, PI]])
+			for side in [1.0, -1.0]:
+				_put_all(_pick(plans, "counter", 5), spot, func(i: int): return Vector3(-0.28 + i * 0.12 + j.call(0.02), side * 0.15 + j.call(0.03), 0.0))
+				_put_all(_pick(plans, "deckbox", 1), spot, func(_i: int): return Vector3(-0.52, side * 0.36, 0.0))
+				_put_all(_pick(plans, "toploader", 3), spot, func(i: int): return Vector3(0.52, side * 0.36, 0.1 * i))
+		"caverns":
+			# The collection set out in rings by kind: shards outside, clusters, then cut gems
+			# round a geode in the middle.
+			_put_all(_pick(plans, "shard", 14), spot, func(i: int): return Vector3(cos(i * TAU / 14) * 0.27, sin(i * TAU / 14) * 0.27, i * TAU / 14))
+			_put_all(_pick(plans, "cluster", 7), spot, func(i: int): return Vector3(cos(i * TAU / 7) * 0.17, sin(i * TAU / 7) * 0.17, randf() * TAU))
+			_put_all(_pick(plans, "cutgem", 6), spot, func(i: int): return Vector3(cos(i * TAU / 6) * 0.09, sin(i * TAU / 6) * 0.09, randf() * TAU))
+			_put_all(_pick(plans, "geode", 1), spot, func(_i: int): return Vector3(0, 0, 0.4))
+		"marbles":
+			# A game of ringer: thirteen marbles in a cross in the middle, shooters at the edge,
+			# and a few already knocked loose.
+			var cross := []
+			for k in range(-3, 4):
+				cross.append(Vector2(k * 0.03, 0))
+				if k != 0:
+					cross.append(Vector2(0, k * 0.03))
+			_put_all(_pick(plans, "cateye", cross.size()), spot, func(i: int): return Vector3(cross[i].x, cross[i].y, randf() * TAU))
+			_put_all(_pick(plans, "shooter", 4), spot, func(i: int): return Vector3(cos(i * PI / 2 + 0.3) * 0.36, sin(i * PI / 2 + 0.3) * 0.36, 0.0))
+			_put_all(_pick(plans, "pearl", 8), spot, func(i: int): return Vector3(cos(i * 1.3) * 0.2 + j.call(0.03), sin(i * 1.3) * 0.2 + j.call(0.03), 0.0))
+		"paints":
+			# Pots lined up in rows along the back of the desk, washes in front, brushes laid
+			# side by side and the primers standing at the end.
+			var pots := _pick(plans, "pot", 36)
+			_put_all(pots, spot, func(i: int): return Vector3(-0.62 + (i % 18) * 0.045, -0.15 + (i / 18) * 0.05, 0.0))
+			_put_all(_pick(plans, "dropper", 9), spot, func(i: int): return Vector3(-0.6 + i * 0.04, -0.04, 0.0))
+			_put_all(_pick(plans, "brush", 8), spot, func(i: int): return Vector3(0.3 + i * 0.03, 0.08, 0.0))
+			_put_all(_pick(plans, "spray", 3), spot, func(i: int): return Vector3(0.6, -0.12 + i * 0.07, 0.0))
+
+
+# ---------------------------------------------------------------- setting things down
+
+## Sets every piece, card pile, board and rulebook down onto whatever is really beneath it. The
+## layout plans heights with a coarse height map, which can leave a piece hovering over the edge
+## of its neighbour or nudged into it; here rays at the centre and corners of each footprint
+## find the real surface. Lowest things go first so what rests on them follows, and it runs a
+## few passes so whole piles settle.
+func _settle_everything() -> void:
+	var worst_first := 0.0
+	var moved := {}
+	# Each pass settles a pile one more layer down (the physics world only sees where things
+	# moved to after a frame), so keep going until nothing is left to move.
+	var passes := 0
+	for pass_i in 20:
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var r := _settle_pass(true)
+		passes += 1
+		if pass_i == 0:
+			worst_first = r.worst
+		for o in r.moved:
+			moved[o] = true
+		# Done once nothing hovers; what still moves is only nudging out of a slight overlap.
+		if r.floating == 0 and pass_i >= 2:
+			break
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var after := _settle_pass(false)
+	ground_report = {"moved": moved.size(), "passes": passes, "worst_before_mm": worst_first * 1000.0, "floating_after": after.floating, "worst_after_mm": after.worst * 1000.0}
+	settled = true
+
+
+## One pass: returns {worst: biggest gap found, floating: how many hover over 2 mm, moved: [...]}.
+func _settle_pass(apply: bool) -> Dictionary:
+	var space := get_world_3d().direct_space_state
+	var mask := Item.LAYER_WORLD | Item.LAYER_ITEMS
+	var todo := []
+	for p: Pieces.P in pieces.all:
+		if p.state != Pieces.LOOSE:
+			continue
+		var bb: AABB = Transform3D(p.xf.basis) * p.g.aabb_table
+		todo.append([p.xf.origin.y + bb.position.y, p, bb])
+	for it: Item in items:
+		if it.stored or it.held or not it.is_inside_tree() or not it.freeze:
+			continue
+		var ib := MeshKit.scaled_aabb(MeshKit.visual_aabb(it.visual, Vector3.ZERO), it.base_scale)
+		ib = Transform3D(Basis(Vector3.UP, it.rotation.y)) * ib
+		todo.append([it.global_position.y + ib.position.y, it, ib])
+	todo.sort_custom(func(a, b): return a[0] < b[0])
+	var worst := 0.0
+	var floating := 0
+	var moved := []
+	for e in todo:
+		var bottom: float = e[0]
+		var obj: Variant = e[1]
+		var bb: AABB = e[2]
+		var origin: Vector3 = (obj as Pieces.P).xf.origin if obj is Pieces.P else (obj as Item).global_position
+		var rid: RID = (obj as Pieces.P).body if obj is Pieces.P else (obj as Item).get_rid()
+		var c := Vector3(origin.x + bb.get_center().x, 0, origin.z + bb.get_center().z)
+		var support := -INF
+		for off in [Vector2.ZERO, Vector2(0.3, 0.3), Vector2(-0.3, 0.3), Vector2(0.3, -0.3), Vector2(-0.3, -0.3)]:
+			var at := c + Vector3(off.x * bb.size.x, 0, off.y * bb.size.z)
+			var q := PhysicsRayQueryParameters3D.create(Vector3(at.x, bottom + bb.size.y + 0.002, at.z), Vector3(at.x, bottom - 1.2, at.z), mask)
+			q.exclude = [rid]
+			var hit := space.intersect_ray(q)
+			if not hit.is_empty():
+				support = maxf(support, (hit.position as Vector3).y)
+		if support == -INF:
+			continue
+		var gap := bottom - support
+		if gap > 0.002:
+			floating += 1
+		worst = maxf(worst, gap)
+		if not apply or absf(gap) < 0.0005:
+			continue
+		var dy := support + 0.0004 - bottom
+		if obj is Pieces.P:
+			var p := obj as Pieces.P
+			var xf := p.xf
+			xf.origin.y += dy
+			pieces.set_loose(p, xf)
+		else:
+			(obj as Item).global_position.y += dy
+		moved.append(obj)
+	return {"worst": worst, "floating": floating, "moved": moved}
+
+
 ## When something is lifted off a pile, whatever was resting on it settles down naturally.
 func _release_above(at: Vector3) -> void:
 	for other: Item in items:
@@ -515,6 +880,7 @@ func _make_cards(ed_key: String, ed_name: String, c: Color, stripe: Color, set_n
 	it.label = "%d %s cards (%s)" % [n, set_name, ed_name]
 	# Card fronts: hands lie face up, and most piles show their top card, so you can see the cards
 	# just by looking around the room.
+	it.set_meta("mode", mode)
 	it.card_faces = FaceKit.faces(faces_root, line_id, set_name, c, stripe, back_style)
 	if mode != "stack" or rng.randf() < FACE_UP:
 		it.card_top_face = it.card_faces[rng.randi_range(0, it.card_faces.size() - 1)]
@@ -2344,10 +2710,13 @@ func _autotest() -> void:
 	GameBox.hold_open = 0.0
 	_start()
 	await get_tree().create_timer(3.0).timeout
+	while not settled:
+		await get_tree().process_frame
 	var cards := 0
 	for b in boxes:
 		cards += b.units_needed
 	print("pieces=", pieces.all.size(), " card piles/boards/rules=", items.size(), " boxes=", boxes.size(), " total units=", cards)
+	print("settling: %d things set down in %d passes, worst float before %.1f mm; after: %d floating over 2 mm, worst %.1f mm" % [ground_report.moved, ground_report.passes, ground_report.worst_before_mm, ground_report.floating_after, ground_report.worst_after_mm])
 	print("big items below floor: ", items.filter(func(i: Item): return i.global_position.y < -0.5).size())
 	for b in boxes:
 		print("  %-34s %4d things  box %.2f x %.2f x %.2f m" % [b.game_name, b.units_needed, b.W, b.D, b.H])
@@ -2502,6 +2871,8 @@ func _screenshots() -> void:
 	var args := OS.get_cmdline_user_args()
 	var dir := args[args.find("--shot") + 1]
 	await get_tree().create_timer(3.0).timeout
+	while not settled:
+		await get_tree().process_frame
 	showcases = false
 	_start()
 	hud.visible = false
@@ -2528,6 +2899,8 @@ func _screenshots() -> void:
 	await _cam_at(cam, wy.insert_top() + Vector3(0, 0.66, 0.48), wy.insert_top())
 	await _shot(dir, "sorted_wyrm")
 	await get_tree().create_timer(3.0).timeout
+	while not settled:
+		await get_tree().process_frame
 	hud.visible = false
 	await _cam_at(cam, wy.global_position + Vector3(0, 0.6, 0.45), wy.global_position)
 	await _shot(dir, "box_wyrm_cards")
@@ -2573,6 +2946,8 @@ func _screenshots() -> void:
 ## A look into every room from its doorway, for documentation.
 func _room_shots(dir: String) -> void:
 	await get_tree().create_timer(3.0).timeout
+	while not settled:
+		await get_tree().process_frame
 	_start()
 	hud.visible = false
 	var cam := Camera3D.new()
@@ -2589,6 +2964,27 @@ func _room_shots(dir: String) -> void:
 			["close_chipcases", Vector3(-11.1, 1.15, 3.45), Vector3(-11.1, 0.1, 2.5)]]:
 		await _cam_at(cam, v[1], v[2])
 		await _shot(dir, v[0])
+	get_tree().quit()
+
+
+## A close look at every game as it was left mid-play.
+func _table_shots(dir: String) -> void:
+	await get_tree().create_timer(3.0).timeout
+	while not settled:
+		await get_tree().process_frame
+	_start()
+	hud.visible = false
+	var cam := Camera3D.new()
+	cam.fov = 55
+	add_child(cam)
+	cam.current = true
+	for sname in ["war", "dining", "gametable", "cardtable", "coffee", "bench", "round", "dicetable", "curio", "poker", "ccgtable", "paintdesk", "ring"]:
+		var sp: Dictionary = spots[sname]
+		var c: Vector3 = sp.center
+		var ext: Vector2 = sp.ext
+		var reach := maxf(ext.x, ext.y)
+		await _cam_at(cam, c + Vector3(0.0, 0.55 + reach * 0.9, 0.45 + reach * 0.75), c)
+		await _shot(dir, "table_" + sname)
 	get_tree().quit()
 
 
@@ -2620,6 +3016,8 @@ func _pack_pieces_and_cards(b: GameBox) -> void:
 ## A labelled top-down plan of the room, for documentation.
 func _render_map(dir: String) -> void:
 	await get_tree().create_timer(3.0).timeout
+	while not settled:
+		await get_tree().process_frame
 	hud.visible = false
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
