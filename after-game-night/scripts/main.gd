@@ -3128,6 +3128,13 @@ func _set_shots(dir: String) -> void:
 				_tour_i = i
 		_tour_show(0)
 		# Count frames as well as time: rendering is slow here, and the lid has to finish opening.
+		if "--nopieces" in OS.get_cmdline_user_args():
+			var shown: GameBox = _tour_order()[_tour_i]
+			for ch in shown.visual.get_children():
+				if ch is MultiMeshInstance3D:
+					ch.visible = false
+			for it in shown.contents.get_children():
+				(it as Node3D).visible = false
 		for f in 12:
 			await get_tree().process_frame
 		await get_tree().create_timer(1.2).timeout
