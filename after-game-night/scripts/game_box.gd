@@ -71,7 +71,7 @@ static func layout(entries: Array, f: float, wh: float) -> Dictionary:
 			var base: float = e.get("base", 1.0)
 			var sv := minf(f * base, base)
 			var cap := maxi(10, int(floor(wh * 0.95 / (MeshKit.CARD.y * sv))))
-			var stacks := ceili(float(e.cards) / cap) + (1 if e.cards > cap else 0)
+			var stacks := ceili(float(e.cards) / cap)
 			w.merge({"sv": sv, "fx": MeshKit.CARD.x * sv, "fz": MeshKit.CARD.z * sv, "h": 0.0, "cells": stacks, "cap": cap})
 		else:
 			var bb: AABB = e.aabb
@@ -229,12 +229,19 @@ func _build_insert(lay: Dictionary, id: float, groups: Array, card_piles: Dictio
 	var x0 := -IW / 2
 	var z0 := -id / 2
 	visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(IW - 0.002, 0.002, id - 0.002)), floor_m, Vector3(0, T + 0.001, 0)))
+	# The insert is divided up with no space to spare: each row of compartments is stretched to
+	# the full width of the box, the rows share out its full depth, and every compartment then
+	# lays out and sizes its pieces to fill itself.
+	var dz := id / maxf(float(lay.depth), 0.001)
 	for r: Dictionary in lay.rows:
+		var rz: float = float(r.z) * dz
+		var rd: float = float(r.d) * dz
+		var dx := IW / maxf(float(r.w), 0.001)
 		for wl: Dictionary in r.items:
-			var wx: float = x0 + wl.x
-			var wz: float = z0 + r.z
-			var ww: float = wl.w
-			var wd: float = r.d
+			var wx: float = x0 + float(wl.x) * dx
+			var wz: float = z0 + rz
+			var ww: float = float(wl.w) * dx
+			var wd: float = rd
 			var wt := 0.005
 			for e in [[Vector3(ww, well_h, wt), Vector3(wx + ww / 2, T + well_h / 2, wz + wt / 2)],
 					[Vector3(ww, well_h, wt), Vector3(wx + ww / 2, T + well_h / 2, wz + wd - wt / 2)],
@@ -243,30 +250,48 @@ func _build_insert(lay: Dictionary, id: float, groups: Array, card_piles: Dictio
 				visual.add_child(MeshKit.mesh_node(MeshKit.box(e[0]), wall_m, e[1]))
 			var key: String = wl.e.key
 			if key.begins_with("cards:"):
-				_make_card_tray(key.substr(6), wl, wx, wz, card_piles, ghost_m)
+				_make_card_tray(key.substr(6), wl, wx, wz, ww, wd, card_piles, ghost_m)
 			else:
-				_make_spots(by_key[key], wl, wx, wz, ghost_m)
-		var used: float = r.w
-		if used < IW - 0.005:
-			visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(IW - used, well_h, r.d)), tray,
-				Vector3(x0 + used + (IW - used) / 2, T + well_h / 2, z0 + r.z + r.d / 2)))
-	if lay.depth < id - 0.005:
-		var rest_d: float = id - lay.depth
-		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(IW, well_h, rest_d)), tray,
-			Vector3(0, T + well_h / 2, z0 + lay.depth + rest_d / 2)))
+				_make_spots(by_key[key], wl, wx, wz, ww, wd, ghost_m)
 
 
-func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ghost_m: Material) -> void:
+## The best grid for n things of footprint (ux, uz) in a well of (ww, wd): the columns and rows
+## that let them be biggest (up to sv_max), with as few empty cells as possible.
+## Returns [cols, rows, scale, pitch x, pitch z].
+static func _fit_grid(n: int, ww: float, wd: float, ux: float, uz: float, sv_max: float) -> Array:
+	var best := [1, n, 0.0, 0.0, 0.0]
+	var best_score := -1.0
+	for cols in range(1, n + 1):
+		var rows := ceili(float(n) / cols)
+		var px := (ww - GAP) / cols
+		var pz := (wd - GAP) / rows
+		var sv := minf(sv_max, minf((px - GAP) / maxf(ux, 0.0001), (pz - GAP) / maxf(uz, 0.0001)))
+		var fill := float(n) / (cols * rows)
+		var score := sv * (0.85 + 0.15 * fill)
+		if score > best_score:
+			best_score = score
+			best = [cols, rows, sv, px, pz]
+	return best
+
+
+func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: float, wd: float, ghost_m: Material) -> void:
 	var bb := g.aabb_rest
-	var sv: float = wl.sv
-	var fx: float = wl.fx
-	var fz: float = wl.fz
+	var n := g.members.size()
 	var cells: int = wl.cells
-	var cols: int = wl.cols
+	var per := ceili(float(n) / cells)
+	# As big as the compartment allows, up to the size they are on the table, and short enough
+	# that every layer of a stack still fits under the board.
+	var sv_max := minf(1.0, well_h * 0.95 / maxf(per * bb.size.y, 0.0001))
+	var grid := _fit_grid(cells, ww, wd, bb.size.x, bb.size.z, sv_max)
+	var cols: int = grid[0]
+	var rows: int = grid[1]
+	var sv: float = grid[2]
+	var px: float = grid[3]
+	var pz: float = grid[4]
+	var h := bb.size.y * sv
 	var center_off := Vector3(bb.get_center().x, 0, bb.get_center().z) * sv
 	var bottom := -bb.position.y * sv
 	var basis := Basis.from_euler(g.rest).scaled(Vector3.ONE * sv)
-	var n := g.members.size()
 	var stored := MultiMesh.new()
 	stored.transform_format = MultiMesh.TRANSFORM_3D
 	stored.mesh = g.mesh
@@ -281,8 +306,12 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ghost_m:
 		var level: int = i / cells
 		var c: int = cell % cols
 		var r: int = cell / cols
-		var pos := Vector3(wx + GAP + fx / 2 + c * (fx + GAP), T + bottom + level * float(wl.h), wz + GAP + fz / 2 + r * (fz + GAP)) - center_off
-		var xf := Transform3D(basis.rotated(Vector3.UP, randf_range(-0.05, 0.05)), pos)
+		# A short last row is centred, so the gaps are shared out evenly.
+		var in_row := cols if r < rows - 1 else cells - cols * (rows - 1)
+		var cx := wx + GAP / 2 + (ww - GAP) / 2 + (c - (in_row - 1) / 2.0) * px
+		var cz := wz + GAP / 2 + pz / 2 + r * pz
+		var pos := Vector3(cx, T + bottom + level * h, cz) - center_off
+		var xf := Transform3D(basis.rotated(Vector3.UP, randf_range(-0.03, 0.03)), pos)
 		stored.set_instance_transform(i, _hidden)
 		var gi := -1
 		if level == 0:
@@ -302,23 +331,33 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ghost_m:
 	visual.add_child(gmi)
 
 
-func _make_card_tray(set_name: String, wl: Dictionary, wx: float, wz: float, card_piles: Dictionary, ghost_m: Material) -> void:
+func _make_card_tray(set_name: String, wl: Dictionary, wx: float, wz: float, ww: float, wd: float, card_piles: Dictionary, ghost_m: Material) -> void:
 	var info: Dictionary = card_piles[set_name]
 	var sv: float = wl.sv
-	var fx: float = wl.fx
-	var fz: float = wl.fz
+	var cells: int = wl.cells
+	# Cards keep their size (each stack's height is planned on it); the stacks spread out to
+	# fill the tray, with a divider the full width of each slot.
+	var grid := _fit_grid(cells, ww, wd, MeshKit.CARD.x, MeshKit.CARD.z, sv)
+	var cols: int = grid[0]
+	var rows: int = grid[1]
+	var px: float = grid[3]
+	var pz: float = grid[4]
 	var stacks := []
-	var cols: int = wl.cols
-	for i in int(wl.cells):
+	for i in cells:
 		var c: int = i % cols
 		var r: int = i / cols
-		stacks.append({"pos": Vector3(wx + GAP + fx / 2 + c * (fx + GAP), T, wz + GAP + fz / 2 + r * (fz + GAP)), "cards": 0})
-	# A divider in the set's colour stands behind each stack, with a tab sticking up, like a real card box.
+		var in_row := cols if r < rows - 1 else cells - cols * (rows - 1)
+		var cx := wx + GAP / 2 + (ww - GAP) / 2 + (c - (in_row - 1) / 2.0) * px
+		var cz := wz + GAP / 2 + pz / 2 + r * pz
+		stacks.append({"pos": Vector3(cx, T, cz), "cards": 0, "slot": Vector2(px - GAP, pz - GAP)})
 	var tab_m := MeshKit.mat(info.stripe, 0.5)
+	var fz := MeshKit.CARD.z * sv
 	for st in stacks:
 		var p: Vector3 = st.pos
-		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(fx, well_h * 0.85, 0.003)), tab_m, Vector3(p.x, T + well_h * 0.425, p.z - fz / 2 - 0.002)))
-		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(fx * 0.4, 0.02, 0.003)), tab_m, Vector3(p.x - fx * 0.25, T + well_h * 0.85 + 0.01, p.z - fz / 2 - 0.002)))
+		var slot: Vector2 = st.slot
+		var back_z := p.z - fz / 2 - 0.004
+		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(slot.x, well_h * 0.85, 0.003)), tab_m, Vector3(p.x, T + well_h * 0.425, back_z)))
+		visual.add_child(MeshKit.mesh_node(MeshKit.box(Vector3(slot.x * 0.4, 0.02, 0.003)), tab_m, Vector3(p.x - slot.x * 0.25, T + well_h * 0.85 + 0.01, back_z)))
 	var g: Node3D = MeshKit.card_stack(color, 1, info.stripe)[0]
 	MeshKit.ghostify(g, ghost_m)
 	g.position = stacks[0].pos
