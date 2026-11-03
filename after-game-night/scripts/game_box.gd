@@ -48,6 +48,10 @@ var is_sorted := false
 var peeking := false
 var _peek_tweens: Array[Tween] = []
 var _snapped_at := Transform3D()
+var _insert_mats := {}
+## Pieces whose cutouts are round rather than squared off.
+const ROUND := ["coin", "chip", "dealer", "honey", "apple", "planet", "pawn", "cateye", "shooter", "pearl", "steelie",
+	"galaxymarble", "pot", "teacup", "counter", "slime", "geode", "basket", "lantern", "tower", "crown"]
 ## How long a box with nothing left to go on top stays open after it's sorted, so you can admire it.
 static var hold_open := 4.2
 
@@ -213,6 +217,7 @@ func _build_shell(ed_idx: int) -> void:
 
 func _build_insert(lay: Dictionary, id: float, groups: Array, card_piles: Dictionary) -> void:
 	var im := CaseKit.insert_mats(case_style, color)
+	_insert_mats = im
 	var tray: Material = im.tray
 	var floor_m: Material = im.floor
 	var wall_m: Material = im.wall
@@ -287,6 +292,77 @@ static func _boxed_mesh(mesh: ArrayMesh) -> ArrayMesh:
 	return out
 
 
+## Builds the top of a compartment's insert block: a grid of cols x rows cells of (px, pz) from
+## (x0, z0), raised `depth` above the well floor, with a hole the shape of a piece's footprint
+## in each of the first `n` cells (round, or a rounded rectangle) and the rest left solid.
+func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, n: int, foot: Vector2, round: bool, depth: float) -> void:
+	var top := _insert_mats.get("tray", MeshKit.mat(Color("c8b8a0"), 0.9)) as Material
+	var inner := _insert_mats.get("floor", MeshKit.mat(Color("6e665c"), 0.95)) as Material
+	var st_top := SurfaceTool.new()
+	st_top.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var st_in := SurfaceTool.new()
+	st_in.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var y0 := T + 0.002
+	var y1 := y0 + depth
+	var power := 2.0 if round else 7.0
+	for i in cols * rows:
+		var c := i % cols
+		var r := i / cols
+		var cc := Vector2(x0 + px / 2 + c * px, z0 + pz / 2 + r * pz)
+		var hx := px / 2
+		var hz := pz / 2
+		if i >= n:
+			_quad(st_top, Vector3(cc.x - hx, y1, cc.y - hz), Vector3(cc.x + hx, y1, cc.y - hz), Vector3(cc.x + hx, y1, cc.y + hz), Vector3(cc.x - hx, y1, cc.y + hz), Vector3.UP)
+			continue
+		# A little clearance round the piece, never more than the cell.
+		var a := minf(foot.x / 2 + 0.0018, hx - 0.0015)
+		var b := minf(foot.y / 2 + 0.0018, hz - 0.0015)
+		if round:
+			a = minf(a, b)
+			b = a
+		var angles := []
+		for k in 24:
+			angles.append(TAU * k / 24.0)
+		for corner in [Vector2(hx, hz), Vector2(-hx, hz), Vector2(-hx, -hz), Vector2(hx, -hz)]:
+			angles.append(fposmod(atan2(corner.y, corner.x), TAU))
+		angles.sort()
+		var hole := []
+		var edge := []
+		for t: float in angles:
+			var cs := cos(t)
+			var sn := sin(t)
+			var rr := 1.0 / pow(pow(absf(cs) / a, power) + pow(absf(sn) / b, power), 1.0 / power)
+			hole.append(Vector2(cs, sn) * rr)
+			var k := minf(hx / maxf(absf(cs), 1e-6), hz / maxf(absf(sn), 1e-6))
+			edge.append(Vector2(cs, sn) * k)
+		for k in angles.size():
+			var k2 := (k + 1) % angles.size()
+			var h0: Vector2 = cc + hole[k]
+			var h1: Vector2 = cc + hole[k2]
+			var e0: Vector2 = cc + edge[k]
+			var e1: Vector2 = cc + edge[k2]
+			_quad(st_top, Vector3(h0.x, y1, h0.y), Vector3(e0.x, y1, e0.y), Vector3(e1.x, y1, e1.y), Vector3(h1.x, y1, h1.y), Vector3.UP)
+			# The wall of the hole, facing in towards the piece.
+			var n_in := -Vector3((h0 + h1).x / 2 - cc.x, 0, (h0 + h1).y / 2 - cc.y).normalized()
+			_quad(st_in, Vector3(h0.x, y1, h0.y), Vector3(h1.x, y1, h1.y), Vector3(h1.x, y0, h1.y), Vector3(h0.x, y0, h0.y), n_in)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st_top.commit()
+	mi.material_override = top
+	visual.add_child(mi)
+	var mw := MeshInstance3D.new()
+	mw.mesh = st_in.commit()
+	mw.material_override = inner
+	visual.add_child(mw)
+
+
+## Two triangles for a quad, wound to face along n.
+static func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, n: Vector3) -> void:
+	var flip := (b - a).cross(c - a).dot(n) > 0.0
+	for v in ([a, c, b, a, d, c] if flip else [a, b, c, a, c, d]):
+		st.set_normal(n)
+		st.add_vertex(v)
+
+
 ## The best grid for n things of footprint (ux, uz) in a well of (ww, wd): the columns and rows
 ## that let them be biggest (up to sv_max), with as few empty cells as possible.
 ## Returns [cols, rows, scale, pitch x, pitch z].
@@ -338,18 +414,20 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: floa
 		var level: int = i / cells
 		var c: int = cell % cols
 		var r: int = cell / cols
-		# A short last row is centred, so the gaps are shared out evenly.
-		var in_row := cols if r < rows - 1 else cells - cols * (rows - 1)
-		var cx := wx + GAP / 2 + (ww - GAP) / 2 + (c - (in_row - 1) / 2.0) * px
+		var cx := wx + GAP / 2 + px / 2 + c * px
 		var cz := wz + GAP / 2 + pz / 2 + r * pz
 		var pos := Vector3(cx, T + bottom + level * h, cz) - center_off
-		var xf := Transform3D(basis.rotated(Vector3.UP, randf_range(-0.03, 0.03)), pos)
+		var xf := Transform3D(basis, pos)
 		stored.set_instance_transform(i, _hidden)
 		var gi := -1
 		if level == 0:
 			gi = cell
 			ghosts.set_instance_transform(gi, xf)
 		arr.append({"xf": xf, "ghost": gi, "idx": i, "filled": false})
+	# The insert block: a hole the shape of the piece in every cell, solid card in any cell left over.
+	var foot := Vector2(bb.size.x, bb.size.z) * sv
+	var depth := clampf(h * 0.45, 0.004, minf(0.016, well_h * 0.5))
+	_cutouts(wx + GAP / 2, wz + GAP / 2, cols, rows, px, pz, cells, foot, ROUND.has(g.type), depth)
 	_spots[g.key] = arr
 	_stored[g.key] = stored
 	_ghost_mm[g.key] = ghosts
@@ -378,10 +456,10 @@ func _make_card_tray(set_name: String, wl: Dictionary, wx: float, wz: float, ww:
 	for i in cells:
 		var c: int = i % cols
 		var r: int = i / cols
-		var in_row := cols if r < rows - 1 else cells - cols * (rows - 1)
-		var cx := wx + GAP / 2 + (ww - GAP) / 2 + (c - (in_row - 1) / 2.0) * px
+		var cx := wx + GAP / 2 + px / 2 + c * px
 		var cz := wz + GAP / 2 + pz / 2 + r * pz
 		stacks.append({"pos": Vector3(cx, T, cz), "cards": 0, "slot": Vector2(px - GAP, pz - GAP)})
+	_cutouts(wx + GAP / 2, wz + GAP / 2, cols, rows, px, pz, cells, Vector2(MeshKit.CARD.x, MeshKit.CARD.z) * sv, false, minf(0.012, well_h * 0.4))
 	var tab_m := MeshKit.mat(info.stripe, 0.5)
 	var fz := MeshKit.CARD.z * sv
 	for st in stacks:
