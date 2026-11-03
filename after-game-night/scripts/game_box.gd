@@ -255,6 +255,35 @@ func _build_insert(lay: Dictionary, id: float, groups: Array, card_piles: Dictio
 				_make_spots(by_key[key], wl, wx, wz, ww, wd, ghost_m)
 
 
+static var _boxed := {}
+
+
+## Packed together in a compartment, glowing pieces (ember dice, crystals, potions) would add
+## up into a white blur, so in the box their glow is turned well down.
+static func _boxed_mesh(mesh: ArrayMesh) -> ArrayMesh:
+	if _boxed.has(mesh):
+		return _boxed[mesh]
+	var glows := false
+	for i in mesh.get_surface_count():
+		var m := mesh.surface_get_material(i)
+		if m is BaseMaterial3D and (m as BaseMaterial3D).emission_enabled:
+			glows = true
+	if not glows:
+		_boxed[mesh] = mesh
+		return mesh
+	var out: ArrayMesh = mesh.duplicate()
+	for i in out.get_surface_count():
+		var m := out.surface_get_material(i)
+		if m is BaseMaterial3D and (m as BaseMaterial3D).emission_enabled:
+			var dim: BaseMaterial3D = (m as BaseMaterial3D).duplicate()
+			dim.emission_energy_multiplier *= 0.15
+			if dim.rim_enabled:
+				dim.rim *= 0.4
+			out.surface_set_material(i, dim)
+	_boxed[mesh] = out
+	return out
+
+
 ## The best grid for n things of footprint (ux, uz) in a well of (ww, wd): the columns and rows
 ## that let them be biggest (up to sv_max), with as few empty cells as possible.
 ## Returns [cols, rows, scale, pitch x, pitch z].
@@ -294,7 +323,7 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: floa
 	var basis := Basis.from_euler(g.rest).scaled(Vector3.ONE * sv)
 	var stored := MultiMesh.new()
 	stored.transform_format = MultiMesh.TRANSFORM_3D
-	stored.mesh = g.mesh
+	stored.mesh = _boxed_mesh(g.mesh)
 	stored.instance_count = n
 	var ghosts := MultiMesh.new()
 	ghosts.transform_format = MultiMesh.TRANSFORM_3D

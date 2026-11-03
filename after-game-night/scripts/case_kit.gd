@@ -58,7 +58,9 @@ static func insert_mats(case: String, c: Color) -> Dictionary:
 		"paintchest":
 			return {"tray": TexKit.pbr("wood_table_001", 3.0, Color("e8c8a0"), 1.0, false), "floor": TexKit.pbr("wood_table_001", 3.0, Color("d0a878"), 1.0, false), "wall": TexKit.pbr("wood_table_001", 3.0, Color("f0d4b0"), 1.0, false)}
 	# Board-game inserts are box board, in the game's colours.
-	return {"tray": TexKit.cardboard(c.darkened(0.3).lerp(Color("b8a48a"), 0.25)), "floor": TexKit.cardboard(c.darkened(0.5).lerp(Color("8a7a66"), 0.2)), "wall": TexKit.cardboard(c.darkened(0.15).lerp(Color("c8b49a"), 0.25))}
+	# Mostly plain box board with a hint of the game's colour, so the pieces stand out against it
+	# rather than disappearing into a box of their own colour.
+	return {"tray": TexKit.cardboard(c.lerp(Color("cfc3ae"), 0.72)), "floor": TexKit.cardboard(c.darkened(0.35).lerp(Color("6e665c"), 0.7)), "wall": TexKit.cardboard(c.lerp(Color("ddd2bf"), 0.7))}
 
 
 ## A real game box is printed only on the outside: inside it's plain card, and the cut edges
