@@ -266,7 +266,7 @@ static func _boxed_mesh(mesh: ArrayMesh) -> ArrayMesh:
 	var glows := false
 	for i in mesh.get_surface_count():
 		var m := mesh.surface_get_material(i)
-		if m is BaseMaterial3D and (m as BaseMaterial3D).emission_enabled:
+		if m is BaseMaterial3D and ((m as BaseMaterial3D).emission_enabled or (m as BaseMaterial3D).rim_enabled):
 			glows = true
 	if not glows:
 		_boxed[mesh] = mesh
@@ -274,11 +274,14 @@ static func _boxed_mesh(mesh: ArrayMesh) -> ArrayMesh:
 	var out: ArrayMesh = mesh.duplicate()
 	for i in out.get_surface_count():
 		var m := out.surface_get_material(i)
-		if m is BaseMaterial3D and (m as BaseMaterial3D).emission_enabled:
+		if m is BaseMaterial3D and ((m as BaseMaterial3D).emission_enabled or (m as BaseMaterial3D).rim_enabled):
+			# In a box, under the display lamp, crystals and potions read best as solid colour.
 			var dim: BaseMaterial3D = (m as BaseMaterial3D).duplicate()
-			dim.emission_energy_multiplier *= 0.15
-			if dim.rim_enabled:
-				dim.rim *= 0.4
+			dim.emission_enabled = false
+			dim.rim_enabled = false
+			if dim.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+				dim.albedo_color.a = maxf(dim.albedo_color.a, 0.92)
+			dim.albedo_color = Color(dim.albedo_color.r * 0.85, dim.albedo_color.g * 0.85, dim.albedo_color.b * 0.85, dim.albedo_color.a)
 			out.surface_set_material(i, dim)
 	_boxed[mesh] = out
 	return out
@@ -308,9 +311,9 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: floa
 	var n := g.members.size()
 	var cells: int = wl.cells
 	var per := ceili(float(n) / cells)
-	# As big as the compartment allows, up to the size they are on the table, and short enough
+	# As big as the compartment allows (up to a little bigger than on the table), and short enough
 	# that every layer of a stack still fits under the board.
-	var sv_max := minf(1.0, well_h * 0.95 / maxf(per * bb.size.y, 0.0001))
+	var sv_max := minf(1.3, well_h * 0.95 / maxf(per * bb.size.y, 0.0001))
 	var grid := _fit_grid(cells, ww, wd, bb.size.x, bb.size.z, sv_max)
 	var cols: int = grid[0]
 	var rows: int = grid[1]

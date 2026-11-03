@@ -3103,6 +3103,9 @@ func _set_shots(dir: String) -> void:
 	_tour_start()
 	var want := ["crowns/base", "plum/base", "atlas/base", "honey/base", "orchard/base", "wyrm/base", "wyrm/vault",
 		"hoard/galaxy", "casino/royale", "ccg/aurora", "caverns/base", "marbles/cateye", "paints/base", "paints/brushes"]
+	var only := OS.get_cmdline_user_args()
+	if only.size() > only.find("--sets") + 2:
+		want = (only[only.find("--sets") + 2] as String).split(",")
 	for id in want:
 		for b in _tour_home.keys():
 			_tour_put_back(b)
