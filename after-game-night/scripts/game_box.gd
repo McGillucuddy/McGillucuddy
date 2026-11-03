@@ -495,6 +495,8 @@ func try_accept(item: Item) -> String:
 
 	item.make_passenger()
 	item.reparent(contents)
+	# Where it ends up, so it can be put exactly there however it's moved in the meantime.
+	item.set_meta("packed", [target_pos, target_rot, target_scale])
 	var mid := item.position.lerp(target_pos, 0.5) + Vector3(0, 0.2, 0)
 	var arc := create_tween()
 	arc.tween_property(item, "position", mid, 0.18).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
@@ -531,12 +533,24 @@ func _check_done(delay: float) -> void:
 		tw.tween_interval(delay)
 		tw.tween_property(lid_pivot, "rotation:x", 0.0, 0.55).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
 		tw.tween_callback(func():
+			_snap_contents()
 			lid_closed = true
 			packed.emit(self))
 		var hop := create_tween()
 		hop.tween_interval(delay + 0.55)
 		hop.tween_property(visual, "scale", Vector3(1.05, 0.92, 1.05), 0.08)
 		hop.tween_property(visual, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+
+## Puts every packed item exactly where it belongs (in case a slide-in was cut short).
+func _snap_contents() -> void:
+	for it in contents.get_children():
+		if it is Item and it.has_meta("packed"):
+			var pk: Array = it.get_meta("packed")
+			(it as Item).position = pk[0]
+			(it as Item).rotation = pk[1]
+			if (it as Item).visual:
+				(it as Item).visual.scale = pk[2]
 
 
 ## Where every compartment and card tray is, in world space, for the "sorted" light-up.
@@ -598,6 +612,9 @@ func peek(open: bool, instant := false) -> void:
 			it.set_meta("rest_scale", it.visual.scale if it.visual else Vector3.ONE)
 		var rest_pos: Vector3 = it.get_meta("rest_pos")
 		var rest_scale: Vector3 = it.get_meta("rest_scale")
+		if it.has_meta("packed"):
+			rest_pos = (it.get_meta("packed") as Array)[0]
+			rest_scale = (it.get_meta("packed") as Array)[2]
 		var up_pos := rest_pos + Vector3(0, 0.22 + k * 0.03, 0)
 		if instant:
 			it.position = up_pos if open else rest_pos

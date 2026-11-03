@@ -206,6 +206,8 @@ func _ready() -> void:
 		_render_map(args[args.find("--map") + 1])
 	elif "--rooms" in args:
 		_room_shots(args[args.find("--rooms") + 1])
+	elif "--sets" in args:
+		_set_shots(args[args.find("--sets") + 1])
 	elif "--tables" in args:
 		_table_shots(args[args.find("--tables") + 1])
 
@@ -1263,8 +1265,11 @@ func _tour_show(step: int) -> void:
 		_tour_put_back(prev)
 	_tour_i = posmod(_tour_i + step, order.size())
 	var box: GameBox = order[_tour_i]
-	_tour_home[box] = box.global_transform
+	_tour_home[box] = [box.global_transform, box.freeze, box.freeze_mode]
 	_tour_yaw = 0.0
+	# Held still on the stand, whatever it was doing before.
+	box.freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+	box.freeze = true
 	box.global_transform = Transform3D(Basis(), _tour_stand.global_position + Vector3(0, 0.69, 0))
 	box.peek(true)
 	_sparkle(box.insert_top(), 24, 0.7, Color("ffe7a8"))
@@ -1288,7 +1293,11 @@ func _tour_frame() -> void:
 
 func _tour_put_back(box: GameBox) -> void:
 	box.peek(false, true)
-	box.global_transform = _tour_home[box]
+	var home: Array = _tour_home[box]
+	box.global_transform = home[0]
+	box.freeze_mode = home[2]
+	box.freeze = home[1]
+	box._snap_contents()
 	_tour_home.erase(box)
 
 
@@ -2945,6 +2954,13 @@ func _autotest() -> void:
 	for i in boxes.size():
 		back += 1 if boxes[i].global_position.distance_to(homes[i]) < 0.001 and not boxes[i].peeking else 0
 	print("collection tour: %d/%d shown open on the stand, %d/%d back on the shelf and closed" % [opened, boxes.size(), back, boxes.size()])
+	var strays := 0
+	for b in boxes:
+		for it in b.contents.get_children():
+			if it is Item and ((it as Item).kind == "board" or (it as Item).kind == "rules"):
+				if (it as Item).global_position.distance_to(b.global_position) > 0.6 or not (it as Item).visible:
+					strays += 1
+	print("boards and rulebooks back in their boxes after the tour: %d out of place" % strays)
 	print("finished=", finished, " mixups=", mixups)
 	get_tree().quit()
 
@@ -3058,6 +3074,39 @@ func _room_shots(dir: String) -> void:
 			["close_chipcases", Vector3(-11.1, 1.15, 3.45), Vector3(-11.1, 0.1, 2.5)]]:
 		await _cam_at(cam, v[1], v[2])
 		await _shot(dir, v[0])
+	get_tree().quit()
+
+
+## Every game packed away, each box shown open on the collection stand.
+func _set_shots(dir: String) -> void:
+	showcases = false
+	GameBox.hold_open = 0.0
+	await get_tree().create_timer(3.0).timeout
+	while not settled:
+		await get_tree().process_frame
+	_start()
+	hud.visible = false
+	for b in boxes:
+		_pack_all(b)
+	await get_tree().create_timer(5.0).timeout
+	# As in the game: the collection tour comes once everything is on the shelves.
+	for b in boxes:
+		var right: ShelfSlot = slots.filter(func(s: ShelfSlot): return s.line_id == b.line_id)[0]
+		right.place(b)
+	await get_tree().create_timer(2.0).timeout
+	_tour_start()
+	var want := ["crowns/base", "plum/base", "atlas/base", "honey/base", "orchard/base", "wyrm/base", "wyrm/vault",
+		"hoard/galaxy", "casino/royale", "ccg/aurora", "caverns/base", "marbles/cateye", "paints/base", "paints/brushes"]
+	for id in want:
+		for b in _tour_home.keys():
+			_tour_put_back(b)
+		var order := _tour_order()
+		for i in order.size():
+			if (order[i] as GameBox).ed_id == id:
+				_tour_i = i
+		_tour_show(0)
+		await get_tree().create_timer(1.2).timeout
+		await _shot(dir, "set_" + id.replace("/", "_"))
 	get_tree().quit()
 
 
