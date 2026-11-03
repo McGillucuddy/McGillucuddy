@@ -81,6 +81,13 @@ var _tour_stand: Node3D
 var _tour_yaw := 0.0
 var _tour_drag := false
 var _staged := {}
+var _box_zones: Array = []     # where each open box waits on the floor
+## Floor spills: how tall a heap may get before the spill spreads wider instead, and how far it may spread.
+const FLOOR_PILE := 0.2
+const FLOOR_GROW_MAX := 2.6
+## The floor of each room, for keeping spills indoors.
+const ROOM_FLOORS := {"living": Rect2(-5.85, -4.85, 11.7, 12.3), "card": Rect2(-13.05, 2.15, 6.8, 5.3),
+	"den": Rect2(6.35, -0.05, 7.7, 7.5), "studio": Rect2(-3.25, 7.95, 6.5, 5.3)}
 var settled := false           # everything has been set down onto what's really under it
 var ground_report := {}              # pieces and card piles already placed by a game's mid-game scene
 
@@ -391,7 +398,7 @@ func _stray_spot(spot: Dictionary) -> Dictionary:
 
 func _free_point(spot: Dictionary, r: float) -> Vector3:
 	var c: Vector3 = spot.center
-	var ext: Vector2 = spot.ext
+	var ext: Vector2 = (spot.ext as Vector2) * float(spot.get("grow", 1.0))
 	var hm: HMap = spot.hmap
 	var inv: Transform3D = (spot.get("board_xf", Transform3D(Basis(), Vector3(999, 0, 999))) as Transform3D).affine_inverse()
 	var best := c
@@ -403,10 +410,23 @@ func _free_point(spot: Dictionary, r: float) -> Vector3:
 		var hh := hm.top(p.x, p.z, r) + (0.05 if on_board else 0.0) + rng.randf() * 0.01
 		if _in_play(spot, p):
 			hh += 10.0
+		if spot.get("floor", false) and _off_floor(spot, p):
+			hh += 10.0
 		if hh < best_h:
 			best_h = hh
 			best = p
 	return best
+
+
+## For spills on the floor: whether a point is outside the room or where an open box waits.
+func _off_floor(spot: Dictionary, p: Vector3) -> bool:
+	var room: Rect2 = ROOM_FLOORS.get(spot.get("room", ""), Rect2(-100, -100, 200, 200))
+	if not room.has_point(Vector2(p.x, p.z)):
+		return true
+	for b: Vector3 in _box_zones:
+		if absf(p.x - b.x) < 0.55 and absf(p.z - b.z) < 0.55:
+			return true
+	return false
 
 
 ## Whether a point is in the part of the table where the game is being played.
@@ -424,6 +444,22 @@ func _place_piece(p: Pieces.P, spot: Dictionary, x: float, z: float, yaw: float,
 	var hm: HMap = spot.hmap
 	var bb := p.g.aabb_table
 	var r := maxf(bb.size.x, bb.size.z) * 0.42
+	if spot.get("floor", false):
+		# A spill: if this spot's heap is already knee-high, find room further out, and let the
+		# whole spill spread a little wider when it runs out of room.
+		var tries := 0
+		while (hm.top(x, z, r) + bb.size.y > FLOOR_PILE or _off_floor(spot, Vector3(x, 0, z))) and tries < 40:
+			if tries % 4 == 3:
+				spot.grow = minf(float(spot.grow) * 1.12, FLOOR_GROW_MAX)
+			var q := _free_point(spot, r * 2.0)
+			x = q.x
+			z = q.z
+			tries += 1
+		var y := hm.top(x, z, r)
+		hm.raise(x, z, r, y + bb.size.y)
+		p.xf = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, y - bb.position.y + 0.0005, z))
+		p.home = spot
+		return
 	var y := hm.top(x, z, r)
 	var tries := 0
 	while y + bb.size.y - (spot.center as Vector3).y > max_pile and tries < 6:
@@ -436,7 +472,7 @@ func _place_piece(p: Pieces.P, spot: Dictionary, x: float, z: float, yaw: float,
 		# No room round the game: it has ended up on the floor beside the table.
 		var fl: Dictionary = spots[spot.spill]
 		var q := _free_point(fl, r * 2.0)
-		_place_piece(p, fl, q.x, q.z, yaw, 0.12)
+		_place_piece(p, fl, q.x, q.z, yaw)
 		return
 	hm.raise(x, z, r, y + bb.size.y)
 	p.xf = Transform3D(Basis(Vector3.UP, yaw), Vector3(x, y - bb.position.y + 0.0005, z))
@@ -795,14 +831,15 @@ func _settle_everything() -> void:
 	for pass_i in 20:
 		await get_tree().physics_frame
 		await get_tree().physics_frame
-		var r := _settle_pass(true)
+		# Only the first pass may lift something out of an overlap; after that things only come
+		# down, or two overlapping pieces would keep climbing onto each other into a tower.
+		var r := _settle_pass(true, pass_i == 0)
 		passes += 1
 		if pass_i == 0:
 			worst_first = r.worst
 		for o in r.moved:
 			moved[o] = true
-		# Done once nothing hovers; what still moves is only nudging out of a slight overlap.
-		if r.floating == 0 and pass_i >= 2:
+		if r.floating == 0 and pass_i >= 1:
 			break
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -812,7 +849,7 @@ func _settle_everything() -> void:
 
 
 ## One pass: returns {worst: biggest gap found, floating: how many hover over 2 mm, moved: [...]}.
-func _settle_pass(apply: bool) -> Dictionary:
+func _settle_pass(apply: bool, allow_raise := true) -> Dictionary:
 	var space := get_world_3d().direct_space_state
 	var mask := Item.LAYER_WORLD | Item.LAYER_ITEMS
 	var todo := []
@@ -855,6 +892,8 @@ func _settle_pass(apply: bool) -> Dictionary:
 		if not apply or absf(gap) < 0.0005:
 			continue
 		var dy := support + 0.0004 - bottom
+		if dy > 0.0 and not allow_raise:
+			continue
 		if obj is Pieces.P:
 			var p := obj as Pieces.P
 			var xf := p.xf
@@ -2056,8 +2095,21 @@ func _define_spots() -> void:
 	for k in defs:
 		var s: Dictionary = defs[k]
 		s["name"] = k
-		s["hmap"] = HMap.new(s.center, s.ext)
+		if k.begins_with("floor_"):
+			# A spill on the floor spreads outwards as it grows, so its height map covers more.
+			s["floor"] = true
+			s["grow"] = 1.0
+			s["hmap"] = HMap.new(s.center, s.ext * FLOOR_GROW_MAX)
+		else:
+			s["hmap"] = HMap.new(s.center, s.ext)
 		spots[k] = s
+	# Where the open boxes will wait, so spills on the floor keep clear of them.
+	for line in GameData.LINES:
+		var sp: Dictionary = spots[PLAYED_ON[line.id]]
+		var dir := Basis(Vector3.UP, sp.rot) * Vector3.RIGHT
+		for ei in line.editions.size():
+			var at: Vector3 = (sp.row_start as Vector3) + dir * ei * (GameBox.IW + 2 * GameBox.T + 0.08)
+			_box_zones.append(at)
 
 
 # ---------------------------------------------------------------- rooms
@@ -2754,6 +2806,11 @@ func _autotest() -> void:
 		cards += b.units_needed
 	print("pieces=", pieces.all.size(), " card piles/boards/rules=", items.size(), " boxes=", boxes.size(), " total units=", cards)
 	print("settling: %d things set down in %d passes, worst float before %.1f mm; after: %d floating over 2 mm, worst %.1f mm" % [ground_report.moved, ground_report.passes, ground_report.worst_before_mm, ground_report.floating_after, ground_report.worst_after_mm])
+	var tallest := 0.0
+	for p: Pieces.P in pieces.all:
+		if p.state == Pieces.LOOSE and (p.home as Dictionary).get("floor", false):
+			tallest = maxf(tallest, p.xf.origin.y)
+	print("tallest heap on the floor: %.2f m (limit %.2f)" % [tallest, FLOOR_PILE])
 	print("big items below floor: ", items.filter(func(i: Item): return i.global_position.y < -0.5).size())
 	for b in boxes:
 		print("  %-34s %4d things  box %.2f x %.2f x %.2f m" % [b.game_name, b.units_needed, b.W, b.D, b.H])
