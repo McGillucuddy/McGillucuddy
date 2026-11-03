@@ -295,7 +295,7 @@ static func _boxed_mesh(mesh: ArrayMesh) -> ArrayMesh:
 ## Builds the top of a compartment's insert block: a grid of cols x rows cells of (px, pz) from
 ## (x0, z0), raised `depth` above the well floor, with a hole the shape of a piece's footprint
 ## in each of the first `n` cells (round, or a rounded rectangle) and the rest left solid.
-func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, n: int, foot: Vector2, round: bool, depth: float) -> void:
+func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, n: int, foot: Vector2, round: bool, depth: float, lift := 0.0) -> void:
 	var top := _insert_mats.get("tray", MeshKit.mat(Color("c8b8a0"), 0.9)) as Material
 	# The walls of each hole are cut card (mid brown); its floor is a shade darker.
 	var inner := MeshKit.mat(Color("7a6650"), 0.95)
@@ -306,8 +306,9 @@ func _cutouts(x0: float, z0: float, cols: int, rows: int, px: float, pz: float, 
 	st_top.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var st_in := SurfaceTool.new()
 	st_in.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var y0 := T + 0.002
-	var y1 := y0 + depth
+	var y1 := T + 0.002 + depth
+	# Each hole is only as deep as what goes in it, so pieces sit just below the surface.
+	var y0 := T + 0.002 + lift
 	var power := 2.0 if round else 7.0
 	for i in cols * rows:
 		var c := i % cols
@@ -415,6 +416,7 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: floa
 	var px: float = grid[3]
 	var pz: float = grid[4]
 	var h := bb.size.y * sv
+	var lift := maxf(0.0, well_h - 0.006 - per * h)
 	var center_off := Vector3(bb.get_center().x, 0, bb.get_center().z) * sv
 	var bottom := -bb.position.y * sv
 	var basis := Basis.from_euler(g.rest).scaled(Vector3.ONE * sv)
@@ -434,7 +436,7 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: floa
 		var r: int = cell / cols
 		var cx := wx + GAP / 2 + px / 2 + c * px
 		var cz := wz + GAP / 2 + pz / 2 + r * pz
-		var pos := Vector3(cx, T + bottom + level * h, cz) - center_off
+		var pos := Vector3(cx, T + lift + bottom + level * h, cz) - center_off
 		var xf := Transform3D(basis, pos)
 		stored.set_instance_transform(i, _hidden)
 		var gi := -1
@@ -446,7 +448,7 @@ func _make_spots(g: Pieces.Group, wl: Dictionary, wx: float, wz: float, ww: floa
 	var foot := Vector2(bb.size.x, bb.size.z) * sv
 	# A real insert is a solid block level with the top of the tray, the pieces sitting down in it.
 	var depth := well_h - 0.003
-	_cutouts(wx + GAP / 2, wz + GAP / 2, cols, rows, px, pz, cells, foot, ROUND.has(g.type), depth)
+	_cutouts(wx + GAP / 2, wz + GAP / 2, cols, rows, px, pz, cells, foot, ROUND.has(g.type), depth, lift)
 	_spots[g.key] = arr
 	_stored[g.key] = stored
 	_ghost_mm[g.key] = ghosts
