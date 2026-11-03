@@ -105,7 +105,7 @@ func make_passenger() -> void:
 	stored = true
 	held = false
 	set_highlight(false)
-	freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 	freeze = true
 	collision_layer = 0
 	collision_mask = 0

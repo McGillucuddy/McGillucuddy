@@ -47,6 +47,7 @@ var lid_pivot: Node3D
 var is_sorted := false
 var peeking := false
 var _peek_tweens: Array[Tween] = []
+var _snapped_at := Transform3D()
 ## How long a box with nothing left to go on top stays open after it's sorted, so you can admire it.
 static var hold_open := 4.2
 
@@ -543,10 +544,17 @@ func _check_done(delay: float) -> void:
 		hop.tween_property(visual, "scale", Vector3.ONE, 0.25).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
 
 
+## Whenever a packed box has moved (carried, shelved, shown on the stand), its contents follow.
+func _physics_process(_dt: float) -> void:
+	if complete and not global_transform.is_equal_approx(_snapped_at):
+		_snap_contents()
+
+
 ## Puts every packed item exactly where it belongs inside the box, wherever the box is now.
 ## Packed items are physics bodies, which keep their place in the world rather than riding
 ## along when their box is moved, so this runs whenever a box has been moved.
 func _snap_contents() -> void:
+	_snapped_at = global_transform
 	for it in contents.get_children():
 		if it is Item and it.has_meta("packed"):
 			var pk: Array = it.get_meta("packed")
