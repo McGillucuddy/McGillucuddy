@@ -47,6 +47,7 @@ class Garage3D {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.scene = new THREE.Scene();
+    this.scene.environment = LP.env(this.renderer, 0.5);
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.3, 900);
     this.post = new PSXPost(this.renderer);
     this.raycaster = new THREE.Raycaster();

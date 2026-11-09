@@ -233,6 +233,7 @@ class CockpitView {
     this.vmScene = new THREE.Scene();
     this.vmCamera = new THREE.PerspectiveCamera(74, 1, 0.1, 100);
     this.vmScene.add(this.vmCamera, new THREE.HemisphereLight(0xffffff, 0x444455, 1.2));
+    this.scene.environment = LP.env(this.renderer, 0.3); this.vmScene.environment = LP.env(this.renderer); // something for steel, chrome and glass to reflect
     const vmSun = new THREE.DirectionalLight(0xffffff, 0.9);
     vmSun.position.set(2, 4, 3);
     this.vmScene.add(vmSun);

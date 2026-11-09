@@ -21,6 +21,38 @@ const LP = {
   mat(color, opts) {
     return new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.8, metalness: 0.05 }, opts));
   },
+  // Something for metal to reflect. Without an environment map a metal surface has only the lamps' highlights to show
+  // and reads as black; this is a small studio (a dim room, a soft box overhead, strip lights to the sides), blurred
+  // into a reflection map once per renderer. It is kept dim, so painted surfaces barely change and steel, chrome and
+  // glass pick up streaks of light. Set it as scene.environment. gain dims the whole room: the race keeps its own
+  // dark mood (a low gain: reflections only), a thumbnail or a held gun gets the full studio.
+  envs: new WeakMap(),
+  env(renderer, gain) {
+    const G = gain == null ? 1 : gain, made = LP.envs.get(renderer) || {};
+    if (G in made) return made[G];
+    LP.envs.set(renderer, made);
+    let tex = null;
+    try {
+      const room = new THREE.Scene(), basic = (r, g, b) => new THREE.MeshBasicMaterial({ color: new THREE.Color(r * G, g * G, b * G), side: THREE.DoubleSide });
+      const shell = new THREE.SphereGeometry(60, 24, 12), pos = shell.attributes.position, col = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) { // warm floor, a paler band at the horizon, a cool dark ceiling
+        const y = pos.getY(i) / 60, k = 1 - Math.min(1, Math.abs(y) * 2.2), c = y < 0 ? [0.1, 0.085, 0.07] : [0.07, 0.085, 0.11];
+        col[i * 3] = (c[0] + 0.2 * k) * G; col[i * 3 + 1] = (c[1] + 0.21 * k) * G; col[i * 3 + 2] = (c[2] + 0.23 * k) * G;
+      }
+      shell.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      room.add(new THREE.Mesh(shell, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+      const panel = (w, h, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.lookAt(0, 0, 0); room.add(m); };
+      panel(44, 20, basic(4.2, 4.1, 3.8), 6, 44, 4); // the soft box overhead
+      panel(10, 34, basic(2.6, 2.8, 3.2), 46, 14, -20); panel(10, 34, basic(2.6, 2.8, 3.2), -46, 14, 20); // strip lights
+      panel(26, 8, basic(2.4, 1.7, 1.1), -18, 6, -48); // a warm glow low behind
+      const pm = new THREE.PMREMGenerator(renderer);
+      tex = pm.fromScene(room, 0.03).texture;
+      pm.dispose();
+      room.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+    } catch (e) { tex = null; } // no float render targets: carry on without reflections
+    made[G] = tex;
+    return tex;
+  },
   glow(color, intensity) {
     return LP.mat(color, { emissive: color, emissiveIntensity: intensity == null ? 0.8 : intensity });
   },
@@ -306,7 +338,7 @@ const GUNTEX = {
   },
   // Gun materials: steel, worn steel edges, polymer, wood, checkered wood.
   mats(colors) {
-    const c = Object.assign({ steel: '#2b2d30', worn: '#4a4d52', poly: '#1c1d1f', wood: '#6e4526' }, colors);
+    const c = Object.assign({ steel: '#3d4046', worn: '#6b6f76', poly: '#2a2b2f', wood: '#7a4c28' }, colors);
     return {
       steel: LP.mat(c.steel, { map: this.get('steel'), metalness: 0.65, roughness: 0.42 }),
       worn: LP.mat(c.worn, { map: this.get('steel'), metalness: 0.8, roughness: 0.3 }),
@@ -330,7 +362,7 @@ const DECALS = {
   get(kind, arg) {
     const key = kind + (arg || '');
     if (this.cache[key]) return this.cache[key];
-    const size = { plate: [64, 24], grille: [64, 24], gauges: [64, 32], vent: [32, 16], stencil: [48, 28], flames: [64, 24] }[kind] || [32, 32];
+    const size = { plate: [64, 24], grille: [64, 24], gauges: [64, 32], vent: [32, 16], stencil: [48, 28], flames: [64, 24], glass: [128, 128] }[kind] || [32, 32];
     const c = document.createElement('canvas');
     [c.width, c.height] = size;
     const g = c.getContext('2d');
@@ -401,10 +433,13 @@ const DECALS = {
     } else if (kind === 'glass') {
       // Fake sky reflection: bright top, dark bottom, a diagonal streak.
       const gr = g.createLinearGradient(0, 0, 0, H);
-      gr.addColorStop(0, '#7f8f9a'); gr.addColorStop(0.45, '#2a3540'); gr.addColorStop(1, '#10161c');
+      gr.addColorStop(0, '#8c9da8'); gr.addColorStop(0.4, '#3a4854'); gr.addColorStop(1, '#161e26');
       g.fillStyle = gr; g.fillRect(0, 0, W, H);
-      g.fillStyle = 'rgba(255,255,255,0.18)';
-      g.beginPath(); g.moveTo(6, 0); g.lineTo(12, 0); g.lineTo(0, 20); g.lineTo(0, 10); g.fill();
+      const k = W / 32;
+      g.fillStyle = 'rgba(255,255,255,0.16)';
+      g.beginPath(); g.moveTo(6 * k, 0); g.lineTo(12 * k, 0); g.lineTo(0, 20 * k); g.lineTo(0, 10 * k); g.fill();
+      g.fillStyle = 'rgba(255,255,255,0.08)';
+      g.beginPath(); g.moveTo(15 * k, 0); g.lineTo(17 * k, 0); g.lineTo(0, 28 * k); g.lineTo(0, 25 * k); g.fill(); // a second, thinner streak
     } else if (kind === 'glasscrack' || kind === 'glassshot') {
       // The glass, cracked: a star of cracks (and bullet holes when it's shot through).
       const gr = g.createLinearGradient(0, 0, 0, H);
@@ -546,7 +581,7 @@ const DECALS = {
     }
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.magFilter = THREE.NearestFilter;
+    tex.magFilter = kind === 'glass' ? THREE.LinearFilter : THREE.NearestFilter; // glass is a smooth reflection, not pixels
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.name = 'decal_' + key;
     this.cache[key] = tex;

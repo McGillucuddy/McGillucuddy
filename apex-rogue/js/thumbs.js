@@ -236,6 +236,7 @@ const Thumbs = {
       this.r.outputColorSpace = THREE.SRGBColorSpace;
     } catch (e) { this.r = null; return false; }
     this.scene = new THREE.Scene();
+    this.scene.environment = LP.env(this.r);
     this.scene.add(new THREE.HemisphereLight(0xfff4e0, 0x2a2430, 1.3));
     const sun = new THREE.DirectionalLight(0xffffff, 1.6);
     sun.position.set(3, 5, 4);

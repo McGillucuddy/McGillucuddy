@@ -442,7 +442,8 @@ Object.assign(People, {
 
   polyHead(head, M, L, gear) {
     const P = People, H = new THREE.Group(), K = (v) => () => v;
-    H.position.y = -0.28; // sat down on a short neck
+    H.scale.setScalar(1.15); // a slightly big head: the face is what you read a person by, from across a car
+    H.position.set(-0.03, -0.36, 0); // sat down on a short neck
     head.add(H);
     P.headSurf(H, M.skin, { th0: 0, th1: TAU, yA: K(0.16), yB: K(1.99), capTop: true, capBottom: true, ease: true });
     for (const s of [-1, 1]) { const e = P.lump(H, [0.1, 0.22, 0.07], M.skin, [0.0, 0.95, s * 0.68], 7); e.rotation.x = s * 0.2; } // ears
@@ -456,9 +457,11 @@ Object.assign(People, {
     // Eyes, brows and the mouth, set on the surface.
     for (const s of [-1, 1]) {
       if (!L.shades) {
-        P.slab(H, [0.02, 0.1, 0.17], M.sclera, [face(1.0, s * 0.24) + 0.003, 1.0, s * 0.24]); // the white of the eye: what lets the face read on any skin
-        P.slab(H, [0.03, 0.12, 0.085], M.eye, [face(1.0, s * 0.24) + 0.012, 1.0, s * 0.24]);
-        P.slab(H, [0.03, 0.035, 0.03], M.white, [face(1.03, s * 0.22) + 0.025, 1.03, s * 0.22]); // the glint
+        const ex = face(1.0, s * 0.25), turn = [0, s * -0.22, 0]; // turned a little to follow the face round
+        P.lump(H, [0.03, 0.075, 0.125], M.sclera, [ex + 0.004, 1.0, s * 0.25], 10).rotation.set(...turn); // the white of the eye, an almond: what lets the face read on any skin
+        P.lump(H, [0.03, 0.068, 0.062], M.eye, [ex + 0.014, 0.995, s * 0.24], 10).rotation.set(...turn); // the iris, round
+        P.slab(H, [0.03, 0.03, 0.03], M.white, [ex + 0.034, 1.025, s * 0.222]); // the glint
+        P.slab(H, [0.035, 0.028, 0.27], M.eyeSet, [ex + 0.012, 1.072, s * 0.25], turn); // the upper lid's line
       }
       const tilt = L.brow === 'scowl' ? s * 0.14 : s * 0.05; // a frown, not a glare
       P.slab(H, [0.05, 0.06, 0.24], M.brow, [face(1.15, s * 0.25) + 0.02, 1.15, s * 0.25], [tilt, s * -0.25, 0]);
@@ -473,7 +476,10 @@ Object.assign(People, {
       }
       P.headSurf(H, M.frameD, { th0: -eye + 0.25, th1: eye - 0.25, n: 3, m: 1, yA: K(1.04), yB: K(1.1), off: 0.05 }); // the bridge
     }
-    if (beard !== 'full') P.slab(H, [0.03, 0.035, 0.22], M.mouth, [face(0.55, 0) + 0.005, 0.55, 0]);
+    if (beard !== 'full') {
+      P.headSurf(H, M.mouth, { th0: -0.3, th1: 0.3, n: 6, m: 1, yA: (th) => 0.535 + th * th * 0.25, yB: (th) => 0.575 + th * th * 0.25, off: 0.006 }); // the mouth, wrapped round the face
+      P.headSurf(H, M.eyeSet, { th0: -0.17, th1: 0.17, n: 4, m: 1, yA: K(0.47), yB: K(0.495), off: 0.005 }); // the shadow under the lower lip
+    }
     if (L.tattoo === 'tear') P.slab(H, [0.02, 0.07, 0.035], M.ink, [face(0.88, 0.3) + 0.01, 0.88, 0.3]);
     // Hair and hats: shells over the skull, following it, the hairline lifted over the brow.
     const shell = (mat, off, hair) => P.headSurf(H, mat, { th0: 0, th1: TAU, n: 24, m: 9, yA: hair, yB: K(1.99), off, capTop: true });

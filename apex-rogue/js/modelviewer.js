@@ -60,6 +60,7 @@ const Viewer = {
     this.post = new PSXPost(r);
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#141310');
+    this.scene.environment = LP.env(r);
     this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000);
     this.scene.add(new THREE.HemisphereLight(0xdfe8ff, 0x3a2f4a, 1.1));
     const sun = (this.sun = new THREE.DirectionalLight(0xfff2dd, 1.6));
