@@ -455,6 +455,13 @@ const Env = {
     return sc.build(g);
   },
 
+  glowTexture() {
+    return Env._glow || (Env._glow = Env.canvas(64, 64, (g) => {
+      const rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.2, 'rgba(255,255,255,0.5)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+    }));
+  },
   beamTexture() {
     if (Env._beam) return Env._beam;
     const t = Env.canvas(64, 128, (g, W, H) => {
@@ -630,6 +637,23 @@ const Env = {
       masts[!th.luxury && (i * 7) % 5 === 0 ? 1 : 0].push({ x, z: y, ry: Math.atan2(tr.nx[i] * s, tr.ny[i] * s) + Math.PI / 2, s: 1 });
     }
     for (const [k, list] of masts.entries()) if (list.length) for (const m of instanceTemplate(Env.models.mast(th, k === 1), list)) scene.add(m);
+    // Below the city the masts are the only light there is: each working one throws a pool of sodium light on the
+    // road (painted into the surface, once) and its lamps glow through the murk.
+    if (!th.luxury) {
+      const glow = new THREE.SpriteMaterial({ map: Env.glowTexture(), color: '#ffb45a', transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false });
+      for (const m of masts[0]) { const s = new THREE.Sprite(glow); s.position.set(m.x, 104, m.z); s.scale.setScalar(46); scene.add(s); }
+      if (tr.ctx && !tr.lampPools) {
+        tr.lampPools = true;
+        const c = tr.ctx;
+        c.save(); c.globalCompositeOperation = 'lighter';
+        for (const m of masts[0]) {
+          const R = inner + 10 + tr.hw * 0.8, rg = c.createRadialGradient(m.x, m.z, 6, m.x, m.z, R);
+          rg.addColorStop(0, 'rgba(255,176,90,0.3)'); rg.addColorStop(0.45, 'rgba(255,160,70,0.13)'); rg.addColorStop(1, 'rgba(255,150,60,0)');
+          c.fillStyle = rg; c.beginPath(); c.arc(m.x, m.z, R, 0, Math.PI * 2); c.fill();
+        }
+        c.restore();
+      }
+    }
 
     // Set pieces facing the start straight.
     for (const [di, s] of [[-26, 1], [-8, -1], [12, 1], [30, -1], [-44, -1], [48, 1]]) {

@@ -610,8 +610,15 @@ function renderTrack(track) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  ctx.strokeStyle = bio.asphalt;
+  // A painted line down each edge of the road (worn nearly away where the surface is filthy): the asphalt is laid
+  // just inside it.
+  ctx.strokeStyle = bio.line;
+  ctx.globalAlpha = bio.dirt ? 0.4 : 0.85;
   ctx.lineWidth = 2 * hw;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = bio.asphalt;
+  ctx.lineWidth = 2 * hw - 7;
   ctx.stroke();
 
   // Asphalt grain.
