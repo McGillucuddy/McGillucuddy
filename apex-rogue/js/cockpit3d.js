@@ -1211,7 +1211,13 @@ class CockpitView {
         return g;
       }),
       flare: pool(8, () => new THREE.Mesh(new THREE.OctahedronGeometry(1.4, 0), new THREE.MeshBasicMaterial({ color: '#ff7a2a' }))),
-      flame: pool(110, () => new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff9a2a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))),
+      // A gout of burning fuel: a ragged outer flame with a brighter heart inside it.
+      flame: pool(110, () => {
+        const g = new THREE.Group(), mk = (s) => { const m = new THREE.Mesh(fireGeo, new THREE.MeshBasicMaterial({ color: '#ff9a2a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); m.scale.setScalar(s); g.add(m); return m; };
+        g.userData = { outer: mk(1), heart: mk(0.55), spin: (Math.random() - 0.5) * 9 };
+        g.rotation.set(Math.random() * TAU, Math.random() * TAU, 0);
+        return g;
+      }),
       harpoon: pool(6, () => Models.harpoonBolt()),
       cloud: pool(48, () => new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: '#8f8f8a', transparent: true, opacity: 0.8, depthWrite: false }))),
       // An explosion: a ragged fireball that swells and reddens, a white-hot core that collapses, and a flash card.
@@ -2101,7 +2107,11 @@ class CockpitView {
           u.clip.rotation.set(f * 9, 0, f * 4);
         }
       }
-      if (u.jet) { u.jet.visible = combat.lastFire < 0.09 && st.reloadT <= 0; u.jet.scale.set(0.8 + Math.random() * 0.4, 0.8 + Math.random() * 0.5, 0.8 + Math.random() * 0.4); } // the flamethrower's jet
+      if (u.jet) { // the flamethrower's jet: flickering, its billows tumbling
+        u.jet.visible = this.jetOn = combat.lastFire < 0.09 && st.reloadT <= 0;
+        u.jet.scale.set(0.85 + Math.random() * 0.3, 0.85 + Math.random() * 0.35, 0.9 + Math.random() * 0.25);
+        for (const b of u.jet.children) if (b.userData.billow) { b.rotation.set(Math.random() * TAU, Math.random() * TAU, 0); b.scale.setScalar(b.userData.billow * (0.8 + Math.random() * 0.45)); }
+      } else if (i === combat.wi) this.jetOn = false;
       let ox = 0, oy = 0, oz = 0, rx = 0, ry = 0, rz = 0;
       if (rp >= 0) {
         const tilt = ss(0, 0.15, rp) * (1 - ss(0.9, 1, rp));
@@ -2272,12 +2282,13 @@ class CockpitView {
     vm.flash.scale.setScalar((this.flashK || 1) * 0.75);
     vm.flash.userData.mat.opacity = vm.flash.userData.plume.opacity = clamp(this.flash / 0.02, 0, 1);
     // A flicker of light on the hands and round the cabin, not a floodlight.
-    this.muzzleLight.intensity = Math.min(1.6, Math.max(0, this.flash) * 30 * (this.lightK || 0));
+    this.muzzleLight.intensity = Math.max(Math.min(1.6, Math.max(0, this.flash) * 30 * (this.lightK || 0)), this.jetOn ? 1.0 + Math.random() * 0.5 : 0); // (the flamethrower lights the cabin for as long as it burns)
     this.cabinFlash.intensity = Math.min(0.6, Math.max(0, this.flash) * 9 * (this.lightK || 0));
     // Flash at the gun's actual muzzle (the held gun is turned in, so a fixed offset would miss it).
     if (held.userData.barrel) {
       held.updateMatrix();
       vm.flash.position.copy(held.userData.barrel.position).applyMatrix4(held.matrix).add(new THREE.Vector3(0, 0, -0.6).applyEuler(held.rotation));
+      this.muzzleDir = this.vmCamera.worldToLocal(vm.flash.getWorldPosition(this.muzzleDir || new THREE.Vector3())).normalize(); // which way the muzzle lies from your eye (for the flamethrower's stream)
     } else vm.flash.position.set(held.userData.hold[0] + 0.2, held.userData.hold[1] + 0.3, held.userData.hold[2] - 6.5);
     vm.flash.quaternion.copy(held.quaternion); // the plume runs along the barrel
     vm.flash.children[0].quaternion.copy(held.quaternion).invert(); // the core faces the camera
@@ -2529,21 +2540,38 @@ class CockpitView {
           }
         }
       }
+      // One that goes off on top of you is not drawn round your head (from inside, a fireball is a screen of flat
+      // yellow): it fades out as it gets closer than its own size, and the light and the shake carry it.
+      const clear = clamp((this.camera.position.distanceTo(o.position) - e.r * 1.3 - 8) / (e.r * 0.8 + 12), 0, 1);
+      o.visible = clear > 0.02;
       const ease = 1 - (1 - k) * (1 - k);
       U.shell.scale.setScalar(e.r * (0.35 + 0.75 * ease));
-      U.shell.material.opacity = 0.8 * (1 - k);
+      U.shell.material.opacity = 0.8 * (1 - k) * clear;
       U.shell.material.color.setHSL(0.09 - 0.07 * k, 1, 0.55 - 0.22 * k);
       U.core.scale.setScalar(Math.max(0.01, e.r * 0.5 * (1 - k * 2.4)));
-      U.core.material.opacity = 0.95;
+      U.core.material.opacity = 0.95 * clear;
       U.flash.scale.setScalar(e.r * 2.4 * (0.6 + k));
-      U.flash.material.opacity = Math.max(0, 1 - k * 3.5);
+      U.flash.material.opacity = Math.max(0, 1 - k * 3.5) * clear;
     });
     show(this.pools.flame, c.projectiles.filter((q) => q.type === 'flame'), (o, q) => {
-      const k = q.t / q.life;
-      o.position.set(q.x, 9.5 + k * 3, q.y); // above the bonnet, rising as it burns
-      o.scale.setScalar(1.5 + 9 * k);
-      o.material.color.setHSL(0.12 - 0.1 * k, 1, 0.55 - 0.15 * k);
-      o.material.opacity = 0.85 * (1 - k);
+      // Out of the nozzle tight and yellow-white, swelling and reddening as it slows, guttering out dark at the end.
+      const k = q.t / q.life, U = o.userData;
+      let near = clamp((k - 0.04) / 0.1, 0, 1); // (a rival's: nothing drawn inside their cabin)
+      o.position.set(q.x, 9.6 + k * 1.2 - k * k * 3.5, q.y); // level out of the gun, then sagging as the fuel falls
+      o.scale.setScalar(1.2 + 11 * Math.sqrt(k));
+      if (q.owner === p && this.muzzleDir && !this.combat.exposed) {
+        // Your own: the stream leaves your nozzle, not the middle of the car. Each gout starts just ahead of the
+        // muzzle as you see it and swings out onto its true path over the first half of its life.
+        const e = clamp(k / 0.5, 0, 1), ee = e * e * (3 - 2 * e);
+        o.position.lerpVectors(this.camera.localToWorld(this.muzzleDir.clone().multiplyScalar(12)), o.position, ee);
+        o.scale.setScalar(0.5 + 11.7 * Math.sqrt(k) * (0.35 + 0.65 * ee));
+        near = 1;
+      }
+      o.rotation.y += U.spin * dt; o.rotation.x += U.spin * 0.6 * dt;
+      U.outer.material.color.setHSL(0.1 - 0.085 * k, 1, 0.5 - 0.28 * k * k);
+      U.outer.material.opacity = 0.7 * near * (1 - k * k);
+      U.heart.material.color.setHSL(0.14 - 0.07 * k, 1, 0.72 - 0.3 * k);
+      U.heart.material.opacity = 0.85 * near * Math.max(0, 1 - k * 1.5);
     });
     show(this.pools.harpoon, c.projectiles.filter((q) => q.type === 'harpoon'), (o, q) => {
       o.position.set(q.x, 8, q.y);

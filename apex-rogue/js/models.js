@@ -2319,10 +2319,20 @@ const Models = {
     // The jet of burning fuel out of the nozzle, shown while the trigger's held.
     const jet = new THREE.Group();
     jet.position.set(0, 0.25, -5.4);
-    for (const [len, r, col, op] of [[4.5, 0.55, '#ff5a10', 0.55], [3.2, 0.32, '#ffb03a', 0.8], [1.6, 0.16, '#fff2c0', 0.9]]) {
-      const cone = LP.mesh(new THREE.ConeGeometry(r, len, 12, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }), 0, 0, -len / 2);
-      cone.rotation.x = -Math.PI / 2;
+    // A tight white-hot core out of the nozzle, opening into a roaring orange gout: three nested cones (point at
+    // the nozzle), then ragged billows of fire along it that the cockpit tumbles every frame so it never sits still.
+    const fire = (col, op) => new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+    for (const [len, r, col, op] of [[11, 1.5, '#ff4a0c', 0.4], [8, 0.85, '#ff9a2a', 0.65], [4.2, 0.36, '#fff0c0', 0.9]]) {
+      const cone = LP.mesh(new THREE.ConeGeometry(r, len, 12, 1, true), fire(col, op), 0, 0, -len / 2);
+      cone.rotation.x = Math.PI / 2; // tip at the nozzle, mouth away from you
       jet.add(cone);
+    }
+    const lump = new THREE.IcosahedronGeometry(1, 1), lp = lump.attributes.position;
+    for (let i = 0; i < lp.count; i++) { const x = lp.getX(i), y = lp.getY(i), z = lp.getZ(i), k = 1 + 0.22 * Math.sin(x * 5.1 + 1) * Math.sin(y * 4.3 + 2) + 0.14 * Math.sin(z * 7.7 + x * 3); lp.setXYZ(i, x * k, y * k, z * k); }
+    for (const [z, r, col, op] of [[-3.2, 0.55, '#ffd27a', 0.55], [-5.6, 0.95, '#ff9a2a', 0.5], [-8.2, 1.4, '#ff6a14', 0.42], [-10.8, 1.8, '#e0400c', 0.3]]) {
+      const b = LP.mesh(lump, fire(col, op), 0, 0, z);
+      b.scale.setScalar(r); b.userData.billow = r;
+      jet.add(b);
     }
     jet.visible = false;
     g.add(jet);
@@ -3160,10 +3170,10 @@ const Models = {
     // Buckle on top of the wrist strap (top = away from the palm, across the arm).
     const up = new THREE.Vector3(...glove.top).projectOnPlane(dir).normalize();
     const bk = LP.rbox(0.2, 0.06, 0.26, 0.03, buckle, 0, 0, 0);
-    bk.position.set(...along(0.11)).addScaledVector(up, 0.41);
+    bk.position.set(...along(-0.15)).addScaledVector(up, 0.4);
     bk.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
     g.add(bk);
-    const cuffM = LP.limb([along(0.6), along(0.85), along(1.1)], [0.45, 0.5, 0.48], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1)); // rolled cuff
+    const cuffM = LP.limb([along(0.2), along(0.62), along(1.1)], [0.47, 0.53, 0.49], cuff, (t, a) => 1 + 0.05 * Math.sin(a * 5 + 1)); // rolled cuff, closing over the wrist
     g.add(cuffM);
     const sleeve = LP.limb([along(0.95), along(L * 0.45), along(L)], [0.46, 0.55, 0.62], suit,
       (t, a) => 1 + 0.045 * Math.sin(a * 3 + t * 9) + 0.03 * Math.sin(a * 7 - t * 14)); // sleeve with cloth folds
@@ -3337,8 +3347,11 @@ const Models = {
     for (const b of palm) { b.a = clear(b.a, b.ra * 0.85); b.b = clear(b.b, b.rb * 0.85); }
     // Gauntlet up the wrist with a raised strap.
     const dir = V(arm).normalize(), along = (d) => V(w).addScaledVector(dir, d).toArray();
-    bone(palm, along(-0.3), along(0.72), 0.37, 0.41); // a wrist a bit narrower than the palm, as wrists are
-    const strap = { a: along(0.02), b: along(0.2), ra: 0.405, rb: 0.405 };
+    // The glove stops at the wrist joint, in a round end centred on it. The forearm turns about that point to reach
+    // the elbow (the cockpit bends the arm), and its cuff closes over this ball whichever way it turns; a gauntlet
+    // running on up the arm would come out through the side of the sleeve.
+    bone(palm, along(-0.3), along(0.04), 0.37, 0.4); // a wrist a bit narrower than the palm, as wrists are
+    const strap = { a: along(-0.24), b: along(-0.06), ra: 0.4, rb: 0.4 };
     // The back of the hand and the wrist are flat plates, not tubes: squashed along the back-of-hand normal.
     const PFLAT = 0.72;
     for (const b of palm.concat([strap])) {
