@@ -2201,6 +2201,8 @@ const Models = {
     sc.add(steel, SDF.side([[-1.55, 0.0], [2.2, 0.0], [2.25, 0.55], [2.12, 0.72], [-1.42, 0.72], [-1.55, 0.58]], 0.56, 0.07), 0.05, 'slide');
     for (let k = 0; k < 6; k++) for (const sd of [-1, 1]) sc.cut(SDF.box([0.08, 0.5, 0.05], 0.015, [sd * 0.29, 0.36, 0.9 + k * 0.1]), 0.01, [steel]); // rear serrations
     sc.cut(SDF.box([0.12, 0.3, 0.75], 0.03, [0.27, 0.52, -0.2]), 0.02, [steel]); // ejection port
+    for (let k = 0; k < 4; k++) for (const sd of [-1, 1]) sc.cut(SDF.box([0.08, 0.5, 0.05], 0.015, [sd * 0.29, 0.36, -1.75 + k * 0.1]), 0.01, [steel]); // front serrations
+    sc.add(worn, SDF.cyl(0.15, 0.8, 'z', 0.03, [0.1, 0.5, -0.2]), 0.02); // the barrel hood, bright through the port
     sc.add(worn, SDF.box([0.1, 0.16, 0.18], 0.04, [0, 0.8, -1.95]), 0.03, 'slide'); // front sight
     for (const sd of [-1, 1]) sc.add(worn, SDF.box([0.14, 0.16, 0.18], 0.04, [sd * 0.13, 0.8, 1.3]), 0.03, 'slide'); // rear sight, notched
     sc.add(worn, SDF.cyl(0.17, 0.5, 'z', 0.04, [0, 0.42, -2.3]), 0.02, 'slide'); // barrel bushing
@@ -2208,6 +2210,8 @@ const Models = {
     // Frame: dust cover, trigger guard and the raked grip in one piece.
     sc.add(poly, SDF.side([[-1.35, 0.04], [1.95, 0.04], [1.95, -0.26], [1.55, -0.42], [-0.15, -0.42], [-1.35, -0.3]], 0.5, 0.08), 0.05);
     sc.add(poly, SDF.side([[-1.38, -0.2], [-0.12, -0.2], [-0.58, -2.0], [-1.84, -2.0]], 0.62, 0.15), 0.1); // grip
+    for (let k = 0; k < 3; k++) sc.cut(SDF.box([0.7, 0.1, 0.09], 0.02, [0, -0.3, -1.75 + k * 0.24]), 0.01, [poly]); // accessory rail slots under the dust cover
+    for (const sd of [-1, 1]) sc.add(worn, SDF.box([0.06, 0.1, 0.42], 0.02, [sd * 0.27, -0.06, 0.25]), 0.02); // takedown lever / safety
     sc.add(poly, SDF.path([[0, -0.38, -0.95], [0, -0.85, -0.82], [0, -0.92, -0.35], [0, -0.62, 0.12]], 0.07), 0.04); // trigger guard
     sc.add(worn, SDF.path([[0, -0.36, -0.42], [0, -0.58, -0.38], [0, -0.7, -0.24]], 0.06), 0.03); // trigger
     sc.add(worn, SDF.box([0.2, 0.28, 0.22], 0.06, [0, 0.42, 1.62], [0.4, 0, 0]), 0.04); // hammer
@@ -2238,12 +2242,21 @@ const Models = {
     const brass = LP.mat('#b8963a', { metalness: 0.8, roughness: 0.35 }), tank = LP.mat('#d8d2c0', { roughness: 0.6 }), red = LP.mat('#b0281e', { roughness: 0.5 }), hose = LP.mat('#121212', { roughness: 0.8 });
     const sc = new Sculpt('flamer', 0.035);
     const R = (pts) => chaikin(pts.concat([pts[0]]), 2, 0.22);
-    sc.add(steel, SDF.cyl(0.17, 6.0, 'z', 0.04, [0, 0.25, -2.0]), 0.04); // the wand
-    sc.add(brass, SDF.lathe([[0.17, -4.95], [0.25, -5.1], [0.21, -5.3], [0.12, -5.36]], [0, 0.25, 0]), 0.03); // nozzle
-    sc.cut(SDF.cyl(0.08, 0.3, 'z', 0.01, [0, 0.25, -5.36]), 0.01, [brass]);
-    sc.add(shield, SDF.cyl(0.36, 1.8, 'z', 0.05, [0, 0.25, -3.85]), 0.02); // heat shield
-    sc.cut(SDF.cyl(0.3, 2.0, 'z', 0.02, [0, 0.25, -3.85]), 0.01, [shield]);
-    for (let k = 0; k < 5; k++) for (const ax of ['x', 'y']) sc.cut(SDF.cyl(0.07, 0.9, ax, 0.01, [0, 0.25, -4.5 + k * 0.32]), 0.01, [shield]); // vent holes
+    sc.add(steel, SDF.cyl(0.2, 6.0, 'z', 0.04, [0, 0.25, -2.0]), 0.04); // the wand
+    for (const z of [-2.35, -1.3, -0.45]) sc.add(shield, SDF.cyl(0.25, 0.16, 'z', 0.03, [0, 0.25, z]), 0.02); // pipe collars along it
+    sc.add(brass, SDF.lathe([[0.2, -4.9], [0.3, -5.05], [0.34, -5.28], [0.27, -5.4], [0.14, -5.4]], [0, 0.25, 0]), 0.03); // nozzle: a flared bell
+    sc.cut(SDF.cyl(0.11, 0.4, 'z', 0.01, [0, 0.25, -5.36]), 0.01, [brass]);
+    sc.add(shield, SDF.cyl(0.42, 1.9, 'z', 0.05, [0, 0.25, -3.85]), 0.02); // heat shield
+    sc.cut(SDF.cyl(0.35, 2.1, 'z', 0.02, [0, 0.25, -3.85]), 0.01, [shield]);
+    for (let k = 0; k < 5; k++) for (const ax of ['x', 'y']) sc.cut(SDF.cyl(0.08, 1.0, ax, 0.01, [0, 0.25, -4.5 + k * 0.32]), 0.01, [shield]); // vent holes
+    for (const z of [-4.78, -2.92]) sc.add(steel, SDF.torus(0.42, 0.045, [0, 0.25, z]), 0.01); // the shield's rolled ends
+    sc.add(black, SDF.box([0.36, 0.3, 0.62], 0.08, [-0.3, 0.3, -0.75]), 0.06); // the igniter: a battery box strapped to the wand
+    sc.add(red, SDF.cyl(0.07, 0.1, 'x', 0.02, [-0.5, 0.33, -0.62]), 0.02); // its button
+    sc.add(hose, SDF.path([[-0.3, 0.14, -1.05], [-0.26, 0.0, -2.2], [-0.2, 0.0, -4.3], [0, 0.0, -4.85]], 0.03), 0.01); // its wire, forward to the pilot
+    sc.add(brass, SDF.cyl(0.19, 0.1, 'x', 0.02, [0.3, 0.3, 0.3]), 0.02); // pressure gauge on the valve body
+    sc.add(tank, SDF.cyl(0.15, 0.04, 'x', 0.01, [0.35, 0.3, 0.3]), 0.01); // its face
+    sc.add(red, SDF.path([[0.375, 0.3, 0.3], [0.375, 0.4, 0.24]], 0.015), 0.005); // its needle
+    sc.add(steel, SDF.path([[0, -0.1, 0.0], [0, -0.55, -0.1], [0, -0.75, 0.35], [0, -0.7, 0.62]], 0.04), 0.02); // lever guard
     sc.add(brass, SDF.cyl(0.05, 0.4, 'z', 0.02, [0, 0.02, -5.0]), 0.02); // pilot tube
     sc.add(black, SDF.cyl(0.2, 1.0, 'y', 0.08, [0, -0.42, -2.9]), 0.05); // front grip
     for (let k = 0; k < 3; k++) sc.cut(SDF.torus(0.2, 0.03, [0, -0.2 - k * 0.25, -2.9], [Math.PI / 2, 0, 0]), 0.01, [black]);
@@ -2260,7 +2273,9 @@ const Models = {
       sc.add(steel, SDF.torus(0.5, 0.04, [0, -0.8, z]), 0.01); // straps
       sc.add(steel, SDF.box([0.12, 0.44, 0.12], 0.04, [0, -0.12, z]), 0.04); // brackets up to the wand
     }
+    for (const z of [-2.12, 0.1]) sc.add(steel, SDF.torus(0.4, 0.035, [0, -0.8, z]), 0.01); // the tank's welded seams
     sc.add(brass, SDF.cyl(0.11, 0.2, 'z', 0.03, [0, -0.62, 0.38]), 0.03); // tank valve
+    sc.add(steel, SDF.path([[0, 0.45, -1.9], [0, 0.78, -1.75], [0, 0.78, -1.0], [0, 0.45, -0.85]], 0.055), 0.03); // carry handle
     sc.add(hose, SDF.path([[0, -0.62, 0.48], [-0.38, -0.4, 0.7], [-0.3, 0.12, 0.62], [0, 0.18, 0.62]], 0.07), 0.03); // hose to the valve body
     sc.build(g);
     const pilot = LP.mesh(new THREE.ConeGeometry(0.06, 0.22, 8), LP.glow('#5ab8ff', 2.2), 0, 0.02, -5.26);
@@ -2288,28 +2303,49 @@ const Models = {
     g.name = 'harpoon gun';
     const steel = LP.mat('#6a6e72', { metalness: 0.75, roughness: 0.4 }), rail = LP.mat('#2a2c2e', { metalness: 0.5, roughness: 0.55 }), black = LP.mat('#1a1a1a', { roughness: 0.7 });
     const band = LP.mat('#a8221a', { roughness: 0.6 }), reel = LP.mat('#d8a81a', { roughness: 0.5 }), rope = LP.mat('#b89a6a', { roughness: 1 }), pad = LP.mat('#3a2a1e', { roughness: 0.9 });
+    const wood = GUNTEX.mats().wood;
     const sc = new Sculpt('harpoon', 0.035);
     const R = (pts) => chaikin(pts.concat([pts[0]]), 2, 0.22);
     sc.add(rail, SDF.box([0.34, 0.3, 5.3], 0.08, [0, 0.12, -1.95]), 0.04); // rail
     sc.cut(SDF.box([0.12, 0.14, 5.6], 0.02, [0, 0.28, -1.95]), 0.01, [rail]); // groove
+    for (let k = 0; k < 7; k++) for (const sd of [-1, 1]) sc.cut(SDF.cyl(0.055, 0.1, 'x', 0.01, [sd * 0.17, 0.1, -3.9 + k * 0.42]), 0.01, [rail]); // lightening holes down the rail
     sc.add(rail, SDF.box([0.62, 0.5, 0.42], 0.12, [0, 0.2, -4.45]), 0.1); // muzzle block
-    // The bolt (hidden once it's fired): shaft, head and barbs, a notch at the tail.
+    for (const sd of [-1, 1]) {
+      sc.add(steel, SDF.cyl(0.11, 0.16, 'y', 0.03, [sd * 0.36, 0.34, -4.5]), 0.02); // the rollers the bands run over
+      sc.add(steel, SDF.box([0.07, 0.2, 0.07], 0.02, [sd * 0.13, 0.52, -0.55]), 0.02); // rear sight: a notch either side of the bolt
+    }
+    sc.add(rail, SDF.box([0.5, 0.58, 1.75], 0.12, [0, -0.02, -0.1]), 0.08); // receiver, round the trigger works
+    sc.cut(SDF.box([0.14, 0.2, 1.9], 0.02, [0, 0.3, -0.1]), 0.01, [rail]); // (the groove runs on through it)
+    for (const z of [-0.7, 0.45]) for (const sd of [-1, 1]) sc.add(steel, SDF.cyl(0.06, 0.06, 'x', 0.02, [sd * 0.25, -0.05, z]), 0.01); // its pins
+    sc.add(steel, SDF.box([0.1, 0.1, 0.34], 0.03, [0.28, 0.16, -0.1]), 0.03); // the sear's release catch
+    sc.add(wood, SDF.box([0.46, 0.4, 1.25], 0.14, [0, -0.14, -3.7]), 0.1); // wooden fore-end under the rail
+    for (let k = 0; k < 3; k++) sc.cut(SDF.cyl(0.14, 0.7, 'x', 0.02, [0, -0.4, -4.05 + k * 0.36]), 0.05, [wood]); // finger grooves
+    // The bolt (hidden once it's fired): shaft, a broad barbed head, a notch at the tail.
     sc.add(steel, SDF.cyl(0.07, 5.7, 'z', 0.02, [0, 0.36, -2.65]), 0.01, 'bolt');
-    sc.add(steel, SDF.cone([0, 0.36, -5.45], [0, 0.36, -6.12], 0.15, 0.01), 0.04, 'bolt');
-    for (const sd of [-1, 1]) sc.add(steel, SDF.path([[0, 0.36, -5.6], [sd * 0.2, 0.36, -5.35], [sd * 0.24, 0.36, -5.25]], 0.035), 0.02, 'bolt');
+    sc.add(steel, SDF.cone([0, 0.36, -5.4], [0, 0.36, -6.12], 0.19, 0.01), 0.04, 'bolt');
+    for (const sd of [-1, 1]) sc.add(steel, SDF.path([[0, 0.36, -5.62], [sd * 0.24, 0.36, -5.3], [sd * 0.3, 0.36, -5.12]], 0.04), 0.02, 'bolt');
+    sc.add(steel, SDF.cyl(0.1, 0.14, 'z', 0.02, [0, 0.36, -5.3]), 0.02, 'bolt'); // the head's collar
     // Bands from the muzzle block back to the wishbone hooked in the shaft's notch.
-    for (const sd of [-1, 1]) sc.add(band, SDF.path([[sd * 0.3, 0.32, -4.5], [sd * 0.34, 0.42, -3.0], [sd * 0.14, 0.48, -1.35]], 0.075), 0.03);
+    for (const sd of [-1, 1]) sc.add(band, SDF.path([[sd * 0.36, 0.34, -4.5], [sd * 0.34, 0.42, -3.0], [sd * 0.14, 0.48, -1.35]], 0.075), 0.03);
     sc.add(steel, SDF.path([[-0.14, 0.48, -1.35], [0, 0.56, -1.3], [0.14, 0.48, -1.35]], 0.035), 0.02); // wishbone
-    // Reel underneath with the line coiled on it, the line running up to the bolt's tail.
+    // Reel underneath: two holed flanges on a hub, the line wound between them, a crank; the line runs up to the bolt.
     sc.add(steel, SDF.box([0.12, 0.34, 0.3], 0.04, [0, -0.12, -2.6]), 0.05);
-    sc.add(reel, SDF.cyl(0.38, 0.42, 'x', 0.06, [0, -0.42, -2.6]), 0.05);
-    sc.cut(SDF.cyl(0.3, 0.3, 'x', 0.02, [0, -0.42, -2.6]), 0.02, [reel]);
-    sc.add(rope, SDF.torus(0.3, 0.07, [0, -0.42, -2.6], [0, Math.PI / 2, 0]), 0.02);
-    sc.add(rope, SDF.path([[0, -0.08, -2.55], [0, 0.18, -1.2], [0, 0.36, 0.25]], 0.025), 0.01);
+    for (const sd of [-1, 1]) sc.add(reel, SDF.cyl(0.42, 0.07, 'x', 0.02, [sd * 0.2, -0.42, -2.6]), 0.01);
+    for (let k = 0; k < 6; k++) { const a = (k / 6) * TAU; sc.cut(SDF.cyl(0.075, 0.7, 'x', 0.01, [0, -0.42 + Math.sin(a) * 0.27, -2.6 + Math.cos(a) * 0.27]), 0.01, [reel]); }
+    sc.add(rope, SDF.cyl(0.32, 0.32, 'x', 0.05, [0, -0.42, -2.6]), 0.02); // the line on the drum
+    for (const x of [-0.08, 0.08]) sc.add(rope, SDF.torus(0.33, 0.035, [x, -0.42, -2.6], [0, Math.PI / 2, 0]), 0.01); // (its turns)
+    sc.add(steel, SDF.cyl(0.09, 0.62, 'x', 0.02, [0, -0.42, -2.6]), 0.02); // hub
+    sc.add(steel, SDF.path([[0.3, -0.42, -2.6], [0.33, -0.42, -2.28]], 0.04), 0.02); // crank
+    sc.add(black, SDF.cyl(0.07, 0.24, 'x', 0.03, [0.46, -0.42, -2.28]), 0.02); // its knob
+    sc.add(steel, SDF.torus(0.09, 0.025, [0, 0.02, -1.55], [0, 0, 0]), 0.01); // line guide
+    sc.add(rope, SDF.path([[0, -0.08, -2.55], [0, 0.02, -1.55], [0, 0.2, -1.0], [0, 0.36, 0.25]], 0.025), 0.01);
     sc.add(black, SDF.side(R([[-0.32, 0.0], [-0.86, 0.0], [-1.06, -1.35], [-0.86, -1.5], [-0.5, -1.4], [-0.28, -0.2]]), 0.5, 0.2), 0.15); // pistol grip
     sc.add(steel, SDF.path([[0, -0.08, 0.25], [0, -0.38, 0.3], [0, -0.55, 0.45]], 0.06), 0.03); // trigger
-    sc.add(pad, SDF.box([0.42, 0.62, 1.4], 0.2, [0, 0.0, 1.55]), 0.2); // padded stock
-    sc.add(black, SDF.box([0.46, 0.7, 0.18], 0.06, [0, 0.0, 2.25]), 0.05); // butt pad
+    sc.add(steel, SDF.path([[0, -0.3, -0.3], [0, -0.74, -0.2], [0, -0.8, 0.5], [0, -0.62, 0.72]], 0.04), 0.02); // trigger guard
+    sc.add(steel, SDF.cyl(0.13, 0.5, 'z', 0.04, [0, 0.02, 0.85]), 0.05); // the stock's neck
+    sc.add(pad, SDF.side(R([[-0.9, 0.3], [-2.2, 0.36], [-2.2, -0.42], [-1.7, -0.36], [-0.9, -0.14]]), 0.44, 0.16), 0.12); // padded stock, deeper at the butt
+    for (const z of [1.25, 1.6, 1.95]) sc.add(black, SDF.box([0.47, 0.03, 0.05], 0.01, [0, 0.33, z]), 0.01); // its stitching
+    sc.add(black, SDF.box([0.48, 0.86, 0.18], 0.06, [0, -0.03, 2.27]), 0.05); // butt pad
     const sets = sc.build(g);
     g.userData.bolt = LP.pivot(g, sets.bolt, [0, 0.36, -2.65]);
     const barrel = new THREE.Object3D(); barrel.position.set(0, 0.36, -6.12); g.add(barrel); g.userData.barrel = barrel;

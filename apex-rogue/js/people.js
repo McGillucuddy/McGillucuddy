@@ -570,7 +570,11 @@ Object.assign(People, {
       if (o.role === 'gunner') P.slab(torso, [2.8, 0.5, 0.4], M.dark, [3.3, 3.6, 0.2]); // their gun
     }
     // Legs.
-    const LEG = stand ? [[0.05, -0.1], [0.35, -3.8], [0.05, -7.5]] : o.leg ? [[0.3, 0.55], o.leg.knee, o.leg.ankle] : [[0.3, 0.55], [4.1, 0.9], [4.7, -3.3]];
+    // Standing legs are a little short of lifelike (a stockier, less lanky figure). The body comes down to meet them,
+    // so the feet stay where every scene already stands its people.
+    const drop = stand ? 0.9 : 0;
+    torso.position.y = -drop;
+    const LEG = stand ? [[0.05, -0.1 - drop], [0.33, -3.4 - drop], [0.05, -6.6 - drop]] : o.leg ? [[0.3, 0.55], o.leg.knee, o.leg.ankle] : [[0.3, 0.55], [4.1, 0.9], [4.7, -3.3]];
     const strides = [];
     for (const s of [-1, 1]) {
       const sp = walk ? 0.02 : stand ? 0.15 : 0;
