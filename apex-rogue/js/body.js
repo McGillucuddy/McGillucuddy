@@ -120,7 +120,11 @@ const Body = {
       const cap = part('toe.' + S, new THREE.SphereGeometry(0.062 * K, 8, 6), paint.boot || '#22180f', [ft.t[0] + 0.035, -0.935, ft.t[2] + (ft.t[2] - ft.h[2]) * 0.2]); cap.scale.set(1.5, 0.8, 1.05); // toe cap, over the toes
     }
     if (!vest) part('hips', new THREE.BoxGeometry(0.014 * K, 0.05 * K, 0.06 * K), '#d9b24a', [frontAt(0.125) + 0.045, 0.125, 0], { metalness: 0.4, roughness: 0.4 });
-    else { const kn = part('hips', new THREE.SphereGeometry(0.045 * K, 7, 5), paint.suit, [frontAt(0.08) + 0.07, 0.08, 0.03]); kn.scale.set(0.8, 0.9, 1.2); } // the knot of the tied sleeves
+    else { // the jumpsuit's sleeves tied in front: a small flat knot with the two sleeve ends hanging from it
+      const fx = frontAt(0.08) + 0.066;
+      part('hips', new THREE.BoxGeometry(0.022 * K, 0.04 * K, 0.055 * K), paint.suit, [fx, 0.085, 0]);
+      for (const sd of [-1, 1]) { const e = part('hips', new THREE.BoxGeometry(0.014 * K, 0.15 * K, 0.042 * K), paint.suit, [fx - 0.004, 0.0, sd * 0.03]); e.rotation.set(sd * 0.22, 0, -0.1); }
+    }
     return { mesh, bones: by, root: bones[0], data: D, index: Object.fromEntries(D.bones.map((b, i) => [b.n, i])) };
   },
 
