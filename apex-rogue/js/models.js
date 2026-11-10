@@ -2098,23 +2098,29 @@ const Models = {
   // whose breech block humps up behind it; the raked grip with a beavertail and finger swell, inset checkered
   // panels and a flared butt; a big moulded trigger guard; a small spur hammer at the back.
   flareGun() {
-    // An Orion-style 12-gauge flare pistol: bright orange moulded frame with an integral trigger guard, a short fat
-    // barrel that tips down on a hinge at the front of the frame, a black spur hammer and raised checkered grips.
+    // An old service signal pistol: a blued steel frame with an integral trigger guard, a short fat barrel belled at the
+    // muzzle that tips down on a brass hinge, a hazard-orange band round it, a spur hammer and checkered walnut grips.
     const g = new THREE.Group();
     g.name = 'flare gun';
-    const orange = LP.mat('#ec6a1c', { roughness: 0.45 });
-    const frameMat = LP.mat('#e8641a', { roughness: 0.5 });
-    const grip = LP.mat('#1a1a1a', { map: GUNTEX.get('checker'), roughness: 0.85 });
-    const black = LP.mat('#141414', { roughness: 0.45 });
-    const steel = LP.mat('#7a7c7e', { map: GUNTEX.get('steel'), metalness: 0.7, roughness: 0.35 });
+    const orange = LP.mat('#3f434a', { map: GUNTEX.get('steel'), metalness: 0.7, roughness: 0.38 }); // the barrel (blued steel; the name is from its plastic days)
+    const band = LP.mat('#ec6a1c', { roughness: 0.55 }); // the painted hazard band
+    const frameMat = LP.mat('#34373d', { map: GUNTEX.get('steel'), metalness: 0.65, roughness: 0.45 });
+    const grip = LP.mat('#7a4c28', { map: GUNTEX.get('checker'), roughness: 0.7 });
+    const black = LP.mat('#1c1d20', { metalness: 0.5, roughness: 0.4 });
+    const steel = LP.mat('#8a8d92', { map: GUNTEX.get('steel'), metalness: 0.8, roughness: 0.3 });
+    const brass = LP.mat('#b8963a', { metalness: 0.8, roughness: 0.35 });
     const sc = new Sculpt('flare', 0.03);
     const R = (pts, n) => chaikin(pts.concat([pts[0]]), n || 2, 0.22); // round every corner of a side outline
     const long = (pts) => pts.map(([u, v]) => [u, v < -0.4 ? -0.4 + (v + 0.4) * 1.25 : v]); // a grip long enough for a hand
     // Barrel (tips open): a plain tube with a collar where it meets the frame, a lip at the muzzle, the bore open,
     // and the hinge knuckle underneath at the front of the frame.
-    sc.add(orange, SDF.lathe([[0.36, -1.18], [0.45, -1.2], [0.45, -1.46], [0.42, -1.52], [0.42, -3.44], [0.45, -3.49], [0.45, -3.57], [0.4, -3.6]], [0, 0.3, 0]), 0.04, 'barrel');
+    sc.add(orange, SDF.lathe([[0.36, -1.18], [0.47, -1.2], [0.47, -1.5], [0.42, -1.56], [0.42, -3.18], [0.45, -3.3], [0.52, -3.5], [0.52, -3.58], [0.44, -3.6]], [0, 0.3, 0]), 0.04, 'barrel'); // belled at the muzzle
+    for (const z of [-2.02, -2.98]) sc.add(steel, SDF.cyl(0.455, 0.1, 'z', 0.03, [0, 0.3, z]), 0.015, 'barrel'); // reinforcing rings
+    sc.add(band, SDF.cyl(0.432, 0.78, 'z', 0.02, [0, 0.3, -2.5]), 0.01, 'barrel'); // the hazard band between them
+    sc.add(orange, SDF.box([0.12, 0.08, 1.9], 0.03, [0, 0.74, -2.35]), 0.03, 'barrel'); // sighting rib
+    sc.add(brass, SDF.ellipsoid([0.07, 0.08, 0.07], [0, 0.86, -3.42]), 0.02, 'barrel'); // bead
     sc.add(orange, SDF.box([0.34, 0.24, 0.34], 0.1, [0, -0.13, -1.56]), 0.12, 'barrel');
-    sc.cut(SDF.cyl(0.32, 2.7, 'z', 0.03, [0, 0.3, -2.4]), 0.03, [orange]);
+    sc.cut(SDF.cyl(0.32, 2.7, 'z', 0.03, [0, 0.3, -2.4]), 0.03, [orange, band, steel]);
     // Frame: the breech housing round the back of the barrel, the lug under it, and the raked grip, one moulding.
     const frame = R(long([[1.21, 0.85], [0.22, 0.9], [-0.12, 0.85], [-0.35, 0.62], [-0.46, 0.25], [-0.82, -0.42], [-1.29, -1.15], [-1.76, -1.59],
       [-1.83, -1.83], [-1.68, -1.96], [-0.56, -1.98], [-0.43, -1.83], [-0.2, -1.2], [0.04, -0.68], [0.14, -0.42], [0.48, -0.37],
@@ -2123,6 +2129,12 @@ const Models = {
     const housing = R([[1.21, 0.85], [0.22, 0.9], [-0.12, 0.85], [-0.35, 0.62], [-0.46, 0.25], [-0.5, -0.1], [0.3, -0.3], [1.21, -0.3]]);
     sc.add(frameMat, SDF.side(housing, 1.0, 0.28), 0.15);
     sc.cut(SDF.cyl(0.34, 0.12, 'z', 0.02, [0, 0.3, -1.22]), 0.02, [frameMat]); // the seat the barrel closes into
+    for (const sd of [-1, 1]) { // a side plate on the housing, held by two screws
+      sc.add(black, SDF.box([0.04, 0.62, 0.95], 0.1, [sd * 0.5, 0.36, -0.42]), 0.01);
+      for (const z of [-0.78, -0.08]) sc.add(steel, SDF.cyl(0.06, 0.05, 'x', 0.02, [sd * 0.53, 0.36, z]), 0.01);
+    }
+    sc.add(brass, SDF.path([[-0.52, 0.02, -1.0], [-0.56, 0.0, -0.55], [-0.6, -0.12, -0.3]], 0.05), 0.02); // the barrel latch, a thumb lever on the left
+    sc.add(brass, SDF.cyl(0.09, 0.08, 'x', 0.02, [-0.53, 0.02, -1.0]), 0.02);
     // Trigger guard moulded into the frame, from the lug round under the trigger to the front of the grip.
     sc.add(frameMat, SDF.path([[1.49, -0.27], [1.42, -0.66], [1.18, -0.98], [0.78, -1.1], [0.35, -1.0], [0.12, -0.72], [0.06, -0.5]].map(([u, v]) => [0, v, -u]), 0.11), 0.16);
     // Raised checkered panels either side of the grip, with a screw through each.
@@ -2130,7 +2142,7 @@ const Models = {
     sc.add(grip, SDF.side(panel, 0.88, 0.05), 0.01);
     sc.uv(grip, 1.2);
     // Trigger (orange, curved), spur hammer (black) rising from the back of the housing.
-    sc.add(frameMat, SDF.path([[0.5, -0.36], [0.57, -0.6], [0.53, -0.8], [0.42, -0.88]].map(([u, v]) => [0, v, -u]), 0.08), 0.04);
+    sc.add(steel, SDF.path([[0.5, -0.36], [0.57, -0.6], [0.53, -0.8], [0.42, -0.88]].map(([u, v]) => [0, v, -u]), 0.07), 0.04);
     sc.add(black, SDF.box([0.22, 0.32, 0.44], 0.09, [0, 0.8, -0.12]), 0.05);
     sc.add(black, SDF.path([[0.3, 0.82], [0.06, 1.01], [-0.2, 1.14], [-0.4, 1.06]].map(([u, v]) => [0, v, -u]), 0.085), 0.08);
     for (let k = 0; k < 3; k++) sc.cut(SDF.box([0.3, 0.025, 0.06], 0.01, [0, 1.14 + 0.02 * k, 0.04 + 0.12 * k], [0.3, 0, 0]), 0.01, [black]); // thumb grooves
@@ -2146,7 +2158,7 @@ const Models = {
     g.add(shell);
     g.userData.shell = shell;
     for (const sd of [-1, 1]) g.add(GUNTEX.screw(steel, 0.45 * sd, -1.2, 0.85, 0.07));
-    g.add(LP.cyl(0.08, 0.08, 1.04, 16, steel, 0, -0.16, -1.56).rotateZ(Math.PI / 2)); // hinge pin
+    g.add(LP.cyl(0.1, 0.1, 1.04, 16, brass, 0, -0.16, -1.56).rotateZ(Math.PI / 2)); // hinge pin
     g.add(LP.mesh(new THREE.TorusGeometry(0.18, 0.045, 8, 16), steel, 0, -2.5, 1.2).rotateY(Math.PI / 2)); // lanyard ring
     const barrel = new THREE.Object3D(); // muzzle marker
     barrel.position.set(0, 0.3, -3.6);
