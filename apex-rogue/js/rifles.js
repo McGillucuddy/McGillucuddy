@@ -10,7 +10,7 @@ Object.assign(Models, {
   carbine() {
     const g = new THREE.Group();
     g.name = 'carbine';
-    const M = GUNTEX.mats({ steel: '#26282b', poly: '#3b3e30' }), steel = M.steel, worn = M.worn, poly = M.poly;
+    const M = GUNTEX.mats({ steel: '#414448', poly: '#3b3e30' }), steel = M.steel, worn = M.worn, poly = M.poly;
     const hazard = LP.mat('#c9a43a', { roughness: 0.6 }), rubber = LP.mat('#151515', { roughness: 0.9 });
     const sc = new Sculpt('carbine', 0.04);
     // Upper receiver and its flat-top rail, ejection port, forward assist and charging handle.
@@ -68,7 +68,7 @@ Object.assign(Models, {
   libertyRifle() {
     const g = new THREE.Group();
     g.name = 'liberty';
-    const M = GUNTEX.mats({ steel: '#3a3c3a', worn: '#5a5c58', wood: '#7a4a26' }), steel = M.steel, worn = M.worn, wood = M.wood;
+    const M = GUNTEX.mats({ steel: '#5e615e', worn: '#5a5c58', wood: '#7a4a26' }), steel = M.steel, worn = M.worn, wood = M.wood;
     const brass = LP.mat('#c9a443', { metalness: 0.85, roughness: 0.3 });
     const sc = new Sculpt('liberty', 0.045);
     // Receiver, open on top where the clip sits; the operating rod down the right side.
@@ -117,7 +117,7 @@ Object.assign(Models, {
   typewriter() {
     const g = new THREE.Group();
     g.name = 'typewriter';
-    const M = GUNTEX.mats({ steel: '#1f2124', worn: '#4b4e52', wood: '#5a3018' }), steel = M.steel, worn = M.worn, wood = M.wood;
+    const M = GUNTEX.mats({ steel: '#36393e', worn: '#4b4e52', wood: '#5a3018' }), steel = M.steel, worn = M.worn, wood = M.wood;
     const sc = new Sculpt('typewriter', 0.04);
     sc.add(steel, SDF.side([[2.3, -0.3], [-2.7, -0.3], [-2.7, 0.4], [-2.3, 0.55], [2.3, 0.55]], 0.78, 0.14), 0.05);
     sc.cut(SDF.box([0.12, 0.2, 2.0], 0.04, [0, 0.56, 0.3]), 0.02, [steel]);
@@ -173,7 +173,7 @@ Object.assign(Models, {
   grinder() {
     const g = new THREE.Group();
     g.name = 'lmg';
-    const M = GUNTEX.mats({ steel: '#232527', poly: '#2c2e2a' }), steel = M.steel, worn = M.worn, poly = M.poly;
+    const M = GUNTEX.mats({ steel: '#3c3f42', poly: '#2c2e2a' }), steel = M.steel, worn = M.worn, poly = M.poly;
     const olive = LP.mat('#4a4f2c', { roughness: 0.95 }), brass = LP.mat('#c9a443', { metalness: 0.85, roughness: 0.3 }), copper = LP.mat('#b06a3a', { metalness: 0.8, roughness: 0.35 });
     const rubber = LP.mat('#151515', { roughness: 0.9 });
     const sc = new Sculpt('lmg', 0.045);
@@ -246,7 +246,7 @@ Object.assign(Models, {
   panGun() {
     const g = new THREE.Group();
     g.name = 'pangun';
-    const M = GUNTEX.mats({ steel: '#2a2b28', worn: '#585a55', wood: '#6a3c1e' }), steel = M.steel, worn = M.worn, wood = M.wood;
+    const M = GUNTEX.mats({ steel: '#464844', worn: '#585a55', wood: '#6a3c1e' }), steel = M.steel, worn = M.worn, wood = M.wood;
     const sc = new Sculpt('pangun', 0.045);
     sc.add(steel, SDF.side([[1.7, -0.45], [-2.5, -0.45], [-2.5, 0.45], [1.7, 0.45]], 0.82, 0.16), 0.05);
     sc.add(steel, SDF.lathe([[0.42, -1.6], [0.56, -1.75], [0.56, -6.9], [0.5, -7.0], [0.3, -7.9], [0.22, -8.1]], [0, 0.05, 0]), 0.04);

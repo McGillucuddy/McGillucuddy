@@ -303,21 +303,34 @@ const GUNTEX = {
     if (kind === 'wood') {
       // Long grain running along the stock, a few darker streaks and a knot.
       for (let y = 0; y < S; y++) {
-        const v = 0.86 + 0.08 * Math.sin(y * 0.55 + Math.sin(y * 0.09) * 4) + (rng() - 0.5) * 0.04;
+        const v = 0.82 + 0.12 * Math.sin(y * 0.55 + Math.sin(y * 0.09) * 4) + (rng() - 0.5) * 0.05;
         const k = Math.round(v * 255); g.fillStyle = `rgb(${k},${Math.round(k * 0.96)},${Math.round(k * 0.9)})`; g.fillRect(0, y, S, 1);
       }
       for (let k = 0; k < 14; k++) {
-        g.strokeStyle = `rgba(60,30,10,${0.12 + rng() * 0.15})`; g.lineWidth = 1;
+        g.strokeStyle = `rgba(60,30,10,${0.16 + rng() * 0.24})`; g.lineWidth = 1;
         let y = rng() * S; g.beginPath(); g.moveTo(0, y);
         for (let x = 0; x <= S; x += 16) { y += (rng() - 0.5) * 3; g.lineTo(x, y); }
         g.stroke();
       }
       g.strokeStyle = 'rgba(60,30,10,0.3)';
       for (let r = 2; r < 9; r += 2) { g.beginPath(); g.ellipse(80, 60, r * 2.2, r * 0.8, 0, 0, TAU); g.stroke(); }
+      // Years of handling: dark dents and nicks, and patches rubbed pale where hands and straps have been.
+      for (let k = 0; k < 18; k++) { g.fillStyle = `rgba(30,14,4,${0.25 + rng() * 0.3})`; g.beginPath(); g.ellipse(rng() * S, rng() * S, 1 + rng() * 2.5, 0.6 + rng(), rng() * 3, 0, TAU); g.fill(); }
+      for (let k = 0; k < 5; k++) { const x = rng() * S, y = rng() * S, r = 10 + rng() * 14, rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, 'rgba(255,240,215,0.22)'); rg.addColorStop(1, 'rgba(255,240,215,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }
     } else if (kind === 'steel') {
       // Blued / parkerised steel: fine speckle and faint machining lines.
-      for (let k = 0; k < 2600; k++) { const v = 215 + Math.floor(rng() * 40); g.fillStyle = `rgb(${v},${v},${v + 3})`; g.fillRect(rng() * S, rng() * S, 1, 1); }
-      g.fillStyle = 'rgba(255,255,255,0.25)'; for (let y = 0; y < S; y += 3) g.fillRect(0, y, S, 1);
+      g.fillStyle = '#d4d4d8'; g.fillRect(0, 0, S, S);
+      for (let k = 0; k < 2600; k++) { const v = 190 + Math.floor(rng() * 50); g.fillStyle = `rgb(${v},${v},${v + 3})`; g.fillRect(rng() * S, rng() * S, 1, 1); }
+      g.fillStyle = 'rgba(255,255,255,0.2)'; for (let y = 0; y < S; y += 3) g.fillRect(0, y, S, 1);
+      // A worked gun: the finish rubbed through to bright metal in patches, darker where oil and carbon have built
+      // up, and scored with fine scratches (most of them along its length).
+      for (let k = 0; k < 7; k++) { const x = rng() * S, y = rng() * S, r = 8 + rng() * 16, rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, 'rgba(255,255,255,0.4)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }
+      for (let k = 0; k < 8; k++) { const x = rng() * S, y = rng() * S, r = 6 + rng() * 14, rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, 'rgba(0,0,0,0.2)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = rg; g.fillRect(x - r, y - r, r * 2, r * 2); }
+      for (let k = 0; k < 34; k++) {
+        const x = rng() * S, y = rng() * S, a = rng() < 0.7 ? (rng() - 0.5) * 0.3 : rng() * Math.PI, len = 4 + rng() * 22;
+        g.strokeStyle = `rgba(255,255,255,${0.35 + rng() * 0.5})`; g.lineWidth = rng() < 0.2 ? 1.5 : 0.8;
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); g.stroke();
+      }
     } else if (kind === 'polymer') {
       // Stippled grip texture.
       g.fillStyle = '#e8e8e8'; g.fillRect(0, 0, S, S);
@@ -338,7 +351,7 @@ const GUNTEX = {
   },
   // Gun materials: steel, worn steel edges, polymer, wood, checkered wood.
   mats(colors) {
-    const c = Object.assign({ steel: '#3d4046', worn: '#6b6f76', poly: '#2a2b2f', wood: '#7a4c28' }, colors);
+    const c = Object.assign({ steel: '#4b4f56', worn: '#7a7e86', poly: '#2a2b2f', wood: '#7a4c28' }, colors);
     return {
       steel: LP.mat(c.steel, { map: this.get('steel'), metalness: 0.65, roughness: 0.42 }),
       worn: LP.mat(c.worn, { map: this.get('steel'), metalness: 0.8, roughness: 0.3 }),
