@@ -1181,6 +1181,23 @@ class CockpitView {
       for (let i = 0; i < n; i++) { const o = make(); o.visible = false; scene.add(o); arr.push(o); }
       return arr;
     };
+    // A lumpy ball for smoke and fire: an icosphere with its surface pushed in and out, shaded darker underneath (baked
+    // into vertex colours), so a puff reads as a billow with some volume and not as a flat disc.
+    const billow = (detail, rough) => {
+      const geo = new THREE.IcosahedronGeometry(1, detail), pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+        const n = Math.sin(x * 4.1 + 1.3) * Math.sin(y * 3.7 + 0.4) * Math.sin(z * 4.5 + 2.2) + 0.5 * Math.sin(x * 9.2 + y * 7.1 + z * 8.3);
+        const r = 1 + n * rough, sh = 0.62 + 0.38 * (y * 0.5 + 0.5) + n * 0.08;
+        pos.setXYZ(i, x * r, y * r, z * r);
+        col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = Math.min(1, sh);
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      return geo;
+    };
+    const puffGeo = billow(1, 0.2), fireGeo = billow(2, 0.14);
+    this.boomLight = new THREE.PointLight('#ffb060', 0, 320, 1.3); // the flash an explosion throws on everything round it
+    this.scene.add(this.boomLight);
     this.pools = {
       bullet: pool(80, () => new THREE.Mesh(new THREE.BoxGeometry(16, 0.5, 0.5), new THREE.MeshBasicMaterial({ color: '#ffe680' }))),
       rocket: pool(24, () => Models.rocket()),
@@ -1197,8 +1214,16 @@ class CockpitView {
       flame: pool(110, () => new THREE.Mesh(new THREE.SphereGeometry(1, 8, 6), new THREE.MeshBasicMaterial({ color: '#ff9a2a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }))),
       harpoon: pool(6, () => Models.harpoonBolt()),
       cloud: pool(48, () => new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshLambertMaterial({ color: '#8f8f8a', transparent: true, opacity: 0.8, depthWrite: false }))),
-      boom: pool(24, () => new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: '#ffb13b', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))),
-      puff: pool(260, () => new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), new THREE.MeshBasicMaterial({ color: '#cccccc', transparent: true, opacity: 0.5, depthWrite: false }))),
+      // An explosion: a ragged fireball that swells and reddens, a white-hot core that collapses, and a flash card.
+      boom: pool(24, () => {
+        const g = new THREE.Group(), add = (geo, col) => { const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: col, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); g.add(m); return m; };
+        const shell = add(fireGeo, '#ff8a2a'), core = add(new THREE.SphereGeometry(1, 12, 8), '#fff0c8');
+        const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: pick(Math.random, Cockpit3DTex.flash()), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        g.add(flash);
+        g.userData = { shell, core, flash };
+        return g;
+      }),
+      puff: pool(260, () => { const m = new THREE.Mesh(puffGeo, new THREE.MeshBasicMaterial({ color: '#cccccc', vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false })); m.rotation.y = Math.random() * TAU; return m; }),
     };
     this.puffs = [];
     this.sparkPool = pool(90, () => new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 2.4), new THREE.MeshBasicMaterial({ color: '#ffd27a' })));
@@ -2480,18 +2505,38 @@ class CockpitView {
       const f = o.userData.fuse;
       if (f) { const left = g.fuse - g.t; f.visible = !g.inCar; f.material.color.set(left < 0.5 && Math.floor(t * 20) % 2 ? '#ff5a2a' : '#ffd27a'); f.scale.setScalar(0.6 + Math.random() * 0.7); }
     });
+    this.boomLight.intensity *= Math.exp(-dt * 9);
     show(this.pools.boom, c.explosions, (o, e) => {
-      const k = e.t / 0.5;
+      const k = Math.min(1, e.t / 0.5), U = o.userData, ring = e.kind === 'emp' || e.kind === 'flare';
       o.position.set(e.x, 8, e.y);
-      if (e.kind === 'emp' || e.kind === 'flare') {
-        o.scale.set(e.r * k, 6, e.r * k);
-        o.material.opacity = 0.6 * (1 - k);
-        o.material.color.set(e.kind === 'flare' ? '#ff7a2a' : '#7fd8ff');
+      U.core.visible = U.flash.visible = !ring;
+      if (ring) { // a pulse spreading flat over the road
+        U.shell.scale.set(e.r * k, 6, e.r * k);
+        U.shell.material.opacity = 0.6 * (1 - k);
+        U.shell.material.color.set(e.kind === 'flare' ? '#ff7a2a' : '#7fd8ff');
         return;
       }
-      o.scale.setScalar(e.r * (0.4 + 0.7 * k));
-      o.material.opacity = 0.85 * (1 - k);
-      o.material.color.setHSL(0.08 - 0.06 * k, 1, 0.55);
+      if (!e.fx) { // its first frame: turn the fireball some random way, throw its light, and leave smoke behind
+        e.fx = true;
+        o.rotation.set(Math.random() * TAU, Math.random() * TAU, 0);
+        U.flash.material.rotation = Math.random() * TAU;
+        if (e.r >= 20) {
+          this.boomLight.position.set(e.x, 14, e.y);
+          this.boomLight.intensity = Math.max(this.boomLight.intensity, e.r * 9);
+          for (let n = e.r >= 40 ? 7 : 4; n > 0 && this.puffs.length < this.pools.puff.length; n--) {
+            const a = Math.random() * TAU, d = Math.random() * e.r * 0.45;
+            this.puffs.push({ x: e.x + Math.cos(a) * d, y: e.y + Math.sin(a) * d, t: 0, blast: true, life: 1.3 + Math.random() * 0.9, s: e.r * (0.14 + Math.random() * 0.1), dx: Math.cos(a) * 9, dy: Math.sin(a) * 9, up: 10 + Math.random() * 14 });
+          }
+        }
+      }
+      const ease = 1 - (1 - k) * (1 - k);
+      U.shell.scale.setScalar(e.r * (0.35 + 0.75 * ease));
+      U.shell.material.opacity = 0.8 * (1 - k);
+      U.shell.material.color.setHSL(0.09 - 0.07 * k, 1, 0.55 - 0.22 * k);
+      U.core.scale.setScalar(Math.max(0.01, e.r * 0.5 * (1 - k * 2.4)));
+      U.core.material.opacity = 0.95;
+      U.flash.scale.setScalar(e.r * 2.4 * (0.6 + k));
+      U.flash.material.opacity = Math.max(0, 1 - k * 3.5);
     });
     show(this.pools.flame, c.projectiles.filter((q) => q.type === 'flame'), (o, q) => {
       const k = q.t / q.life;
@@ -2547,6 +2592,14 @@ class CockpitView {
     for (const pf of this.puffs) pf.t += dt;
     this.puffs = this.puffs.filter((pf) => pf.t < (pf.life || 0.8));
     show(this.pools.puff, this.puffs, (o, pf) => {
+      if (pf.blast) { // what an explosion leaves: a billow that starts as fire and rolls up into black smoke
+        const k = pf.t / pf.life;
+        o.position.set(pf.x + pf.dx * pf.t, 8 + pf.up * pf.t, pf.y + pf.dy * pf.t);
+        o.scale.setScalar(pf.s * (1 + k * 2.4));
+        o.material.color.set(k < 0.1 ? '#ffb040' : k < 0.22 ? '#a8481a' : '#1c1816');
+        o.material.opacity = 0.75 * (1 - k * k);
+        return;
+      }
       if (pf.column) { // wreck smoke: rises high, spreads, drifts
         const k = pf.t / pf.life;
         o.position.set(pf.x + pf.t * 6, 10 + pf.t * 34, pf.y + pf.t * 3);
