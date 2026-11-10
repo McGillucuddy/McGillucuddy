@@ -521,6 +521,7 @@ Object.assign(People, {
       stubble: P.polyMat(mix(L.skin, L.hair, 0.35), SMOOTH), ink: P.polyMat('#2a3a5a'),
     };
     M.seam = M.trim; M.lip = M.mouth;
+    if (o.mesh && typeof Body !== 'undefined') return Body.figure(o, L, M, skinC, suitC); // on the rigged body (js/body.js): a trial
     const walk = o.pose === 'walk', stand = o.pose === 'stand' || walk, vest = L.top === 'vest' && o.role !== 'trader';
     const top = vest ? M.vest : M.suit, bare = vest ? M.skin : M.suit, fore = vest || L.rolled ? M.skin : M.suit, gear = o.helmet ? 'helmet' : L.gear;
     const g = new THREE.Group(), torso = new THREE.Group(); g.add(torso);

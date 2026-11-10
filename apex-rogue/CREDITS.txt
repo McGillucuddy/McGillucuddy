@@ -17,3 +17,7 @@ Courier Prime, Copyright 2015 The Courier Prime Project Authors
 
 ENGINE
 three.js, MIT licence, Copyright 2010-2023 three.js authors (licenses/three.LICENSE)
+
+Character base mesh
+  "Human Basemeshes" from OpenGameArt.org, released CC0 (public domain).
+  https://opengameart.org/content/human-basemeshes
