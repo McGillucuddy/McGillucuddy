@@ -1196,8 +1196,8 @@ function profileY(pts, x) {
 }
 
 // Darken vertices near the ground: road grime and fake ambient occlusion baked into vertex colours.
-function bakeGrime(root, height, strength) {
-  const amt = 0.45 * (strength == null ? 1 : strength);
+function bakeGrime(root, height, strength, wheels) {
+  const amt = 0.6 * (strength == null ? 1 : strength);
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
   const v = new THREE.Vector3();
@@ -1210,8 +1210,14 @@ function bakeGrime(root, height, strength) {
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i).applyMatrix4(m);
       const t = clamp(v.y / height, 0, 1);
-      const k = Math.max(0.2, 1 - amt * (1 - t * t * (3 - 2 * t))); // smoothstep: dark at the sills, clean up top
-      col[i * 3] = k * 1.0; col[i * 3 + 1] = k * 0.97; col[i * 3 + 2] = k * 0.92; // brownish road dirt
+      // Road dirt: thick at the sills and thinning to nothing up top (a smoothstep), blotchy and not an even band,
+      // and thrown up the body behind each wheel.
+      const raw = 0.5 + 0.28 * Math.sin(v.x * 1.25 + Math.sin(v.y * 1.7) * 1.3 + 1.7) + 0.22 * Math.sin(v.y * 2.3 + v.z * 0.9 + Math.sin(v.x * 0.7) * 2 + 0.3) + 0.14 * Math.sin(v.x * 3.1 + v.y * 2.7 + v.z * 2.3);
+      const blotch = clamp((raw - 0.38) / 0.24, 0, 1); // hard-edged: caked on in patches, wiped thin between them
+      let d = amt * (1 - t * t * (3 - 2 * t)) * (0.3 + 1.1 * blotch);
+      if (wheels) for (const wx of wheels) { const back = wx - v.x; if (back > 2 && back < 13) d += amt * 0.9 * Math.exp(-(back - 2) / 4.5) * Math.pow(1 - t, 0.7) * (0.6 + 0.8 * blotch); }
+      d = clamp(d, 0, 0.85);
+      col[i * 3] = 1 - d * 0.56; col[i * 3 + 1] = 1 - d * 0.66; col[i * 3 + 2] = 1 - d * 0.8; // brown road dirt, not just shadow
     }
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     for (const mt of Array.isArray(o.material) ? o.material : [o.material]) mt.vertexColors = true;
@@ -1294,7 +1300,7 @@ const Models = {
     Models.face(g, st, opts, fx, hz, chrome, dark);
     for (const s of [-1, 1]) {
       const ind = LP.box(0.3, 0.5, 0.9, LP.glow('#ff9a1a', 0.35), fx + 0.1, st.lightY - 1.05, (hz + 0.9) * s); // indicator
-      const tl = LP.box(0.3, 1.0, 3.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.25 }), rx - 0.2, st.tailY, tz * s);
+      const tl = LP.box(0.3, 1.0, 3.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.5 }), rx - 0.2, st.tailY, tz * s);
       const wrap = LP.box(1.4, 0.9, 0.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.2 }), rx + 0.6, st.tailY, (hw * 0.93 + bev - 0.05) * s); // wraps round the corner
       tl.userData.noGrime = ind.userData.noGrime = wrap.userData.noGrime = true;
       g.add(ind, tl, wrap);
@@ -1411,7 +1417,7 @@ const Models = {
       chassis.rotation.z = -rake; // nose down
       g.add(chassis);
     }
-    bakeGrime(g, 9, { clean: 0.35, dirty: 1, filthy: 1.6 }[opts.grime || 'dirty']);
+    bakeGrime(g, 9, { clean: 0.3, dirty: 1, filthy: 1.7 }[opts.grime || 'dirty'], st.wheels);
     if (opts.underglow) {
       // Neon underglow: an additive glow pad under the car.
       const L = Math.abs(fx - rx);
@@ -1428,7 +1434,7 @@ const Models = {
   face(g, st, opts, fx, hz, chrome, dark) {
     const F = st.face || {}, ly = st.lightY, gz = Math.max(2.6, hz - 2.1);
     const lit = (m) => { m.userData.noGrime = true; g.add(m); return m; };
-    const lamp = () => DECALS.mat('headlight', { emissive: '#fff3c8', emissiveIntensity: 0.35 });
+    const lamp = () => DECALS.mat('headlight', { emissive: '#fff3c8', emissiveIntensity: 0.55 });
     const black = LP.mat('#0a0b0c', { roughness: 1 });
     // A round lamp in a chrome ring, facing forward.
     const disc = (r, z, y) => {
