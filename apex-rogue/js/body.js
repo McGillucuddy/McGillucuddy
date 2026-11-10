@@ -39,12 +39,17 @@ const Body = {
       return C.suit;
     };
     const tris = paint.head ? D.tris : D.tris.filter((f) => !f.every((i) => reg[i] === 'head'));
-    const n = tris.length * 3, pos = new Float32Array(n * 3), colr = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    const n = tris.length * 3, pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), colr = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    // Smooth shading: each vertex's normal is the average of the faces round it (so the surface reads as one
+    // rounded body), while every face keeps its own flat colour (so the edge of a sleeve or a boot stays crisp).
+    const vn = D.verts.map(() => new THREE.Vector3()), P3 = (i) => new THREE.Vector3(...D.verts[i]);
+    for (const f of D.tris) { const a = P3(f[0]), fn = P3(f[1]).sub(a).cross(P3(f[2]).sub(a)); for (const i of f) vn[i].add(fn); }
+    for (const v of vn) v.normalize();
     tris.forEach((f, t) => {
       const c = faceCol(f);
       f.forEach((vi, k) => {
         const o = t * 3 + k, v = D.verts[vi], w = D.weights[vi];
-        pos.set([v[0] * K, v[1] * K, v[2] * K], o * 3); colr.set([c.r, c.g, c.b], o * 3);
+        pos.set([v[0] * K, v[1] * K, v[2] * K], o * 3); colr.set([c.r, c.g, c.b], o * 3); nrm.set([vn[vi].x, vn[vi].y, vn[vi].z], o * 3);
         for (let j = 0; j < 4; j++) { si[o * 4 + j] = w[j] ? w[j][0] : 0; sw[o * 4 + j] = w[j] ? w[j][1] : 0; }
       });
     });
@@ -53,7 +58,7 @@ const Body = {
     geo.setAttribute('color', new THREE.BufferAttribute(colr, 3));
     geo.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4));
     geo.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
-    geo.computeVertexNormals();
+    geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     // Bones: every one starts unrotated (its axes are the figure's), placed by its head; so a bone's turn is simply
     // the turn that takes its resting direction to where it should point.
     const bones = D.bones.map((b) => { const o = new THREE.Bone(); o.name = b.n; return o; }), by = {};
@@ -65,7 +70,7 @@ const Body = {
       if (b.p >= 0) bones[b.p].add(bones[i]);
       by[b.n] = bones[i];
     });
-    const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.85, metalness: 0.02 }));
+    const mesh = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.02 }));
     mesh.add(bones[0]);
     mesh.bind(new THREE.Skeleton(bones));
     mesh.frustumCulled = false; // (its bounds are the resting pose's; a posed figure can be outside them)
