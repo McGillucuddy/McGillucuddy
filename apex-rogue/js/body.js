@@ -120,10 +120,21 @@ const Body = {
       const cap = part('toe.' + S, new THREE.SphereGeometry(0.062 * K, 8, 6), paint.boot || '#22180f', [ft.t[0] + 0.035, -0.935, ft.t[2] + (ft.t[2] - ft.h[2]) * 0.2]); cap.scale.set(1.5, 0.8, 1.05); // toe cap, over the toes
     }
     if (!vest) part('hips', new THREE.BoxGeometry(0.014 * K, 0.05 * K, 0.06 * K), '#d9b24a', [frontAt(0.125) + 0.045, 0.125, 0], { metalness: 0.4, roughness: 0.4 });
-    else { // the jumpsuit's sleeves tied in front: a small flat knot with the two sleeve ends hanging from it
-      const fx = frontAt(0.08) + 0.066;
-      part('hips', new THREE.BoxGeometry(0.022 * K, 0.04 * K, 0.055 * K), paint.suit, [fx, 0.085, 0]);
-      for (const sd of [-1, 1]) { const e = part('hips', new THREE.BoxGeometry(0.014 * K, 0.15 * K, 0.042 * K), paint.suit, [fx - 0.004, 0.0, sd * 0.03]); e.rotation.set(sd * 0.22, 0, -0.1); }
+    else if (typeof People !== 'undefined') {
+      // The jumpsuit's top half tied round the waist: its two sleeves knotted in front, a little off-centre, the knot
+      // a lump of bunched cloth, and the sleeve ends hanging from it at different lengths, each still with its cuff.
+      const tie = new THREE.Group(), P = People, cloth = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.92 });
+      const suitM = cloth(paint.suit), foldM = cloth(C.seam), cuffM = cloth(C.trim);
+      const X = (frontAt(0.08) + 0.052) * K, Y = 0.085 * K, Z = 0.28;
+      const k1 = P.lump(tie, [0.2, 0.19, 0.3], suitM, [X, Y, Z], 8); k1.rotation.set(0.5, 0, 0.2);
+      const k2 = P.lump(tie, [0.17, 0.15, 0.22], foldM, [X + 0.07, Y - 0.1, Z - 0.1], 7); k2.rotation.set(-0.6, 0.2, 0); // the wrap over the knot, in shadow
+      for (const [pts, r] of [
+        [[[X + 0.02, Y - 0.12, Z - 0.12], [X + 0.14, Y - 0.75, Z - 0.42], [X + 0.1, Y - 1.5, Z - 0.56], [X + 0.02, Y - 1.78, Z - 0.6]], [0.17, 0.26, 0.29, 0.3]],
+        [[[X + 0.02, Y - 0.1, Z + 0.1], [X + 0.12, Y - 0.6, Z + 0.34], [X + 0.06, Y - 1.1, Z + 0.5], [X - 0.02, Y - 1.34, Z + 0.56]], [0.16, 0.25, 0.28, 0.29]],
+      ]) P.tube(tie, pts, r, [suitM, cuffM], [0, 0, 1]);
+      tie.scale.x = 0.5; tie.position.x = X * 0.5; // sleeves hang flat against the legs, not as round tubes
+      tie.traverse((m) => { if (m.isMesh) m.userData.noGrime = true; });
+      by.hips.add(tie);
     }
     return { mesh, bones: by, root: bones[0], data: D, index: Object.fromEntries(D.bones.map((b, i) => [b.n, i])) };
   },
