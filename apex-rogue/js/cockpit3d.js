@@ -455,6 +455,55 @@ class CockpitView {
 
   // ---------- Cars ----------
 
+  // How dark the act is: 1 in the Undercity, part-way in the Stacks' dusk, 0 in daylight.
+  get dark() { return this.env ? ({ undercity: 1, stacks: 0.6 }[Object.keys(ENV_THEMES).find((k) => ENV_THEMES[k] === this.env.th)] || 0) : 0; }
+
+  // After dark, your headlights light the road ahead and whatever is on it: one spot lamp on the nose of your car.
+  buildHeadlights() {
+    const d = this.dark;
+    if (!d) return;
+    const sp = new THREE.SpotLight('#ffe6bc', 260 * d, 520, 0.42, 0.7, 1.15);
+    sp.position.set(24, 3.6, 0); // just ahead of the nose, so none of it falls on your own bonnet
+    sp.target.position.set(150, -4, 0);
+    this.playerGroup.add(sp, sp.target);
+    this.headlight = sp;
+    // The pool of light on the road itself. A lamp this low meets the road at a glancing angle and barely lights it,
+    // so the pool is painted on: two soft beams fanning out ahead, laid just over the surface.
+    const c = document.createElement('canvas'); c.width = 128; c.height = 64;
+    const g = c.getContext('2d');
+    g.globalCompositeOperation = 'lighter';
+    for (const cy of [22, 42]) {
+      g.save(); g.translate(46, cy); g.scale(1, 0.26);
+      const rg = g.createRadialGradient(-14, 0, 0, 0, 0, 44);
+      rg.addColorStop(0, 'rgba(255,236,200,0.6)'); rg.addColorStop(0.4, 'rgba(255,226,180,0.22)'); rg.addColorStop(1, 'rgba(255,220,170,0)');
+      g.fillStyle = rg; g.fillRect(-46, -200, 128, 400); g.restore();
+    }
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(190, 80).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, opacity: 0.3 * d, blending: THREE.AdditiveBlending, depthWrite: false, fog: true }));
+    pool.position.set(18 + 95, 0.35, 0);
+    pool.renderOrder = 2;
+    this.playerGroup.add(pool);
+  }
+
+  // After dark, a rival's lamps glow: red at the tail, warm white at the nose, so a car reads as a car at any range.
+  lampGlows(model) {
+    const d = this.dark, L = model.userData.lamps;
+    if (!d || !L) return;
+    if (!CockpitView.glowTex) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d'), rg = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.25, 'rgba(255,255,255,0.45)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = rg; g.fillRect(0, 0, 64, 64);
+      CockpitView.glowTex = new THREE.CanvasTexture(c);
+    }
+    const host = model.getObjectByName('chassis') || model, glows = [];
+    for (const [pts, col, size, op] of [[L.tail, '#ff2a14', 5.5, 0.85], [L.head, '#ffe9c0', 7, 0.7]]) {
+      const mat = new THREE.SpriteMaterial({ map: CockpitView.glowTex, color: col, transparent: true, opacity: op * d, blending: THREE.AdditiveBlending, depthWrite: false, fog: true });
+      for (const p of pts) { const s = new THREE.Sprite(mat); s.position.set(p[0], p[1], p[2]); s.scale.setScalar(size); host.add(s); glows.push(s); }
+    }
+    model.userData.glows = glows;
+    model.traverse((o) => { const m = o.material; if (m && m.emissive && m.map && /decal_(taillight|headlight)/.test(m.map.name || '')) m.emissiveIntensity = Math.max(m.emissiveIntensity, 0.4 + 0.9 * d); }); // the lenses themselves, lit
+  }
+
   buildCars() {
     this.carMeshes = new Map();
     this.rivalSeed = 1 + Math.floor(Math.random() * 1e6); // a different field of heaps every race
@@ -464,6 +513,7 @@ class CockpitView {
         this.playerGroup = new THREE.Group();
         this.playerGroup.add(Models.car(Object.assign({ color: car.color, accent: car.accent }, this.look3d, { shell: true })));
         this.scene.add(this.playerGroup);
+        this.buildHeadlights();
         continue;
       }
       const g = new THREE.Group();
@@ -475,6 +525,7 @@ class CockpitView {
         ? Models.car(Object.assign({ color: car.color, accent: car.accent, weapon: car.weapon, number: 1, crew: { gunner: !!car.weapon, seed: k * 13 + 5, helmet: true } }, car.bossLook, { tyreArmor: !!car.armorTyres }))
         : Models.car(car.look3d);
       if (car.bossLook) model.scale.setScalar(1.08);
+      this.lampGlows(model);
       // The Turnkey's lifers, one at each barred window, turned to face out of it (js/bosses.js).
       const BK = car.isBoss && bossKit(this.race.boss);
       if (BK && BK.cons && car.bossLook) {
@@ -1792,7 +1843,11 @@ class CockpitView {
     // Took a hit: jolt the body.
     if (car.hp < mo.hp - 1.5) { mo.vroll += (Math.random() - 0.5) * 4; mo.vpitch += (Math.random() - 0.5) * 2.5; this.sparkAt(car.x, car.y, 6); }
     // Wrecked just now: hop and spin.
-    if (mo.hp > 0 && car.hp <= 0) { mo.hop = 1; mo.spin = (Math.random() < 0.5 ? -1 : 1) * TAU; this.burst(car.x, car.y, false, true); }
+    if (mo.hp > 0 && car.hp <= 0) {
+      mo.hop = 1; mo.spin = (Math.random() < 0.5 ? -1 : 1) * TAU; this.burst(car.x, car.y, false, true);
+      const m3 = this.carMeshes.get(car), gl = m3 && m3.model && m3.model.userData.glows;
+      if (gl) for (const s of gl) s.visible = false; // its lamps go out
+    }
     mo.hp = car.hp;
     let y = Math.sin(t * 13 + mo.seed) * 0.05 * Math.min(1, Math.abs(car.forwardSpeed) / 300);
     let spinY = 0, extraRoll = 0;

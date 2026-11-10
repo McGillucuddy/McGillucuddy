@@ -1298,6 +1298,9 @@ const Models = {
       const wrap = LP.box(1.4, 0.9, 0.2, DECALS.mat('taillight', { emissive: '#ff2a1a', emissiveIntensity: 0.2 }), rx + 0.6, st.tailY, (hw * 0.93 + bev - 0.05) * s); // wraps round the corner
       tl.userData.noGrime = ind.userData.noGrime = wrap.userData.noGrime = true;
       g.add(ind, tl, wrap);
+      // Where the lamps are, for the glow the race gives them after dark (CockpitView.lampGlows).
+      const lamps = g.userData.lamps || (g.userData.lamps = { head: [], tail: [] });
+      lamps.head.push([fx + 0.5, st.lightY, hz * s]); lamps.tail.push([rx - 0.6, st.tailY, tz * s]);
     }
     g.add(LP.box(0.6, 0.8, 7, DECALS.mat('grille'), fx + 0.55, 2.2, 0)); // lower intake
     const plate = opts.plate || 'APX ' + (100 + Math.floor(paint.r * 899));
