@@ -121,18 +121,22 @@ const Body = {
     }
     if (!vest) part('hips', new THREE.BoxGeometry(0.014 * K, 0.05 * K, 0.06 * K), '#d9b24a', [frontAt(0.125) + 0.045, 0.125, 0], { metalness: 0.4, roughness: 0.4 });
     else if (typeof People !== 'undefined') {
-      // The jumpsuit's top half tied round the waist: its two sleeves knotted in front, a little off-centre, the knot
-      // a lump of bunched cloth, and the sleeve ends hanging from it at different lengths, each still with its cuff.
+      // The jumpsuit's top half tied round the waist, the knot on the hip (round to the right, well clear of the
+      // middle): a lump of bunched cloth, and the two sleeve ends hanging down the outside of the thigh at different
+      // lengths, flat against the leg, each still with its cuff.
       const tie = new THREE.Group(), P = People, cloth = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.92 });
       const suitM = cloth(paint.suit), foldM = cloth(C.seam), cuffM = cloth(C.trim);
-      const X = (frontAt(0.08) + 0.052) * K, Y = 0.085 * K, Z = 0.28;
-      const k1 = P.lump(tie, [0.2, 0.19, 0.3], suitM, [X, Y, Z], 8); k1.rotation.set(0.5, 0, 0.2);
-      const k2 = P.lump(tie, [0.17, 0.15, 0.22], foldM, [X + 0.07, Y - 0.1, Z - 0.1], 7); k2.rotation.set(-0.6, 0.2, 0); // the wrap over the knot, in shadow
+      const ang = 0.82, dx = Math.cos(ang), dz = Math.sin(ang); // which way round the waist the knot sits
+      const hip = D.verts.filter((v, i) => Math.abs(v[1] - 0.08) < 0.03 && (reg[i] === 'waist' || reg[i] === 'leg')).reduce((m, v) => (v[0] * dx + v[2] * dz > m[0] * dx + m[2] * dz ? v : m));
+      tie.position.set((hip[0] + dx * 0.06) * K, 0.085 * K, (hip[2] + dz * 0.06) * K);
+      tie.rotation.y = -ang; // its own x axis points out from the hip
+      const k1 = P.lump(tie, [0.2, 0.2, 0.3], suitM, [0, 0, 0], 8); k1.rotation.set(0.5, 0, 0.2);
+      const k2 = P.lump(tie, [0.16, 0.14, 0.22], foldM, [0.06, -0.1, -0.08], 7); k2.rotation.set(-0.6, 0.2, 0); // the wrap over the knot, in shadow
       for (const [pts, r] of [
-        [[[X + 0.02, Y - 0.12, Z - 0.12], [X + 0.14, Y - 0.75, Z - 0.42], [X + 0.1, Y - 1.5, Z - 0.56], [X + 0.02, Y - 1.78, Z - 0.6]], [0.17, 0.26, 0.29, 0.3]],
-        [[[X + 0.02, Y - 0.1, Z + 0.1], [X + 0.12, Y - 0.6, Z + 0.34], [X + 0.06, Y - 1.1, Z + 0.5], [X - 0.02, Y - 1.34, Z + 0.56]], [0.16, 0.25, 0.28, 0.29]],
+        [[[0, -0.12, -0.14], [0.06, -0.8, -0.34], [0.02, -1.6, -0.4], [-0.04, -1.9, -0.4]], [0.17, 0.26, 0.29, 0.3]],
+        [[[0, -0.1, 0.14], [0.05, -0.65, 0.36], [0, -1.15, 0.44], [-0.05, -1.4, 0.45]], [0.16, 0.25, 0.28, 0.29]],
       ]) P.tube(tie, pts, r, [suitM, cuffM], [0, 0, 1]);
-      tie.scale.x = 0.5; tie.position.x = X * 0.5; // sleeves hang flat against the legs, not as round tubes
+      tie.scale.x = 0.45; // sleeves hang flat, not as round tubes
       tie.traverse((m) => { if (m.isMesh) m.userData.noGrime = true; });
       by.hips.add(tie);
     }
