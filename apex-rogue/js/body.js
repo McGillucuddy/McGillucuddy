@@ -22,11 +22,12 @@ const Body = {
   // The skinned body. paint: { suit, skin, glove, boot, top ('suit' | 'vest'), rolled, head (keep the mesh's own head) }.
   make(kind, paint) {
     const D = BASEMESH[kind] || BASEMESH.male, K = Body.K, col = (c) => new THREE.Color(c);
-    const C = { suit: col(paint.suit), skin: col(paint.skin), glove: col(paint.glove || paint.skin), boot: col(paint.boot || '#22180f'), vest: col('#eeeae0'), trim: col(paint.suit).lerp(col('#f2e6c8'), 0.45), belt: col('#3a2416'), seam: col(paint.suit).lerp(col('#000000'), 0.3) };
+    const VV = D.verts.slice(), WW = D.weights.slice(); // (grown below, where faces are cut along a garment's edge)
+    const C = { suit: col(paint.suit), skin: col(paint.skin), glove: col(paint.glove || paint.skin), boot: col(paint.boot || '#22180f'), vest: col('#eeeae0'), trim: col(paint.suit).lerp(col('#f2e6c8'), 0.3), belt: col('#3a2416'), seam: col(paint.suit).lerp(col('#000000'), 0.3) };
     const vest = paint.top === 'vest', bare = vest || paint.rolled;
-    const reg = D.weights.map((w) => Body.region(D.bones[w[0][0]].n));
+    const reg = WW.map((w) => Body.region(D.bones[w[0][0]].n));
     // Smooth normals of the bare body: the average of the faces round each vertex.
-    const vn = D.verts.map(() => new THREE.Vector3()), P3 = (i) => new THREE.Vector3(...D.verts[i]);
+    const vn = VV.map(() => new THREE.Vector3()), P3 = (i) => new THREE.Vector3(...VV[i]);
     for (const f of D.tris) { const a = P3(f[0]), fn = P3(f[1]).sub(a).cross(P3(f[2]).sub(a)); for (const i of f) vn[i].add(fn); }
     for (const v of vn) v.normalize();
     // Clothes. Every face is one garment, and a garment stands off the body by its own thickness (pushed out along
@@ -34,26 +35,25 @@ const Body = {
     // collar standing off the neck, a trouser leg bloused over a boot wider than the ankle. WEAR: [colour, stand-off
     // in metres, how much it wrinkles]. Heights are metres above the hips (belt 0.1, shoulder 0.5, knee -0.44, sole -0.99).
     const WEAR = {
-      skin: [C.skin, 0, 0], glove: [C.glove, 0.007, 0], suit: [C.suit, 0.03, 1], sleeve: [C.suit, 0.026, 1], cuff: [C.trim, 0.034, 0.3], roll: [C.suit, 0.046, 0.4],
-      collar: [C.trim, 0.04, 0], placket: [col(paint.suit).lerp(col('#f2e6c8'), 0.2), 0.036, 0.2], pocket: [C.seam, 0.037, 0.2], belt: [C.belt, 0.043, 0], boot: [C.boot, 0.036, 0], blouse: [C.suit, 0.05, 1],
+      skin: [C.skin, 0, 0], glove: [C.glove, 0.007, 0], suit: [C.suit, 0.03, 1], sleeve: [C.suit, 0.026, 1], cuff: [C.seam, 0.03, 0], roll: [C.suit, 0.046, 0.4],
+      collar: [C.trim, 0.042, 0], placket: [col(paint.suit).lerp(col('#f2e6c8'), 0.07), 0.036, 0.2], pocket: [C.seam, 0.037, 0.2], belt: [C.belt, 0.043, 0], boot: [C.boot, 0.047, 0], toes: [C.boot, 0.008, 0], blouse: [C.suit, 0.04, 0.6],
       vest: [C.vest, 0.016, 0.5], tie: [C.suit, 0.062, 1.4],
     };
     const wear = (f) => {
       const r = f.map((i) => reg[i]), has = (x) => r.includes(x), all = (x) => r.every((q) => q === x);
-      const avg = (g) => f.reduce((a, i) => a + g(i), 0) / f.length, cy = avg((i) => D.verts[i][1]), cz = avg((i) => D.verts[i][2]), front = avg((i) => vn[i].x) > 0.55;
-      const zMax = Math.max(...f.map((i) => Math.abs(D.verts[i][2])));
+      const avg = (g) => f.reduce((a, i) => a + g(i), 0) / f.length, cy = avg((i) => VV[i][1]), cz = avg((i) => VV[i][2]), front = avg((i) => vn[i].x) > 0.55;
+      const zMax = Math.max(...f.map((i) => Math.abs(VV[i][2])));
       if (all('hand')) return 'glove';
       if (has('hand')) return bare ? 'glove' : 'cuff';
-      if (has('foot') || (has('shin') && cy < -0.69)) return 'boot';
-      if (has('shin') && cy < -0.6) return 'blouse'; // the trouser leg gathered into the boot top
-      if (has('head') || all('neck')) return 'skin';
-      if (has('neck')) return vest ? 'skin' : 'collar';
+      if (has('foot')) return 'boot';
+      if (has('shin')) return 'shin'; // (cut below into boot, the trouser gathered over it, and trouser)
+      if (has('head')) return 'skin';
+      if ((has('neck') || has('chest')) && !has('arm') && cy > 0.53) return vest ? 'torso' : cy < 0.566 ? 'suit' : 'skin'; // (the collar itself is a ring of its own, added with the figure)
       if (has('forearm') && !has('arm')) return bare ? 'skin' : 'sleeve';
       if (has('forearm') && has('arm')) return vest ? 'skin' : paint.rolled ? 'roll' : 'sleeve'; // the elbow (where a rolled sleeve sits)
-      if (has('arm')) return has('chest') ? (vest ? 'vest' : 'suit') : vest ? 'skin' : 'sleeve';
+      if (has('arm')) return has('chest') ? (vest ? 'torso' : 'suit') : vest ? 'skin' : 'sleeve';
       if (has('leg') || has('shin')) return 'suit';
-      if (vest) return cy > 0.17 ? 'vest' : cy > 0.02 ? 'tie' : 'suit'; // (the jumpsuit's top half tied round the waist)
-      if (cy > 0.095 && cy < 0.155) return 'belt';
+      if (vest) return cy > 0.02 ? 'torso' : 'suit'; // (the jumpsuit's top half tied round the waist; the singlet is cut out of 'torso' below)
       if (front && cy > 0.155 && zMax < 0.06) return 'placket'; // the zip's cover, down the middle
       if (front && cy > 0.36 && cy < 0.45 && cz > 0.05 && cz < 0.13) return 'pocket';
       return 'suit';
@@ -67,11 +67,98 @@ const Body = {
       kindOf[t] = k; if (quad) kindOf[++t] = k;
     }
     const keep = D.tris.map((f) => paint.head || !f.every((i) => reg[i] === 'head'));
-    const tris = D.tris.filter((f, t) => keep[t]), kinds = kindOf.filter((k, t) => keep[t]), n = tris.length * 3;
+    let tris = D.tris.filter((f, t) => keep[t]), kinds = kindOf.filter((k, t) => keep[t]);
+    // Garment edges that do not follow the mesh are cut into it: wherever a line (the top of a boot, the edges of the
+    // belt, the neck and armholes of a singlet) crosses a face, the face is split along it, with new vertices on
+    // the line. So an edge is straight and clean however the faces under it happen to run.
+    const edges = new Map();
+    const mid = (a, b, t, id) => {
+      const k = id + ':' + (a < b ? a + '_' + b : b + '_' + a);
+      if (edges.has(k)) return edges.get(k);
+      const va = VV[a], vb = VV[b], w = new Map();
+      VV.push([va[0] + (vb[0] - va[0]) * t, va[1] + (vb[1] - va[1]) * t, va[2] + (vb[2] - va[2]) * t]);
+      vn.push(vn[a].clone().lerp(vn[b], t).normalize()); reg.push(reg[t < 0.5 ? a : b]);
+      for (const [i, x] of WW[a]) w.set(i, (w.get(i) || 0) + x * (1 - t));
+      for (const [i, x] of WW[b]) w.set(i, (w.get(i) || 0) + x * t);
+      const top = [...w].sort((x, y) => y[1] - x[1]).slice(0, 4), sum = top.reduce((q, x) => q + x[1], 0) || 1;
+      WW.push(top.map(([i, x]) => [i, x / sum]));
+      edges.set(k, VV.length - 1);
+      return VV.length - 1;
+    };
+    let cuts = 0;
+    // Faces that pass `pred` become inK where f >= 0 and outK (or stay as they were) where f < 0.
+    const split = (pred, f, inK, outK) => {
+      const id = cuts++, T2 = [], K2 = [];
+      tris.forEach((tr, t) => {
+        const kd = kinds[t];
+        if (!pred(kd, tr)) { T2.push(tr); K2.push(kd); return; }
+        const fv = tr.map((i) => f(VV[i], i)), ins = fv.map((x) => x >= 0), np = ins.filter(Boolean).length, ko = outK || kd;
+        if (np === 3 || np === 0) { T2.push(tr); K2.push(np ? inK : ko); return; }
+        const l = np === 1 ? ins.indexOf(true) : ins.indexOf(false), a = tr[l], b = tr[(l + 1) % 3], c = tr[(l + 2) % 3], fa = fv[l], fb = fv[(l + 1) % 3], fc = fv[(l + 2) % 3];
+        const ab = mid(a, b, fa / (fa - fb), id), ac = mid(a, c, fa / (fa - fc), id), kl = np === 1 ? inK : ko, kr = np === 1 ? ko : inK;
+        T2.push([a, ab, ac], [ab, b, c], [ab, c, ac]); K2.push(kl, kr, kr);
+      });
+      tris = T2; kinds = K2;
+    };
+    const is = (...ks) => (kd) => ks.includes(kd);
+    split(is('shin'), (v) => -0.7 - v[1], 'boot', 'shin');
+    split(is('shin'), (v) => -0.61 - v[1], 'blouse', 'suit');
+    if (vest) {
+      split(is('torso'), (v) => 0.17 - v[1], 'tie', 'torso'); // the jumpsuit's top half tied round the waist, up to here
+      // The singlet: a scooped neck (deeper in front than behind) between two straps over the shoulders, and armholes
+      // that open up towards the shoulder.
+      split(is('torso'), (v, i) => {
+        const az = Math.abs(v[2]), low = vn[i].x < 0 ? 0.5 : 0.445, e = Math.min(1, Math.max(0, (az - 0.035) / 0.04));
+        const top = low + (0.64 - low) * e * e * (3 - 2 * e), arm = v[1] < 0.37 ? 0.3 : Math.max(0.112, 0.3 - ((v[1] - 0.37) / 0.15) * 0.19);
+        return Math.min(top - v[1], arm - az, reg[i] === 'arm' ? -0.004 : 1);
+      }, 'vest', 'skin');
+    } else {
+      const waist = (kd, tr) => (kd === 'suit' || kd === 'placket') && tr.every((i) => reg[i] === 'waist' || reg[i] === 'chest' || reg[i] === 'leg');
+      split(waist, (v) => v[1] - 0.095, 'beltish', null);
+      split(is('beltish'), (v) => 0.155 - v[1], 'belt', 'suit');
+    }
+    const n = tris.length * 3;
     const pos = new Float32Array(n * 3), nrm = new Float32Array(n * 3), colr = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+    // The base mesh has toes. Inside a boot there are none: every toe vertex is moved onto one rounded toe box (an
+    // ellipsoid set along each foot), so the boot is a single smooth shape that still bends with the toe bone.
+    const toeBox = {};
+    // (Which way a foot points is read off the mesh, ankle to the middle of its toes: the bone runs straighter than the foot does.)
+    const footDir = (S) => { // the long axis of the foot's own vertices, pointing forwards
+      const names = ['foot.' + S, 'toe.' + S], fv = D.verts.filter((v, i) => names.includes(D.bones[D.weights[i][0][0]].n) && v[1] < -0.9);
+      const mx = fv.reduce((a, v) => a + v[0], 0) / fv.length, mz = fv.reduce((a, v) => a + v[2], 0) / fv.length;
+      let sxx = 0, szz = 0, sxz = 0;
+      for (const v of fv) { sxx += (v[0] - mx) ** 2; szz += (v[2] - mz) ** 2; sxz += (v[0] - mx) * (v[2] - mz); }
+      const ang = 0.5 * Math.atan2(2 * sxz, sxx - szz), ux = Math.cos(ang), uz = Math.sin(ang);
+      const al = fv.map((v) => (v[0] - mx) * ux + (v[2] - mz) * uz), la = fv.map((v) => -(v[0] - mx) * uz + (v[2] - mz) * ux);
+      return { ux, uz, mx, mz, a0: Math.min(...al), a1: Math.max(...al), l0: Math.min(...la), l1: Math.max(...la) };
+    };
+    for (const S of ['L', 'R']) {
+      const ft = D.bones.find((x) => x.n === 'foot.' + S), L = Math.hypot(ft.t[0] - ft.h[0], ft.t[2] - ft.h[2]), { ux, uz } = footDir(S);
+      toeBox[S] = { c: [ft.h[0] + ux * (L - 0.03), -0.936, ft.h[2] + uz * (L - 0.03)], ux, uz };
+    }
+    for (const S of ['L', 'R']) { const ft = D.bones.find((x) => x.n === 'foot.' + S); Object.assign(toeBox[S], { h: ft.h, L: Math.hypot(ft.t[0] - ft.h[0], ft.t[2] - ft.h[2]) }); }
+    // (Everything forward of the ball of the foot, whichever bone carries it, eased in over the last few centimetres
+    // before it so the toe box runs smoothly out of the boot.)
+    const toeOf = WW.map((w, i) => {
+      const m = /^(foot|toe)\.(L|R)$/.exec(D.bones[w[0][0]].n); if (!m) return null;
+      const T = toeBox[m[2]], q = VV[i], d = (q[0] - T.h[0]) * T.ux + (q[2] - T.h[2]) * T.uz, t = Math.min(1, Math.max(0, (d - (T.L - 0.085)) / 0.06));
+      return t > 0 ? [m[2], t * t * (3 - 2 * t)] : null;
+    });
     const out = (vi, kd) => { // where a vertex sits when it belongs to this garment
-      const v = D.verts[vi], W = WEAR[kd], fold = W[2] ? 0.006 * W[2] * (Math.sin(v[1] * 46 + Math.sin(v[0] * 31 + v[2] * 23) * 2.2) + 0.6 * Math.sin(v[2] * 58 + v[1] * 19)) : 0;
-      return new THREE.Vector3(v[0], v[1], v[2]).addScaledVector(vn[vi], W[1] + fold);
+      if (toeOf[vi]) {
+        const T = toeBox[toeOf[vi][0]], q = VV[vi], rx = q[0] - T.c[0], ry = q[1] - T.c[1], rz = q[2] - T.c[2];
+        let a = rx * T.ux + rz * T.uz, b = ry, c = -rx * T.uz + rz * T.ux; // along the foot, up, across it
+        const A = 0.105, Bh = 0.054, Cw = 0.068, k = 1 / (Math.hypot(a / A, b / Bh, c / Cw) || 1);
+        a *= k; b = Math.max(b * k, -0.046); c *= k;
+        const box = new THREE.Vector3(T.c[0] + a * T.ux - c * T.uz, T.c[1] + b, T.c[2] + a * T.uz + c * T.ux);
+        return new THREE.Vector3(q[0], q[1], q[2]).addScaledVector(vn[vi], WEAR.boot[1]).lerp(box, toeOf[vi][1]);
+      }
+      const v = VV[vi], W = WEAR[kd], fold = W[2] ? 0.006 * W[2] * (Math.sin(v[1] * 46 + Math.sin(v[0] * 31 + v[2] * 23) * 2.2) + 0.6 * Math.sin(v[2] * 58 + v[1] * 19)) : 0;
+      // The trouser leg above the boot: tucked in at the bottom (inside the boot top), bulging over it, easing back
+      // to the leg's own fit above.
+      let off = W[1];
+      if (kd === 'blouse') { const t = Math.min(1, Math.max(0, (v[1] + 0.69) / 0.09)); off = 0.018 + 0.012 * t + 0.03 * Math.sin(Math.PI * Math.min(1, t * 1.15)); }
+      return new THREE.Vector3(v[0], v[1], v[2]).addScaledVector(vn[vi], off + fold);
     };
     // Each garment is shaded smooth over itself (normals averaged per vertex within the garment's stand-off), so
     // its folds catch the light and its edge against the next garment stays crisp.
@@ -83,7 +170,7 @@ const Body = {
     tris.forEach((f, t) => {
       const kd = kinds[t], c = WEAR[kd][0];
       f.forEach((vi, k) => {
-        const o = t * 3 + k, v = out(vi, kd), w = D.weights[vi], nn = gn.get(key(vi, kd)).clone().normalize();
+        const o = t * 3 + k, v = out(vi, kd), w = WW[vi], nn = gn.get(key(vi, kd)).clone().normalize();
         pos.set([v.x * K, v.y * K, v.z * K], o * 3); colr.set([c.r, c.g, c.b], o * 3); nrm.set([nn.x, nn.y, nn.z], o * 3);
         for (let j = 0; j < 4; j++) { si[o * 4 + j] = w[j] ? w[j][0] : 0; sw[o * 4 + j] = w[j] ? w[j][1] : 0; }
       });
@@ -114,10 +201,12 @@ const Body = {
     const part = (bone, geo, color, at, extra) => { const b = D.bones.find((x) => x.n === bone), m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.8, flatShading: true }, extra))); m.position.set((at[0] - b.h[0]) * K, (at[1] - b.h[1]) * K, (at[2] - b.h[2]) * K); m.userData.noGrime = true; by[bone].add(m); return m; };
     const frontAt = (y) => Math.max(...D.verts.filter((v) => Math.abs(v[1] - y) < 0.03 && Math.abs(v[2]) < 0.05).map((v) => v[0]));
     for (const S of ['L', 'R']) {
-      const ft = D.bones.find((x) => x.n === 'foot.' + S), tz = (ft.h[2] + ft.t[2]) / 2 + (ft.t[2] - ft.h[2]) * 0.1;
-      part('foot.' + S, new THREE.BoxGeometry(0.33 * K, 0.035 * K, 0.125 * K), '#141210', [ft.h[0] + 0.115, -0.985, tz]).rotation.y = -Math.atan2(ft.t[2] - ft.h[2], ft.t[0] - ft.h[0]); // sole
-      part('foot.' + S, new THREE.BoxGeometry(0.08 * K, 0.05 * K, 0.125 * K), '#141210', [ft.h[0] - 0.03, -0.95, ft.h[2]]).rotation.y = -Math.atan2(ft.t[2] - ft.h[2], ft.t[0] - ft.h[0]); // heel
-      const cap = part('toe.' + S, new THREE.SphereGeometry(0.062 * K, 8, 6), paint.boot || '#22180f', [ft.t[0] + 0.035, -0.935, ft.t[2] + (ft.t[2] - ft.h[2]) * 0.2]); cap.scale.set(1.5, 0.8, 1.05); // toe cap, over the toes
+      // (Their turn to follow the foot is baked into the shapes: turned in place under the body's uneven scale they would shear.)
+      const F = footDir(S), turn = -Math.atan2(F.uz, F.ux), len = F.a1 - F.a0 + 0.07, wid = F.l1 - F.l0 + 0.07, lm = (F.l0 + F.l1) / 2;
+      const on = (d) => [F.mx + F.ux * d - F.uz * lm, 0, F.mz + F.uz * d + F.ux * lm]; // a point along the middle of the foot
+      const sole = on((F.a0 + F.a1) / 2), heel = on(F.a0 + 0.02);
+      part('foot.' + S, new THREE.BoxGeometry(len * K, 0.034 * K, wid * K).rotateY(turn), '#141210', [sole[0], -0.99, sole[2]]);
+      part('foot.' + S, new THREE.BoxGeometry(0.09 * K, 0.05 * K, wid * K).rotateY(turn), '#141210', [heel[0], -0.957, heel[2]]);
     }
     if (!vest) part('hips', new THREE.BoxGeometry(0.014 * K, 0.05 * K, 0.06 * K), '#d9b24a', [frontAt(0.125) + 0.045, 0.125, 0], { metalness: 0.4, roughness: 0.4 });
     else if (typeof People !== 'undefined') {
@@ -170,10 +259,15 @@ const Body = {
     Body.aim(B, 'forearm.' + S, Wr.clone().sub(E).toArray());
     Body.aim(B, 'hand.' + S, handDir || Wr.clone().sub(E).toArray());
   },
+  // A leg. Standing, the foot and toes keep the set they were modelled with (so boots and their soles stay in
+  // line); seated, the foot is given a direction and the toes follow it.
   leg(B, side, thigh, shin, foot) {
-    const S = side < 0 ? 'L' : 'R';
-    Body.aim(B, 'thigh.' + S, thigh); Body.aim(B, 'shin.' + S, shin); Body.aim(B, 'foot.' + S, foot || [1, -0.25, 0]); Body.aim(B, 'toe.' + S, [1, 0, 0]);
+    const S = side < 0 ? 'L' : 'R', rest = (n) => B.bones[n + '.' + S].userData.rest.toArray();
+    Body.aim(B, 'thigh.' + S, thigh); Body.aim(B, 'shin.' + S, shin);
+    Body.aim(B, 'foot.' + S, foot ? [foot[0], foot[1], rest('foot')[2] * foot[0] / rest('foot')[0]] : rest('foot'));
+    Body.aim(B, 'toe.' + S, foot ? [foot[0], foot[1] + 0.08, rest('toe')[2]] : rest('toe'));
   },
+
   // The whole person: same options and userData as People.polyFigure (which hands over to this), on the rigged body.
   figure(o, L, M, skinC, suitC) {
     const P = People, w = P.BUILD[L.build] || 1, walk = o.pose === 'walk', stand = o.pose === 'stand' || walk, vest = L.top === 'vest' && o.role !== 'trader';
@@ -185,11 +279,16 @@ const Body = {
       for (const s of [-1, 1]) { Body.leg(B, s, [0.02, -1, s * 0.07], [-0.04, -1, s * 0.03]); }
     } else {
       const LEG = o.leg ? [[0.3, 0.55], o.leg.knee, o.leg.ankle] : [[0.3, 0.55], [4.1, 0.9], [4.7, -3.3]];
-      for (const s of [-1, 1]) Body.leg(B, s, [LEG[1][0] - LEG[0][0], LEG[1][1] - LEG[0][1] + 0.9, s * 0.55], [LEG[2][0] - LEG[1][0], LEG[2][1] - LEG[1][1], s * 0.05], [1, 0.15, 0]);
+      for (const s of [-1, 1]) Body.leg(B, s, [LEG[1][0] - LEG[0][0], LEG[1][1] - LEG[0][1] + 0.45, s * 0.45], [LEG[2][0] - LEG[1][0], LEG[2][1] - LEG[1][1], s * 0.05], [1, -0.12, 0]);
     }
     if (o.arms === 'static') {
       const A = P.ARM_POSES[o.role] || P.ARM_POSES.driver;
-      for (const s of [-1, 1]) { const [el, wr] = A[s < 0 ? 0 : 1]; Body.reach(B, s, el.map((v, i) => v / (i === 2 ? B.mesh.scale.z : i ? 1 : B.mesh.scale.x)), wr.map((v, i) => v / (i === 2 ? B.mesh.scale.z : i ? 1 : B.mesh.scale.x))); Body.grip(B, s, 0.85); }
+      const sx = B.mesh.scale.x, sz = B.mesh.scale.z, un = (q) => [q[0] / sx, q[1], q[2] / sz]; // (targets are in the figure's units; the body is scaled)
+      for (const s of [-1, 1]) {
+        const [el, wr] = A[s < 0 ? 0 : 1];
+        if (o.role === 'driver') { Body.reach(B, s, un(el), un([wr[0] - 0.5, wr[1] + 0.3, wr[2] * 1.12]), [0.45, 0.75, -s * 0.12]); Body.grip(B, s, 1); } // wrists short of the rim, fists closed round it at ten to two
+        else { Body.reach(B, s, un(el), un(wr)); Body.grip(B, s, 0.85); }
+      }
       if (o.role === 'driver') { const r = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.16, 5, 12), M.dark); r.position.set(3.75, 3.95, 0); r.rotation.y = Math.PI / 2 - 0.35; g.add(r); }
       if (o.role === 'gunner') P.slab(g, [2.8, 0.5, 0.4], M.dark, [3.3, 3.6, 0.2]);
     } else if (o.arms !== 'none') {
@@ -197,14 +296,25 @@ const Body = {
     }
     // The head we already have (the face, hair and hats), on the body's neck.
     const head = new THREE.Group(), hb = B.bones.head, hp = Body.at(B, 'head');
-    head.position.set(hp.x - 0.35, hp.y + 0.12, hp.z);
+    head.position.set(hp.x + 0.12, hp.y + 0.1, hp.z);
     g.add(head);
     if (o.head !== false && o.head) P.polyHead(head, M, Object.assign({}, L, { shades: L.shades && o.role !== 'trader' }), o.helmet ? 'helmet' : L.gear);
+    if (!vest && o.head) {
+      // The collar: a clean ring standing round the base of the neck (on the chest bone), a little open at the throat.
+      const D = B.data, cb = D.bones[B.index.chest], K = Body.K, ring = D.verts.filter((v, i) => v[1] > 0.572 && v[1] < 0.6 && Math.abs(v[2]) < 0.09 && v[0] > -0.06 && v[0] < 0.16);
+      const xs = ring.map((v) => v[0]), zs = ring.map((v) => Math.abs(v[2])), cx = (Math.min(...xs) + Math.max(...xs)) / 2, rx = (Math.max(...xs) - Math.min(...xs)) / 2, rz = Math.max(...zs);
+      const col = new THREE.Group();
+      col.position.set(-cb.h[0] * K, -cb.h[1] * K, -cb.h[2] * K);
+      P.loft(col, [{ y: 0.55 * K, rx: (rx + 0.085) * K, rz: (rz + 0.09) * K, x: (cx - 0.02) * K }, { y: 0.578 * K, rx: (rx + 0.04) * K, rz: (rz + 0.042) * K, x: cx * K }, { y: 0.608 * K, rx: (rx + 0.026) * K, rz: (rz + 0.028) * K, x: (cx + 0.004) * K }], M.trim);
+      col.traverse((m) => { if (m.isMesh) m.material = new THREE.MeshStandardMaterial({ color: M.trim.color, roughness: 0.9, side: THREE.DoubleSide }); });
+      B.bones.chest.add(col);
+    }
     let patch = null;
-    if (!vest) {
-      patch = LP.mesh(new THREE.PlaneGeometry(1.2, 0.5), new THREE.MeshStandardMaterial({ map: P.patch(o.number || L.number), roughness: 0.9, transparent: true }), 1.2, 3.35, -0.62);
-      patch.rotation.y = Math.PI / 2 + 0.3;
-      g.add(patch);
+    if (!vest) { // the number, sewn on the chest and riding on the chest bone
+      const cb = B.data.bones[B.index.chest], py = 0.4, pz = -0.075, px = Math.max(...B.data.verts.filter((v) => Math.abs(v[1] - py) < 0.035 && Math.abs(v[2] - pz) < 0.05).map((v) => v[0])) + 0.043;
+      patch = LP.mesh(new THREE.PlaneGeometry(1.15, 0.48), new THREE.MeshStandardMaterial({ map: P.patch(o.number || L.number), roughness: 0.9, transparent: true }), (px - cb.h[0]) * Body.K, (py - cb.h[1]) * Body.K, (pz - cb.h[2]) * Body.K);
+      patch.rotation.y = Math.PI / 2 + 0.22;
+      B.bones.chest.add(patch);
     }
     g.traverse((m) => { if (m.isMesh) m.userData.noGrime = true; });
     g.userData = { torso, head, patch, looks: L, M, legs: [], arms: [], helmet: !!o.helmet, armMat: vest ? M.skin : M.suit, shoulders: [[0.05, 4.25, -1.72 * w], [0.05, 4.25, 1.72 * w]], poly: true, body: B };
