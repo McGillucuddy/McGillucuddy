@@ -46,9 +46,9 @@ const Body = {
     // collar standing off the neck, a trouser leg bloused over a boot wider than the ankle. WEAR: [colour, stand-off
     // in metres, how much it wrinkles]. Heights are metres above the hips (belt 0.1, shoulder 0.5, knee -0.44, sole -0.99).
     const WEAR = {
-      skin: [C.skin, 0, 0], glove: [C.glove, 0.007, 0], suit: [C.suit, 0.03, 1], sleeve: [C.suit, 0.026, 1], cuff: [C.seam, 0.03, 0], roll: [C.suit, 0.046, 0.4],
-      collar: [C.trim, 0.042, 0], placket: [col(paint.suit).lerp(col('#f2e6c8'), 0.07), 0.036, 0.2], pocket: [C.seam, 0.037, 0.2], belt: [C.belt, 0.043, 0], boot: [C.boot, 0.047, 0], toes: [C.boot, 0.008, 0], blouse: [C.suit, 0.04, 0.6],
-      vest: [C.vest, 0.016, 0.5], tie: [C.suit, 0.062, 1.4],
+      skin: [C.skin, 0, 0], glove: [C.glove, 0.007, 0], suit: [C.suit, 0.03, 0], sleeve: [C.suit, 0.026, 0], cuff: [C.seam, 0.03, 0], roll: [C.suit, 0.046, 0],
+      collar: [C.trim, 0.042, 0], placket: [col(paint.suit).lerp(col('#f2e6c8'), 0.07), 0.036, 0], pocket: [C.seam, 0.037, 0], belt: [C.belt, 0.043, 0], boot: [C.boot, 0.047, 0], toes: [C.boot, 0.008, 0], blouse: [C.suit, 0.04, 0],
+      vest: [C.vest, 0.016, 0], tie: [C.suit, 0.062, 0.5],
     };
     const wear = (f) => {
       const r = f.map((i) => reg[i]), has = (x) => r.includes(x), all = (x) => r.every((q) => q === x);

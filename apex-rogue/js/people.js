@@ -400,8 +400,13 @@ Object.assign(People, {
     const P = People.HEAD_P;
     if (y <= P[0][0]) return P[0];
     for (let i = 0; i < P.length - 1; i++) if (y <= P[i + 1][0]) {
-      const a = P[i], b = P[i + 1], k = (y - a[0]) / (b[0] - a[0]), e = k * k * (3 - 2 * k); // eased, so the outline curves
-      return [y, a[1] + (b[1] - a[1]) * e, a[2] + (b[2] - a[2]) * e, a[3] + (b[3] - a[3]) * e];
+      // One smooth curve through the profile's rows (a cubic through each pair, its slope at a row set by the rows
+      // either side). Easing each span on its own flattens the outline at every row, and the head reads as a stack
+      // of rings.
+      const a = P[i], b = P[i + 1], p = P[Math.max(0, i - 1)], n = P[Math.min(P.length - 1, i + 2)], h = b[0] - a[0], k = (y - a[0]) / h;
+      const k2 = k * k, k3 = k2 * k, h00 = 2 * k3 - 3 * k2 + 1, h10 = k3 - 2 * k2 + k, h01 = -2 * k3 + 3 * k2, h11 = k3 - k2;
+      const at = (j) => { const ma = (b[j] - p[j]) / (b[0] - p[0]), mb = (n[j] - a[j]) / (n[0] - a[0]); return h00 * a[j] + h10 * h * ma + h01 * b[j] + h11 * h * mb; };
+      return [y, Math.max(0.02, at(1)), Math.max(0.02, at(2)), at(3)];
     }
     return P[P.length - 1];
   },
