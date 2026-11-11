@@ -495,17 +495,17 @@ Object.assign(People, {
     // Eyes: set back in their sockets, an iris of this person's colour with a pupil in it, a lid over the top
     // third (heavier with a scowl or with age) and a darker lash line under it; brows that follow the brow ridge.
     const eyeA = Math.asin(0.25 / P.headProfile(1.0)[2]), irisM = P.polyMat(L.eye || '#3a2414', { flatShading: false, roughness: 0.3 }), pupilM = P.polyMat('#0c0806', { flatShading: false, roughness: 0.2 });
-    const lidDrop = (L.brow === 'scowl' ? 0.014 : 0) + 0.014 * P.FACE.age;
+    const lidDrop = (L.brow === 'scowl' ? 0.01 : 0) + 0.012 * P.FACE.age, lashM = P.polyMat(mixC(L.skin, '#1a0c08', 0.3), { flatShading: false, side: THREE.DoubleSide });
     for (const s of [-1, 1]) {
       const c = s * eyeA, arc = (th, w) => Math.cos(clamp((th - c) / w, -1, 1) * Math.PI / 2);
       if (!L.shades) {
         const ex = face(1.0, s * 0.25), turn = [0, s * -0.22, 0];
-        P.lump(H, [0.04, 0.09, 0.15], M.sclera, [ex + 0.004, 1.0, s * 0.25], 12).rotation.set(...turn);
-        P.lump(H, [0.032, 0.074, 0.074], irisM, [ex + 0.024, 0.997, s * 0.243], 12).rotation.set(...turn);
-        P.lump(H, [0.024, 0.036, 0.036], pupilM, [ex + 0.038, 0.997, s * 0.241], 8).rotation.set(...turn);
-        P.slab(H, [0.02, 0.026, 0.026], M.white, [ex + 0.056, 1.024, s * 0.224]); // the glint
-        P.headSurf(H, lidM, { th0: c - 0.25, th1: c + 0.25, n: 8, m: 2, yA: (th) => 1.085 - lidDrop * 1.6 - 0.05 * (1 - arc(th, 0.25)), yB: (th) => 1.1 - 0.012 * (1 - arc(th, 0.25)), off: 0.05 }); // upper lid: an arch over the eye
-        P.headSurf(H, dark, { th0: c - 0.25, th1: c + 0.25, n: 8, m: 1, yA: (th) => 1.073 - lidDrop * 1.6 - 0.05 * (1 - arc(th, 0.25)), yB: (th) => 1.087 - lidDrop * 1.6 - 0.05 * (1 - arc(th, 0.25)), off: 0.054 }); // lash line, along its edge
+        P.lump(H, [0.036, 0.07, 0.128], M.sclera, [ex + 0.004, 1.0, s * 0.25], 12).rotation.set(...turn);
+        P.lump(H, [0.03, 0.066, 0.066], irisM, [ex + 0.02, 0.998, s * 0.246], 12).rotation.set(...turn);
+        P.lump(H, [0.022, 0.03, 0.03], pupilM, [ex + 0.033, 0.998, s * 0.245], 8).rotation.set(...turn);
+        P.slab(H, [0.018, 0.02, 0.02], M.white, [ex + 0.05, 1.018, s * 0.232]); // the glint
+        P.headSurf(H, lidM, { th0: c - 0.25, th1: c + 0.25, n: 8, m: 2, yA: (th) => 1.062 - lidDrop * 1.6 - 0.045 * (1 - arc(th, 0.25)), yB: (th) => 1.1 - 0.012 * (1 - arc(th, 0.25)), off: 0.046 }); // upper lid: an arch over the eye
+        P.headSurf(H, lashM, { th0: c - 0.25, th1: c + 0.25, n: 8, m: 1, yA: (th) => 1.055 - lidDrop * 1.6 - 0.045 * (1 - arc(th, 0.25)), yB: (th) => 1.064 - lidDrop * 1.6 - 0.045 * (1 - arc(th, 0.25)), off: 0.049 }); // lash line, along its edge
         P.headSurf(H, lidM, { th0: c - 0.23, th1: c + 0.23, n: 8, m: 1, yA: (th) => 0.905 + 0.03 * (1 - arc(th, 0.23)), yB: (th) => 0.925 + 0.045 * (1 - arc(th, 0.23)), off: 0.036 }); // lower lid
       }
       // The brow: thick at the nose, tapering out, arched; a scowl pulls its inner end down.

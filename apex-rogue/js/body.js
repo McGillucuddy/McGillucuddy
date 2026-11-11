@@ -23,6 +23,17 @@ const Body = {
   make(kind, paint) {
     const D = BASEMESH[kind] || BASEMESH.male, K = Body.K, col = (c) => new THREE.Color(c);
     const VV = D.verts.slice(), WW = D.weights.slice(); // (grown below, where faces are cut along a garment's edge)
+    // A slimmer neck. The base mesh's is nearly as wide as the head that goes on it; whatever the neck and head bones
+    // carry is drawn in towards the line of the neck, by how much of it they carry (so it runs smoothly into the shoulders).
+    {
+      const nk = D.bones.find((b) => b.n === 'neck'), ni = D.bones.findIndex((b) => b.n === 'neck'), hi = D.bones.findIndex((b) => b.n === 'head');
+      VV.forEach((v, i) => {
+        const w = WW[i].reduce((a, [bi, x]) => a + (bi === ni || bi === hi ? x : 0), 0);
+        if (w <= 0) return;
+        const t = clamp((v[1] - nk.h[1]) / (nk.t[1] - nk.h[1]), -0.5, 2), cx = nk.h[0] + (nk.t[0] - nk.h[0]) * t, k = 1 - 0.3 * w * w * (3 - 2 * w);
+        VV[i] = [cx + (v[0] - cx) * (1 - (1 - k) * 0.8), v[1], v[2] * k];
+      });
+    }
     const C = { suit: col(paint.suit), skin: col(paint.skin), glove: col(paint.glove || paint.skin), boot: col(paint.boot || '#22180f'), vest: col('#eeeae0'), trim: col(paint.suit).lerp(col('#f2e6c8'), 0.3), belt: col('#3a2416'), seam: col(paint.suit).lerp(col('#000000'), 0.3) };
     const vest = paint.top === 'vest', bare = vest || paint.rolled;
     const reg = WW.map((w) => Body.region(D.bones[w[0][0]].n));
@@ -229,7 +240,7 @@ const Body = {
       tie.traverse((m) => { if (m.isMesh) m.userData.noGrime = true; });
       by.hips.add(tie);
     }
-    return { mesh, bones: by, root: bones[0], data: D, index: Object.fromEntries(D.bones.map((b, i) => [b.n, i])) };
+    return { mesh, bones: by, root: bones[0], data: D, verts: VV, index: Object.fromEntries(D.bones.map((b, i) => [b.n, i])) };
   },
 
   // Turn a bone so it points along dir (in the figure's own axes), its parents already posed.
@@ -301,12 +312,12 @@ const Body = {
     if (o.head !== false && o.head) P.polyHead(head, M, Object.assign({}, L, { shades: L.shades && o.role !== 'trader' }), o.helmet ? 'helmet' : L.gear);
     if (!vest && o.head) {
       // The collar: a clean ring standing round the base of the neck (on the chest bone), a little open at the throat.
-      const D = B.data, cb = D.bones[B.index.chest], K = Body.K, ring = D.verts.filter((v, i) => v[1] > 0.572 && v[1] < 0.6 && Math.abs(v[2]) < 0.09 && v[0] > -0.06 && v[0] < 0.16);
+      const D = B.data, cb = D.bones[B.index.chest], K = Body.K, ring = B.verts.slice(0, D.verts.length).filter((v, i) => v[1] > 0.572 && v[1] < 0.6 && Math.abs(v[2]) < 0.09 && v[0] > -0.06 && v[0] < 0.16);
       const xs = ring.map((v) => v[0]), zs = ring.map((v) => Math.abs(v[2])), cx = (Math.min(...xs) + Math.max(...xs)) / 2, rx = (Math.max(...xs) - Math.min(...xs)) / 2, rz = Math.max(...zs);
       const col = new THREE.Group();
       col.position.set(-cb.h[0] * K, -cb.h[1] * K, -cb.h[2] * K);
-      P.loft(col, [{ y: 0.548 * K, rx: (rx + 0.058) * K, rz: (rz + 0.062) * K, x: (cx - 0.014) * K }, { y: 0.576 * K, rx: (rx + 0.034) * K, rz: (rz + 0.036) * K, x: cx * K }, { y: 0.602 * K, rx: (rx + 0.024) * K, rz: (rz + 0.026) * K, x: (cx + 0.004) * K }], M.trim);
-      col.traverse((m) => { if (m.isMesh) m.material = new THREE.MeshStandardMaterial({ color: new THREE.Color(suitC).lerp(new THREE.Color('#f2e6c8'), 0.28), roughness: 0.9, side: THREE.DoubleSide }); });
+      P.loft(col, [{ y: 0.55 * K, rx: (rx + 0.05) * K, rz: (rz + 0.054) * K, x: (cx - 0.012) * K }, { y: 0.572 * K, rx: (rx + 0.03) * K, rz: (rz + 0.032) * K, x: cx * K }, { y: 0.59 * K, rx: (rx + 0.022) * K, rz: (rz + 0.024) * K, x: (cx + 0.003) * K }], M.trim);
+      col.traverse((m) => { if (m.isMesh) m.material = new THREE.MeshStandardMaterial({ color: new THREE.Color(suitC).lerp(new THREE.Color('#f2e6c8'), 0.14), roughness: 0.9, side: THREE.DoubleSide }); });
       B.bones.chest.add(col);
     }
     let patch = null;
