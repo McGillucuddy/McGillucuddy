@@ -305,8 +305,8 @@ const Body = {
       const xs = ring.map((v) => v[0]), zs = ring.map((v) => Math.abs(v[2])), cx = (Math.min(...xs) + Math.max(...xs)) / 2, rx = (Math.max(...xs) - Math.min(...xs)) / 2, rz = Math.max(...zs);
       const col = new THREE.Group();
       col.position.set(-cb.h[0] * K, -cb.h[1] * K, -cb.h[2] * K);
-      P.loft(col, [{ y: 0.55 * K, rx: (rx + 0.085) * K, rz: (rz + 0.09) * K, x: (cx - 0.02) * K }, { y: 0.578 * K, rx: (rx + 0.04) * K, rz: (rz + 0.042) * K, x: cx * K }, { y: 0.608 * K, rx: (rx + 0.026) * K, rz: (rz + 0.028) * K, x: (cx + 0.004) * K }], M.trim);
-      col.traverse((m) => { if (m.isMesh) m.material = new THREE.MeshStandardMaterial({ color: M.trim.color, roughness: 0.9, side: THREE.DoubleSide }); });
+      P.loft(col, [{ y: 0.548 * K, rx: (rx + 0.058) * K, rz: (rz + 0.062) * K, x: (cx - 0.014) * K }, { y: 0.576 * K, rx: (rx + 0.034) * K, rz: (rz + 0.036) * K, x: cx * K }, { y: 0.602 * K, rx: (rx + 0.024) * K, rz: (rz + 0.026) * K, x: (cx + 0.004) * K }], M.trim);
+      col.traverse((m) => { if (m.isMesh) m.material = new THREE.MeshStandardMaterial({ color: new THREE.Color(suitC).lerp(new THREE.Color('#f2e6c8'), 0.28), roughness: 0.9, side: THREE.DoubleSide }); });
       B.bones.chest.add(col);
     }
     let patch = null;

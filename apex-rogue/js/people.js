@@ -29,6 +29,9 @@ const People = {
       top: r() < 0.25 ? 'vest' : 'suit', // the jumpsuit top tied round the waist over a vest
       rolled: r() < 0.35, // sleeves pushed up to the elbow
       tattoo: r() < 0.35 ? pick(['tear', 'neck', 'arms']) : null, brow: r() < 0.5 ? 'scowl' : 'flat',
+      // The face itself (drawn last, so every character keeps the rest of the look they had).
+      eye: pick(['#3a2414', '#3a2414', '#4a2e18', '#2a1a10', '#5a4a2a', '#4a6a8a', '#5a7a5a', '#6a6e72']), age: r(), nose: 0.8 + r() * 0.5, jaw: r() * 2 - 1,
+      lips: 0.7 + r() * 0.6, browK: 0.7 + r() * 0.7, scar: r() < 0.22 ? pick(['brow', 'cheek', 'lip']) : null, mouth: pick(['flat', 'flat', 'down', 'smirk']),
     };
   },
 
@@ -385,7 +388,15 @@ Object.assign(People, {
   // it reads as a head, not a box. HEAD_P: [y, depth, width, centre x].
   HEAD_P: [[0.16, 0.12, 0.1, 0.44], [0.27, 0.34, 0.27, 0.37], [0.42, 0.55, 0.47, 0.24], [0.62, 0.7, 0.58, 0.13], [0.9, 0.78, 0.65, 0.06],
     [1.18, 0.8, 0.67, 0.04], [1.5, 0.76, 0.63, 0.01], [1.74, 0.6, 0.53, -0.02], [1.9, 0.38, 0.34, -0.04], [1.99, 0.08, 0.07, -0.05]],
+  // The face being built: its proportions (People.polyHead sets this, the surface functions read it).
+  FACE: { nose: 1, jaw: 0, lips: 1, browK: 1, age: 0.3 },
   headProfile(y) {
+    const r = People.headProfile0(y), F = People.FACE;
+    if (!F.jaw || y > 0.8) return r;
+    const k = Math.exp(-((y - 0.42) ** 2) / (2 * 0.17 * 0.17)); // a wide or a narrow jaw, between the chin and the cheekbones
+    return [r[0], r[1] * (1 + 0.03 * F.jaw * k), r[2] * (1 + 0.1 * F.jaw * k), r[3]];
+  },
+  headProfile0(y) {
     const P = People.HEAD_P;
     if (y <= P[0][0]) return P[0];
     for (let i = 0; i < P.length - 1; i++) if (y <= P[i + 1][0]) {
@@ -399,16 +410,25 @@ Object.assign(People, {
     const [, rx, rz, cx] = People.headProfile(y), c = Math.cos(th), s = Math.sin(th);
     let x = c >= 0 ? rx * Math.pow(c, 0.72) : rx * 0.96 * c; // a flatter face at the front, a round skull behind
     let z = rz * s;
-    if (c > 0) { // the face, shaped in
-      const g = (v, m, w) => Math.exp(-((v - m) ** 2) / (2 * w * w));
-      const zz = z / Math.max(0.3, rz);
-      x += 0.17 * g(y, 0.82, 0.09) * g(zz, 0, 0.13) * c; // the nose
-      x += 0.06 * g(y, 1.0, 0.13) * g(zz, 0, 0.09) * c; // its bridge
-      x += 0.05 * g(y, 1.17, 0.05) * g(Math.abs(zz), 0.38, 0.28) * c; // the brow ridge
-      x -= 0.045 * g(y, 1.0, 0.07) * g(Math.abs(zz), 0.38, 0.14) * c; // eye hollows
-      x += 0.04 * g(y, 0.3, 0.08) * g(zz, 0, 0.3) * c; // the chin
-      x -= 0.015 * g(y, 0.55, 0.03) * g(zz, 0, 0.25) * c; // the line of the mouth
-      const cheek = 0.05 * g(y, 0.86, 0.1) * g(Math.abs(zz), 0.62, 0.15); // cheekbones, out to the sides
+    if (c > 0) { // the face, sculpted into the front of the head
+      const g = (v, m, w) => Math.exp(-((v - m) ** 2) / (2 * w * w)), F = People.FACE;
+      const zz = z / Math.max(0.3, rz), az = Math.abs(zz);
+      const bridge = clamp((1.08 - y) / 0.3, 0, 1); // the nose grows out of the brow, bigger towards its tip
+      x += 0.15 * F.nose * g(y, 0.8, 0.085) * g(zz, 0, 0.115) * c; // the tip of the nose
+      x += 0.085 * F.nose * bridge * g(y, 0.92, 0.12) * g(zz, 0, 0.075) * c; // its bridge, a narrow ridge
+      x += 0.06 * F.nose * g(y, 0.765, 0.045) * g(az, 0.17, 0.07) * c; // the wings of the nostrils
+      x -= 0.03 * g(y, 0.685, 0.03) * g(zz, 0, 0.2) * c; // tucked in under the nose
+      x += 0.045 * F.browK * g(y, 1.17, 0.05) * g(az, 0.36, 0.3) * c; // the brow ridge
+      x += 0.025 * g(y, 1.17, 0.05) * g(zz, 0, 0.12) * c; // (meeting over the nose)
+      x -= 0.05 * g(y, 1.0, 0.075) * g(az, 0.4, 0.15) * c; // eye sockets
+      x += 0.045 * F.lips * g(y, 0.605, 0.03) * g(zz, 0, 0.21) * c; // upper lip
+      x += 0.05 * F.lips * g(y, 0.5, 0.035) * g(zz, 0, 0.18) * c; // lower lip, fuller
+      x -= 0.02 * g(y, 0.553, 0.014) * g(zz, 0, 0.25) * c; // the line between them
+      x -= 0.02 * g(y, 0.42, 0.03) * g(zz, 0, 0.2) * c; // the dip under the lower lip
+      x += 0.05 * g(y, 0.3, 0.085) * g(zz, 0, 0.26) * c; // the chin
+      x += 0.02 * g(y, 0.88, 0.1) * g(az, 0.56, 0.15) * c; // cheekbones, forward a little
+      x -= 0.02 * F.age * g(y, 0.66, 0.1) * g(az, 0.4, 0.1) * c; // cheeks hollowing with age
+      const cheek = 0.055 * g(y, 0.86, 0.1) * g(az, 0.62, 0.15) - 0.025 * g(y, 1.2, 0.12) * g(az, 0.75, 0.2); // cheekbones out; temples in
       z += Math.sign(z) * cheek;
     }
     if (off) { const L = Math.hypot(x, z) || 1; x += (x / L) * off; z += (z / L) * off; }
@@ -416,9 +436,10 @@ Object.assign(People, {
   },
   // A surface over the head: th from th0 to th1 (a full turn closes it), heights from yA(th) to yB(th), n x m facets.
   headSurf(H, mat, o) {
-    const n = o.n || 24, m = o.m || 18, full = o.th1 - o.th0 >= TAU - 1e-6, cols = full ? n : n + 1, pos = [], idx = [];
+    // (o.ths / o.ts: the columns' angles and the rows' heights (0..1) given outright, to put the facets where the detail is.)
+    const n = o.ths ? o.ths.length : o.n || 24, m = o.ts ? o.ts.length - 1 : o.m || 18, full = o.th1 - o.th0 >= TAU - 1e-6, cols = full ? n : n + 1, pos = [], idx = [];
     for (let j = 0; j <= m; j++) for (let i = 0; i < cols; i++) {
-      const th = o.th0 + ((o.th1 - o.th0) * (i + (full ? 0.5 : 0))) / n, t = j / m;
+      const th = o.ths ? o.ths[i] : o.th0 + ((o.th1 - o.th0) * (i + (full ? 0.5 : 0))) / n, t = o.ts ? o.ts[j] : j / m;
       const u = o.ease ? 0.5 - 0.5 * Math.cos(Math.PI * t) : t, y = o.yA(th) + (o.yB(th) - o.yA(th)) * u;
       pos.push(...People.headPt(th, y, typeof o.off === 'function' ? o.off(th, t) : o.off || 0));
     }
@@ -445,8 +466,25 @@ Object.assign(People, {
     H.scale.setScalar(1.15); // a slightly big head: the face is what you read a person by, from across a car
     H.position.set(-0.03, -0.36, 0); // sat down on a short neck
     head.add(H);
-    P.headSurf(H, M.skin, { th0: 0, th1: TAU, yA: K(0.16), yB: K(1.99), capTop: true, capBottom: true, ease: true });
-    for (const s of [-1, 1]) { const e = P.lump(H, [0.1, 0.22, 0.07], M.skin, [0.0, 0.95, s * 0.68], 7); e.rotation.x = s * 0.2; } // ears
+    // This face's proportions (a look made by hand, without them, gets a set from its face shape).
+    const fz = L.face || 0, mixC = (a, b, k) => '#' + new THREE.Color(a).lerp(new THREE.Color(b), k).getHexString();
+    P.FACE = { nose: L.nose || [1, 1.2, 0.9, 1.1][fz], jaw: L.jaw != null ? L.jaw : [0, 0.6, -0.5, 0.9][fz], lips: L.lips || 1, browK: L.browK || [1, 1.2, 0.8, 1.3][fz], age: L.age != null ? L.age : 0.3 };
+    // The skin: facets packed into the face (a column every few degrees across the front, a row every couple of
+    // hundredths from chin to brow) and spread thin round the back and over the crown.
+    const ths = [], ts = [];
+    for (let a = -1.25; a < 1.2501; a += 0.0625) ths.push(a);
+    for (let a = 1.25 + 0.2; a < TAU - 1.25 - 0.1; a += 0.2) ths.push(a);
+    for (let y = 0.16; y < 0.24; y += 0.04) ts.push(y);
+    for (let y = 0.24; y < 1.26; y += 0.024) ts.push(y);
+    for (let y = 1.3; y < 1.99; y += 0.075) ts.push(y);
+    ts.push(1.99);
+    P.headSurf(H, M.skin, { th0: 0, th1: TAU, ths, ts: ts.map((y) => (y - 0.16) / 1.83), yA: K(0.16), yB: K(1.99), capTop: true, capBottom: true });
+    const dark = P.polyMat(mixC(L.skin, '#1a0c08', 0.5), { flatShading: false }), lipM = P.polyMat(mixC(L.skin, '#7a2a22', 0.38), { flatShading: false, side: THREE.DoubleSide }), lidM = P.polyMat(mixC(L.skin, '#2a1810', 0.1), { flatShading: false, side: THREE.DoubleSide });
+    for (const s of [-1, 1]) { // ears: a rim with a hollow in it
+      const ez = s * (P.headProfile(0.98)[2] + 0.015);
+      const e = P.lump(H, [0.11, 0.21, 0.06], M.skin, [-0.02, 0.97, ez], 9); e.rotation.set(s * 0.22, s * 0.25, 0);
+      const h = P.lump(H, [0.055, 0.12, 0.03], dark, [0.0, 0.98, ez + s * 0.04], 7); h.rotation.set(s * 0.22, s * 0.25, 0);
+    }
     const beard = L.beard === true ? 'full' : L.beard, face = (y, z) => P.faceX(y, z);
     // Facial hair laid on the jaw, following it.
     const jaw = (mat, top, off) => P.headSurf(H, mat, { th0: -1.75, th1: 1.75, n: 14, m: 6, yA: K(0.15), yB: (th) => top + (1 - Math.cos(th)) * 0.32, off, dbl: mat });
@@ -454,17 +492,27 @@ Object.assign(People, {
     if (beard === 'stubble') jaw(M.stubble, 0.5, 0.012);
     if (beard === 'goatee') P.headSurf(H, M.hairD, { th0: -0.42, th1: 0.42, n: 4, m: 3, yA: K(0.16), yB: K(0.48), off: 0.05 });
     if (beard === 'moustache' || beard === 'full') P.headSurf(H, M.hairD, { th0: -0.62, th1: 0.62, n: 6, m: 2, yA: (th) => 0.6 - Math.abs(th) * 0.12, yB: K(0.69), off: 0.05 });
-    // Eyes, brows and the mouth, set on the surface.
+    // Eyes: set back in their sockets, an iris of this person's colour with a pupil in it, a lid over the top
+    // third (heavier with a scowl or with age) and a darker lash line under it; brows that follow the brow ridge.
+    const eyeA = Math.asin(0.25 / P.headProfile(1.0)[2]), irisM = P.polyMat(L.eye || '#3a2414', { flatShading: false, roughness: 0.3 }), pupilM = P.polyMat('#0c0806', { flatShading: false, roughness: 0.2 });
+    const lidDrop = (L.brow === 'scowl' ? 0.014 : 0) + 0.014 * P.FACE.age;
     for (const s of [-1, 1]) {
+      const c = s * eyeA, arc = (th, w) => Math.cos(clamp((th - c) / w, -1, 1) * Math.PI / 2);
       if (!L.shades) {
-        const ex = face(1.0, s * 0.25), turn = [0, s * -0.22, 0]; // turned a little to follow the face round
-        P.lump(H, [0.03, 0.075, 0.125], M.sclera, [ex + 0.004, 1.0, s * 0.25], 10).rotation.set(...turn); // the white of the eye, an almond: what lets the face read on any skin
-        P.lump(H, [0.03, 0.068, 0.062], M.eye, [ex + 0.014, 0.995, s * 0.24], 10).rotation.set(...turn); // the iris, round
-        P.slab(H, [0.03, 0.03, 0.03], M.white, [ex + 0.034, 1.025, s * 0.222]); // the glint
-        P.slab(H, [0.035, 0.028, 0.27], M.eyeSet, [ex + 0.012, 1.072, s * 0.25], turn); // the upper lid's line
+        const ex = face(1.0, s * 0.25), turn = [0, s * -0.22, 0];
+        P.lump(H, [0.04, 0.09, 0.15], M.sclera, [ex + 0.004, 1.0, s * 0.25], 12).rotation.set(...turn);
+        P.lump(H, [0.032, 0.074, 0.074], irisM, [ex + 0.024, 0.997, s * 0.243], 12).rotation.set(...turn);
+        P.lump(H, [0.024, 0.036, 0.036], pupilM, [ex + 0.038, 0.997, s * 0.241], 8).rotation.set(...turn);
+        P.slab(H, [0.02, 0.026, 0.026], M.white, [ex + 0.056, 1.024, s * 0.224]); // the glint
+        P.headSurf(H, lidM, { th0: c - 0.25, th1: c + 0.25, n: 8, m: 2, yA: (th) => 1.085 - lidDrop * 1.6 - 0.05 * (1 - arc(th, 0.25)), yB: (th) => 1.1 - 0.012 * (1 - arc(th, 0.25)), off: 0.05 }); // upper lid: an arch over the eye
+        P.headSurf(H, dark, { th0: c - 0.25, th1: c + 0.25, n: 8, m: 1, yA: (th) => 1.073 - lidDrop * 1.6 - 0.05 * (1 - arc(th, 0.25)), yB: (th) => 1.087 - lidDrop * 1.6 - 0.05 * (1 - arc(th, 0.25)), off: 0.054 }); // lash line, along its edge
+        P.headSurf(H, lidM, { th0: c - 0.23, th1: c + 0.23, n: 8, m: 1, yA: (th) => 0.905 + 0.03 * (1 - arc(th, 0.23)), yB: (th) => 0.925 + 0.045 * (1 - arc(th, 0.23)), off: 0.036 }); // lower lid
       }
-      const tilt = L.brow === 'scowl' ? s * 0.14 : s * 0.05; // a frown, not a glare
-      P.slab(H, [0.05, 0.06, 0.24], M.brow, [face(1.15, s * 0.25) + 0.02, 1.15, s * 0.25], [tilt, s * -0.25, 0]);
+      // The brow: thick at the nose, tapering out, arched; a scowl pulls its inner end down.
+      const bw = 0.02 + 0.018 * P.FACE.browK, scowl = L.brow === 'scowl' ? 0.05 : 0.0, bu = (th) => clamp((s * (th - c) + 0.26) / 0.56, 0, 1); // 0 at the nose, 1 at the temple
+      const by = (th) => { const u = bu(th); return 1.15 - scowl * (1 - u) * (1 - u) + 0.035 * Math.sin(u * Math.PI * 0.75) - 0.03 * u * u; };
+      P.headSurf(H, M.brow, { th0: s > 0 ? c - 0.26 : c - 0.3, th1: s > 0 ? c + 0.3 : c + 0.26, n: 9, m: 2, yA: (th) => by(th) - bw * (1 - 0.6 * bu(th)), yB: (th) => by(th) + bw * (1 - 0.6 * bu(th)), off: 0.022, dbl: P.polyMat(mixC(L.hair, L.skin, 0.2), { side: THREE.DoubleSide, flatShading: false }) });
+      P.lump(H, [0.03, 0.018, 0.035], dark, [face(0.735, s * 0.075) - 0.012, 0.728, s * 0.075], 6); // a nostril
     }
     if (L.shades) { // a pair of sunglasses, laid on the face itself so they sit on it from every side
       const eye = Math.asin(0.24 / P.headProfile(1.0)[2]); // the angle round the head of each eye
@@ -476,9 +524,20 @@ Object.assign(People, {
       }
       P.headSurf(H, M.frameD, { th0: -eye + 0.25, th1: eye - 0.25, n: 3, m: 1, yA: K(1.04), yB: K(1.1), off: 0.05 }); // the bridge
     }
-    if (beard !== 'full') {
-      P.headSurf(H, M.mouth, { th0: -0.3, th1: 0.3, n: 6, m: 1, yA: (th) => 0.535 + th * th * 0.25, yB: (th) => 0.575 + th * th * 0.25, off: 0.006 }); // the mouth, wrapped round the face
-      P.headSurf(H, M.eyeSet, { th0: -0.17, th1: 0.17, n: 4, m: 1, yA: K(0.47), yB: K(0.495), off: 0.005 }); // the shadow under the lower lip
+    if (beard !== 'full') { // lips, coloured on the swell sculpted for them, with the line of the mouth between
+      const mw = 0.3, lift = (th) => (L.mouth === 'down' ? -0.035 : L.mouth === 'smirk' ? 0.03 * (th > 0 ? 1 : -0.2) : 0) * (th / mw) ** 2; // the corners: turned down, or one side up
+      const taper = (th) => Math.max(0, 1 - (th / mw) ** 2);
+      P.headSurf(H, lipM, { th0: -mw, th1: mw, n: 10, m: 2, yA: (th) => 0.56 + lift(th), yB: (th) => 0.562 + lift(th) + (0.058 - 0.014 * Math.exp(-(th * th) / 0.004)) * P.FACE.lips * taper(th), off: 0.006 }); // upper lip, with its bow
+      P.headSurf(H, lipM, { th0: -mw * 0.9, th1: mw * 0.9, n: 10, m: 2, yA: (th) => 0.548 + lift(th) - 0.07 * P.FACE.lips * taper(th / 0.9), yB: (th) => 0.55 + lift(th), off: 0.006 }); // lower lip
+      P.headSurf(H, dark, { th0: -mw * 1.04, th1: mw * 1.04, n: 10, m: 1, yA: (th) => 0.548 + lift(th), yB: (th) => 0.563 + lift(th), off: 0.009 }); // the line of the mouth
+    }
+    if (P.FACE.age > 0.6) { // older: lines from the nose to the corners of the mouth, and across the forehead
+      for (const y of [1.3, 1.38]) P.headSurf(H, lidM, { th0: -0.5, th1: 0.5, n: 8, m: 1, yA: (th) => y - 0.02 * th * th, yB: (th) => y + 0.014 - 0.02 * th * th, off: 0.004 });
+    }
+    if (L.scar && !(L.shades && L.scar !== 'lip')) { // an old scar, paler than the skin: through a brow, down a cheek, or across the lip
+      const scarM = P.polyMat(mixC(L.skin, '#f0d8d0', 0.45), { flatShading: false, side: THREE.DoubleSide });
+      const [t0, t1, y0, y1] = { brow: [0.3, 0.38, 1.06, 1.3], cheek: [0.5, 0.56, 0.62, 0.95], lip: [0.1, 0.15, 0.48, 0.7] }[L.scar];
+      P.headSurf(H, scarM, { th0: t0, th1: t1, n: 1, m: 5, yA: K(y0), yB: K(y1), off: L.scar === 'brow' ? 0.03 : 0.012 });
     }
     if (L.tattoo === 'tear') P.slab(H, [0.02, 0.07, 0.035], M.ink, [face(0.88, 0.3) + 0.01, 0.88, 0.3]);
     // Hair and hats: shells over the skull, following it, the hairline lifted over the brow.
