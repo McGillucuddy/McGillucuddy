@@ -21,3 +21,5 @@ three.js, MIT licence, Copyright 2010-2023 three.js authors (licenses/three.LICE
 Character base mesh
   "Human Basemeshes" from OpenGameArt.org, released CC0 (public domain).
   https://opengameart.org/content/human-basemeshes
+  "Humanoid Low Poly Mesh (With Basic Face)" from OpenGameArt.org, released CC0 (public domain).
+  https://opengameart.org/content/humanoid-low-poly-mesh-with-basic-face
