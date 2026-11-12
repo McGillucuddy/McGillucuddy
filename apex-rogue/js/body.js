@@ -36,7 +36,9 @@ const Body = {
       torso: ([x, y, z]) => [x * 1.2, fy(y), z * 1.26],
       neck: ([x, y, z]) => [x * 1.22, fy(y), z * 1.22],
       head: ([x, y, z]) => [x * 1.3, 0.62 + (y - 0.6928) * 1.3, z * 1.3],
-      arm: ([x, y, z]) => [-0.0167 + (x + 0.0139) * 1.22, 0.52 + (y - 0.5895) * 1.22, z + Math.sign(z) * 0.044], // thicker round its own line, carried out with the wider shoulders
+      // thicker round its own line, carried out with the wider shoulders, and longer from shoulder to wrist (the
+      // model's arms are a hand short of a man's reach); the hand itself keeps its length
+      arm: ([x, y, z]) => { const a = Math.abs(z), l = a < 0.6264 ? 0.1692 + (a - 0.1692) * 1.27 : 0.7498 + (a - 0.6264); return [-0.0167 + (x + 0.0139) * 1.22, 0.52 + (y - 0.5895) * 1.22, Math.sign(z) * (l + 0.044)]; },
       leg: ([x, y, z]) => { const s = Math.sign(z) || 1; return [x * 1.2, fy(y), s * 0.116 + (z - s * 0.105) * 1.2]; },
     };
     const gi = S.bones.map((b) => group(b.n));
@@ -333,7 +335,7 @@ const Body = {
   },
   // An arm reaching for a wrist point, its elbow out towards a hint point (figure units): two bones of fixed length,
   // so the elbow is placed where they meet. The hand carries on along the forearm unless given its own direction.
-  reach(B, side, elbow, wrist, handDir) {
+  reach(B, side, elbow, wrist, handDir, roll) {
     const S = side < 0 ? 'L' : 'R', up = B.bones['upper_arm.' + S], fo = B.bones['forearm.' + S];
     const sh = Body.at(B, 'upper_arm.' + S), W = new THREE.Vector3(...wrist), l1 = up.userData.len, l2 = fo.userData.len;
     const sw = W.clone().sub(sh), d = Math.min(sw.length(), (l1 + l2) * 0.999), dir = sw.clone().normalize();
@@ -343,6 +345,37 @@ const Body = {
     Body.aim(B, 'upper_arm.' + S, E.clone().sub(sh).toArray());
     Body.aim(B, 'forearm.' + S, Wr.clone().sub(E).toArray());
     Body.aim(B, 'hand.' + S, handDir || Wr.clone().sub(E).toArray());
+    if (roll) { const h = B.bones['hand.' + S]; h.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(h.userData.rest, roll)); } // turned about its own length: palm in, or palm up
+  },
+  // Hold a gun (one of the game's own gun models, by id) in both hands, pointing forwards. The gun is set so its
+  // trigger grip lands at `at` (figure units); each hand goes to the grip the gun defines for it (Models.GRIPS:
+  // the first is the trigger hand's, the second the support hand's), the wrist set back from the grip by the length
+  // of a palm, the hand turned to face it, and the fingers closed round it.
+  hold(B, g, id, at) {
+    const GR = (typeof Models !== 'undefined' && Models.GRIPS[id]) || [], G0 = GR[0], G1 = GR[1] && !GR[1].spare ? GR[1] : null;
+    if (!G0) return null;
+    // How it is carried: a long gun (its fore-end well ahead of its trigger) is shouldered, the body turned a
+    // little behind it so the leading hand can reach; a launcher sits on the shoulder; anything else is held out
+    // in front in both hands.
+    const long = G1 && Math.abs(G1.pos[2] - G0.pos[2]) > 4.5, tube = id === 'rocket';
+    if (long || tube) B.bones.spine.rotation.y = -0.38;
+    at = tube ? [2.2, 4.25, 1.55] : long ? [2.5, 3.95, 1.2] : at;
+    const s = 0.5, gun = Models.weapon(id), toFig = (p) => new THREE.Vector3(-p[2] * s, p[1] * s, p[0] * s); // gun space (forward -z, right +x) into the figure's (forward +x, right +z)
+    const Gt = new THREE.Vector3(...at), origin = Gt.clone().sub(toFig(G0.pos));
+    gun.scale.setScalar(s); gun.rotation.y = -Math.PI / 2; gun.position.copy(origin);
+    gun.traverse((m) => { if (m.isMesh) m.userData.noGrime = true; });
+    g.add(gun);
+    const sx = B.mesh.scale.x, sz = B.mesh.scale.z, un = (v) => [v.x / sx, v.y, v.z / sz], palm = 0.075 * Body.K;
+    // The trigger hand (right): forearm coming up from behind and below, palm turned in against the grip's right side.
+    const dr = new THREE.Vector3(1, 0.22, -0.06).normalize();
+    Body.reach(B, 1, [0.9, 0.2, 2.5], un(Gt.clone().addScaledVector(dr, -palm).add(new THREE.Vector3(0, 0.05, 0.22))), dr.toArray(), Math.PI / 2);
+    Body.grip(B, 1, 1);
+    // The other hand (left) comes in from its own side, palm turned in against the gun and fingers closing under it:
+    // on the fore-end, pump or front grip where the gun has one, or cupping the trigger hand on a one-handed gun.
+    const Sp = G1 ? origin.clone().add(toFig(G1.pos)) : Gt.clone().add(new THREE.Vector3(0.1, -0.12, 0)), dl = new THREE.Vector3(1, 0.2, 0.3).normalize();
+    Body.reach(B, -1, [1.7, 0.2, -2.5], un(Sp.clone().addScaledVector(dl, -palm).add(new THREE.Vector3(0, -0.08, -0.26))), dl.toArray(), -Math.PI / 2);
+    Body.grip(B, -1, 0.95);
+    return gun;
   },
   // A leg. Standing, the foot and toes keep the set they were modelled with (so boots and their soles stay in
   // line); seated, the foot is given a direction and the toes follow it.
@@ -367,7 +400,8 @@ const Body = {
       const LEG = o.leg ? [[0.3, 0.55], o.leg.knee, o.leg.ankle] : [[0.3, 0.55], [4.1, 0.9], [4.7, -3.3]];
       for (const s of [-1, 1]) Body.leg(B, s, [LEG[1][0] - LEG[0][0], LEG[1][1] - LEG[0][1] + 0.45, s * 0.45], [LEG[2][0] - LEG[1][0], LEG[2][1] - LEG[1][1], s * 0.05], [1, -0.12, 0]);
     }
-    if (o.arms === 'static') {
+    if (o.fullHead && (o.gun || o.role === 'gunner')) Body.hold(B, g, o.gun || 'smg', stand ? [4.0, 3.9, 0.7] : [4.0, 3.8, 0.5]);
+    else if (o.arms === 'static') {
       const A = P.ARM_POSES[o.role] || P.ARM_POSES.driver;
       const sx = B.mesh.scale.x, sz = B.mesh.scale.z, un = (q) => [q[0] / sx, q[1], q[2] / sz]; // (targets are in the figure's units; the body is scaled)
       for (const s of [-1, 1]) {
@@ -438,6 +472,10 @@ const Body = {
     for (const f of mitt ? ['f_all'] : ['f_index', 'f_middle', 'f_ring', 'f_pinky']) for (const j of ['01', '02', '03']) {
       const b = B.bones[`${f}.${j}.${S}`];
       if (b) b.quaternion.setFromAxisAngle(across, sign * k * (j === '01' ? 0.75 : 0.95));
+    }
+    if (mitt) { // the thumb folds down across the palm (about the line of the fingers), so it wraps a grip and does not stick up
+      const t0 = bn('thumb.01.' + S), td = v(t0.t).sub(v(t0.h)).normalize(), ts = td.clone().applyAxisAngle(fd, 0.4).dot(palm) > td.clone().applyAxisAngle(fd, -0.4).dot(palm) ? 1 : -1;
+      for (const j of ['01', '02', '03']) { const b = B.bones[`thumb.${j}.${S}`]; if (b) b.quaternion.setFromAxisAngle(fd, ts * k * (j === '01' ? 0.7 : 0.45)); }
     }
   },
 };
