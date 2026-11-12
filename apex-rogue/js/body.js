@@ -45,6 +45,12 @@ const Body = {
       for (const [bi, w] of S.weights[i]) { const q = T[gi[bi]](v); o[0] += q[0] * w; o[1] += q[1] * w; o[2] += q[2] * w; }
       return o;
     });
+    // Eyes that read as eyes. The model's eyeballs are small and sit deep, so the sockets are two dark holes; each is
+    // enlarged about its own middle and brought forward until it fills its socket.
+    for (const tg of [1, 2]) {
+      const idx = verts.map((v, i) => i).filter((i) => S.tag[i] === tg), c = [0, 1, 2].map((k) => idx.reduce((a, i) => a + verts[i][k], 0) / idx.length);
+      for (const i of idx) verts[i] = [c[0] + (verts[i][0] - c[0]) * 1.32 + 0.0005, c[1] + (verts[i][1] - c[1]) * 1.32, c[2] + (verts[i][2] - c[2]) * 1.32];
+    }
     const bones = S.bones.map((b, i) => ({ n: b.n, p: b.p, h: T[gi[i]](b.h), t: T[gi[i]](b.t) }));
     return (Body.shapes[kind] = { bones, verts, weights: S.weights, tris: S.tris, tag: S.tag });
   },
@@ -79,7 +85,7 @@ const Body = {
       skin: [C.skin, 0, 0], glove: [C.glove, 0.007, 0], suit: [C.suit, 0.03, 0], sleeve: [C.suit, 0.026, 0], cuff: [C.seam, 0.03, 0], roll: [C.suit, 0.046, 0],
       collar: [C.trim, 0.042, 0], placket: [col(paint.suit).lerp(col('#f2e6c8'), 0.07), 0.036, 0], pocket: [C.seam, 0.037, 0], belt: [C.belt, 0.043, 0], boot: [C.boot, 0.047, 0], toes: [C.boot, 0.008, 0], blouse: [C.suit, 0.04, 0],
       vest: [C.vest, 0.016, 0], tie: [C.suit, 0.062, 0.5],
-      eye: [col('#e6ddd0'), 0, 0], iris: [col(paint.eye || '#3a2414'), 0.0004, 0], pupil: [col('#0c0806'), 0.0008, 0],
+      eye: [col('#f2ece2'), 0, 0], lash: [col(paint.skin).lerp(col('#120a06'), 0.6), 0.002, 0], iris: [col(paint.eye || '#3a2414'), 0.0004, 0], pupil: [col('#0c0806'), 0.0008, 0],
       head: [C.skin, 0, 0], lip: [col(paint.skin).lerp(col('#7a2a22'), 0.36), 0.0012, 0], brow: [col(paint.hair || '#2a1c14').lerp(col(paint.skin), 0.15), 0.004, 0],
       hair: [col(paint.hair || '#2a1c14'), 0.013, 0], buzz: [col(paint.hair || '#2a1c14').lerp(col(paint.skin), 0.4), 0.003, 0], beard: [col(paint.hair || '#2a1c14'), 0.011, 0], stubble: [col(paint.skin).lerp(col(paint.hair || '#2a1c14'), 0.32), 0.0015, 0],
       hat: [col(paint.hat || '#3a3a3a'), 0.02, 0], hatBand: [col(paint.hat || '#3a3a3a').lerp(col('#000000'), 0.25), 0.03, 0],
@@ -154,10 +160,12 @@ const Body = {
       const eyes = [1, 2].map((tg) => { const ev = D.verts.filter((v, i) => D.tag[i] === tg); return { c: [0, 1, 2].map((k) => ev.reduce((a, v) => a + v[k], 0) / ev.length), r: (Math.max(...ev.map((v) => v[1])) - Math.min(...ev.map((v) => v[1]))) / 2 }; });
       for (const { c, r } of eyes) {
         const near = (tr) => Math.abs(VV[tr[0]][2] - c[2]) < r * 1.5;
-        split((kd, tr) => kd === 'eye' && near(tr), (v) => v[0] - c[0] - r * 0.45, 'iris', 'eye');
-        split((kd, tr) => kd === 'iris' && near(tr), (v) => v[0] - c[0] - r * 0.84, 'pupil', 'iris');
+        split((kd, tr) => kd === 'eye' && near(tr), (v) => v[0] - c[0] - r * 0.74, 'iris', 'eye');
+        split((kd, tr) => kd === 'iris' && near(tr), (v) => v[0] - c[0] - r * 0.935, 'pupil', 'iris');
       }
-      const ey = eyes[0].c[1], ez = Math.abs(eyes[0].c[2]), hx = D.bones.find((q) => q.n === 'head').h[0];
+      const ey = eyes[0].c[1], ez = Math.abs(eyes[0].c[2]), hx = D.bones.find((q) => q.n === 'head').h[0], er = eyes[0].r;
+      for (const sd of [-1, 1]) // a dark line along the upper lid, over each eye
+        split(is('head'), (v, i) => Math.min(er * 1.25 - Math.abs(v[2] - sd * ez), 0.0045 - Math.abs(v[1] - (ey + er * 0.62 - 0.25 * er * ((v[2] - sd * ez) / er) ** 2)), vn[i].x - 0.2), 'lash', 'head');
       const round = (v, front, side, back) => { const c = Math.cos(Math.atan2(v[2], v[0] - hx)); return c >= 0 ? side + (front - side) * c * c : side + (back - side) * c * c; }; // a height that varies round the head
       for (const sd of [-1, 1]) { // brows: thick at the nose, thinning out, tipped down in the middle for a scowl
         const tilt = paint.brow === 'scowl' ? 0.2 : 0.02;
@@ -376,6 +384,10 @@ const Body = {
     const head = new THREE.Group(), hb = B.bones.head, hp = Body.at(B, 'head');
     head.position.set(hp.x + 0.12, hp.y + 0.1, hp.z);
     g.add(head);
+    if (o.fullHead && B.eyes && !(L.shades && o.role !== 'trader')) { // a point of light in each eye, up and to one side: what makes an eye look alive
+      const K = Body.K, hb = B.data.bones[B.index.head], gm = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+      for (const E of B.eyes) { const m = new THREE.Mesh(new THREE.SphereGeometry(E.r * 0.12 * K, 6, 4), gm); m.position.set((E.c[0] + E.r * 0.95 - hb.h[0]) * K, (E.c[1] + E.r * 0.24 - hb.h[1]) * K, (E.c[2] - E.r * 0.24 - hb.h[2]) * K); m.scale.x = 0.4; m.userData.noGrime = true; B.bones.head.add(m); }
+    }
     if (o.fullHead) { // the model's mouth hangs open: its lower lip is brought up, and the upper down a touch, to close it
       for (const n of ['Head_L.001', 'Head_R.001']) if (B.bones[n]) B.bones[n].position.y += 0.023 * Body.K;
       for (const n of ['Head_L', 'Head_R']) if (B.bones[n]) B.bones[n].position.y -= 0.005 * Body.K;
