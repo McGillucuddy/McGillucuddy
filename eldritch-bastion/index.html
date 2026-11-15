@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eldritch Bastion</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- TITLE -->
+  <section id="title" class="screen active">
+    <div class="title-wrap">
+      <div class="sigil" aria-hidden="true"></div>
+      <h1>Eldritch Bastion</h1>
+      <p class="tagline">The stars are right. The Old Ones have awoken.<br>Hold the city until dawn&hellip; or until madness takes you.</p>
+      <div class="menu">
+        <button class="btn big" data-go="maps">Defend the City</button>
+        <button class="btn" data-go="research">Forbidden Research <span class="badge" id="research-badge"></span></button>
+        <button class="btn" data-go="bestiary">Bestiary</button>
+        <button class="btn" data-go="howto">How to Play</button>
+      </div>
+      <div class="title-foot">
+        <label class="toggle"><input type="checkbox" id="opt-sound" checked> Sound</label>
+        <button class="link" id="reset-save">Erase all progress</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW TO -->
+  <section id="howto" class="screen">
+    <div class="panel-page">
+      <header><button class="btn small" data-go="title">&larr; Back</button><h2>How to Play</h2></header>
+      <div class="howto">
+        <p><b>Build towers</b> beside the road. Select one from the Defenses panel (or press <kbd>1</kbd>&ndash;<kbd>7</kbd>), then click an empty tile. Hold <kbd>Shift</kbd> to place several.</p>
+        <p><b>Call waves</b> with the button or <kbd>Space</kbd>. Calling early while horrors are still on the field grants bonus gold.</p>
+        <p><b>Click a tower</b> to upgrade it (<kbd>U</kbd>), sell it (<kbd>S</kbd>) or change who it targets.</p>
+        <p><b>Spells:</b> <kbd>Q</kbd> Elder Sign stuns everything, <kbd>W</kbd> Flame of Cthugha burns an area, <kbd>E</kbd> Powder of Ibn-Ghazi (researched) reveals and weakens.</p>
+        <p><b>City Sanity</b> drops when horrors reach the gate. Bosses that get through cost 15 sanity &mdash; and if Great Cthulhu himself reaches the city, all is lost.</p>
+        <ul>
+          <li><b>Flyers</b> ignore the road and head straight for the gate. Mortars can't hit them.</li>
+          <li><b>Armored</b> foes shrug off weak shots. Arcane bolts and beams pierce armor.</li>
+          <li><b>Phasing</b> horrors can only be hit while revealed by a Ward or Scholar.</li>
+          <li><b>Madness auras</b> halve the fire rate of nearby towers.</li>
+        </ul>
+        <p><b>Progression:</b> clearing a map unlocks the next map and new towers. Earn up to 3 Elder Signs &#9733; per map per difficulty, then spend them on Forbidden Research. Clear a map to unlock its <b>Nightmare</b> mode.</p>
+        <p class="dim"><kbd>P</kbd> pause &middot; <kbd>F</kbd> cycle speed &middot; <kbd>Esc</kbd> cancel</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAP SELECT -->
+  <section id="maps" class="screen">
+    <div class="panel-page wide">
+      <header><button class="btn small" data-go="title">&larr; Back</button><h2>Choose Your Stand</h2><div class="stars-total" id="stars-total"></div></header>
+      <div class="map-grid" id="map-grid"></div>
+    </div>
+  </section>
+
+  <!-- RESEARCH -->
+  <section id="research" class="screen">
+    <div class="panel-page">
+      <header><button class="btn small" data-go="title">&larr; Back</button><h2>Forbidden Research</h2><div class="stars-total" id="research-avail"></div></header>
+      <p class="dim center">Spend Elder Signs &#9733; earned on the battlefield. Research can be refunded at any time.</p>
+      <div class="research-list" id="research-list"></div>
+      <div class="center"><button class="btn small" id="research-refund">Refund all research</button></div>
+    </div>
+  </section>
+
+  <!-- BESTIARY -->
+  <section id="bestiary" class="screen">
+    <div class="panel-page wide">
+      <header><button class="btn small" data-go="title">&larr; Back</button><h2>Bestiary</h2></header>
+      <p class="dim center">Horrors you have faced are recorded here.</p>
+      <div class="bestiary-grid" id="bestiary-grid"></div>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="screen">
+    <div class="hud">
+      <div class="hud-stat sanity" title="City Sanity"><span class="ico">&#10070;</span><span id="hud-sanity">20</span><div class="sanity-bar"><div id="hud-sanity-bar"></div></div></div>
+      <div class="hud-stat gold" title="Gold"><span class="ico">&#9673;</span><span id="hud-gold">0</span></div>
+      <div class="hud-stat wave" title="Wave"><span>Wave</span> <span id="hud-wave">0/0</span></div>
+      <div class="hud-map" id="hud-map"></div>
+      <div class="hud-ctrl">
+        <button class="btn small" id="btn-speed" title="Speed (F)">1&times;</button>
+        <button class="btn small" id="btn-pause" title="Pause (P)">&#10074;&#10074;</button>
+      </div>
+    </div>
+    <div class="game-body">
+      <div class="canvas-wrap">
+        <canvas id="cv" width="960" height="600"></canvas>
+        <div id="toasts"></div>
+        <div id="pause-overlay" class="overlay hidden">
+          <div class="modal">
+            <h2>Paused</h2>
+            <div class="menu">
+              <button class="btn" id="pm-resume">Resume</button>
+              <button class="btn" id="pm-restart">Restart Map</button>
+              <button class="btn" id="pm-quit">Abandon the City</button>
+              <label class="toggle"><input type="checkbox" id="opt-auto"> Auto-call next wave</label>
+            </div>
+          </div>
+        </div>
+        <div id="end-overlay" class="overlay hidden"><div class="modal" id="end-modal"></div></div>
+      </div>
+      <aside class="side">
+        <div class="side-section">
+          <h3>Defenses</h3>
+          <div class="tower-grid" id="tower-grid"></div>
+        </div>
+        <div class="side-section info" id="info"></div>
+        <div class="side-section">
+          <h3>Rituals</h3>
+          <div class="spell-row" id="spell-row"></div>
+        </div>
+        <div class="side-section">
+          <h3 id="next-wave-title">Next Wave</h3>
+          <div class="wave-preview" id="wave-preview"></div>
+          <button class="btn call" id="btn-wave">Call Wave <kbd>Space</kbd></button>
+        </div>
+      </aside>
+    </div>
+  </section>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
