@@ -64,7 +64,7 @@ const Sfx = {
         else if (data === 'scholar' && this.throttle('scholar', 100)) this.tone(520, 0.25, 'sine', 0.08, 1.6);
         break;
       case 'boom': if (this.throttle('boom', 90)) this.noiseBurst(0.35, 0.3, 200, 0.7); break;
-      case 'kill': if (this.throttle('kill', 60)) this.tone(180 + Math.random() * 60, 0.12, 'triangle', 0.06, 0.5); break;
+      case 'kill': if (this.throttle('kill', 60)) { this.noiseBurst(0.15, 0.08, 300 + Math.random() * 200, 2); this.tone(90 + Math.random() * 40, 0.25, 'sawtooth', 0.04, 0.4); } break;
       case 'leak': this.tone(70, 0.6, 'sawtooth', 0.15, 0.6); break;
       case 'build': this.tone(260, 0.1, 'triangle', 0.15); setTimeout(() => this.tone(390, 0.12, 'triangle', 0.12), 70); break;
       case 'upgrade': [330, 440, 660].forEach((f, i) => setTimeout(() => this.tone(f, 0.15, 'triangle', 0.12), i * 70)); break;
@@ -74,6 +74,8 @@ const Sfx = {
       case 'spell': this.tone(220, 0.8, 'sine', 0.2, 2.5); this.noiseBurst(0.6, 0.12, 900, 0.8); break;
       case 'win': [262, 330, 392, 523].forEach((f, i) => setTimeout(() => this.tone(f, 0.5, 'triangle', 0.15), i * 160)); break;
       case 'lose': [220, 185, 156, 110].forEach((f, i) => setTimeout(() => this.tone(f, 0.7, 'sawtooth', 0.1), i * 260)); break;
+      case 'thunder': this.noiseBurst(2.5, 0.35, 90, 0.4); this.noiseBurst(1.2, 0.15, 300, 0.6); break;
+      case 'siege': if (this.throttle('siege', 900)) { this.tone(65, 0.5, 'sawtooth', 0.12, 0.7); this.noiseBurst(0.3, 0.12, 400, 1); } break;
       case 'click': this.tone(700, 0.04, 'square', 0.04); break;
       case 'deny': this.tone(140, 0.12, 'square', 0.08); break;
     }

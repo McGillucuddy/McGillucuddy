@@ -114,8 +114,9 @@ kbd { font-family: ui-monospace, monospace; font-size: 0.72em; padding: 1px 5px;
 .hud-ctrl { display: flex; gap: 6px; }
 
 .game-body { flex: 1; display: flex; min-height: 0; gap: 10px; padding: 10px; }
+.stage { position: relative; width: 960px; height: 600px; }
 .canvas-wrap { position: relative; flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; }
-#cv { max-width: 100%; max-height: 100%; aspect-ratio: 960 / 600; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 0 40px rgba(0,0,0,.8); cursor: crosshair; touch-action: manipulation; background: #000; }
+#cv { width: 100%; height: 100%; display: block; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 0 40px rgba(0,0,0,.8); cursor: crosshair; touch-action: manipulation; background: #000; }
 .side { width: 290px; flex: 0 0 290px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 .side-section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
 .side-section h3 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); font-weight: normal; }
@@ -184,7 +185,7 @@ kbd { font-family: ui-monospace, monospace; font-size: 0.72em; padding: 1px 5px;
   #game.active { height: auto; min-height: 100vh; }
   .game-body { flex-direction: column; padding: 8px 0; }
   .canvas-wrap { padding: 0 8px; }
-  #cv { width: 100%; }
+  .stage { width: 100% !important; height: auto !important; aspect-ratio: 960 / 600; }
   .side { width: auto; flex: none; padding: 0 16px; overflow: visible; }
   .hud { gap: 10px; }
   .hud-map { display: none; }

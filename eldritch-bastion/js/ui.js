@@ -42,6 +42,13 @@ const UI = {
     $('#pm-restart').addEventListener('click', () => this.startGame(this.game.mapIdx, this.game.mode));
     $('#pm-quit').addEventListener('click', () => this.quitToMaps());
 
+    this.fitStage = () => {
+      const wrap = document.querySelector('.canvas-wrap'), st = $('#stage');
+      if (window.innerWidth <= 900 || !wrap.clientHeight) { st.style.width = ''; st.style.height = ''; return; }
+      const k = Math.min(wrap.clientWidth / 960, wrap.clientHeight / 600);
+      st.style.width = Math.floor(960 * k) + 'px'; st.style.height = Math.floor(600 * k) + 'px';
+    };
+    window.addEventListener('resize', this.fitStage);
     this.refreshTitle();
     requestAnimationFrame(t => this.loop(t));
   },
@@ -76,7 +83,7 @@ const UI = {
       body.appendChild(el('h3', '', `${i + 1}. ${m.name}`));
       body.appendChild(el('div', 'sub', m.sub));
       body.appendChild(el('div', 'desc', m.desc));
-      body.appendChild(el('div', 'meta', `${m.waves} waves · ${m.paths.length} ${m.paths.length > 1 ? 'roads' : 'road'} · Boss: ${ENEMIES[m.boss].name}`));
+      body.appendChild(el('div', 'meta', `${m.waves} waves · from ${m.spawns.length} direction${m.spawns.length > 1 ? 's' : ''} · Boss: ${ENEMIES[m.boss].name}`));
       if (!unlocked) body.appendChild(el('div', 'lock', `Locked — clear ${MAPS[i - 1].name} first.`));
       const modes = el('div', 'modes');
       const mk = (mode, label, enabled) => {
@@ -157,6 +164,7 @@ const UI = {
     this.renderWavePreview();
     this.renderInfo(true);
     this.show('game');
+    this.fitStage();
     Sfx.init(); Sfx.startDrone();
     this.toast(`${this.game.map.name}: ${this.game.map.sub}`, 'good');
     this.toast('Build defenses, then call the first wave.', '');
@@ -286,8 +294,8 @@ const UI = {
       box.innerHTML = `<h4>${d.name}</h4><div class="lvl">Cost ◉${d.cost} · ${d.kind === 'income' ? 'Economy' : (d.air ? 'Hits air' : 'Ground only')}</div>
         <p>${d.desc}</p>${unl ? `<table class="stat-table">${this.statRows(showId, s, null)}</table>` : `<p style="color:#c06070">Locked: ${d.unlock.text}</p>`}`;
     } else {
-      box.innerHTML = `<h4>The Watch</h4><p>Pick a defense and place it on open ground beside the road. Click a placed tower to upgrade it.</p>
-        <p>Horrors reaching the gate drain <b>City Sanity</b>. Bosses cost 15 &mdash; and Great Cthulhu ends everything.</p>`;
+      box.innerHTML = `<h4>The Watch</h4><p>Pick a defense and place it anywhere on the open field. Horrors flow around your towers, so build to funnel them — but leave them a way in.</p>
+        <p>Horrors that reach the walls claw at them, draining <b>City Sanity</b> every second until you kill them.</p>`;
     }
   },
   statRows(type, s, n) {
@@ -363,7 +371,7 @@ const UI = {
         case 'boss': this.toast(`${ENEMIES[ev.data].name} has awoken!`, 'boss'); break;
         case 'bossDown': this.toast(`${ENEMIES[ev.data].name} is banished!`, 'good'); break;
         case 'newEnemy': if (!ENEMIES[ev.data].boss) this.toast(`New horror: ${ENEMIES[ev.data].name}`, 'new'); break;
-        case 'leak': if (ev.data.leak > 0 && (ENEMIES[ev.data.type].boss || performance.now() - (this.lastLeakToast || 0) > 1500)) this.lastLeakToast = performance.now(), this.toast(`${ENEMIES[ev.data.type].name} reached the city! −${Math.round(ev.data.leak)} sanity`, 'boss'); break;
+        case 'siege': if (ENEMIES[ev.data].boss || performance.now() - (this.lastLeakToast || 0) > 2500) { this.lastLeakToast = performance.now(); this.toast(ENEMIES[ev.data].boss ? `${ENEMIES[ev.data].name} is at the walls!` : `${ENEMIES[ev.data].name} is clawing at the walls!`, 'boss'); } break;
         case 'end': this.showEnd(ev.data); break;
       }
     }
@@ -391,7 +399,7 @@ const UI = {
     } else {
       html += `<h2>Madness Takes the City</h2><p class="dim">The streets fill with chanting. You held for ${Math.max(0, g.wave - 1)} of ${g.totalWaves} waves.</p>`;
     }
-    html += `<div class="summary">Horrors slain: ${g.stats.kills} · Escaped: ${g.stats.leaked} · Sanity left: ${Math.ceil(g.sanity)}/${g.maxSanity}</div>`;
+    html += `<div class="summary">Horrors slain: ${g.stats.kills} · Reached the walls: ${g.stats.breaches} · Sanity left: ${Math.ceil(g.sanity)}/${g.maxSanity}</div>`;
     m.innerHTML = html;
     const row = el('div', 'row');
     const b = (label, fn, cls = '') => { const x = el('button', 'btn ' + cls, label); x.addEventListener('click', fn); row.appendChild(x); };
@@ -433,6 +441,7 @@ const UI = {
           Sfx.play('deny');
           if (g.towerAt[r] && g.towerAt[r][c]) { this.placing = null; this.selected = g.towerAt[r][c]; }
           else if (g.gold < TOWERS[this.placing].cost) this.toast('Not enough gold.', '');
+          else { const why = g.placeProblem(c, r); if (why && why.startsWith('That')) this.toast(why, ''); }
         }
         this.updateTowerButtons(); this.renderInfo(true);
         return;

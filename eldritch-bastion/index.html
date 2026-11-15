@@ -33,13 +33,13 @@
     <div class="panel-page">
       <header><button class="btn small" data-go="title">&larr; Back</button><h2>How to Play</h2></header>
       <div class="howto">
-        <p><b>Build towers</b> beside the road. Select one from the Defenses panel (or press <kbd>1</kbd>&ndash;<kbd>7</kbd>), then click an empty tile. Hold <kbd>Shift</kbd> to place several.</p>
+        <p><b>Build towers</b> anywhere on the open field. Horrors emerge from the darkness at the edges and flow <i>around</i> your towers toward the city, so you can funnel them &mdash; but you may never seal the city off completely. Select one from the Defenses panel (or press <kbd>1</kbd>&ndash;<kbd>7</kbd>), then click an empty tile. Hold <kbd>Shift</kbd> to place several.</p>
         <p><b>Call waves</b> with the button or <kbd>Space</kbd>. Calling early while horrors are still on the field grants bonus gold.</p>
         <p><b>Click a tower</b> to upgrade it (<kbd>U</kbd>), sell it (<kbd>S</kbd>) or change who it targets.</p>
         <p><b>Spells:</b> <kbd>Q</kbd> Elder Sign stuns everything, <kbd>W</kbd> Flame of Cthugha burns an area, <kbd>E</kbd> Powder of Ibn-Ghazi (researched) reveals and weakens.</p>
-        <p><b>City Sanity</b> drops when horrors reach the gate. Bosses that get through cost 15 sanity &mdash; and if Great Cthulhu himself reaches the city, all is lost.</p>
+        <p><b>City Sanity</b> drains every second that horrors claw at the walls. Kill them before the city loses its mind. A red mist marks where the next wave will come from.</p>
         <ul>
-          <li><b>Flyers</b> ignore the road and head straight for the gate. Mortars can't hit them.</li>
+          <li><b>Flyers</b> pass over everything and head straight for the walls. Mortars can't hit them.</li>
           <li><b>Armored</b> foes shrug off weak shots. Arcane bolts and beams pierce armor.</li>
           <li><b>Phasing</b> horrors can only be hit while revealed by a Ward or Scholar.</li>
           <li><b>Madness auras</b> halve the fire rate of nearby towers.</li>
@@ -91,6 +91,7 @@
     </div>
     <div class="game-body">
       <div class="canvas-wrap">
+       <div class="stage" id="stage">
         <canvas id="cv" width="960" height="600"></canvas>
         <div id="toasts"></div>
         <div id="pause-overlay" class="overlay hidden">
@@ -105,6 +106,7 @@
           </div>
         </div>
         <div id="end-overlay" class="overlay hidden"><div class="modal" id="end-modal"></div></div>
+       </div>
       </div>
       <aside class="side">
         <div class="side-section">
