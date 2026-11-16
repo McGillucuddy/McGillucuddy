@@ -13,6 +13,7 @@ A Lovecraftian tower defense game. The stars are right, Cthulhu and the elder go
 - **Bosses:** Father Dagon, The Haunter of the Dark, The Dunwich Horror, Nyarlathotep and Great Cthulhu.
 - **3 spells:** Elder Sign, Flame of Cthugha and Powder of Ibn-Ghazi.
 - **Progression:** clearing a map unlocks the next map, new towers and Nightmare mode. Elder Signs (★, up to 3 per map per difficulty) pay for a research tree of 10 upgrades.
+- **Hand-drawn-in-code models:** every monster and tower is drawn procedurally with jointed limbs, shading and animation, rendered at 2× resolution (it drops to 1× automatically on slow machines).
 - A bestiary, targeting modes, calling waves early for bonus gold, 1×/2×/3× speed, and sound effects synthesized in the browser.
 
 ## Controls

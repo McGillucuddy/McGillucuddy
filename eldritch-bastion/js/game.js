@@ -697,7 +697,7 @@ class Game {
           let dmg = s.dmg, crit = false;
           if (s.crit && Math.random() < s.crit) { dmg *= 3; crit = true; }
           this.damage(e, dmg, 'phys', t);
-          this.effects.push({ kind: 'tracer', x: t.x + Math.cos(t.angle) * 14, y: t.y + Math.sin(t.angle) * 14, x2: e.x, y2: e.y, life: 0.09, t: 0, crit });
+          this.effects.push({ kind: 'tracer', x: t.x + Math.cos(t.angle) * 18, y: t.y + Math.sin(t.angle) * 18, x2: e.x, y2: e.y, life: 0.09, t: 0, crit });
           if (crit) this.floater(e.x, e.y - 16, 'CRIT', '#ffeeaa');
           t.cd = 1 / s.rate; this.emit('shot', 'rifle');
           break;
@@ -726,7 +726,7 @@ class Game {
             if (!best) break;
             hit.push(best); cur = best;
           }
-          const pts = [{ x: t.x, y: t.y - 16 }];
+          const pts = [{ x: t.x, y: t.y - 20 - t.level * 2.6 }];
           hit.forEach((e, i) => {
             pts.push({ x: e.x, y: e.y });
             this.damage(e, s.dmg * Math.pow(0.88, i), 'phys', t);
@@ -740,7 +740,7 @@ class Game {
           if (t.cd > 0) break;
           const e = this.pickTarget(t, range); if (!e) break;
           t.angle = Math.atan2(e.y - t.y, e.x - t.x);
-          this.projectiles.push({ kind: 'bolt', x: t.x, y: t.y - 14, target: e, speed: 9 * TILE, dmg: s.dmg, tower: t, trail: [] });
+          this.projectiles.push({ kind: 'bolt', x: t.x, y: t.y - 17 - t.level, target: e, speed: 9 * TILE, dmg: s.dmg, tower: t, trail: [] });
           t.cd = 1 / s.rate; this.emit('shot', 'scholar');
           break;
         }

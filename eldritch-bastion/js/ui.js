@@ -21,7 +21,7 @@ const UI = {
     Sfx.setEnabled(Save.data.settings.sound);
     $('#opt-sound').checked = Save.data.settings.sound;
     $('#opt-auto').checked = Save.data.settings.autoWave;
-    this.renderer = new Renderer($('#cv'));
+    this.renderer = new Renderer($('#cv'), 2);
 
     document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => { Sfx.init(); Sfx.play('click'); this.show(b.dataset.go); }));
     $('#opt-sound').addEventListener('change', e => { Save.data.settings.sound = e.target.checked; Save.write(); Sfx.init(); Sfx.setEnabled(e.target.checked); });
@@ -488,6 +488,10 @@ const UI = {
       if (this.selected && !g.towers.includes(this.selected)) this.selected = null;
       this.handleEvents();
       this.renderer.draw(g, this, this.paused ? 0 : dt);
+      // adaptive quality: if frames stay slow, fall back to 1x resolution
+      this.frameEma = (this.frameEma || 0.016) * 0.97 + dt * 0.03;
+      if (this.renderer.ss > 1 && this.frameEma > 0.04 && (this.slowT = (this.slowT || 0) + dt) > 2) { this.renderer.setQuality(1, g); this.frameEma = 0.016; }
+      else if (this.frameEma <= 0.04) this.slowT = 0;
       this.updateHud();
       this.updateTowerButtons();
       this.updateSpellButtons();
