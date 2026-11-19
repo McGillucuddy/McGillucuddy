@@ -366,32 +366,33 @@ class Renderer {
     const t = this.time, m = g.map, th = THEMES[FLOORS[g.floor].theme];
     const RW = 44, RH = 30;
     if (!this.mapDark) { this.mapDark = document.createElement('canvas'); this.mapDark.width = W; this.mapDark.height = H; }
-    ctx.fillStyle = '#060809'; ctx.fillRect(0, 0, W, H);
-    // rough bedrock
-    const rng = mulberry32(g.floor * 131 + 7);
-    for (let i = 0; i < 260; i++) { ctx.fillStyle = rng() < 0.5 ? '#0d1012' : '#121619'; ctx.fillRect(Math.round(rng() * W), Math.round(rng() * H), 2 + Math.round(rng() * 8), 2 + Math.round(rng() * 4)); }
+    // the district seen from above: a dark sea of rooftops, cut by whatever streets your lantern has found
+    const mk = 'map:' + g.floor + ':' + m.cells[0][0].id + ':' + m.cols;
+    if (this.mapKey !== mk) this.buildCityMap(g), this.mapKey = mk;
+    const city = this.city;
+    ctx.drawImage(city.roofs, 0, 0);
     const cells = m.cells.flat().filter(n => n.type !== 'void');
     const reach = new Set(g.reachable().map(n => n.id));
-    // passages
+    const street = (x, y, w, h) => { x = Math.round(x); y = Math.round(y); ctx.drawImage(city.street, x, y, w, h, x, y, w, h); };
+    // streets (or canals, on the drowned floor)
     for (const a of cells) for (const b of g.adj(a)) {
       if (b.id < a.id || !(a.seen || b.seen)) continue;
       const pa = this.nodePos(a), pb = this.nodePos(b);
-      ctx.fillStyle = th.floorB;
-      if (pa.y === pb.y) ctx.fillRect(Math.min(pa.x, pb.x), pa.y - 4, Math.abs(pb.x - pa.x), 9);
-      else ctx.fillRect(pa.x - 5, Math.min(pa.y, pb.y), 11, Math.abs(pb.y - pa.y));
-      ctx.fillStyle = th.seam;
-      if (pa.y === pb.y) { ctx.fillRect(Math.min(pa.x, pb.x), pa.y - 5, Math.abs(pb.x - pa.x), 1); ctx.fillRect(Math.min(pa.x, pb.x), pa.y + 5, Math.abs(pb.x - pa.x), 1); }
-      else { ctx.fillRect(pa.x - 6, Math.min(pa.y, pb.y), 1, Math.abs(pb.y - pa.y)); ctx.fillRect(pa.x + 6, Math.min(pa.y, pb.y), 1, Math.abs(pb.y - pa.y)); }
+      ctx.fillStyle = '#05070a';
+      if (pa.y === pb.y) { ctx.fillRect(Math.min(pa.x, pb.x), pa.y - 7, Math.abs(pb.x - pa.x), 15); street(Math.min(pa.x, pb.x), pa.y - 6, Math.abs(pb.x - pa.x), 13); }
+      else { ctx.fillRect(pa.x - 7, Math.min(pa.y, pb.y), 15, Math.abs(pb.y - pa.y)); street(pa.x - 6, Math.min(pa.y, pb.y), 13, Math.abs(pb.y - pa.y)); }
     }
-    // rooms
+    if (city.canal) { ctx.fillStyle = 'rgba(120,170,160,0.35)'; for (let i = 0; i < 40; i++) { const rx = (i * 97 + t * 6 * (i % 2 ? 1 : -1)) % W, ry = (i * 53) % H; ctx.fillRect(Math.round((rx + W) % W), ry, 3, 1); } }
+    // squares
     for (const n of cells) {
       const p = this.nodePos(n), boss = n.type === 'boss';
       const w = boss ? 52 : RW, h = boss ? 44 : RH, x0 = Math.round(p.x - w / 2), y0 = Math.round(p.y - h / 2);
-      if (!n.seen) { ctx.fillStyle = '#0b0d10'; ctx.fillRect(x0, y0, w, h); ctx.fillStyle = '#17191d'; ctx.fillRect(x0, y0, w, 1); ctx.fillRect(x0, y0 + h - 1, w, 1); ctx.fillRect(x0, y0, 1, h); ctx.fillRect(x0 + w - 1, y0, 1, h); continue; }
-      ctx.fillStyle = th.wallLo || '#0b0d10'; ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
-      for (let yy = 0; yy < h; yy += 6) for (let xx = (yy / 6 % 2) * 4; xx < w; xx += 8) { ctx.fillStyle = (xx + yy + n.c) % 3 ? th.floorA : th.floorB; ctx.fillRect(x0 + xx, y0 + yy, Math.min(7, w - xx), Math.min(5, h - yy)); }
-      ctx.fillStyle = th.wallHi; ctx.fillRect(x0 - 2, y0 - 2, w + 4, 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x0, y0 + h - 4, w, 4);
+      if (!n.seen) { ctx.fillStyle = 'rgba(40,44,48,0.35)'; for (let i = 0; i < w; i += 3) { ctx.fillRect(x0 + i, y0, 1, 1); ctx.fillRect(x0 + i, y0 + h - 1, 1, 1); } for (let i = 0; i < h; i += 3) { ctx.fillRect(x0, y0 + i, 1, 1); ctx.fillRect(x0 + w - 1, y0 + i, 1, 1); } continue; }
+      if (boss) this.drawLandmark(ctx, g, p, t);
+      ctx.fillStyle = '#05070a'; ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
+      street(x0, y0, w, h);
+      ctx.fillStyle = city.curb; ctx.fillRect(x0 - 1, y0 - 1, w + 2, 1); ctx.fillRect(x0 - 1, y0 + h, w + 2, 1); ctx.fillRect(x0 - 1, y0, 1, h); ctx.fillRect(x0 + w, y0, 1, h);
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x0, y0 + h - 3, w, 3);
       const nt = NODE_TYPES[n.type];
       if (boss) {
         const s = foeSprite(FLOORS[g.floor].boss), sc = 40 / s.h;
@@ -401,6 +402,8 @@ class Renderer {
         drawIcon(ctx, nt.icon, p.x - 8 + 1, p.y - 8 + 1, '#05070a', 2);
         drawIcon(ctx, nt.icon, p.x - 8, p.y - 8, col, 2);
       } else drawIcon(ctx, 'door', p.x - 8, p.y - 8, '#5d636a', 2);
+      // a street lamp on the corner of squares you have walked through
+      if (n.visited && !boss) { ctx.fillStyle = '#1c1f22'; ctx.fillRect(x0 + 2, y0 + 2, 2, 2); ctx.fillStyle = '#e0b860'; ctx.fillRect(x0 + 2, y0 + 2, 1, 1); }
       if (reach.has(n.id)) { ctx.fillStyle = Math.floor(t * 4) % 2 ? '#f0d870' : '#eeeae0'; for (let i = 0; i < w + 4; i += 2) { ctx.fillRect(x0 - 2 + i, y0 - 3, 1, 1); ctx.fillRect(x0 - 2 + i, y0 + h + 2, 1, 1); } for (let i = 0; i < h + 4; i += 2) { ctx.fillRect(x0 - 3, y0 - 2 + i, 1, 1); ctx.fillRect(x0 + w + 2, y0 - 2 + i, 1, 1); } }
       if (ui.hoverNode === n && reach.has(n.id)) { ctx.fillStyle = '#f0d870'; ctx.fillRect(x0 - 3, y0 - 3, w + 6, 1); ctx.fillRect(x0 - 3, y0 + h + 2, w + 6, 1); ctx.fillRect(x0 - 3, y0 - 3, 1, h + 6); ctx.fillRect(x0 + w + 2, y0 - 3, 1, h + 6); }
     }
@@ -448,6 +451,74 @@ class Renderer {
     if (g.mode === 'map') {
       const n = g.gloamIn();
       pxText(ctx, n === Infinity ? 'THE GLOAM HAS STOPPED. THE LAIR IS OPEN.' : n === 1 ? 'THE GLOAM ADVANCES AFTER YOUR NEXT MOVE' : `THE GLOAM ADVANCES IN ${n} MOVES`, 240, 262, n === 1 ? '#d0503a' : '#8a9097');
+    }
+  }
+  // ---------- the city plan behind the map ----------
+  buildCityMap(g) {
+    const f = g.floor, rng = mulberry32(f * 131 + 7 + g.map.cells[0][0].id);
+    const P = [
+      { ground: '#05070a', roofA: '#2c2019', roofB: '#201813', ridgeLo: '#262428', ridge: '#46342a', tile: 'rgba(0,0,0,0.3)', win: '#c89048', street: ['#2e3135', '#272a2e', '#121416'], curb: '#3c4146', water: true },
+      { ground: '#040306', roofA: '#24202a', roofB: '#1a1720', ridgeLo: '#201c1c', ridge: '#383240', tile: 'rgba(0,0,0,0.35)', win: '#9a7aa8', street: ['#2a292e', '#232227', '#0e0d10'], curb: '#3a3840' },
+      { ground: '#030605', roofA: '#1e2a24', roofB: '#141c18', ridgeLo: '#1c2022', ridge: '#2e3e36', tile: 'rgba(0,0,0,0.35)', win: '#8ab878', street: ['#0c1c1a', '#0a1816', '#061010'], curb: '#22302a', canal: true },
+    ][f] || {};
+    const roofs = document.createElement('canvas'); roofs.width = W; roofs.height = H;
+    const c = roofs.getContext('2d');
+    c.fillStyle = P.ground; c.fillRect(0, 0, W, H);
+    // irregular city blocks split by black lanes; inside each, houses packed in two rows
+    // facing out, seen from above: two roof slopes, a ridge, chimneys, the odd lit dormer
+    const house = (x, y, w, h, along) => {
+      const tone = rng(), A = tone < 0.33 ? P.roofA : tone < 0.66 ? P.roofB : P.ridgeLo || P.roofB, B = P.roofB;
+      c.fillStyle = A; c.fillRect(x, y, w, h);
+      c.fillStyle = 'rgba(0,0,0,0.45)'; if (along) c.fillRect(x, y + (h >> 1), w, h - (h >> 1)); else c.fillRect(x + (w >> 1), y, w - (w >> 1), h);
+      c.fillStyle = 'rgba(0,0,0,0.14)'; if (along) { for (let ty = y + 2; ty < y + h; ty += 3) for (let tx = x + (ty % 2); tx < x + w; tx += 3) c.fillRect(tx, ty, 2, 1); } else for (let tx = x + 2; tx < x + w; tx += 3) for (let ty = y + (tx % 2); ty < y + h; ty += 3) c.fillRect(tx, ty, 1, 2);
+      c.fillStyle = P.ridge; if (along) c.fillRect(x + 1, y + (h >> 1) - 1, w - 2, 1); else c.fillRect(x + (w >> 1) - 1, y + 1, 1, h - 2);
+      c.fillStyle = 'rgba(0,0,0,0.6)'; c.fillRect(x, y + h - 1, w, 1); c.fillRect(x + w - 1, y, 1, h);
+      if (rng() < 0.4 && w > 7 && h > 7) { const cx = x + 2 + Math.floor(rng() * (w - 6)), cy = y + 2 + Math.floor(rng() * (h - 6)); c.fillStyle = '#05070a'; c.fillRect(cx + 1, cy + 1, 3, 3); c.fillStyle = P.ridge; c.fillRect(cx, cy, 3, 3); }
+      if (rng() < 0.05) { c.fillStyle = P.win; c.fillRect(x + 2 + Math.floor(rng() * Math.max(1, w - 5)), y + 2 + Math.floor(rng() * Math.max(1, h - 4)), 2, 1); }
+    };
+    for (let by = -6; by < H; ) {
+      const bh = 26 + Math.floor(rng() * 22);
+      for (let bx = -Math.floor(rng() * 30); bx < W; ) {
+        const bw = 34 + Math.floor(rng() * 50);
+        if (rng() > 0.08) {
+          const half = Math.floor(bh / 2);
+          for (const [ry, rh] of [[by, half], [by + half, bh - half]]) for (let x = bx; x < bx + bw; ) { const w = Math.min(bx + bw - x, 11 + Math.floor(rng() * 16)); if (w < 6) break; house(x, ry, w, rh, rng() < 0.75); x += w; }
+          c.fillStyle = 'rgba(0,0,0,0.5)'; c.fillRect(bx, by + half, bw, 1);
+        }
+        bx += bw + 3 + Math.floor(rng() * 3);
+      }
+      by += bh + 3 + Math.floor(rng() * 2);
+    }
+    if (P.water) { // the harbour along the bottom of the docks, piers running out into it
+      for (let y = 246; y < H; y++) { c.fillStyle = y % 3 ? '#081014' : '#0a1418'; c.fillRect(0, y, W, 1); }
+      for (let i = 0; i < 9; i++) { const x = 20 + i * 54 + rng() * 10; c.fillStyle = '#2a1e14'; c.fillRect(x, 244, 5, 18); c.fillStyle = '#05070a'; c.fillRect(x + 5, 246, 1, 16); }
+    }
+    // street texture: cobbles, or dark canal water
+    const st = document.createElement('canvas'); st.width = W; st.height = H;
+    const s = st.getContext('2d'); s.fillStyle = P.street[2]; s.fillRect(0, 0, W, H);
+    if (P.canal) { s.fillStyle = P.street[0]; s.fillRect(0, 0, W, H); for (let i = 0; i < 900; i++) { s.fillStyle = rng() < 0.5 ? P.street[1] : 'rgba(60,100,90,0.25)'; s.fillRect(Math.floor(rng() * W), Math.floor(rng() * H), 2 + Math.floor(rng() * 5), 1); } }
+    else for (let y = 0; y < H; y += 3) for (let x = -(y % 6 ? 2 : 0); x < W; x += 4) { s.fillStyle = rng() < 0.5 ? P.street[0] : P.street[1]; s.fillRect(x, y, 3, 2); }
+    this.city = { roofs, street: st, curb: P.curb, canal: !!P.canal };
+  }
+  // the boss lair, seen from above: a building you would know anywhere
+  drawLandmark(ctx, g, p, t) {
+    const boss = FLOORS[g.floor].boss, x = Math.round(p.x), y = Math.round(p.y);
+    const R = (a, b, w, h, c) => { ctx.fillStyle = c; ctx.fillRect(x + a, y + b, w, h); };
+    if (boss === 'dagon') { // the chapel: a cross-shaped roof
+      R(-40, -12, 80, 24, '#05070a'); R(-14, -32, 28, 64, '#05070a');
+      R(-38, -10, 76, 10, '#3a3230'); R(-38, 0, 76, 10, '#24201e'); R(-12, -30, 12, 60, '#3a3230'); R(0, -30, 12, 60, '#24201e');
+      R(-2, -36, 4, 8, '#5a5248'); R(-5, -33, 10, 2, '#5a5248');
+    } else if (boss === 'nyarlathotep') { // the playhouse: a great horseshoe of a roof
+      ctx.fillStyle = '#05070a'; ctx.beginPath(); ctx.arc(x, y + 4, 40, Math.PI, 0); ctx.lineTo(x + 40, y + 24); ctx.lineTo(x - 40, y + 24); ctx.fill();
+      ctx.fillStyle = '#2c2830'; ctx.beginPath(); ctx.arc(x, y + 4, 37, Math.PI, 0); ctx.lineTo(x + 37, y + 22); ctx.lineTo(x - 37, y + 22); ctx.fill();
+      ctx.strokeStyle = '#403a46'; ctx.lineWidth = 1; for (let r = 10; r < 37; r += 6) { ctx.beginPath(); ctx.arc(x, y + 4, r, Math.PI, 0); ctx.stroke(); }
+      R(-3, -38, 6, 6, '#5a4a28');
+    } else { // the spire: a square tower, its pyramid roof seen from above, a light at the peak
+      R(-36, -30, 72, 60, '#05070a');
+      ctx.fillStyle = '#34463c'; ctx.beginPath(); ctx.moveTo(x - 34, y - 28); ctx.lineTo(x + 34, y - 28); ctx.lineTo(x, y); ctx.fill();
+      ctx.fillStyle = '#24302a'; ctx.beginPath(); ctx.moveTo(x + 34, y - 28); ctx.lineTo(x + 34, y + 28); ctx.lineTo(x, y); ctx.fill();
+      ctx.fillStyle = '#16201c'; ctx.beginPath(); ctx.moveTo(x - 34, y + 28); ctx.lineTo(x + 34, y + 28); ctx.lineTo(x, y); ctx.fill();
+      ctx.fillStyle = '#2c3a32'; ctx.beginPath(); ctx.moveTo(x - 34, y - 28); ctx.lineTo(x - 34, y + 28); ctx.lineTo(x, y); ctx.fill();
     }
   }
   hitNode(g, x, y) {

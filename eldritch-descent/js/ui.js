@@ -349,7 +349,7 @@ const UI = {
     if (this.tempHintT > 0) { this.tempHintT -= dt; hint = this.tempHint; }
     else if (inCombat && this.selCard) { const t = CARDS[this.selCard.id].target; hint = t === 'ally' ? 'Choose an ally' : t === 'fallen' ? 'Choose a fallen ally' : t === 'front' ? 'Choose a front-rank horror' : 'Choose a horror'; }
     else if (inCombat && this.armedPot !== null) hint = POTIONS[g.potions[this.armedPot]] && POTIONS[g.potions[this.armedPot]].target === 'fallen' ? 'Choose a fallen ally' : 'Choose an ally';
-    else if (g.mode === 'map') hint = `${FLOORS[g.floor].name}: move to a lit room`;
+    else if (g.mode === 'map') hint = `${FLOORS[g.floor].name}: walk to a lit square`;
     $('#hint').textContent = hint; $('#hint').classList.toggle('hidden', !hint);
   },
   clickPotion(i) {
@@ -375,7 +375,7 @@ const UI = {
         case 'win': Sfx.play('win'); break;
         case 'floor': this.banner(FLOORS[d].name, FLOORS[d].sub); this.r.bgKey = null; break;
         case 'relic': Sfx.play('upgrade'); break;
-        case 'gloam': Sfx.play('boss'); this.r.shake = 3; this.flashHint('The Gloam swallows another column of rooms'); break;
+        case 'gloam': Sfx.play('boss'); this.r.shake = 3; this.flashHint('The Gloam swallows another street'); break;
         case 'gloamHit': Sfx.play('leak'); this.banner('The Gloam takes its toll', 'Every hero loses 12% of their health'); break;
         case 'echo': this.flashHint('Black Psalter Page: played twice'); break;
         case 'shuffle': Sfx.play('click'); break;

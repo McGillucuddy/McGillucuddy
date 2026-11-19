@@ -10,10 +10,11 @@ A turn-based cosmic-horror roguelite in pixel art, set in the drowned city of **
 - **Your turn:** you have 3 energy and draw 5 cards. Every horror shows its **intent**: what it will do, how hard, and to whom. Hover a horror to see its aim. Each hero shows the damage coming at them after Block.
 - **Companions** act after you, and their intents are shown too. The Warden taunts horrors onto himself, the Physician heals, shields and revives, and the Hunter and Occultist strike. A taunt instantly redirects enemy intents, so you can plan around it.
 - **Statuses:** Block, Vulnerable, Weak, Strength, Bleed, Stun, Taunt and Phased, plus a set of powers per class.
-- **The map: Lantern & Gloam.** Each floor (Brinehollow Docks, the Hollow Ossuary, the Drowned Spire) is a grid of rooms joined by passages.
-  - Your lantern only lights the rooms near you.
+- **Fights happen somewhere real.** Each fight takes place in a part of the old city: the Harbour Quay or Net-Maker's Row on the Docks, the Buried Street or the Bone Galleries in the Ossuary, the Sunken Street or the Flooded Nave in the Spire. Each boss waits in its own lair: the Drowned Chapel, the Old Playhouse, the Belfry.
+- **The map: Lantern & Gloam.** Each floor (Brinehollow Docks, the Hollow Ossuary, the Drowned Spire) is a district of the drowned city: squares joined by narrow streets, seen from above as a dark sea of rooftops.
+  - Your lantern only lights the streets near you.
   - Room types: Skirmish, Champion, Mystery, Campfire, Peddler, Cache and Wayshrine. The boss's Lair waits on the far side.
-  - **The Gloam** follows you, swallowing a column of rooms behind you every two moves. Rooms it takes are closed, and walking through it hurts every hero. Explore sideways for loot, but don't linger.
+  - **The Gloam** follows you, swallowing a street of the city behind you every two moves. Streets it takes are closed, and walking through it hurts every hero. Explore sideways for loot, but don't linger.
 - **Rewards:** a card after every fight, card upgrades at campfires, relics (including powerful boss relics with drawbacks) and draughts.
 - **Bosses:**
   - **The Tide Patriarch:** party-wide sweeps, the crushing tide, and he calls his Fathomkin.

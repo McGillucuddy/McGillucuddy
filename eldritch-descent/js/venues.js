@@ -388,7 +388,7 @@ const VENUES = {
       // some of the masks are not empty
       for (let i = 0; i < st.masks.length; i++) {
         const blink = Math.sin(t * 0.9 + i * 7.31);
-        if (blink > 0.985 || (i % 31 === 0 && blink > 0.55)) { const [x, y] = st.masks[i]; ctx.fillStyle = '#d0a0ff'; ctx.fillRect(x + 1, y + 3, 2, 2); ctx.fillRect(x + 4, y + 3, 2, 2); ctx.fillStyle = 'rgba(200,150,255,0.25)'; ctx.fillRect(x - 1, y + 2, 9, 4); }
+        if (blink > 0.985 || (i % 47 === 0 && blink > 0.55)) { const [x, y] = st.masks[i]; ctx.fillStyle = '#d0a0ff'; ctx.fillRect(x + 1, y + 3, 2, 2); ctx.fillRect(x + 4, y + 3, 2, 2); ctx.fillStyle = 'rgba(200,150,255,0.25)'; ctx.fillRect(x - 1, y + 2, 9, 4); }
       }
     },
     front(ctx, t, st) { for (const x of st.foot) { const f = Math.sin(t * 9 + x) > 0 ? 1 : 0; ctx.fillStyle = '#c8a0ff'; ctx.fillRect(x - 1, 253 - f, 3, 4 + f); ctx.fillStyle = '#ffffff'; ctx.fillRect(x, 255, 1, 2); } },
