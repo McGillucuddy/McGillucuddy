@@ -578,7 +578,7 @@ class Game {
       if (u.anim.enter > 0) u.anim.enter -= dt;
       if (u.anim.die !== undefined) u.anim.die += dt;
     }
-    if (this.dying) this.dying = this.dying.filter(u => u.anim.die < 0.9);
+    if (this.dying) this.dying = this.dying.filter(u => u.anim.die < 1.5);
     if (this.steps.length) {
       this.stepT += dt;
       if (this.stepT >= this.steps[0].delay) { this.stepT = 0; const s = this.steps.shift(); s.fn(); }

@@ -173,8 +173,8 @@ function bakeSprite(key, draw, s, opts = {}) {
     frames.push(c); white.push(whiteOf(c));
     eyesPerFrame.push(EyeSink.list.map(e => ({ x: Math.round(e.x - ox), y: Math.round(e.y - oy), r: Math.max(1, e.r), color: e.color })));
   }
-  const order = []; for (let i = 0; i < nf; i++) order.push(i); for (let i = nf - 2; i > 0; i--) order.push(i);
-  const spr = { frames, white, eyes: eyesPerFrame, order, w: N, h: N, ox, oy };
+  const order = []; for (let i = 0; i < nf; i++) order.push(i); if (!opts.loop) for (let i = nf - 2; i > 0; i--) order.push(i);
+  const spr = { frames, white, eyes: eyesPerFrame, order, w: N, h: N, ox, oy, fps: opts.fps || 4 };
   SPRITES[key] = spr;
   return spr;
 }
