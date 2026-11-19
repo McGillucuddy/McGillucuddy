@@ -18,10 +18,10 @@ const CLASSES = {
 };
 const CLASS_ORDER = ['warden', 'hunter', 'occultist', 'physician'];
 const NAMES = {
-  warden: ['Silas Cole', 'Abner Marsh', 'Sgt. Brannigan', 'Obed Hale', 'Joe Slater'],
-  occultist: ['Asenath W.', 'Prof. Armitage', 'Keziah M.', 'Ward Phillips', 'Lavinia W.'],
-  physician: ['Dr. Hartwell', 'Dr. Halsey', 'Dr. Muñoz', 'Dr. West', 'Dr. Willett'],
-  hunter: ['Ruth Bishop', 'Zadok Allen', 'Eliot Dane', 'Ammi Pierce', 'Kate Danforth'],
+  warden: ['Bram Holloway', 'Torvald Kesh', 'Sgt. Merrow', 'Gideon Vale', 'Hester Crane'],
+  occultist: ['Isolde Marrow', 'Prof. Quillon', 'Sable Wren', 'Ottilie Vane', 'Lucan Hargrave'],
+  physician: ['Dr. Penhallow', 'Dr. Aldous Finch', 'Dr. Ines Corvo', 'Dr. Thackery', 'Dr. Maud Lisle'],
+  hunter: ['Wren Ashdown', 'Silas Thorne', 'Edda Quarry', 'Rook Mallory', 'Jessamy Pike'],
 };
 
 // ---------------- statuses ----------------
@@ -41,7 +41,7 @@ const STATUS = {
   juggernaut:  { name: 'Juggernaut', icon: 'spike', color: '#4a8ad0', desc: 'Whenever you gain Block, deal this much damage to a random horror.' },
   insight:     { name: 'Forbidden Knowledge', icon: 'eye', color: '#c8a0e8', desc: 'Draw this many extra cards each turn.' },
   feedrift:    { name: 'Feeding the Rift', icon: 'swirl', color: '#c8a0e8', desc: 'Whenever you play an attack, deal this much damage to every horror.' },
-  migo:        { name: 'Mi-Go Surgery', icon: 'up', color: '#c8a0e8', desc: 'Gain this much Strength at the start of each turn.' },
+  migo:        { name: 'Flesh Graft', icon: 'up', color: '#c8a0e8', desc: 'Gain this much Strength at the start of each turn.' },
   hospital:    { name: 'Field Hospital', icon: 'cross', color: '#6aa77f', desc: 'At the end of your turn, heal every ally this much.' },
   plague:      { name: 'Plague Doctor', icon: 'drop', color: '#6aa77f', desc: 'Whenever a horror takes Bleed damage, heal the most wounded ally this much.' },
   predator:    { name: 'Predator', icon: 'eye', color: '#d0503a', desc: 'Your attacks deal this much more to Vulnerable horrors.' },
@@ -108,8 +108,8 @@ const CARDS = {
   o_siphon:   { cls: 'occultist', name: 'Siphon', type: 'attack', cost: 1, rarity: 'uncommon', target: 'enemy', vals: { d: [7, 10], h: [4, 6] }, text: 'Deal {d} damage. Heal the most wounded ally {h}.', play: (g, V, t) => { g.attack(g.player, t, V.d); g.heal(g.mostWounded(), V.h); } },
   o_feed:     { cls: 'occultist', name: 'Feeding the Rift', type: 'power', cost: 2, rarity: 'uncommon', target: 'self', vals: { d: [2, 3] }, text: 'Whenever you play an attack, deal {d} damage to every horror.', play: (g, V) => g.apply(g.player, 'feedrift', V.d) },
   o_call:     { cls: 'occultist', name: 'Call the Outer Dark', type: 'attack', cost: 3, rarity: 'rare', target: 'enemy', vals: { d: [30, 40] }, text: 'Deal {d} damage.', play: (g, V, t) => g.attack(g.player, t, V.d) },
-  o_migo:     { cls: 'occultist', name: 'Mi-Go Surgery', type: 'power', cost: [2, 1], rarity: 'rare', target: 'self', vals: {}, text: 'Gain 1 Strength at the start of each turn.', play: (g) => g.apply(g.player, 'migo', 1) },
-  o_dream:    { cls: 'occultist', name: 'Dream of R\'lyeh', type: 'skill', cost: [2, 1], rarity: 'rare', target: 'none', vals: {}, exhaust: true, text: 'Apply 3 Vulnerable and 3 Weak to every horror. Exhaust.', play: (g) => g.foes.forEach(f => { g.apply(f, 'vuln', 3); g.apply(f, 'weak', 3); }) },
+  o_migo:     { cls: 'occultist', name: 'Flesh Graft', type: 'power', cost: [2, 1], rarity: 'rare', target: 'self', vals: {}, text: 'Gain 1 Strength at the start of each turn.', play: (g) => g.apply(g.player, 'migo', 1) },
+  o_dream:    { cls: 'occultist', name: 'Drowning Dream', type: 'skill', cost: [2, 1], rarity: 'rare', target: 'none', vals: {}, exhaust: true, text: 'Apply 3 Vulnerable and 3 Weak to every horror. Exhaust.', play: (g) => g.foes.forEach(f => { g.apply(f, 'vuln', 3); g.apply(f, 'weak', 3); }) },
 
   // ===== PHYSICIAN =====
   p_strike:   { cls: 'physician', name: 'Laudanum Dart', type: 'attack', cost: 1, rarity: 'starter', target: 'enemy', vals: { d: [4, 6], b: [2, 3] }, text: 'Deal {d} damage. Apply {b} Bleed.', play: (g, V, t) => { g.attack(g.player, t, V.d); g.apply(t, 'bleed', V.b); } },
@@ -132,8 +132,8 @@ const CARDS = {
   p_bloodlet: { cls: 'physician', name: 'Bloodletting', type: 'attack', cost: 1, rarity: 'rare', target: 'enemy', vals: { m: [2, 3] }, text: 'Deal damage equal to the horror\'s Bleed × {m}.', play: (g, V, t) => g.attack(g.player, t, (t.st.bleed || 0) * V.m, { noStr: true }) },
 
   // ===== neutral (events & shrines) =====
-  n_elder:    { cls: 'neutral', name: 'Elder Sign', type: 'skill', cost: 1, rarity: 'rare', target: 'none', vals: { b: [10, 14] }, exhaust: true, text: 'Every ally gains {b} Block. Exhaust.', play: (g, V) => g.allies().forEach(h => g.addBlock(h, V.b)) },
-  n_silver:   { cls: 'neutral', name: 'Silver Key', type: 'skill', cost: 0, rarity: 'rare', target: 'none', vals: { c: [2, 3] }, exhaust: true, text: 'Gain 1 energy. Draw {c} cards. Exhaust.', play: (g, V) => { g.energy++; g.draw(V.c); } },
+  n_elder:    { cls: 'neutral', name: 'Warding Sigil', type: 'skill', cost: 1, rarity: 'rare', target: 'none', vals: { b: [10, 14] }, exhaust: true, text: 'Every ally gains {b} Block. Exhaust.', play: (g, V) => g.allies().forEach(h => g.addBlock(h, V.b)) },
+  n_silver:   { cls: 'neutral', name: 'Skeleton Key', type: 'skill', cost: 0, rarity: 'rare', target: 'none', vals: { c: [2, 3] }, exhaust: true, text: 'Gain 1 energy. Draw {c} cards. Exhaust.', play: (g, V) => { g.energy++; g.draw(V.c); } },
   n_dread:    { cls: 'curse', name: 'Dread', type: 'curse', cost: -1, rarity: 'curse', target: 'none', vals: {}, text: 'Unplayable. A thought you cannot stop thinking.', play: () => {} },
 };
 for (const [id, c] of Object.entries(CARDS)) c.id = id;
@@ -173,82 +173,90 @@ const COMPANION = {
 // ---------------- foes ----------------
 // moves: kind attack|block|buff|debuff|summon|charge ; tgt melee|ranged|all|lowest|back|random|front2|self
 const FOES = {
-  cultist:    { name: 'Cultist', size: 10, hp: [18, 22], desc: 'Chants, then hurls bolts of boiling blood. Their chanting makes every horror stronger.',
+  cultist:    { name: 'Chanter', size: 10, hp: [18, 22], desc: 'Robed townsfolk who sing to the water. Their chanting makes every horror stronger.',
                 moves: { chant: { kind: 'buff', name: 'Dark Chant', str: 1, allFoes: true }, bolt: { kind: 'attack', name: 'Blood Bolt', dmg: 6, tgt: 'ranged' } },
                 pattern: ['chant', 'bolt', 'bolt', '*'] },
-  ghoul:      { name: 'Ghoul', size: 9, hp: [14, 17], desc: 'Fast and hungry. Gnaws twice.',
+  ghoul:      { name: 'Gravegnawer', size: 9, hp: [14, 17], desc: 'Gaunt, fast and hungry. Gnaws twice.',
                 moves: { gnaw: { kind: 'attack', name: 'Gnaw', dmg: 3, hits: 2, tgt: 'melee' }, feast: { kind: 'attack', name: 'Feast', dmg: 4, tgt: 'melee', bleed: 2 } }, pattern: ['*'] },
-  deepone:    { name: 'Deep One', size: 12, hp: [34, 39], desc: 'Slow, heavy claws. Braces behind its scales.',
+  deepone:    { name: 'Fathomkin', size: 12, hp: [34, 39], desc: 'Scaled things that walked up out of the harbor. Heavy claws; braces behind its hide.',
                 moves: { claw: { kind: 'attack', name: 'Webbed Claw', dmg: 10, tgt: 'melee' }, brace: { kind: 'block', name: 'Scaled Brace', block: 9 } }, pattern: ['claw', 'claw', 'brace'] },
-  nightgaunt: { name: 'Nightgaunt', size: 11, hp: [22, 26], desc: 'Swoops on anyone, wherever they stand. Its silence weakens the mind.',
+  nightgaunt: { name: 'Hushwing', size: 11, hp: [22, 26], desc: 'A faceless, silent flyer. Swoops on anyone, wherever they stand, and its silence saps the will.',
                 moves: { swoop: { kind: 'attack', name: 'Swoop', dmg: 7, tgt: 'random' }, terrify: { kind: 'attack', name: 'Faceless Terror', dmg: 3, tgt: 'random', weak: 2 } }, pattern: ['*'] },
-  migo:       { name: 'Mi-Go', size: 11, hp: [28, 32], desc: 'Fires a ray that leaves you exposed. Hides in its shell.',
+  migo:       { name: 'Sporeshell', size: 11, hp: [28, 32], desc: 'A fungal crustacean that fires a ray leaving you exposed, then hides in its shell.',
                 moves: { ray: { kind: 'attack', name: 'Brain Ray', dmg: 6, tgt: 'ranged', vuln: 1 }, shell: { kind: 'block', name: 'Carapace', block: 10 } }, pattern: ['ray', 'shell', 'ray', '*'] },
-  byakhee:    { name: 'Byakhee', size: 12, hp: [24, 28], desc: 'Dives at the back line. Its shriek hits everyone.',
+  byakhee:    { name: 'Rotwing', size: 12, hp: [24, 28], desc: 'A rotting glider that dives at the back line. Its shriek hits everyone.',
                 moves: { dive: { kind: 'attack', name: 'Dive', dmg: 4, hits: 2, tgt: 'back' }, shriek: { kind: 'attack', name: 'Shriek', dmg: 3, tgt: 'all' } }, pattern: ['dive', 'shriek', '*'] },
-  shambler:   { name: 'Dimensional Shambler', size: 12, hp: [40, 45], desc: 'Steps out of the world, then reappears behind your back rank.',
+  shambler:   { name: 'Slipstalker', size: 12, hp: [40, 45], desc: 'Steps out of the world, then reappears behind your back rank.',
                 moves: { phase: { kind: 'buff', name: 'Step Between', intangible: 1 }, ambush: { kind: 'attack', name: 'Ambush', dmg: 14, tgt: 'back' } }, pattern: ['phase', 'ambush'] },
-  hound:      { name: 'Hound of Tindalos', size: 12, hp: [34, 38], desc: 'Ignores rank and hunts the weakest. Taunt it off them.',
+  hound:      { name: 'Rift Hound', size: 12, hp: [34, 38], desc: 'Ignores rank and hunts the weakest. Taunt it off them.',
                 moves: { lunge: { kind: 'attack', name: 'Angled Lunge', dmg: 10, tgt: 'lowest', bleed: 2 }, stalk: { kind: 'buff', name: 'Stalk', str: 2, block: 6 } }, pattern: ['lunge', 'lunge', 'stalk'] },
-  proto:      { name: 'Proto-Shoggoth', size: 10, hp: [12, 15], desc: 'A torn-off fragment, still hungry.', moves: { engulf: { kind: 'attack', name: 'Engulf', dmg: 5, tgt: 'melee' } }, pattern: ['engulf'] },
-  mask:       { name: 'Mask', art: 'nyarlathotep', size: 14, hp: [20, 24], desc: 'One of a thousand faces. Shields its master.',
+  proto:      { name: 'Mawling', size: 10, hp: [12, 15], desc: 'A torn-off scrap of a Mawmass, still hungry.', moves: { engulf: { kind: 'attack', name: 'Engulf', dmg: 5, tgt: 'melee' } }, pattern: ['engulf'] },
+  mask:       { name: 'Hollow Mask', art: 'nyarlathotep', size: 14, hp: [20, 24], desc: 'One of the King\'s hundred faces. Shields its master.',
                 moves: { mock: { kind: 'attack', name: 'Mock', dmg: 4, tgt: 'random' }, veil: { kind: 'block', name: 'Veil the Master', block: 8, toBoss: true } }, pattern: ['veil', 'mock'] },
   // ---- elites ----
-  shoggoth:   { name: 'Shoggoth', size: 19, hp: [120, 130], elite: true, desc: 'ELITE. Crushes the front rank, reforms its flesh, and splits apart when it dies.',
-                moves: { crush: { kind: 'attack', name: 'Crush', dmg: 9, tgt: 'front2' }, reform: { kind: 'block', name: 'Reform', block: 10, heal: 12 }, tekeli: { kind: 'attack', name: 'Tekeli-li!', dmg: 17, tgt: 'melee' } },
+  shoggoth:   { name: 'Mawmass', size: 19, hp: [120, 130], elite: true, desc: 'ELITE. A heaving mass of eyes and mouths. Crushes the front rank, reforms its flesh, and splits apart when it dies.',
+                moves: { crush: { kind: 'attack', name: 'Crush', dmg: 9, tgt: 'front2' }, reform: { kind: 'block', name: 'Reform', block: 10, heal: 12 }, tekeli: { kind: 'attack', name: 'Gurgling Lunge', dmg: 17, tgt: 'melee' } },
                 pattern: ['crush', 'tekeli', 'reform'], split: 2 },
-  starspawn:  { name: 'Star-Spawn', size: 22, hp: [140, 150], elite: true, desc: 'ELITE. Its presence weakens everyone. Crushes, then sweeps the whole party.',
+  starspawn:  { name: 'Tidebrute', size: 22, hp: [140, 150], elite: true, desc: 'ELITE. A hulking spawn of the deep whose presence weakens everyone. Crushes, then sweeps the whole party.',
                 moves: { presence: { kind: 'debuff', name: 'Dread Presence', dmg: 4, tgt: 'all', weak: 1 }, crush: { kind: 'attack', name: 'Crush', dmg: 20, tgt: 'melee' }, sweep: { kind: 'attack', name: 'Sweep', dmg: 8, tgt: 'all' } },
                 pattern: ['presence', 'crush', 'sweep'] },
   // ---- bosses ----
-  dagon:      { name: 'Father Dagon', size: 27, hp: [280, 280], boss: true, desc: 'Lord of the Deep Ones. Sweeps the whole party, crushes one of you with the tide, and calls his children.' },
-  nyarlathotep:{ name: 'Nyarlathotep', size: 25, hp: [360, 360], boss: true, desc: 'The Crawling Chaos. Hides behind Masks, whispers madness, and strikes from anywhere.' },
-  cthulhu:    { name: 'Great Cthulhu', size: 36, hp: [520, 520], boss: true, desc: 'When he begins to dream, count the turns. When the Dreaming breaks, only Block will save you.' },
+  dagon:      { name: 'The Tide Patriarch', size: 27, hp: [280, 280], boss: true, desc: 'Crowned lord of the Fathomkin. Sweeps the whole party, crushes one of you with the tide, and calls his children.' },
+  nyarlathotep:{ name: 'The Hollow King', size: 25, hp: [360, 360], boss: true, desc: 'A faceless pharaoh behind a hundred masks. Hides behind them, whispers madness, and strikes from anywhere.' },
+  cthulhu:    { name: 'The Drowned God', size: 36, hp: [520, 520], boss: true, desc: 'When he begins to dream, count the turns. When the Dreaming breaks, only Block will save you.' },
 };
 
 // ---------------- floors & encounters ----------------
 const FLOORS = [
-  { name: 'Innsmouth Docks', sub: 'The tide has gone out. Something walked in with it.', theme: 'docks', boss: 'dagon', scale: 1, dmg: 1,
+  { name: 'Brinehollow Docks', sub: 'The tide has gone out. Something walked in with it.', theme: 'docks', boss: 'dagon', scale: 1, dmg: 1,
     easy: [['cultist', 'ghoul'], ['ghoul', 'ghoul'], ['deepone']],
     normal: [['cultist', 'cultist', 'ghoul'], ['ghoul', 'ghoul', 'ghoul'], ['deepone', 'cultist'], ['deepone', 'ghoul', 'ghoul'], ['nightgaunt', 'cultist'], ['nightgaunt', 'ghoul', 'ghoul']],
     elite: [['shoggoth'], ['deepone', 'deepone', 'cultist']] },
-  { name: 'The Catacombs', sub: 'Beneath Miskatonic, the old tunnels breathe.', theme: 'crypt', boss: 'nyarlathotep', scale: 1.95, dmg: 1.45,
+  { name: 'The Hollow Ossuary', sub: 'Beneath the drowned city, the old bones are listening.', theme: 'crypt', boss: 'nyarlathotep', scale: 1.95, dmg: 1.45,
     easy: [['migo', 'ghoul'], ['nightgaunt', 'nightgaunt']],
     normal: [['shambler', 'cultist'], ['migo', 'migo'], ['byakhee', 'migo'], ['ghoul', 'ghoul', 'cultist', 'cultist'], ['shambler', 'nightgaunt'], ['byakhee', 'byakhee', 'cultist']],
     elite: [['starspawn'], ['shoggoth', 'migo']] },
-  { name: 'R\'lyeh', sub: 'The angles are wrong. The stars are right.', theme: 'rlyeh', boss: 'cthulhu', scale: 2.15, dmg: 1.5,
+  { name: 'The Drowned Spire', sub: 'The angles are wrong. The tide is rising.', theme: 'rlyeh', boss: 'cthulhu', scale: 2.15, dmg: 1.5,
     easy: [['hound', 'proto'], ['deepone', 'deepone']],
     normal: [['hound', 'deepone'], ['deepone', 'deepone', 'byakhee'], ['shambler', 'hound'], ['migo', 'migo', 'proto'], ['hound', 'hound'], ['byakhee', 'shambler', 'proto']],
     elite: [['starspawn', 'hound'], ['shoggoth', 'shoggoth']] },
 ];
 const NODE_TYPES = {
-  combat:   { name: 'Combat', icon: 'skull', color: '#c3c7cb', desc: 'Horrors. Gold and a new card.' },
-  elite:    { name: 'Elite', icon: 'eye', color: '#d0503a', desc: 'A dangerous horror. Rewards a relic.' },
-  event:    { name: 'Unknown', icon: 'quest', color: '#c8a0e8', desc: 'Something strange.' },
-  rest:     { name: 'Rest', icon: 'fire', color: '#f0d870', desc: 'Heal and revive, or study a card.' },
-  shop:     { name: 'Antiquarian', icon: 'coin', color: '#ffe9a8', desc: 'Buy cards, relics and draughts.' },
-  treasure: { name: 'Treasure', icon: 'chest', color: '#a0703c', desc: 'A relic.' },
-  boss:     { name: 'Boss', icon: 'crown', color: '#9a2a24', desc: 'The master of this floor.' },
+  start:    { name: 'Entrance', icon: 'door', color: '#8a9097', desc: 'Where you came in. Nothing waits here.' },
+  combat:   { name: 'Skirmish', icon: 'skull', color: '#c3c7cb', desc: 'Horrors. Gold and a new card.' },
+  elite:    { name: 'Champion', icon: 'eye', color: '#d0503a', desc: 'A dangerous horror. Rewards a relic.' },
+  event:    { name: 'Mystery', icon: 'quest', color: '#c8a0e8', desc: 'Something strange is in this room.' },
+  rest:     { name: 'Campfire', icon: 'fire', color: '#f0d870', desc: 'Heal and revive, or study a card.' },
+  shop:     { name: 'Peddler', icon: 'coin', color: '#ffe9a8', desc: 'Buy cards, relics and draughts, or forget a card.' },
+  treasure: { name: 'Cache', icon: 'chest', color: '#a0703c', desc: 'Something left behind. A relic and some gold.' },
+  shrine:   { name: 'Wayshrine', icon: 'sign', color: '#6aa77f', desc: 'A small shrine. Pray for strength, forgetting or insight.' },
+  boss:     { name: 'Lair', icon: 'crown', color: '#9a2a24', desc: 'The master of this floor.' },
 };
+const WAYSHRINE = { id: 'wayshrine', title: 'A Wayshrine', text: 'A niche in the wall holds a soot-blackened saint with no face. Pilgrims have left candles. A few are still lit.',
+  options: [
+    { label: 'Pray for strength', desc: 'Every hero gains 5 max health.', act: g => { g.heroes.forEach(h => { h.maxHp += 5; if (!h.dead) h.hp += 5; }); return 'The candles gutter, then burn brighter. You all stand a little straighter.'; } },
+    { label: 'Pray for forgetting', desc: 'Remove a card from your deck.', act: g => { g.pendingRemove = true; return 'Choose what to forget.'; } },
+    { label: 'Pray for insight', desc: 'Upgrade a card.', act: g => { g.pendingUpgrade = true; return 'A thought arrives, fully formed, as if it had always been yours.'; } },
+  ] };
 
 // ---------------- relics ----------------
 const RELICS = [
-  { id: 'eldersign', name: 'Elder Sign Amulet', desc: 'Every hero takes 1 less damage from each hit.' },
-  { id: 'necro', name: 'Necronomicon Page', desc: 'The first card costing 2 or more each turn is played twice.' },
-  { id: 'silverkey', name: 'The Silver Key', desc: 'Card rewards offer one extra choice.' },
-  { id: 'trapezo', name: 'Shining Trapezohedron', desc: 'Gain 1 extra energy every turn. Every hero starts each combat with 1 Weak.', boss: true },
-  { id: 'lamp', name: 'Lamp of Alhazred', desc: 'Draw 2 extra cards on the first turn of each combat.' },
-  { id: 'cylinder', name: 'Mi-Go Brain Cylinder', desc: 'Your companions act twice on the first turn of each combat.' },
-  { id: 'scale', name: 'Dagon\'s Scale', desc: 'Every hero gains 8 max health.' },
-  { id: 'yithian', name: 'Yithian Lightning Gun', desc: 'Every 4th card you play deals 4 damage to every horror.' },
-  { id: 'pnakotic', name: 'Pnakotic Manuscripts', desc: 'Rest sites let you upgrade 2 cards instead of 1.' },
-  { id: 'fang', name: 'Fang of Tindalos', desc: 'Your attacks that deal unblocked damage apply 1 Bleed.' },
-  { id: 'idol', name: 'Idol of Ghatanothoa', desc: 'The first horror to attack you each combat is turned to stone (Stunned).' },
-  { id: 'tithe', name: 'Esoteric Order Tithe', desc: 'Gain 50% more gold.' },
-  { id: 'kulten', name: 'Unaussprechlichen Kulten', desc: 'Your companions deal 2 more damage with every attack.' },
+  { id: 'eldersign', name: 'Warding Amulet', desc: 'Every hero takes 1 less damage from each hit.' },
+  { id: 'necro', name: 'Black Psalter Page', desc: 'The first card costing 2 or more each turn is played twice.' },
+  { id: 'silverkey', name: 'Skeleton Key', desc: 'Card rewards offer one extra choice.' },
+  { id: 'trapezo', name: 'Shard of the Bright Star', desc: 'Gain 1 extra energy every turn. Every hero starts each combat with 1 Weak.', boss: true },
+  { id: 'lamp', name: 'Pilgrim\'s Lamp', desc: 'Your lantern lights rooms one step further. Draw 1 extra card on the first turn of each combat.' },
+  { id: 'cylinder', name: 'Clockwork Familiar', desc: 'Your companions act twice on the first turn of each combat.' },
+  { id: 'scale', name: 'Leviathan Scale', desc: 'Every hero gains 8 max health.' },
+  { id: 'yithian', name: 'Storm Coil', desc: 'Every 4th card you play deals 4 damage to every horror.' },
+  { id: 'pnakotic', name: 'Annotated Field Journal', desc: 'Rest sites let you upgrade 2 cards instead of 1.' },
+  { id: 'fang', name: 'Hound\'s Tooth', desc: 'Your attacks that deal unblocked damage apply 1 Bleed.' },
+  { id: 'idol', name: 'Gorgon Idol', desc: 'The first horror to attack you each combat is turned to stone (Stunned).' },
+  { id: 'tithe', name: 'Collection Plate', desc: 'Gain 50% more gold.' },
+  { id: 'kulten', name: 'Company Banner', desc: 'Your companions deal 2 more damage with every attack.' },
   { id: 'bandages', name: 'Blood-Soaked Bandages', desc: 'After each combat, every hero heals 5.' },
-  { id: 'journal', name: 'Whateley\'s Journal', desc: 'Every hero starts each combat with 6 Block.' },
-  { id: 'eibon', name: 'Ring of Eibon', desc: 'At the start of your turn, if you have no Block, gain 4.' },
+  { id: 'journal', name: 'Grandmother\'s Prayerbook', desc: 'Every hero starts each combat with 6 Block.' },
+  { id: 'eibon', name: 'Ring of Small Mercies', desc: 'At the start of your turn, if you have no Block, gain 4.' },
   { id: 'crown', name: 'Crown of the Deep', desc: 'Gain 1 extra energy every turn. You draw 1 fewer card.', boss: true },
   { id: 'lens', name: 'Lens of the Unseen', desc: 'Gain 1 extra energy every turn. Companions deal 25% less damage.', boss: true },
 ];
@@ -266,7 +274,7 @@ const POTIONS = {
 // ---------------- events ----------------
 // each option: label, desc, act(g) → string result (may start a fight via g.queueFight)
 const EVENTS = [
-  { id: 'order', title: 'The Esoteric Order', text: 'A robed figure waits under a dripping arch. "Dagon rewards the faithful," it says, and offers you something wrapped in wet cloth.',
+  { id: 'order', title: 'The Salt Chapel', text: 'A robed figure waits under a dripping arch. "The Patriarch rewards the faithful," it says, and offers you something wrapped in wet cloth.',
     options: [
       { label: 'Accept the gift', desc: 'Gain a random rare card. Your hero loses 6 max health.', act: g => { const c = g.randomCard('rare'); g.addCard(c); g.player.maxHp -= 6; g.player.hp = Math.min(g.player.hp, g.player.maxHp); return `You take it. ${CARDS[c].name} is added to your deck. Something in your chest goes cold.`; } },
       { label: 'Refuse', desc: 'Nothing happens.', act: () => 'The figure says nothing. When you look back, the arch is empty.' },
@@ -282,15 +290,15 @@ const EVENTS = [
       { label: 'Take the satchel', desc: 'Gain 60 gold. He might not stay down.', act: g => { g.gold += 60; if (Math.random() < 0.5) { g.queueFight(['ghoul', 'ghoul']); return 'He does not stay down. Neither do his friends.'; } return 'He stays down. The satchel is heavy with old coins.'; } },
       { label: 'Say a prayer', desc: 'Every hero heals 10.', act: g => { g.heroes.forEach(h => !h.dead && (h.hp = Math.min(h.maxHp, h.hp + 10))); return 'The twitching stops. Your party feels lighter for it.'; } },
     ] },
-  { id: 'mirror', title: 'The Mirror of Nitocris', text: 'A tall bronze mirror. Your reflection is a moment late. It mouths something, and holds out its hand.',
+  { id: 'mirror', title: 'The Tardy Mirror', text: 'A tall bronze mirror. Your reflection is a moment late. It mouths something, and holds out its hand.',
     options: [
       { label: 'Take its hand', desc: 'Duplicate a card in your deck. Add a Dread curse.', act: g => { g.pendingDuplicate = true; g.addCard('n_dread'); return 'Its hand is warm. Something follows you out of the glass.'; } },
       { label: 'Smash it', desc: 'Gain 25 gold. Your hero takes 5 damage.', act: g => { g.gold += 25; g.loseHpOut(g.player, 5); return 'The shards cut your hands. Behind the glass: old coins, and nothing else.'; } },
     ] },
-  { id: 'shrine', title: 'The Elder Sign', text: 'A star carved into a menhir, older than the town, older than the coast. The air around it is clean.',
+  { id: 'shrine', title: 'The Warding Stone', text: 'A star carved into a menhir, older than the town, older than the coast. The air around it is clean.',
     options: [
       { label: 'Pray for strength', desc: 'Every hero gains 6 max health.', act: g => { g.heroes.forEach(h => { h.maxHp += 6; h.hp += 6; }); return 'You feel steadier. All of you.'; } },
-      { label: 'Pray for protection', desc: 'Add an Elder Sign card to your deck.', act: g => { g.addCard('n_elder'); return 'The sign burns into your memory.'; } },
+      { label: 'Pray for protection', desc: 'Add a Warding Sigil card to your deck.', act: g => { g.addCard('n_elder'); return 'The sign burns into your memory.'; } },
       { label: 'Pray for forgetting', desc: 'Remove a card from your deck.', act: g => { g.pendingRemove = true; return 'Choose what to forget.'; } },
     ] },
   { id: 'lantern', title: 'A Lantern in the Fog', text: 'A green lantern sways ahead of you, carried by no one. It waits whenever you stop.',
@@ -312,5 +320,5 @@ const RITES = [
   { id: 'potion', name: 'Smuggled Laudanum', desc: 'Start each run with a Healing Draught.', cost: [3] },
   { id: 'upgrade', name: 'Field Notes', desc: 'Start each run with a random card upgraded.', cost: [4, 8] },
   { id: 'comp', name: 'Seasoned Companions', desc: 'Companions deal +1 damage per rank.', cost: [4, 8, 12] },
-  { id: 'relic', name: 'Elder Sign Tattoo', desc: 'Start each run with a random relic.', cost: [12] },
+  { id: 'relic', name: 'Sigil Tattoo', desc: 'Start each run with a random relic.', cost: [12] },
 ];

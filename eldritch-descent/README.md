@@ -1,6 +1,6 @@
 # Eldritch Descent
 
-A turn-based Lovecraftian roguelite in pixel art, in the vein of Slay the Spire, Darkest Dungeon and Monster Train. It's a sibling of [Eldritch Bastion](../eldritch-bastion) and shares its monster art.
+A turn-based cosmic-horror roguelite in pixel art, set in the drowned city of **Brinehollow**. It's a sibling of [Eldritch Bastion](../eldritch-bastion) and shares its monster drawings.
 
 **To play:** open `index.html` in a browser. There's no build step. Progress is saved in your browser.
 
@@ -10,13 +10,15 @@ A turn-based Lovecraftian roguelite in pixel art, in the vein of Slay the Spire,
 - **Your turn:** you have 3 energy and draw 5 cards. Every horror shows its **intent**: what it will do, how hard, and to whom. Hover a horror to see its aim. Each hero shows the damage coming at them after Block.
 - **Companions** act after you, and their intents are shown too. The Warden taunts horrors onto himself, the Physician heals, shields and revives, and the Hunter and Occultist strike. A taunt instantly redirects enemy intents, so you can plan around it.
 - **Statuses:** Block, Vulnerable, Weak, Strength, Bleed, Stun, Taunt and Phased, plus a set of powers per class.
-- **The run:** three floors (Innsmouth Docks, the Catacombs and R'lyeh), each a branching node map:
-  - Node types: Combat, Elite, Unknown events, Rest, the Antiquarian's shop, Treasure, and a Boss at the top.
-  - Card rewards after every fight, card upgrades at rest sites, relics (including powerful boss relics with drawbacks) and draughts.
+- **The map: Lantern & Gloam.** Each floor (Brinehollow Docks, the Hollow Ossuary, the Drowned Spire) is a grid of rooms joined by passages.
+  - Your lantern only lights the rooms near you.
+  - Room types: Skirmish, Champion, Mystery, Campfire, Peddler, Cache and Wayshrine. The boss's Lair waits on the far side.
+  - **The Gloam** follows you, swallowing a column of rooms behind you every two moves. Rooms it takes are closed, and walking through it hurts every hero. Explore sideways for loot, but don't linger.
+- **Rewards:** a card after every fight, card upgrades at campfires, relics (including powerful boss relics with drawbacks) and draughts.
 - **Bosses:**
-  - **Father Dagon:** party-wide sweeps, the crushing tide, and he summons his children.
-  - **Nyarlathotep:** hides behind Masks that shield him and whispers madness.
-  - **Great Cthulhu:** counts down to the Dreaming, which strikes everyone at once, so stack Block.
+  - **The Tide Patriarch:** party-wide sweeps, the crushing tide, and he calls his Fathomkin.
+  - **The Hollow King:** hides behind Hollow Masks that shield him and whispers madness.
+  - **The Drowned God:** counts down to the Dreaming, which strikes everyone at once, so stack Block.
 - **Between runs:** Forbidden Knowledge buys permanent Rites.
 
 ## Controls

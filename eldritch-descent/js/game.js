@@ -63,48 +63,90 @@ class Game {
   cs(n) { return Math.round(n * TUNE.comp * (1 + 0.3 * this.floor) * (this.has('lens') ? 0.75 : 1)) + Meta.rank('comp'); }
 
   // ---------------- map ----------------
+  // ---------------- map: Lantern & Gloam ----------------
+  // Each floor is a grid of rooms joined by passages. Your lantern lights the
+  // rooms around you; the Gloam swallows one column behind you every few moves.
+  // The Lair waits alone on the far side.
   genMap() {
-    const ROWS = 7, LANES = 5, rng = Math.random;
-    const nodes = {}; const key = (r, l) => r + ':' + l;
-    const get = (r, l) => nodes[key(r, l)] || (nodes[key(r, l)] = { r, l, type: null, next: new Set(), id: key(r, l), jx: Math.round((rng() - 0.5) * 14), jy: Math.round((rng() - 0.5) * 6) });
-    const starts = shuffle([0, 1, 2, 3, 4]).slice(0, 2);
-    for (let p = 0; p < 4; p++) {
-      let l = p < 2 ? starts[p] : Math.floor(rng() * LANES);
-      for (let r = 0; r < ROWS; r++) {
-        const n = get(r, l);
-        if (r < ROWS - 1) { const nl = clamp(l + Math.floor(rng() * 3) - 1, 0, LANES - 1); n.next.add(key(r + 1, nl)); l = nl; }
-        else n.next.add('boss');
-      }
+    const COLS = 7, ROWS = 5, MID = 2, rng = Math.random;
+    const cells = [];
+    for (let r = 0; r < ROWS; r++) { cells.push([]); for (let c = 0; c < COLS; c++) cells[r].push({ c, r, id: c + ':' + r, type: null, seen: false, visited: false }); }
+    const links = new Set();
+    const link = (a, b) => links.add(a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id);
+    for (let c = 0; c < COLS - 1; c++) {
+      // vertical passages inside the column (the last column before the lair is one long hall)
+      const full = c === COLS - 2;
+      for (let r = 0; r < ROWS - 1; r++) if (full || rng() < 0.5) link(cells[r][c], cells[r + 1][c]);
+      // every vertical segment gets at least one way forward, so nobody is ever trapped
+      if (c === COLS - 2) { link(cells[MID][c], cells[MID][c + 1]); break; }
+      let seg = [];
+      const flush = () => { if (!seg.length) return; const guaranteed = pick(seg); for (const n of seg) if (n === guaranteed || rng() < 0.3) link(n, cells[n.r][c + 1]); seg = []; };
+      for (let r = 0; r < ROWS; r++) { seg.push(cells[r][c]); if (r === ROWS - 1 || !this.linkedIn(links, cells[r][c], cells[r + 1][c])) flush(); }
     }
-    nodes.boss = { r: ROWS, l: 2, type: 'boss', next: new Set(), id: 'boss', jx: 0, jy: 0 };
-    const list = Object.values(nodes).filter(n => n.id !== 'boss');
-    for (const n of list) {
-      if (n.r === 0) n.type = 'combat';
-      else if (n.r === ROWS - 1) n.type = 'rest';
-      else if (n.r === 3 && Math.random() < 0.5) n.type = 'treasure';
-      else {
-        const w = { combat: 46, event: 24, elite: n.r >= 2 ? 15 : 0, shop: 9, rest: n.r >= 2 && n.r <= 4 ? 8 : 0 };
-        let t = Math.random() * Object.values(w).reduce((a, b) => a + b, 0);
-        for (const [k, v] of Object.entries(w)) if ((t -= v) <= 0) { n.type = k; break; }
-      }
+    for (let r = 0; r < ROWS; r++) if (r !== MID) cells[r][COLS - 1].type = 'void';
+    const start = cells[MID][0], lair = cells[MID][COLS - 1];
+    start.type = 'start'; lair.type = 'boss';
+    for (const n of cells.flat()) {
+      if (n.type) continue;
+      const w = { combat: 44, event: 18, elite: n.c >= 2 ? 12 : 0, rest: n.c >= 2 ? 6 : 0, shop: n.c >= 1 ? 5 : 0, treasure: 7, shrine: n.c >= 1 ? 6 : 0 };
+      let t = rng() * Object.values(w).reduce((a, b) => a + b, 0);
+      for (const [k, v] of Object.entries(w)) if ((t -= v) <= 0) { n.type = k; break; }
     }
-    if (!list.some(n => n.type === 'treasure')) { const r3 = list.filter(n => n.r === 3); if (r3.length) pick(r3).type = 'treasure'; }
-    this.map = { nodes, rows: ROWS, lanes: LANES, at: null, visited: new Set() };
+    cells[MID][COLS - 2].type = 'rest';                       // a last campfire at the lair's door
+    if (!cells.flat().some(n => n.type === 'shop')) pick(cells.flat().filter(n => n.c >= 2 && n.c <= 4)).type = 'shop';
+    for (const n of [cells[MID - 1][0], cells[MID + 1][0], cells[MID][1]]) if (['elite', 'treasure', 'shop', 'rest', 'shrine'].includes(n.type)) n.type = 'combat';
+    this.map = { cells, links, cols: COLS, rows: ROWS, at: start.id, moves: 0, gloam: -1, every: 2 };
+    start.visited = true;
+    this.reveal();
     this.mode = 'map';
   }
-  reachable() {
+  linkedIn(links, a, b) { return links.has(a.id < b.id ? a.id + '|' + b.id : b.id + '|' + a.id); }
+  linked(a, b) { return this.linkedIn(this.map.links, a, b); }
+  cell(id) { const [c, r] = id.split(':').map(Number); return this.map.cells[r][c]; }
+  here() { return this.cell(this.map.at); }
+  adj(n) {
     const m = this.map;
-    if (!m.at) return Object.values(m.nodes).filter(n => n.r === 0);
-    return [...m.nodes[m.at].next].map(k => m.nodes[k]);
+    return [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dc, dr]) => m.cells[n.r + dr] && m.cells[n.r + dr][n.c + dc]).filter(x => x && x.type !== 'void' && this.linked(n, x));
+  }
+  lantern() { return 1 + (this.has('lamp') ? 1 : 0); }
+  reveal() {
+    const at = this.here(), q = [[at, 0]], seen = new Set([at.id]);
+    while (q.length) {
+      const [n, d] = q.shift(); n.seen = true;
+      if (d >= this.lantern()) continue;
+      for (const x of this.adj(n)) if (!seen.has(x.id)) { seen.add(x.id); q.push([x, d + 1]); }
+    }
+    this.map.cells.flat().find(n => n.type === 'boss').seen = true;
+  }
+  consumed(n) { return n.type !== 'boss' && n.c <= this.map.gloam; }
+  reachable() {
+    if (this.mode !== 'map' || !this.map) return [];
+    const at = this.here(), inGloam = this.consumed(at);
+    return this.adj(at).filter(n => inGloam || !this.consumed(n));
+  }
+  gloamIn() { const m = this.map; return m.gloam >= m.cols - 2 ? Infinity : m.every - (m.moves % m.every); }
+  gloamHurt() {
+    for (const h of this.heroes) if (!h.dead) h.hp = Math.max(1, h.hp - Math.round(h.maxHp * 0.12));
+    this.emit('gloamHit');
   }
   travel(node) {
     if (this.mode !== 'map' || !this.reachable().includes(node)) return false;
-    this.map.at = node.id; this.map.visited.add(node.id);
+    const m = this.map;
+    m.at = node.id; m.moves++;
     this.stats.nodes++;
+    const first = !node.visited; node.visited = true;
+    this.reveal();
+    if (this.consumed(node)) this.gloamHurt();
+    if (m.moves % m.every === 0 && m.gloam < m.cols - 2) {
+      m.gloam++;
+      this.emit('gloam', m.gloam);
+      if (this.consumed(node)) this.gloamHurt();
+    }
+    if (!first || node.type === 'start') { this.emit('travel', 'walk'); return true; }
     this.emit('travel', node.type);
     const fl = FLOORS[this.floor];
     switch (node.type) {
-      case 'combat': this.startCombat(pick(this.stats.fights < 2 && this.floor === 0 ? fl.easy : (node.r <= 1 ? fl.easy.concat(fl.normal) : fl.normal)), 'normal'); break;
+      case 'combat': this.startCombat(pick(this.stats.fights < 2 && this.floor === 0 ? fl.easy : (node.c <= 1 ? fl.easy.concat(fl.normal) : fl.normal)), 'normal'); break;
       case 'elite': this.startCombat(pick(fl.elite), 'elite'); break;
       case 'boss': this.startCombat([fl.boss], 'boss'); break;
       case 'event': {
@@ -113,6 +155,7 @@ class Game {
         this.mode = 'event'; this.event = { ev, result: null };
         break;
       }
+      case 'shrine': this.mode = 'event'; this.event = { ev: WAYSHRINE, result: null }; break;
       case 'rest': this.mode = 'rest'; this.restUses = 1; break;
       case 'shop': this.mode = 'shop'; this.shop = this.makeShop(); break;
       case 'treasure': this.mode = 'treasure'; this.treasure = { relic: this.randomRelic(), gold: 20 + Math.floor(Math.random() * 20), taken: false }; break;
@@ -307,11 +350,11 @@ class Game {
       if (k === 'call') f.intent = this.foes.length < 3 ? M({ key: k, kind: 'summon', name: 'Call the Deep', summon: ['deepone'], block: 12 }) : M({ key: k, kind: 'block', name: 'Scaled Hide', block: 22 });
     } else if (f.type === 'nyarlathotep') {
       const masks = this.foes.filter(x => x.type === 'mask').length;
-      if (f.turn === 1 || (masks === 0 && f.turn % 4 === 0)) { f.intent = M({ key: 'masks', kind: 'summon', name: 'A Thousand Masks', summon: ['mask', 'mask'] }); return; }
+      if (f.turn === 1 || (masks === 0 && f.turn % 4 === 0)) { f.intent = M({ key: 'masks', kind: 'summon', name: 'A Hundred Faces', summon: ['mask', 'mask'] }); return; }
       const k = ['fan', 'whisper', 'chaos'][f.turn % 3];
       if (k === 'fan') f.intent = M({ key: k, kind: 'attack', name: 'Shadow Fan', dmg: 5, hits: 3, tgt: 'random' });
       if (k === 'whisper') f.intent = M({ key: k, kind: 'debuff', name: 'Whispered Madness', dmg: 4, tgt: 'all', weak: 2, vuln: 1 });
-      if (k === 'chaos') f.intent = M({ key: k, kind: 'attack', name: 'Crawling Chaos', dmg: 22, tgt: 'lowest' });
+      if (k === 'chaos') f.intent = M({ key: k, kind: 'attack', name: 'The Unmaking', dmg: 22, tgt: 'lowest' });
     } else if (f.type === 'cthulhu') {
       if (hpf < 0.5 && !f.flags.spawn) { f.flags.spawn = 1; f.intent = M({ key: 'spawn', kind: 'summon', name: 'My Spawn, Rise', summon: ['starspawn'], block: 20 }); return; }
       const k = ['slam', 'dream2', 'dream1', 'unleash', 'rend'][(f.turn - 1) % 5];
@@ -382,7 +425,7 @@ class Game {
     for (const h of this.heroes) for (const k in h.cds) if (h.cds[k] > 0) h.cds[k]--;
     this.energy = 3 + (this.has('trapezo') ? 1 : 0) + (this.has('crown') ? 1 : 0) + (this.has('lens') ? 1 : 0);
     this.maxEnergy = this.energy;
-    this.draw(5 + (this.player.st.insight || 0) + (first && this.has('lamp') ? 2 : 0) - (this.has('crown') ? 1 : 0));
+    this.draw(5 + (this.player.st.insight || 0) + (first && this.has('lamp') ? 1 : 0) - (this.has('crown') ? 1 : 0));
     for (const f of this.foes) this.planFoe(f);
     this.planCompanions();
     this.emit('playerTurn', this.round);

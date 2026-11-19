@@ -274,8 +274,11 @@ const UI = {
   },
   showNodeTip(e) {
     const n = this.hoverNode; if (!n) { $('#tip').classList.add('hidden'); return; }
-    const nt = NODE_TYPES[n.type];
-    let html = `<h4>${nt.name}</h4><div class="st">${nt.desc}</div>`;
+    const g = this.g, nt = NODE_TYPES[n.type];
+    let html = n.seen ? `<h4>${nt.name}</h4><div class="st">${nt.desc}</div>` : `<h4>A dark room</h4><div class="st">Your lantern doesn't reach it. Anything could be inside.</div>`;
+    if (n.seen && n.visited && n.type !== 'boss') html += `<div class="st">Already explored.</div>`;
+    if (g.consumed(n)) html += `<div class="int">Swallowed by the Gloam. Moving through it hurts everyone.</div>`;
+    else if (!g.reachable().includes(n) && n.id !== g.map.at) html += `<div class="st">No open passage from here.</div>`;
     if (n.type === 'boss') html = `<h4>${FOES[FLOORS[this.g.floor].boss].name}</h4><div class="st">${FOES[FLOORS[this.g.floor].boss].desc}</div>`;
     this.tipAt(e, html);
   },
@@ -346,7 +349,7 @@ const UI = {
     if (this.tempHintT > 0) { this.tempHintT -= dt; hint = this.tempHint; }
     else if (inCombat && this.selCard) { const t = CARDS[this.selCard.id].target; hint = t === 'ally' ? 'Choose an ally' : t === 'fallen' ? 'Choose a fallen ally' : t === 'front' ? 'Choose a front-rank horror' : 'Choose a horror'; }
     else if (inCombat && this.armedPot !== null) hint = POTIONS[g.potions[this.armedPot]] && POTIONS[g.potions[this.armedPot]].target === 'fallen' ? 'Choose a fallen ally' : 'Choose an ally';
-    else if (g.mode === 'map') hint = `${FLOORS[g.floor].name}: choose your path`;
+    else if (g.mode === 'map') hint = `${FLOORS[g.floor].name}: move to a lit room`;
     $('#hint').textContent = hint; $('#hint').classList.toggle('hidden', !hint);
   },
   clickPotion(i) {
@@ -372,7 +375,9 @@ const UI = {
         case 'win': Sfx.play('win'); break;
         case 'floor': this.banner(FLOORS[d].name, FLOORS[d].sub); this.r.bgKey = null; break;
         case 'relic': Sfx.play('upgrade'); break;
-        case 'echo': this.flashHint('Necronomicon Page: played twice'); break;
+        case 'gloam': Sfx.play('boss'); this.r.shake = 3; this.flashHint('The Gloam swallows another column of rooms'); break;
+        case 'gloamHit': Sfx.play('leak'); this.banner('The Gloam takes its toll', 'Every hero loses 12% of their health'); break;
+        case 'echo': this.flashHint('Black Psalter Page: played twice'); break;
         case 'shuffle': Sfx.play('click'); break;
         case 'end': setTimeout(() => this.openEnd(d), 900); break;
       }
@@ -478,7 +483,7 @@ const UI = {
   openShop() {
     const g = this.g, S = g.shop;
     this.openModal('shop', m => {
-      m.appendChild(el('h2', '', 'The Antiquarian'));
+      m.appendChild(el('h2', '', 'The Peddler'));
       m.appendChild(el('div', 'sub', `"Everything here was found. None of it was stolen." · You have <span class="gold">◆ ${g.gold}</span>`));
       const grid = el('div', 'shopgrid');
       for (const it of S.cards) {
@@ -564,7 +569,7 @@ const UI = {
     Sfx.stopDrone(); Sfx.play(result === 'win' ? 'win' : 'lose');
     this.openModal('end', m => {
       m.appendChild(el('h2', '', result === 'win' ? 'The Stars Go Dark Again' : 'The Expedition Is Lost'));
-      m.appendChild(el('div', 'story', result === 'win' ? 'Great Cthulhu sinks back into the black water. Your party climbs into a grey dawn, and none of you speak of it again.' : `You fell in ${FLOORS[g.floor].name}. The dark keeps what it takes.`));
+      m.appendChild(el('div', 'story', result === 'win' ? 'The Drowned God sinks back into the black water. Your party climbs into a grey dawn over Brinehollow, and none of you speak of it again.' : `You fell in ${FLOORS[g.floor].name}. The dark keeps what it takes.`));
       const s = g.stats;
       m.appendChild(el('div', 'summary', `Floor <b>${g.floor + 1}</b> · Fights won <b>${s.fights}</b> · Elites <b>${s.elites}</b> · Bosses <b>${s.bosses}</b><br>Cards played <b>${s.cards}</b> · Damage <b>${s.dmg}</b> · Healing <b>${s.healed}</b> · Deck <b>${g.deck.length}</b>`));
       m.appendChild(el('h2', '', `+${g.knowledge} Forbidden Knowledge`));

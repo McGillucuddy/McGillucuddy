@@ -4,9 +4,9 @@
 'use strict';
 
 const THEMES = {
-  docks: { wallA: '#262a2e', wallB: '#1c1f22', wallHi: '#3c4146', floorA: '#3a2a1c', floorB: '#2e2016', seam: '#160e08', sky: '#0b0d10', dark: 0.5, accent: '#4a8ad0' },
-  crypt: { wallA: '#2e2a2a', wallB: '#242020', wallHi: '#4a4444', floorA: '#3c4146', floorB: '#2f3338', seam: '#17191d', sky: '#0b0d10', dark: 0.55, accent: '#c8a0e8' },
-  rlyeh: { wallA: '#1a2e28', wallB: '#132420', wallHi: '#2a5a48', floorA: '#1e3a30', floorB: '#173029', seam: '#0b1714', sky: '#050b09', dark: 0.6, accent: '#6aa77f' },
+  docks: { wallA: '#262a2e', wallB: '#1c1f22', wallHi: '#3c4146', floorA: '#3a2a1c', floorB: '#2e2016', seam: '#160e08', sky: '#0b0d10', wallLo: '#0b0d10', dark: 0.5, accent: '#4a8ad0' },
+  crypt: { wallA: '#2e2a2a', wallB: '#242020', wallHi: '#4a4444', floorA: '#3c4146', floorB: '#2f3338', seam: '#17191d', sky: '#0b0d10', wallLo: '#0b0d10', dark: 0.55, accent: '#c8a0e8' },
+  rlyeh: { wallA: '#1a2e28', wallB: '#132420', wallHi: '#2a5a48', floorA: '#1e3a30', floorB: '#173029', seam: '#0b1714', sky: '#050b09', wallLo: '#050b09', dark: 0.6, accent: '#6aa77f' },
 };
 
 // 8x8 pixel icons
@@ -33,6 +33,8 @@ const ICONS = {
   summon:['00111100', '01000010', '10100101', '10011001', '10011001', '10100101', '01000010', '00111100'],
   dream: ['11111111', '10000001', '10111101', '10100101', '10100101', '10111101', '10000001', '11111111'],
   zz:    ['11110000', '00100000', '01000000', '11110000', '00001111', '00000010', '00000100', '00001111'],
+  door:  ['00111100', '01111110', '11100111', '11000011', '11000011', '11010011', '11000011', '11000011'],
+  sign:  ['00010000', '00111000', '11111110', '01111100', '00111000', '01101100', '11000110', '00000000'],
 };
 function drawIcon(ctx, name, x, y, color, scale = 1) {
   const g = ICONS[name]; if (!g) return;
@@ -319,48 +321,102 @@ class Renderer {
     if (f.kind === 'dream') { ctx.fillStyle = `rgba(106,167,127,${0.5 * (1 - k)})`; pxRing(ctx, cx, cy, 20 + k * 60); pxRing(ctx, cx, cy, 14 + k * 50); }
   }
 
-  // ---------- map ----------
-  nodePos(n) { if (n.id === 'boss') return { x: 240, y: 26 }; return { x: 120 + n.l * 60 + n.jx, y: 248 - n.r * 30 + n.jy }; }
+  // ---------- map: Lantern & Gloam ----------
+  nodePos(n) { return { x: 50 + n.c * 62, y: 52 + n.r * 44 }; }
   drawMap(ctx, g, ui, dt) {
-    const t = this.time, th = THEMES[FLOORS[g.floor].theme];
-    ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, W, H);
-    const gr = ctx.createRadialGradient(240, 140, 30, 240, 140, 260); gr.addColorStop(0, hexA(th.wallHi, 0.35)); gr.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
-    // parchment-ish scratches
-    const rng = mulberry32(g.floor * 13 + 7);
-    ctx.fillStyle = 'rgba(200,190,150,0.05)'; for (let i = 0; i < 120; i++) ctx.fillRect(Math.round(rng() * W), Math.round(rng() * H), Math.round(rng() * 12), 1);
-    const m = g.map, reach = new Set(g.mode === 'map' ? g.reachable().map(n => n.id) : []);
-    // edges
-    for (const n of Object.values(m.nodes)) {
-      const a = this.nodePos(n);
-      for (const k of n.next) {
-        const b = this.nodePos(m.nodes[k]);
-        const walked = m.visited.has(n.id) && m.visited.has(k);
-        const live = m.at === n.id && reach.has(k);
-        ctx.fillStyle = walked ? '#f0d870' : live ? '#eeeae0' : '#6a7076';
-        const d = Math.hypot(b.x - a.x, b.y - a.y), steps = Math.floor(d / 4);
-        for (let i = 2; i < steps - 1; i++) { const q = i / steps; ctx.fillRect(Math.round(a.x + (b.x - a.x) * q), Math.round(a.y + (b.y - a.y) * q), live || walked ? 2 : 1, live || walked ? 2 : 1); }
+    const t = this.time, m = g.map, th = THEMES[FLOORS[g.floor].theme];
+    const RW = 44, RH = 30;
+    if (!this.mapDark) { this.mapDark = document.createElement('canvas'); this.mapDark.width = W; this.mapDark.height = H; }
+    ctx.fillStyle = '#060809'; ctx.fillRect(0, 0, W, H);
+    // rough bedrock
+    const rng = mulberry32(g.floor * 131 + 7);
+    for (let i = 0; i < 260; i++) { ctx.fillStyle = rng() < 0.5 ? '#0d1012' : '#121619'; ctx.fillRect(Math.round(rng() * W), Math.round(rng() * H), 2 + Math.round(rng() * 8), 2 + Math.round(rng() * 4)); }
+    const cells = m.cells.flat().filter(n => n.type !== 'void');
+    const reach = new Set(g.reachable().map(n => n.id));
+    // passages
+    for (const a of cells) for (const b of g.adj(a)) {
+      if (b.id < a.id || !(a.seen || b.seen)) continue;
+      const pa = this.nodePos(a), pb = this.nodePos(b);
+      ctx.fillStyle = th.floorB;
+      if (pa.y === pb.y) ctx.fillRect(Math.min(pa.x, pb.x), pa.y - 4, Math.abs(pb.x - pa.x), 9);
+      else ctx.fillRect(pa.x - 5, Math.min(pa.y, pb.y), 11, Math.abs(pb.y - pa.y));
+      ctx.fillStyle = th.seam;
+      if (pa.y === pb.y) { ctx.fillRect(Math.min(pa.x, pb.x), pa.y - 5, Math.abs(pb.x - pa.x), 1); ctx.fillRect(Math.min(pa.x, pb.x), pa.y + 5, Math.abs(pb.x - pa.x), 1); }
+      else { ctx.fillRect(pa.x - 6, Math.min(pa.y, pb.y), 1, Math.abs(pb.y - pa.y)); ctx.fillRect(pa.x + 6, Math.min(pa.y, pb.y), 1, Math.abs(pb.y - pa.y)); }
+    }
+    // rooms
+    for (const n of cells) {
+      const p = this.nodePos(n), boss = n.type === 'boss';
+      const w = boss ? 52 : RW, h = boss ? 44 : RH, x0 = Math.round(p.x - w / 2), y0 = Math.round(p.y - h / 2);
+      if (!n.seen) { ctx.fillStyle = '#0b0d10'; ctx.fillRect(x0, y0, w, h); ctx.fillStyle = '#17191d'; ctx.fillRect(x0, y0, w, 1); ctx.fillRect(x0, y0 + h - 1, w, 1); ctx.fillRect(x0, y0, 1, h); ctx.fillRect(x0 + w - 1, y0, 1, h); continue; }
+      ctx.fillStyle = th.wallLo || '#0b0d10'; ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
+      for (let yy = 0; yy < h; yy += 6) for (let xx = (yy / 6 % 2) * 4; xx < w; xx += 8) { ctx.fillStyle = (xx + yy + n.c) % 3 ? th.floorA : th.floorB; ctx.fillRect(x0 + xx, y0 + yy, Math.min(7, w - xx), Math.min(5, h - yy)); }
+      ctx.fillStyle = th.wallHi; ctx.fillRect(x0 - 2, y0 - 2, w + 4, 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x0, y0 + h - 4, w, 4);
+      const nt = NODE_TYPES[n.type];
+      if (boss) {
+        const s = foeSprite(FLOORS[g.floor].boss), sc = 40 / s.h;
+        ctx.save(); ctx.translate(p.x, p.y + 6); ctx.scale(sc * 1.15, sc * 1.15); ctx.drawImage(s.frames[frameOf(s, t * 3)], -s.ox, -s.oy); ctx.restore();
+      } else if (n.type !== 'start') {
+        const col = n.visited ? '#3c4146' : nt.color;
+        drawIcon(ctx, nt.icon, p.x - 8 + 1, p.y - 8 + 1, '#05070a', 2);
+        drawIcon(ctx, nt.icon, p.x - 8, p.y - 8, col, 2);
+      } else drawIcon(ctx, 'door', p.x - 8, p.y - 8, '#5d636a', 2);
+      if (reach.has(n.id)) { ctx.fillStyle = Math.floor(t * 4) % 2 ? '#f0d870' : '#eeeae0'; for (let i = 0; i < w + 4; i += 2) { ctx.fillRect(x0 - 2 + i, y0 - 3, 1, 1); ctx.fillRect(x0 - 2 + i, y0 + h + 2, 1, 1); } for (let i = 0; i < h + 4; i += 2) { ctx.fillRect(x0 - 3, y0 - 2 + i, 1, 1); ctx.fillRect(x0 + w + 2, y0 - 2 + i, 1, 1); } }
+      if (ui.hoverNode === n && reach.has(n.id)) { ctx.fillStyle = '#f0d870'; ctx.fillRect(x0 - 3, y0 - 3, w + 6, 1); ctx.fillRect(x0 - 3, y0 + h + 2, w + 6, 1); ctx.fillRect(x0 - 3, y0 - 3, 1, h + 6); ctx.fillRect(x0 + w + 2, y0 - 3, 1, h + 6); }
+    }
+    // party token in the current room
+    const here = g.here(), hp = this.nodePos(here);
+    const hs = heroSprite(g.cls);
+    ctx.drawImage(hs.frames[frameOf(hs, t * 6)], hp.x - hs.ox + 12, hp.y - hs.oy + 4);
+    // darkness with lantern light
+    const d = this.mapDark.getContext('2d');
+    d.globalCompositeOperation = 'source-over'; d.clearRect(0, 0, W, H);
+    d.fillStyle = 'rgba(3,4,6,0.72)'; d.fillRect(0, 0, W, H);
+    d.globalCompositeOperation = 'destination-out';
+    const cut = (x, y, r, a) => { const gr = d.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(0,0,0,${a})`); gr.addColorStop(0.6, `rgba(0,0,0,${a * 0.6})`); gr.addColorStop(1, 'rgba(0,0,0,0)'); d.fillStyle = gr; d.fillRect(x - r, y - r, r * 2, r * 2); };
+    const flick = 0.96 + 0.04 * Math.sin(t * 11);
+    cut(hp.x, hp.y, (70 + 50 * (g.lantern() - 1)) * flick, 1);
+    for (const n of cells) if (n.seen && !n.visited) { const p = this.nodePos(n); cut(p.x, p.y, 30, 0.55); }
+    for (const n of cells) if (n.visited) { const p = this.nodePos(n); cut(p.x, p.y, 26, 0.35); }
+    const lp = this.nodePos(cells.find(n => n.type === 'boss')); cut(lp.x, lp.y, 40, 0.7);
+    d.globalCompositeOperation = 'source-over';
+    ctx.drawImage(this.mapDark, 0, 0);
+    // warm lantern glow
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const lg = ctx.createRadialGradient(hp.x, hp.y, 0, hp.x, hp.y, 60); lg.addColorStop(0, 'rgba(240,170,80,0.18)'); lg.addColorStop(1, 'rgba(240,170,80,0)');
+    ctx.fillStyle = lg; ctx.fillRect(hp.x - 60, hp.y - 60, 120, 120);
+    const bl = ctx.createRadialGradient(lp.x, lp.y, 0, lp.x, lp.y, 50); bl.addColorStop(0, `rgba(160,30,30,${0.18 + 0.08 * Math.sin(t * 2)})`); bl.addColorStop(1, 'rgba(160,30,30,0)');
+    ctx.fillStyle = bl; ctx.fillRect(lp.x - 50, lp.y - 50, 100, 100);
+    ctx.restore();
+    // the Gloam
+    const edge = m.gloam >= 0 ? 50 + m.gloam * 62 + 31 : -40;
+    const warn = g.gloamIn() === 1 && m.gloam < m.cols - 2;
+    for (let y = 0; y < H; y += 2) {
+      const wob = Math.round(Math.sin(y * 0.09 + t * 1.6) * 4 + Math.sin(y * 0.23 - t * 2.3) * 2);
+      const ex = edge + wob;
+      if (ex > 0) { ctx.fillStyle = '#020203'; ctx.fillRect(0, y, ex, 2); ctx.fillStyle = 'rgba(60,20,70,0.8)'; ctx.fillRect(ex, y, 2, 2); ctx.fillStyle = 'rgba(40,10,50,0.4)'; ctx.fillRect(ex + 2, y, 3, 2); }
+      if (warn) { const nx = edge + 62; ctx.fillStyle = `rgba(90,20,60,${0.08 + 0.05 * Math.sin(t * 6)})`; ctx.fillRect(Math.max(0, edge + 5), y, nx - Math.max(0, edge + 5) + wob, 2); }
+    }
+    if (edge > 0) {
+      const er = mulberry32(m.gloam * 7 + 3);
+      for (let i = 0; i < 6 + m.gloam * 3; i++) {
+        const ex = Math.round(er() * (edge - 10)), ey = Math.round(er() * H), blink = Math.sin(t * (0.6 + er()) + i * 3) > -0.6;
+        if (!blink) continue;
+        ctx.fillStyle = er() < 0.5 ? '#c8a0e8' : '#d0503a'; ctx.fillRect(ex, ey, 1, 1); ctx.fillRect(ex + 3, ey, 1, 1);
       }
     }
-    // nodes
-    for (const n of Object.values(m.nodes)) {
-      const p = this.nodePos(n), nt = NODE_TYPES[n.type];
-      const isBoss = n.id === 'boss', r = isBoss ? 16 : 9;
-      const vis = m.visited.has(n.id), can = reach.has(n.id), here = m.at === n.id;
-      const hov = ui.hoverNode === n;
-      ctx.fillStyle = vis ? '#262a2e' : '#111517'; pxCircle(ctx, p.x, p.y, r);
-      ctx.fillStyle = can ? (Math.floor(t * 4) % 2 ? nt.color : '#eeeae0') : vis ? '#5d636a' : '#3c4146'; pxRing(ctx, p.x, p.y, r);
-      if (hov && can) pxRing(ctx, p.x, p.y, r + 2);
-      if (isBoss) {
-        const s = foeSprite(FLOORS[g.floor].boss);
-        ctx.save(); ctx.globalAlpha = can ? 1 : 0.7; const sc = 30 / s.h; ctx.translate(p.x, p.y + 3); ctx.scale(sc * 1.2, sc * 1.2); ctx.drawImage(s.frames[frameOf(s, t * 3)], -s.ox, -s.oy); ctx.restore();
-      } else drawIcon(ctx, nt.icon, p.x - 8, p.y - 8, vis ? '#5d636a' : can ? nt.color : hexA(nt.color, 0.55), 2);
-      if (here) { const hs = heroSprite(g.cls); ctx.drawImage(hs.frames[frameOf(hs, t * 6)], p.x - hs.ox + 12, p.y - hs.oy - 4); }
+    if (g.mode === 'map') {
+      const n = g.gloamIn();
+      pxText(ctx, n === Infinity ? 'THE GLOAM HAS STOPPED. THE LAIR IS OPEN.' : n === 1 ? 'THE GLOAM ADVANCES AFTER YOUR NEXT MOVE' : `THE GLOAM ADVANCES IN ${n} MOVES`, 240, 262, n === 1 ? '#d0503a' : '#8a9097');
     }
-    if (!m.at) pxText(ctx, 'CHOOSE WHERE TO BEGIN', 240, 262, '#c3c7cb');
   }
   hitNode(g, x, y) {
-    for (const n of Object.values(g.map.nodes)) { const p = this.nodePos(n), r = n.id === 'boss' ? 18 : 11; if (dist2(p.x, p.y, x, y) <= r * r) return n; }
+    for (const n of g.map.cells.flat()) {
+      if (n.type === 'void') continue;
+      const p = this.nodePos(n), w = n.type === 'boss' ? 52 : 44, h = n.type === 'boss' ? 44 : 30;
+      if (Math.abs(x - p.x) <= w / 2 + 3 && Math.abs(y - p.y) <= h / 2 + 3) return n;
+    }
     return null;
   }
   hitUnit(g, x, y) {
