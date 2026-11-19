@@ -957,111 +957,128 @@ const EnemyArt = {
     ctx.restore();
     ctx.restore();
   },
-  // ---------------------------------------------------------- THE DROWNED GOD (a bloated titan rising out of black water)
+  // ---------------------------------------------------------- THE DROWNED GOD (the spire's bell, given a body)
   cthulhu(ctx, s, t) {
-    const breathe = Math.sin(t * 1.1) * s * 0.02, skin = '#4f5c52', skinD = '#2a322d', bone = '#b8b49c', iron = '#34343a', rust = '#6a4028';
-    const rng = hashRng(9);
-    const barn = (x, y, r) => { ctx.fillStyle = '#a49e86'; ctx.strokeStyle = '#1e1c14'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#1a1a14'; ctx.beginPath(); ctx.arc(x, y - r * 0.15, r * 0.4, 0, TAU); ctx.fill(); };
-    const chain = (pts, w) => {
-      // links alternate face-on and edge-on along a polyline
-      let n = 0;
-      for (let i = 0; i < pts.length - 1; i++) {
-        const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], l = Math.hypot(x1 - x0, y1 - y0), m = Math.max(1, Math.round(l / (w * 1.5))), a = Math.atan2(y1 - y0, x1 - x0);
-        for (let j = 0; j < m; j++, n++) {
-          const x = x0 + (x1 - x0) * (j + 0.5) / m, y = y0 + (y1 - y0) * (j + 0.5) / m;
-          ctx.save(); ctx.translate(x, y); ctx.rotate(a);
-          ctx.strokeStyle = '#000'; ctx.lineWidth = w * 0.55;
-          if (n % 2) { ctx.beginPath(); ctx.moveTo(-w * 0.9, 0); ctx.lineTo(w * 0.9, 0); ctx.stroke(); ctx.strokeStyle = n % 3 ? rust : iron; ctx.lineWidth = w * 0.3; ctx.stroke(); }
-          else { ctx.beginPath(); ctx.ellipse(0, 0, w, w * 0.6, 0, 0, TAU); ctx.stroke(); ctx.strokeStyle = n % 4 ? iron : rust; ctx.lineWidth = w * 0.28; ctx.stroke(); }
-          ctx.restore();
-        }
+    const pale = '#7a8076', paleD = '#4a5048', shroud = '#262c2a', bronze = '#3e5a4a', glow = '#bfffe0';
+    const rng = hashRng(21), sw = Math.sin(t * 1.3);
+    // long pale fingers: two-jointed, spread
+    const hand = (x, y, ang, len, n = 4, spread = 1.1, col = '#a4a898') => {
+      ctx.lineCap = 'round';
+      for (let i = 0; i < n; i++) {
+        const a = ang + (i / (n - 1) - 0.5) * spread, l = len * (0.8 + 0.2 * Math.sin(i * 2.3));
+        const mx = x + Math.cos(a) * l * 0.55, my = y + Math.sin(a) * l * 0.55, ex = mx + Math.cos(a + 0.45) * l * 0.5, ey = my + Math.sin(a + 0.45) * l * 0.5;
+        for (const [c, wd] of [['#000', 2.2], [col, 1.1]]) { ctx.strokeStyle = c; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(mx, my); ctx.lineTo(ex, ey); ctx.stroke(); }
       }
     };
-    ctx.save(); ctx.translate(0, breathe);
-    // far arm sunk to the elbow, hand clawing at the surface
-    limb(ctx, -s * 0.92, -s * 0.55, -s * 1.42, s * 0.5, s * 0.35, s * 0.42, s * 0.34, skinD);
-    // the bloated trunk, swollen with water
-    const trunk = () => { ctx.beginPath(); ctx.moveTo(-s * 0.7, s * 0.9); ctx.bezierCurveTo(-s * 1.15, s * 0.4, -s * 1.25, -s * 0.2, -s * 1.0, -s * 0.62); ctx.bezierCurveTo(-s * 0.8, -s * 0.95, -s * 0.45, -s * 0.95, -s * 0.22, -s * 1.02); ctx.lineTo(s * 0.22, -s * 1.02); ctx.bezierCurveTo(s * 0.45, -s * 0.95, s * 0.8, -s * 0.95, s * 1.0, -s * 0.62); ctx.bezierCurveTo(s * 1.25, -s * 0.2, s * 1.15, s * 0.4, s * 0.7, s * 0.9); ctx.closePath(); };
-    solid(ctx, trunk, skin, s, 'rgba(220,235,220,0.16)');
-    ctx.save(); trunk(); ctx.clip();
-    { const fg = ctx.createRadialGradient(-s * 0.15, -s * 0.55, s * 0.1, 0, -s * 0.1, s * 1.35); fg.addColorStop(0, 'rgba(200,215,200,0.22)'); fg.addColorStop(0.5, 'rgba(0,0,0,0)'); fg.addColorStop(1, 'rgba(0,0,0,0.6)'); ctx.fillStyle = fg; ctx.fillRect(-s * 1.4, -s * 1.1, s * 2.8, s * 2.2); }
-    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = s * 0.03;
-    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(sd * s * 0.3, -s * 0.74); ctx.quadraticCurveTo(sd * s * 0.62, -s * 0.66, sd * s * 0.86, -s * 0.72); ctx.stroke(); ctx.beginPath(); ctx.moveTo(sd * s * 0.88, -s * 0.5); ctx.quadraticCurveTo(sd * s * 0.75, -s * 0.05, sd * s * 0.5, s * 0.05); ctx.stroke(); }
-    // mottled, bruised, drowned skin
-    for (let i = 0; i < 80; i++) { const x = (rng() - 0.5) * s * 2.3, y = -s * 0.9 + rng() * s * 1.8, v = rng(); ctx.fillStyle = v < 0.3 ? 'rgba(70,60,80,0.35)' : v < 0.8 ? 'rgba(0,0,0,0.25)' : 'rgba(200,215,190,0.08)'; ctx.beginPath(); ctx.ellipse(x, y, s * (0.03 + rng() * 0.07), s * (0.02 + rng() * 0.04), rng() * 3, 0, TAU); ctx.fill(); }
-    for (let i = 0; i < 7; i++) { const x = (rng() - 0.5) * s * 1.7, y = -s * 0.5 + rng() * s * 1.1; ctx.fillStyle = '#3a1c1e'; ctx.beginPath(); ctx.ellipse(x, y, s * 0.05, s * 0.035, rng() * 3, 0, TAU); ctx.fill(); ctx.fillStyle = '#6a3a34'; ctx.beginPath(); ctx.ellipse(x - s * 0.01, y - s * 0.01, s * 0.025, s * 0.015, 0, 0, TAU); ctx.fill(); }
-    ctx.strokeStyle = 'rgba(40,40,70,0.45)'; ctx.lineWidth = 0.8;
-    for (let i = 0; i < 6; i++) { let x = (rng() - 0.5) * s * 1.8, y = -s * 0.6 + rng() * s * 0.9; ctx.beginPath(); ctx.moveTo(x, y); for (let j = 0; j < 4; j++) { x += (rng() - 0.5) * s * 0.18; y += s * 0.08; ctx.lineTo(x, y); } ctx.stroke(); }
-    // sagging folds of the belly
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = s * 0.025;
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(0, s * (0.05 + i * 0.2), s * (0.75 - i * 0.05), 0.5, Math.PI - 0.5); ctx.stroke(); }
+    ctx.save(); ctx.translate(0, Math.sin(t * 0.9) * s * 0.015);
+    // far arm: impossibly long, hanging down into the water
+    limb(ctx, -s * 0.56, -s * 0.86, -s * 1.5, s * 0.6, s * 0.4, s * 0.14, s * 0.1, paleD);
+    // the shroud: a gaunt, narrow body under sodden cloth
+    const body = () => {
+      ctx.beginPath(); ctx.moveTo(-s * 0.16, -s * 1.14);
+      ctx.bezierCurveTo(-s * 0.42, -s * 1.1, -s * 0.66, -s * 1.0, -s * 0.66, -s * 0.78);
+      ctx.bezierCurveTo(-s * 0.64, -s * 0.4, -s * 0.36, -s * 0.2, -s * 0.4, s * 0.2);
+      for (let i = 0; i <= 8; i++) ctx.lineTo(-s * 0.5 + i * s * 0.125 + (i % 2 ? s * 0.03 : 0), s * (0.72 + (i % 2 ? -0.08 : 0.04)));
+      ctx.lineTo(s * 0.4, s * 0.2);
+      ctx.bezierCurveTo(s * 0.36, -s * 0.2, s * 0.64, -s * 0.4, s * 0.66, -s * 0.78);
+      ctx.bezierCurveTo(s * 0.66, -s * 1.0, s * 0.42, -s * 1.1, s * 0.16, -s * 1.14); ctx.closePath();
+    };
+    solid(ctx, body, shroud, s, 'rgba(190,210,200,0.16)');
+    ctx.save(); body(); ctx.clip();
+    // heavy wet folds
+    for (let i = 0; i < 8; i++) { const x = -s * 0.6 + i * s * 0.17; ctx.strokeStyle = i % 2 ? 'rgba(0,0,0,0.5)' : 'rgba(150,170,160,0.12)'; ctx.lineWidth = s * 0.035; ctx.beginPath(); ctx.moveTo(x * 0.5, -s * 1.1); ctx.quadraticCurveTo(x * 0.85 + Math.sin(i) * s * 0.05, -s * 0.2, x * 0.95, s * 0.8); ctx.stroke(); }
+    // the drowned it carries inside, pressing their faces out against the cloth
+    const faces = [[-0.26, -0.66, 1.0, 0.1], [0.2, -0.42, 0.9, -0.15], [-0.1, -0.08, 1.1, 0.05], [0.18, 0.3, 0.85, 0.2], [-0.22, 0.42, 0.8, -0.1]];
+    faces.forEach(([x, y, k, r], i) => {
+      const fx = s * x, fy = s * y + Math.sin(t * 1.7 + i * 1.9) * s * 0.012, rx = s * 0.12 * k, ry = s * 0.16 * k;
+      ctx.save(); ctx.translate(fx, fy); ctx.rotate(r);
+      const fg = ctx.createRadialGradient(-rx * 0.3, -ry * 0.4, 0, 0, 0, ry * 1.2);
+      fg.addColorStop(0, '#5e6862'); fg.addColorStop(0.7, '#3a423e'); fg.addColorStop(1, 'rgba(38,44,42,0)');
+      ctx.fillStyle = fg; ctx.beginPath(); ctx.ellipse(0, 0, rx * 1.2, ry * 1.2, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#0c0e0d';
+      ctx.beginPath(); ctx.ellipse(-rx * 0.38, -ry * 0.15, rx * 0.2, ry * 0.13, 0, 0, TAU); ctx.ellipse(rx * 0.38, -ry * 0.15, rx * 0.2, ry * 0.13, 0, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(0, ry * 0.45, rx * 0.2, ry * (0.18 + 0.08 * Math.abs(Math.sin(t * 2 + i))), 0, 0, TAU); ctx.fill();
+      ctx.restore();
+    });
+    // and a hand, spread flat from the inside
+    ctx.strokeStyle = 'rgba(110,125,115,0.55)'; ctx.lineWidth = s * 0.035; ctx.lineCap = 'round';
+    for (let i = 0; i < 4; i++) { const a = -2.2 + i * 0.32; ctx.beginPath(); ctx.moveTo(s * 0.32, -s * 0.78); ctx.lineTo(s * 0.32 + Math.cos(a) * s * 0.2, -s * 0.78 + Math.sin(a) * s * 0.2); ctx.stroke(); }
     ctx.restore();
-    // the chest opened like a door: a ribcage over a dark hollow with things living in it
-    const cav = () => { ctx.beginPath(); ctx.ellipse(-s * 0.02, -s * 0.28, s * 0.36, s * 0.4, 0, 0, TAU); };
-    ctx.fillStyle = '#4a2a2c'; ctx.beginPath(); ctx.ellipse(-s * 0.02, -s * 0.28, s * 0.42, s * 0.46, 0, 0, TAU); ctx.fill();
-    cav(); ctx.fillStyle = '#080406'; ctx.fill();
-    ctx.save(); cav(); ctx.clip();
-    halo(ctx, 0, -s * 0.2, s * 0.4, '#5affc8', 0.22 + 0.06 * Math.sin(t * 3));
-    eyes(ctx, [[-s * 0.12, -s * 0.38], [s * 0.1, -s * 0.18], [-s * 0.05, -s * 0.05], [s * 0.15, -s * 0.42], [-s * 0.18, -s * 0.16]], s * 0.022, '#9affd8', 5);
+    for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) tentacle(ctx, sd * s * (0.5 - i * 0.06), -s * (0.7 - i * 0.18), Math.PI / 2 + sd * 0.15, s * (0.35 + i * 0.1), s * 0.07, t * 1.6 + i + sd, shroud, 6, 0.3);
+    // torn hem of the shroud, with rips showing grey drowned skin
+    ctx.fillStyle = '#4a524c';
+    for (const [x, y] of [[-0.48, -0.3], [0.44, -0.1], [0.05, 0.42]]) { ctx.beginPath(); ctx.moveTo(s * x, s * (y - 0.08)); ctx.lineTo(s * (x + 0.05), s * y); ctx.lineTo(s * x, s * (y + 0.1)); ctx.lineTo(s * (x - 0.04), s * y); ctx.closePath(); ctx.fill(); }
+    // thin neck, bowed forward
+    limb(ctx, 0, -s * 1.08, s * 0.1, -s * 1.5, -s * 0.04, s * 0.16, s * 0.13, paleD);
+    // the head is a bell: cracked bronze gone green, tilted down to look at you
+    const bx = s * 0.12, by = -s * 1.48, tilt = 0.32 + sw * 0.04, cs = Math.cos(tilt), sn = Math.sin(tilt);
+    const W = (lx, ly) => [bx + lx * cs - ly * sn, by + lx * sn + ly * cs];
+    // weed and drowned hair hanging from under the rim
+    for (let i = 0; i < 9; i++) { const k = i / 8 - 0.5, [hx, hy] = W(k * s * 0.9, s * 0.02); if (Math.abs(k) < 0.18) continue; tentacle(ctx, hx, hy, Math.PI / 2 + k * 0.3, s * (0.55 + Math.abs(k) * 0.9 + (i % 2) * 0.2), s * 0.05, t * 1.4 + i, i % 2 ? '#141a16' : '#1c2418', 8, 0.2); }
+    ctx.save(); ctx.translate(bx, by); ctx.rotate(tilt);
+    const bell = () => {
+      ctx.beginPath(); ctx.moveTo(-s * 0.5, 0);
+      ctx.bezierCurveTo(-s * 0.4, -s * 0.12, -s * 0.36, -s * 0.4, -s * 0.33, -s * 0.62);
+      ctx.bezierCurveTo(-s * 0.3, -s * 0.86, s * 0.3, -s * 0.86, s * 0.33, -s * 0.62);
+      ctx.bezierCurveTo(s * 0.36, -s * 0.4, s * 0.4, -s * 0.12, s * 0.5, 0);
+      ctx.quadraticCurveTo(0, s * 0.1, -s * 0.5, 0); ctx.closePath();
+    };
+    // the crown loop it once hung from
+    ctx.strokeStyle = '#000'; ctx.lineWidth = s * 0.09; ctx.beginPath(); ctx.arc(0, -s * 0.84, s * 0.1, Math.PI, 0); ctx.stroke();
+    ctx.strokeStyle = bronze; ctx.lineWidth = s * 0.05; ctx.stroke();
+    solid(ctx, bell, bronze, s, 'rgba(200,240,210,0.3)');
+    ctx.save(); bell(); ctx.clip();
+    // bands, verdigris runs, rust weeping from a crack
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = s * 0.025;
+    for (const y of [-0.64, -0.56, -0.14]) { ctx.beginPath(); ctx.moveTo(-s * 0.6, s * y); ctx.quadraticCurveTo(0, s * (y + 0.05), s * 0.6, s * y); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(140,190,160,0.35)';
+    for (let i = 0; i < 7; i++) { const x = -s * 0.4 + rng() * s * 0.8; ctx.fillRect(x, -s * 0.55, s * 0.025, s * (0.15 + rng() * 0.35)); }
+    ctx.fillStyle = 'rgba(200,220,200,0.4)'; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.arc(-s * 0.25 + i * s * 0.1, -s * 0.6 + Math.abs(i - 2.5) * s * 0.008, s * 0.018, 0, TAU); ctx.fill(); }
+    ctx.strokeStyle = '#0a0c0a'; ctx.lineWidth = s * 0.02; ctx.lineJoin = 'miter';
+    ctx.beginPath(); ctx.moveTo(s * 0.12, -s * 0.78); ctx.lineTo(s * 0.2, -s * 0.55); ctx.lineTo(s * 0.14, -s * 0.38); ctx.lineTo(s * 0.24, -s * 0.18); ctx.lineTo(s * 0.2, 0.0); ctx.stroke();
+    ctx.fillStyle = 'rgba(110,60,36,0.6)'; ctx.fillRect(s * 0.17, -s * 0.38, s * 0.04, s * 0.36);
     ctx.restore();
-    for (let i = 0; i < 5; i++) {
-      const y = -s * 0.56 + i * s * 0.13, wd = s * (0.36 - Math.abs(i - 1.5) * 0.04);
-      for (const sd of [-1, 1]) { ctx.strokeStyle = '#000'; ctx.lineWidth = s * 0.055; ctx.beginPath(); ctx.moveTo(sd * s * 0.04, y); ctx.quadraticCurveTo(sd * wd, y - s * 0.05, sd * wd * 0.95, y + s * 0.1); ctx.stroke(); ctx.strokeStyle = bone; ctx.lineWidth = s * 0.032; ctx.stroke(); }
-    }
-    ctx.strokeStyle = '#000'; ctx.lineWidth = s * 0.06; ctx.beginPath(); ctx.moveTo(0, -s * 0.62); ctx.lineTo(0, s * 0.02); ctx.stroke(); ctx.strokeStyle = bone; ctx.lineWidth = s * 0.035; ctx.stroke();
-    // barnacles on shoulders and flanks
-    for (const [x, y, r] of [[-0.82, -0.6, 0.06], [-0.7, -0.68, 0.045], [-0.92, -0.42, 0.05], [0.78, -0.66, 0.055], [0.9, -0.5, 0.045], [-0.8, 0.1, 0.05], [0.85, 0.2, 0.06], [0.7, 0.32, 0.04]]) barn(s * x, s * y, s * r);
-    // heavy rusted chain slung across him
-    chain([[-s * 0.82, -s * 0.72], [-s * 0.3, -s * 0.05], [s * 0.35, s * 0.35], [s * 0.82, s * 0.44]], s * 0.07);
-    // the head: small for that body, sunk between the shoulders, crusted over
-    const hx = 0, hy = -s * 1.0;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.ellipse(0, -s * 0.72, s * 0.36, s * 0.12, 0, 0, TAU); ctx.fill();
-    const head = () => { ctx.beginPath(); ctx.moveTo(-s * 0.32, -s * 0.72); ctx.bezierCurveTo(-s * 0.42, -s * 1.1, -s * 0.28, -s * 1.42, 0, -s * 1.44); ctx.bezierCurveTo(s * 0.28, -s * 1.42, s * 0.42, -s * 1.1, s * 0.32, -s * 0.72); ctx.quadraticCurveTo(0, -s * 0.62, -s * 0.32, -s * 0.72); ctx.closePath(); };
-    solid(ctx, head, '#5e6a62', s, 'rgba(230,240,225,0.24)');
-    // kelp hair plastered down over the skull and shoulders
-    for (let i = 0; i < 11; i++) { const k = (i - 5) / 5; if (Math.abs(k) < 0.5) continue; tentacle(ctx, k * s * 0.3, -s * (1.38 - Math.abs(k) * 0.18), Math.PI / 2 + k * 0.45, s * (0.5 + Math.abs(k) * 0.55), s * 0.05, t * 1.2 + i, i % 2 ? '#262c16' : '#30361c', 8, 0.25); }
-    for (const [x, y, r] of [[-0.18, -1.3, 0.05], [0.1, -1.36, 0.04], [0.22, -1.18, 0.045], [-0.26, -1.08, 0.04]]) barn(s * x, s * y, s * r);
-    // one socket barnacled shut; the other holds an enormous lidless eye
-    ctx.fillStyle = '#2a3028'; ctx.beginPath(); ctx.ellipse(s * 0.14, -s * 1.0, s * 0.08, s * 0.06, 0, 0, TAU); ctx.fill();
-    barn(s * 0.14, -s * 1.0, s * 0.045);
-    ctx.fillStyle = '#141a14'; ctx.beginPath(); ctx.ellipse(hx - s * 0.1, hy - s * 0.02, s * 0.17, s * 0.15, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#c8ccbc'; ctx.beginPath(); ctx.ellipse(hx - s * 0.1, hy - s * 0.02, s * 0.14, s * 0.125, 0, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(120,60,60,0.5)'; ctx.lineWidth = 0.7;
-    for (let i = 0; i < 5; i++) { const a = i * 1.3; ctx.beginPath(); ctx.moveTo(hx - s * 0.1 + Math.cos(a) * s * 0.13, hy - s * 0.02 + Math.sin(a) * s * 0.11); ctx.lineTo(hx - s * 0.1 + Math.cos(a + 0.2) * s * 0.07, hy - s * 0.02 + Math.sin(a + 0.2) * s * 0.06); ctx.stroke(); }
-    const look = Math.sin(t * 0.8) * s * 0.02;
-    eyes(ctx, [[hx - s * 0.1 + look, hy - s * 0.02]], s * 0.03, '#f0f4e0', 6);
-    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(hx - s * 0.1 + look, hy - s * 0.02, s * 0.018, 0, TAU); ctx.fill();
-    // slack, drowned mouth
-    ctx.fillStyle = '#0a0606'; ctx.beginPath(); ctx.ellipse(hx + s * 0.0, hy + s * 0.2, s * 0.12, s * 0.05 + Math.abs(Math.sin(t * 1.2)) * s * 0.025, 0, 0, TAU); ctx.fill();
-    fangs(ctx, hx - s * 0.1, hy + s * 0.17, hx + s * 0.1, hy + s * 0.17, 5, s * 0.05, '#a8a088');
-    // near arm raised out of the water, a broken shackle dragging its chain
-    const ax = s * 1.55, ay = -s * 1.15 + Math.sin(t * 1.2) * s * 0.06;
-    limb(ctx, s * 0.92, -s * 0.5, ax + s * 0.04, ay + s * 0.06, -s * 0.3, s * 0.44, s * 0.34, skinD);
-    limb(ctx, s * 0.9, -s * 0.6, ax - s * 0.02, ay, -s * 0.3, s * 0.34, s * 0.25, skin, 'rgba(0,0,0,0)');
-    barn(s * 1.12, -s * 0.38, s * 0.05); barn(s * 1.25, -s * 0.5, s * 0.04);
-    ctx.fillStyle = iron; ctx.strokeStyle = '#000'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.ellipse(ax - s * 0.06, ay + s * 0.14, s * 0.17, s * 0.09, -0.5, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = rust; ctx.beginPath(); ctx.ellipse(ax - s * 0.1, ay + s * 0.17, s * 0.07, s * 0.035, -0.5, 0, TAU); ctx.fill();
-    chain([[ax - s * 0.1, ay + s * 0.22], [ax - s * 0.04, ay + s * 0.7], [ax + s * 0.04 + Math.sin(t * 1.2) * s * 0.04, ay + s * 1.4], [ax + s * 0.08, s * 0.6]], s * 0.06);
-    claws(ctx, ax, ay, -Math.PI / 2 - 0.4, s * 0.42, 4, 1.2, '#a8a490', 1.6);
-    // water running off him
-    ctx.strokeStyle = 'rgba(150,180,175,0.45)'; ctx.lineWidth = 0.8;
-    for (let i = 0; i < 6; i++) { const x = -s * 0.9 + rng() * s * 1.8, y0 = -s * 0.6 + rng() * s * 0.5, p = (t * 0.6 + rng()) % 1; ctx.beginPath(); ctx.moveTo(x, y0 + p * s * 0.3); ctx.lineTo(x, y0 + p * s * 0.3 + s * 0.18); ctx.stroke(); }
+    // the mouth of the bell: black, and something cold hangs inside it
+    ctx.fillStyle = '#020303'; ctx.beginPath(); ctx.ellipse(0, s * 0.02, s * 0.47, s * 0.09, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#5a7a66'; ctx.lineWidth = s * 0.03; ctx.beginPath(); ctx.ellipse(0, s * 0.02, s * 0.49, s * 0.1, 0, 0.1, Math.PI - 0.1); ctx.stroke();
     ctx.restore();
-    // the black water he rises from
-    const wy = s * 0.58;
-    const water = () => { ctx.beginPath(); ctx.moveTo(-s * 2.15, wy + s * 0.08); for (let i = 1; i <= 21; i++) { const x = -s * 2.15 + i * s * 0.2048; ctx.lineTo(x, wy + Math.sin(i * 1.3 + t * 2.4) * s * 0.03 - Math.max(0, 1 - Math.abs(x) / (s * 1.3)) * s * 0.06); } ctx.lineTo(s * 2.15, wy + s * 0.08); ctx.bezierCurveTo(s * 1.9, s * 0.95, s * 0.8, s * 1.02, 0, s * 1.02); ctx.bezierCurveTo(-s * 0.8, s * 1.02, -s * 1.9, s * 0.95, -s * 2.15, wy + s * 0.08); ctx.closePath(); };
-    water(); ctx.fillStyle = '#05080b'; ctx.fill();
+    // the tongue of the bell: a pale face on a rope, swinging
+    const [mx, my] = W(0, s * 0.02), cx = mx + sw * s * 0.08, cy = my + s * 0.36;
+    ctx.strokeStyle = '#000'; ctx.lineWidth = s * 0.04; ctx.beginPath(); ctx.moveTo(mx, my - s * 0.02); ctx.lineTo(cx, cy - s * 0.14); ctx.stroke();
+    ctx.strokeStyle = '#5a4a34'; ctx.lineWidth = s * 0.02; ctx.stroke();
+    halo(ctx, cx, cy, s * 0.45, '#7affc8', 0.18 + 0.05 * Math.sin(t * 3));
+    ctx.save(); ctx.translate(cx, cy + s * 0.06); ctx.rotate(-sw * 0.2); ctx.scale(1.3, 1.3);
+    const face = () => { ctx.beginPath(); ctx.moveTo(0, -s * 0.16); ctx.bezierCurveTo(s * 0.14, -s * 0.16, s * 0.15, s * 0.06, s * 0.06, s * 0.2); ctx.quadraticCurveTo(0, s * 0.25, -s * 0.06, s * 0.2); ctx.bezierCurveTo(-s * 0.15, s * 0.06, -s * 0.14, -s * 0.16, 0, -s * 0.16); ctx.closePath(); };
+    solid(ctx, face, '#b8bcae', s, 'rgba(255,255,255,0.3)');
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath(); ctx.ellipse(-s * 0.05, -s * 0.03, s * 0.035, s * 0.045, 0, 0, TAU); ctx.ellipse(s * 0.05, -s * 0.03, s * 0.035, s * 0.045, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, s * 0.12, s * 0.035, s * 0.06 + Math.abs(Math.sin(t * 1.6)) * s * 0.02, 0, 0, TAU); ctx.fill();
+    eyes(ctx, [[-s * 0.05, -s * 0.03], [s * 0.05, -s * 0.03]], s * 0.014, glow, 5);
+    ctx.restore();
+    // near arm reaching for you, fingers far too long
+    const ax = s * 1.72, ay = -s * 0.15 + Math.sin(t * 1.1) * s * 0.06;
+    limb(ctx, s * 0.56, -s * 0.86, ax, ay, s * 0.34, s * 0.15, s * 0.11, pale);
+    hand(ax, ay, -0.25, s * 0.42, 4, 1.3);
+    // water streaming off the shroud
+    ctx.strokeStyle = 'rgba(150,180,175,0.4)'; ctx.lineWidth = 0.8;
+    for (let i = 0; i < 5; i++) { const x = -s * 0.5 + rng() * s, y0 = -s * 0.8 + rng() * s * 0.9, p = (t * 0.6 + rng()) % 1; ctx.beginPath(); ctx.moveTo(x, y0 + p * s * 0.3); ctx.lineTo(x, y0 + p * s * 0.3 + s * 0.16); ctx.stroke(); }
+    ctx.restore();
+    // the black water, and the drowned reaching up out of it
+    const wy = s * 0.62;
+    const water = () => { ctx.beginPath(); ctx.moveTo(-s * 2.15, wy + s * 0.08); for (let i = 1; i <= 21; i++) { const x = -s * 2.15 + i * s * 0.2048; ctx.lineTo(x, wy + Math.sin(i * 1.3 + t * 2.4) * s * 0.025); } ctx.lineTo(s * 2.15, wy + s * 0.08); ctx.bezierCurveTo(s * 1.9, s * 0.95, s * 0.8, s * 1.02, 0, s * 1.02); ctx.bezierCurveTo(-s * 0.8, s * 1.02, -s * 1.9, s * 0.95, -s * 2.15, wy + s * 0.08); ctx.closePath(); };
+    water(); ctx.fillStyle = '#04070a'; ctx.fill();
     ctx.save(); water(); ctx.clip();
-    ctx.strokeStyle = 'rgba(70,100,110,0.55)'; ctx.lineWidth = 0.8;
-    for (let r = 0; r < 4; r++) { const ph = (t * 0.5 + r * 0.25) % 1, rx = s * (0.9 + ph * 1.2), ry = s * (0.05 + ph * 0.1); ctx.globalAlpha = 1 - ph; ctx.beginPath(); ctx.ellipse(0, wy + s * 0.06, rx, ry, 0, 0, Math.PI); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(70,100,110,0.5)'; ctx.lineWidth = 0.8;
+    for (let r = 0; r < 3; r++) { const ph = (t * 0.4 + r / 3) % 1; ctx.globalAlpha = 1 - ph; ctx.beginPath(); ctx.ellipse(0, wy + s * 0.05, s * (0.7 + ph * 1.3), s * (0.04 + ph * 0.1), 0, 0, Math.PI); ctx.stroke(); }
     ctx.globalAlpha = 1;
-    // his reflection: just a pale smear, and the eye
-    ctx.fillStyle = 'rgba(90,110,100,0.25)'; ctx.beginPath(); ctx.ellipse(0, wy + s * 0.25, s * 0.8, s * 0.12, 0, 0, TAU); ctx.fill();
     ctx.restore();
-    ctx.strokeStyle = 'rgba(150,180,180,0.5)'; ctx.lineWidth = 0.9;
-    ctx.beginPath(); ctx.moveTo(-s * 1.25, wy - s * 0.04); ctx.quadraticCurveTo(0, wy - s * 0.12, s * 1.25, wy - s * 0.04); ctx.stroke();
-    // the drowned hand breaking the surface
-    claws(ctx, -s * 1.42, wy - s * 0.02, Math.PI / 2 + 0.9, s * 0.36, 4, 1.0, '#a8a490', 1.5);
+    ctx.strokeStyle = 'rgba(150,180,180,0.45)'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(-s * 0.75, wy - s * 0.02); ctx.quadraticCurveTo(0, wy - s * 0.08, s * 0.75, wy - s * 0.02); ctx.stroke();
+    hand(-s * 1.5, wy, Math.PI / 2 + 0.5, s * 0.3, 4, 1.0, '#8a8e80');
+    for (const [x, h, a, ph] of [[-1.95, 0.45, -1.4, 0], [-1.05, 0.3, -1.8, 1.3], [1.0, 0.38, -1.3, 2.1], [1.45, 0.55, -1.6, 0.7], [1.9, 0.3, -1.9, 2.8]]) {
+      const x0 = s * x, y0 = wy + s * 0.05, ex = x0 + Math.cos(a) * s * h + Math.sin(t * 1.5 + ph) * s * 0.04, ey = y0 + Math.sin(a) * s * h;
+      limb(ctx, x0, y0, ex, ey, s * 0.06, s * 0.09, s * 0.07, '#5e645a');
+      hand(ex, ey, a, s * 0.2, 4, 1.2, '#8a8e80');
+    }
   },
 };
 

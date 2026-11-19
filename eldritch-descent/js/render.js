@@ -48,6 +48,8 @@ function iconOutline(ctx, name, x, y, color, scale = 1) {
 
 // ---------------- sprites at arena scale ----------------
 const FLYERS = ['nightgaunt', 'byakhee'];
+// silhouettes that stand taller than 2.3 sizes (so intents sit above them, not on them)
+const TALL = { cthulhu: 3.35, dagon: 3.1, nyarlathotep: 2.85 };
 function heroSpriteA(cls) {
   return SPRITES['A_hero_' + cls] || bakeSprite('A_hero_' + cls, (k, s, t) => HeroArt[cls](k, s, t * 0.25), 9, { scale: 1.75, span: 4.0, oy: 0.62, frames: 6, t0: 0, dt: 0.12 });
 }
@@ -138,7 +140,7 @@ class Renderer {
       if (f.sx === undefined) f.sx = f.tx + 30;
       f.sy = FEET - d.size * sc * (fly ? 1.5 : 0.92);
       f.spr = spr;
-      const hgt = d.size * sc * 2.3;
+      const hgt = d.size * sc * (TALL[f.art] || 2.3);
       f.box = { x0: f.sx - vis / 2, y0: FEET - hgt - (fly ? 14 : 0), x1: f.sx + vis / 2, y1: FEET + 4 };
       x += vis + 6;
     }

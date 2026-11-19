@@ -18,7 +18,7 @@ A turn-based cosmic-horror roguelite in pixel art, set in the drowned city of **
 - **Bosses:**
   - **The Tide Patriarch:** party-wide sweeps, the crushing tide, and he calls his Fathomkin.
   - **The Hollow King:** hides behind Hollow Masks that shield him and whispers madness.
-  - **The Drowned God:** counts down to the Dreaming, which strikes everyone at once, so stack Block.
+  - **The Drowned God:** the bell of the Drowned Spire, given a body. It draws back for two turns, then tolls and strikes everyone at once, so stack Block.
 - **Between runs:** Forbidden Knowledge buys permanent Rites.
 
 ## Controls

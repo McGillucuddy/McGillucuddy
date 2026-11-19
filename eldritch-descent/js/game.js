@@ -356,13 +356,13 @@ class Game {
       if (k === 'whisper') f.intent = M({ key: k, kind: 'debuff', name: 'Whispered Madness', dmg: 4, tgt: 'all', weak: 2, vuln: 1 });
       if (k === 'chaos') f.intent = M({ key: k, kind: 'attack', name: 'The Unmaking', dmg: 22, tgt: 'lowest' });
     } else if (f.type === 'cthulhu') {
-      if (hpf < 0.5 && !f.flags.spawn) { f.flags.spawn = 1; f.intent = M({ key: 'spawn', kind: 'summon', name: 'My Spawn, Rise', summon: ['starspawn'], block: 20 }); return; }
+      if (hpf < 0.5 && !f.flags.spawn) { f.flags.spawn = 1; f.intent = M({ key: 'spawn', kind: 'summon', name: 'The Congregation Rises', summon: ['starspawn'], block: 20 }); return; }
       const k = ['slam', 'dream2', 'dream1', 'unleash', 'rend'][(f.turn - 1) % 5];
-      if (k === 'slam') { f.intent = M({ key: k, kind: 'attack', name: 'Tentacle Slam', dmg: 12, tgt: 'random' }); if (!this.taunter()) f.intent.targets = shuffle(this.allies()).slice(0, 2); }
-      if (k === 'dream2') f.intent = M({ key: k, kind: 'charge', name: 'He Begins to Dream (2)' });
-      if (k === 'dream1') f.intent = M({ key: k, kind: 'charge', name: 'He Begins to Dream (1)' });
-      if (k === 'unleash') f.intent = M({ key: k, kind: 'attack', name: 'THE DREAMING', dmg: 24, tgt: 'all', weak: 2 });
-      if (k === 'rend') f.intent = M({ key: k, kind: 'attack', name: 'Rending Claws', dmg: 26, tgt: 'melee' });
+      if (k === 'slam') { f.intent = M({ key: k, kind: 'attack', name: 'Drowning Hands', dmg: 12, tgt: 'random' }); if (!this.taunter()) f.intent.targets = shuffle(this.allies()).slice(0, 2); }
+      if (k === 'dream2') f.intent = M({ key: k, kind: 'charge', name: 'The Bell Draws Back (2)' });
+      if (k === 'dream1') f.intent = M({ key: k, kind: 'charge', name: 'The Bell Draws Back (1)' });
+      if (k === 'unleash') f.intent = M({ key: k, kind: 'attack', name: 'THE TOLLING', dmg: 24, tgt: 'all', weak: 2 });
+      if (k === 'rend') f.intent = M({ key: k, kind: 'attack', name: 'The Long Reach', dmg: 26, tgt: 'melee' });
     }
   }
   retarget() {

@@ -297,7 +297,7 @@ const UI = {
         else if (it.perHit) s += ', each at a random hero';
         else if (it.targets && it.targets.length) s += ` to ${it.targets.map(h => esc(h.name)).join(' and ')}`;
         const extra = []; if (it.vuln) extra.push(`${it.vuln} Vulnerable`); if (it.weak) extra.push(`${it.weak} Weak`); if (it.bleed) extra.push(`${it.bleed} Bleed`); if (it.block) extra.push(`gains Block`); if (it.str) extra.push(`+${it.str} Strength${it.allFoes ? ' to every horror' : ''}`); if (it.summon) extra.push('summons'); if (it.intangible) extra.push('phases out'); if (it.heal) extra.push('heals');
-        if (it.kind === 'charge') extra.push('when the count ends, the Dreaming will strike everyone. Stack Block.');
+        if (it.kind === 'charge') extra.push('when the count ends, the bell tolls and strikes everyone. Stack Block.');
         if (extra.length) s += ` (${extra.join(', ')})`;
         html += `<div class="int">${s}.</div>`;
       }

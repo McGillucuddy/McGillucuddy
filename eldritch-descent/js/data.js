@@ -203,7 +203,7 @@ const FOES = {
   // ---- bosses ----
   dagon:      { name: 'The Tide Patriarch', size: 27, hp: [280, 280], boss: true, desc: 'Crowned lord of the Fathomkin. Sweeps the whole party, crushes one of you with the tide, and calls his children.' },
   nyarlathotep:{ name: 'The Hollow King', size: 25, hp: [360, 360], boss: true, desc: 'An empty robe behind a hundred porcelain faces. Hides behind them, whispers madness, and strikes from anywhere.' },
-  cthulhu:    { name: 'The Drowned God', size: 36, hp: [520, 520], boss: true, desc: 'When he begins to dream, count the turns. When the Dreaming breaks, only Block will save you.' },
+  cthulhu:    { name: 'The Drowned God', size: 36, hp: [520, 520], boss: true, desc: 'The bell of the Drowned Spire, given a body. When the bell draws back, count the turns. When it tolls, only Block will save you.' },
 };
 
 // ---------------- floors & encounters ----------------
@@ -216,7 +216,7 @@ const FLOORS = [
     easy: [['migo', 'ghoul'], ['nightgaunt', 'nightgaunt']],
     normal: [['shambler', 'cultist'], ['migo', 'migo'], ['byakhee', 'migo'], ['ghoul', 'ghoul', 'cultist', 'cultist'], ['shambler', 'nightgaunt'], ['byakhee', 'byakhee', 'cultist']],
     elite: [['starspawn'], ['shoggoth', 'migo']] },
-  { name: 'The Drowned Spire', sub: 'The angles are wrong. The tide is rising.', theme: 'rlyeh', boss: 'cthulhu', scale: 2.15, dmg: 1.5,
+  { name: 'The Drowned Spire', sub: 'Far below the water, a bell is ringing.', theme: 'rlyeh', boss: 'cthulhu', scale: 2.15, dmg: 1.5,
     easy: [['hound', 'proto'], ['deepone', 'deepone']],
     normal: [['hound', 'deepone'], ['deepone', 'deepone', 'byakhee'], ['shambler', 'hound'], ['migo', 'migo', 'proto'], ['hound', 'hound'], ['byakhee', 'shambler', 'proto']],
     elite: [['starspawn', 'hound'], ['shoggoth', 'shoggoth']] },
