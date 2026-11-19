@@ -107,12 +107,15 @@ function batWing(ctx, side, span, flap, fill, rim, bone = 'rgba(0,0,0,0.65)') {
   ctx.strokeStyle = bone; ctx.lineWidth = 1.1; ctx.lineCap = 'round';
   for (const [x, y] of fingers) { ctx.beginPath(); ctx.moveTo(side * span * 0.1, -span * 0.1); ctx.quadraticCurveTo(x * 0.55, y * 0.5 - span * 0.12, x, y); ctx.stroke(); }
 }
-function fangs(ctx, x0, y0, x1, y1, n, len, color = '#cfc8ad') {
-  ctx.fillStyle = color;
+function fangs(ctx, x0, y0, x1, y1, n, len, color = '#b8ae8c') {
+  // irregular, yellowed needles: uneven lengths, gaps, a few broken
   const dx = (x1 - x0) / n, dy = (y1 - y0) / n, l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
   for (let i = 0; i < n; i++) {
-    const x = x0 + dx * i, y = y0 + dy * i;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * 0.5 + nx * len, y + dy * 0.5 + ny * len); ctx.lineTo(x + dx * 0.85, y + dy * 0.85); ctx.closePath(); ctx.fill();
+    const h = Math.abs(Math.sin(i * 12.9898 + x0 * 0.37 + y0 * 0.11) * 43758.5453 % 1);
+    if (h < 0.22) continue;
+    const L = len * (0.45 + 0.8 * h), x = x0 + dx * (i + (h - 0.5) * 0.35), y = y0 + dy * i;
+    ctx.fillStyle = h > 0.6 ? color : '#8a8266';
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * 0.32 + nx * L, y + dy * 0.32 + ny * L); ctx.lineTo(x + dx * 0.55, y + dy * 0.55); ctx.closePath(); ctx.fill();
   }
 }
 
@@ -275,8 +278,8 @@ const EnemyArt = {
     solid(ctx, head, '#365548', s, 'rgba(170,230,210,0.2)');
     fangs(ctx, s * 0.1, s * 0.07, s * 0.78, -s * 0.02, 7, s * 0.11);
     // gill slits that flare
-    ctx.strokeStyle = '#7a1c1c'; ctx.lineWidth = 0.9 + Math.sin(t * 3) * 0.3;
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(-s * 0.2 - i * s * 0.09, s * 0.02, s * 0.16, -0.9, 0.9); ctx.stroke(); }
+    ctx.strokeStyle = '#1e0a0c'; ctx.lineWidth = 0.7 + Math.sin(t * 3) * 0.15;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(-s * 0.2 - i * s * 0.08, s * 0.02, s * 0.13, -0.6, 0.7); ctx.stroke(); }
     // barbels
     tentacle(ctx, s * 0.7, s * 0.08 + gape * 0.5, 1.3, s * 0.35, 0.9, t * 4, '#26392f', 4, 0.8);
     // bulging lidless eyes
@@ -533,32 +536,43 @@ const EnemyArt = {
     }
   },
   proto(ctx, s, t, e) { EnemyArt.shoggoth(ctx, s, t, e); },
-  // ---------------------------------------------------------- STAR-SPAWN
+  // ---------------------------------------------------------- TIDEBRUTE (hunched, squid-headed, knuckle-walking)
   starspawn(ctx, s, t) {
-    const w = Math.sin(t * 2.2), hide = '#24402e', hideD = '#12241a';
-    ctx.save(); ctx.translate(-s * 0.35, -s * 0.5); ctx.rotate(-0.35 + Math.sin(t * 1.2) * 0.08);
-    batWing(ctx, -1, s * 1.3, Math.sin(t * 1.5), '#0d1d14', 'rgba(70,130,95,0.35)'); ctx.restore();
-    limb(ctx, -s * 0.3, s * 0.3, -s * 0.4 - w * s * 0.18, s * 0.98, s * 0.14, s * 0.36, s * 0.3, hideD);
-    limb(ctx, -s * 0.25, -s * 0.3, -s * 0.6 - w * s * 0.15, s * 0.5, s * 0.2, s * 0.26, s * 0.2, hideD);
-    limb(ctx, s * 0.1, s * 0.3, s * 0.18 + w * s * 0.18, s * 0.98, s * 0.14, s * 0.4, s * 0.32, hide);
-    const torso = () => { ctx.beginPath(); ctx.moveTo(-s * 0.55, s * 0.45); ctx.quadraticCurveTo(-s * 0.85, -s * 0.2, -s * 0.4, -s * 0.6); ctx.quadraticCurveTo(s * 0.1, -s * 0.8, s * 0.5, -s * 0.45); ctx.quadraticCurveTo(s * 0.8, 0, s * 0.45, s * 0.45); ctx.quadraticCurveTo(0, s * 0.6, -s * 0.55, s * 0.45); ctx.closePath(); };
-    solid(ctx, torso, hide, s, 'rgba(160,240,190,0.16)');
-    ctx.save(); torso(); ctx.clip(); ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.8;
-    for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) { ctx.beginPath(); ctx.arc(-s * 0.7 + c * s * 0.26 + (r % 2) * s * 0.13, -s * 0.55 + r * s * 0.24, s * 0.12, 0.2, Math.PI - 0.2); ctx.stroke(); }
+    const w = Math.sin(t * 2.2), hide = '#2a4a38', hideD = '#14261c', belly = '#3e5a46';
+    // vestigial ragged wing high on the back
+    ctx.save(); ctx.translate(-s * 0.45, -s * 0.75); ctx.rotate(-0.55 + Math.sin(t * 1.2) * 0.06);
+    batWing(ctx, -1, s * 1.05, Math.sin(t * 1.5) * 0.4, '#0b1610', 'rgba(70,120,90,0.35)'); ctx.restore();
+    // far limbs
+    limb(ctx, -s * 0.35, s * 0.25, -s * 0.55 - w * s * 0.12, s * 0.98, s * 0.2, s * 0.34, s * 0.26, hideD);
+    limb(ctx, s * 0.05, -s * 0.35, s * 0.55 + w * s * 0.1, s * 0.95, -s * 0.25, s * 0.26, s * 0.2, hideD);
+    claws(ctx, s * 0.55 + w * s * 0.1, s * 0.95, 0.3, s * 0.28, 3, 1.0, '#6a6a58', 1.1);
+    // hunched torso: the back is the highest point
+    const torso = () => { ctx.beginPath(); ctx.moveTo(-s * 0.85, s * 0.45); ctx.bezierCurveTo(-s * 1.0, -s * 0.35, -s * 0.55, -s * 0.95, s * 0.05, -s * 0.85); ctx.bezierCurveTo(s * 0.55, -s * 0.75, s * 0.75, -s * 0.3, s * 0.55, s * 0.1); ctx.bezierCurveTo(s * 0.3, s * 0.55, -s * 0.3, s * 0.65, -s * 0.85, s * 0.45); ctx.closePath(); };
+    solid(ctx, torso, hide, s, 'rgba(160,240,190,0.14)');
+    ctx.save(); torso(); ctx.clip();
+    ctx.fillStyle = belly; ctx.beginPath(); ctx.ellipse(s * 0.1, s * 0.35, s * 0.55, s * 0.32, -0.2, 0, TAU); ctx.fill();
+    const rng = hashRng(5);
+    for (let i = 0; i < 26; i++) { ctx.fillStyle = rng() < 0.6 ? 'rgba(0,0,0,0.28)' : 'rgba(170,220,190,0.12)'; ctx.beginPath(); ctx.ellipse(-s * 0.8 + rng() * s * 1.4, -s * 0.8 + rng() * s * 1.3, s * (0.04 + rng() * 0.06), s * 0.03, rng() * 3, 0, TAU); ctx.fill(); }
     ctx.restore();
-    // face tentacles
-    for (let i = 0; i < 9; i++) tentacle(ctx, s * 0.32 + (i - 4) * s * 0.06, -s * 0.5, Math.PI / 2 - 0.35 + (i - 4) * 0.13, s * (0.7 + (i % 3) * 0.12), 2.6, t * 2.5 + i, i % 2 ? '#2f5a3e' : '#284a34', 8, 0.6);
-    const hd = () => { ctx.beginPath(); ctx.moveTo(-s * 0.1, -s * 0.5); ctx.quadraticCurveTo(-s * 0.3, -s * 1.3, s * 0.3, -s * 1.42); ctx.quadraticCurveTo(s * 0.85, -s * 1.3, s * 0.72, -s * 0.6); ctx.quadraticCurveTo(s * 0.4, -s * 0.38, -s * 0.1, -s * 0.5); ctx.closePath(); };
-    solid(ctx, hd, '#2c4f39', s, 'rgba(160,240,190,0.22)');
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 0.8;
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(s * 0.3, -s * 1.25 + i * s * 0.14, s * 0.26, 0.5, Math.PI - 0.5); ctx.stroke(); }
-    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(s * 0.56, -s * 0.76, s * 0.13, s * 0.05, 0.6, 0, TAU); ctx.ellipse(s * 0.22, -s * 0.72, s * 0.12, s * 0.05, 0.35, 0, TAU); ctx.fill();
-    eyes(ctx, [[s * 0.56, -s * 0.76], [s * 0.22, -s * 0.72]], 0.9, '#ff2a14', 7);
-    ctx.strokeStyle = '#142a1c'; ctx.lineWidth = 2; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(s * 0.06, -s * 0.9); ctx.lineTo(s * 0.34, -s * 0.78); ctx.moveTo(s * 0.44, -s * 0.9); ctx.lineTo(s * 0.72, -s * 0.74); ctx.stroke();
-    const ax = s * 1.1 + w * s * 0.1, ay = s * 0.3 + Math.sin(t * 1.7) * s * 0.12;
-    limb(ctx, s * 0.3, -s * 0.3, ax, ay, s * 0.26, s * 0.3, s * 0.22, hide);
-    claws(ctx, ax, ay, 0.2, s * 0.36, 4, 1.4, '#b5b79a', 1.2);
+    // dorsal spines along the hump
+    ctx.fillStyle = '#0e1c14';
+    for (let i = 0; i < 6; i++) { const k = i / 5, x = -s * 0.75 + k * s * 0.85, y = -s * (0.45 + Math.sin(k * 3.0) * 0.48); ctx.beginPath(); ctx.moveTo(x - s * 0.06, y + s * 0.04); ctx.lineTo(x - s * 0.14, y - s * (0.28 - Math.abs(k - 0.45) * 0.2)); ctx.lineTo(x + s * 0.07, y + s * 0.02); ctx.closePath(); ctx.fill(); }
+    // near leg
+    limb(ctx, -s * 0.2, s * 0.35, -s * 0.15 + w * s * 0.14, s * 0.98, s * 0.22, s * 0.4, s * 0.3, hide);
+    // head: an elongated mantle thrust forward, face tentacles hanging beneath
+    ctx.save(); ctx.translate(s * 0.55, -s * 0.48); ctx.rotate(-0.45 + Math.sin(t * 1.3) * 0.05);
+    for (let i = 0; i < 9; i++) tentacle(ctx, s * 0.05 + (i - 4) * s * 0.035, s * 0.12, Math.PI / 2 + 0.45 + (i - 4) * 0.09, s * (0.65 + (i % 3) * 0.14), 2.4, t * 2.4 + i, i % 2 ? '#2a4a36' : '#223e2e', 8, 0.55);
+    const mantle = () => { ctx.beginPath(); ctx.moveTo(-s * 0.18, s * 0.16); ctx.bezierCurveTo(-s * 0.32, -s * 0.15, -s * 0.1, -s * 0.72, s * 0.28, -s * 0.78); ctx.bezierCurveTo(s * 0.5, -s * 0.7, s * 0.45, -s * 0.1, s * 0.3, s * 0.16); ctx.closePath(); };
+    solid(ctx, mantle, '#30553f', s, 'rgba(170,240,200,0.2)');
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 0.7;
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-s * 0.12 + i * s * 0.06, -s * 0.05 - i * s * 0.14); ctx.quadraticCurveTo(s * 0.12, -s * 0.12 - i * s * 0.14, s * 0.35, -s * 0.02 - i * s * 0.14); ctx.stroke(); }
+    ctx.fillStyle = '#050a07'; ctx.beginPath(); ctx.ellipse(s * 0.22, s * 0.0, s * 0.08, s * 0.035, -0.3, 0, TAU); ctx.ellipse(s * 0.02, s * 0.04, s * 0.07, s * 0.03, -0.2, 0, TAU); ctx.fill();
+    eyes(ctx, [[s * 0.22, s * 0.0], [s * 0.02, s * 0.04]], 0.75, '#ff3a1a', 5);
+    ctx.restore();
+    // near arm, knuckles down
+    const ax = s * 1.05 + w * s * 0.08, ay = s * 0.92;
+    limb(ctx, s * 0.3, -s * 0.38, ax, ay, -s * 0.3, s * 0.32, s * 0.24, hide);
+    claws(ctx, ax, ay, 0.2, s * 0.34, 4, 1.2, '#9a9a84', 1.2);
   },
   // ---------------------------------------------------------- FATHER DAGON
   dagon(ctx, s, t) {
@@ -629,73 +643,94 @@ const EnemyArt = {
     ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, s * 0.15, s * 0.07, s * 0.05 + Math.abs(Math.sin(t * 3)) * s * 0.05, 0, 0, TAU); ctx.fill();
     ctx.restore();
   },
-  // ---------------------------------------------------------- NYARLATHOTEP
+  // ---------------------------------------------------------- THE HOLLOW KING (gaunt, robed, faceless)
   nyarlathotep(ctx, s, t) {
-    const ag = ctx.createRadialGradient(0, 0, s * 0.3, 0, 0, s * 1.6);
-    ag.addColorStop(0, 'rgba(60,0,80,0.45)'); ag.addColorStop(1, 'rgba(30,0,40,0)');
-    ctx.fillStyle = ag; ctx.fillRect(-s * 1.7, -s * 1.7, s * 3.4, s * 3.4);
-    // the robe ends in things that are not feet
-    for (let i = 0; i < 9; i++) tentacle(ctx, (i - 4) * s * 0.17, s * 0.85, Math.PI / 2 + (i - 4) * 0.28, s * (0.7 + (i % 2) * 0.3), 3.5, t * 2 + i, '#07060b', 8, 0.9);
-    // long arms, too many joints, spread in benediction
-    for (const sd of [-1, 1]) {
-      const hx = sd * s * 1.2, hy = -s * 0.3 + Math.sin(t * 1.5 + sd) * s * 0.15;
-      limb(ctx, sd * s * 0.3, -s * 0.15, hx, hy, sd * s * 0.3, s * 0.2, s * 0.13, '#0a090e', 'rgba(140,110,50,0.5)');
-      claws(ctx, hx, hy, sd > 0 ? -0.6 : Math.PI + 0.6, s * 0.4, 5, 1.6, '#1a1820', 1.1);
-    }
-    const robe = () => { ctx.beginPath(); ctx.moveTo(-s * 0.85, s * 1.0); ctx.quadraticCurveTo(-s * 0.5, s * 0.2, -s * 0.36, -s * 0.3); ctx.lineTo(s * 0.36, -s * 0.3); ctx.quadraticCurveTo(s * 0.5, s * 0.2, s * 0.85, s * 1.0); ctx.quadraticCurveTo(0, s * 1.15, -s * 0.85, s * 1.0); ctx.closePath(); };
-    solid(ctx, robe, '#08070c', s, 'rgba(150,90,200,0.2)', 'rgba(140,110,50,0.4)');
-    // broad collar
-    ctx.fillStyle = '#6f5c22'; ctx.strokeStyle = '#1a1408'; ctx.lineWidth = 0.7;
-    ctx.beginPath(); ctx.moveTo(-s * 0.42, -s * 0.28); ctx.quadraticCurveTo(0, s * 0.2, s * 0.42, -s * 0.28); ctx.quadraticCurveTo(0, -s * 0.12, -s * 0.42, -s * 0.28); ctx.fill(); ctx.stroke();
-    eyes(ctx, [[0, -s * 0.03]], s * 0.06, '#ff1838', 6);
-    // nemes headdress
-    const nem = () => { ctx.beginPath(); ctx.moveTo(-s * 0.7, s * 0.15); ctx.lineTo(-s * 0.48, -s * 1.0); ctx.quadraticCurveTo(0, -s * 1.3, s * 0.48, -s * 1.0); ctx.lineTo(s * 0.7, s * 0.15); ctx.lineTo(s * 0.34, -s * 0.22); ctx.lineTo(-s * 0.34, -s * 0.22); ctx.closePath(); };
-    solid(ctx, nem, '#8a7230', s, 'rgba(255,230,150,0.3)');
-    ctx.save(); nem(); ctx.clip(); ctx.strokeStyle = '#161c3a'; ctx.lineWidth = 2.2;
-    for (let i = 0; i < 7; i++) { ctx.beginPath(); ctx.moveTo(-s * 0.8, s * 0.1 - i * s * 0.2); ctx.quadraticCurveTo(0, s * 0.22 - i * s * 0.2, s * 0.8, s * 0.1 - i * s * 0.2); ctx.stroke(); }
+    const sway = Math.sin(t * 1.4) * 0.04;
+    const ag = ctx.createRadialGradient(0, -s * 0.3, s * 0.2, 0, -s * 0.2, s * 1.6);
+    ag.addColorStop(0, 'rgba(70,20,90,0.35)'); ag.addColorStop(1, 'rgba(30,0,40,0)');
+    ctx.fillStyle = ag; ctx.fillRect(-s * 1.7, -s * 1.8, s * 3.4, s * 3.4);
+    // shadow bleeding from the hem
+    for (let i = 0; i < 9; i++) tentacle(ctx, (i - 4) * s * 0.17, s * 0.88, Math.PI / 2 + (i - 4) * 0.22, s * (0.45 + (i % 3) * 0.2), 3.2, t * 1.8 + i, '#06050a', 7, 0.8);
+    ctx.save(); ctx.rotate(sway);
+    // far sleeve + arm
+    const sleeve = (sd, hx, hy) => {
+      const sl = () => { ctx.beginPath(); ctx.moveTo(sd * s * 0.22, -s * 0.55); ctx.quadraticCurveTo(sd * s * 0.75, -s * 0.5, hx - sd * s * 0.1, hy - s * 0.1); ctx.lineTo(hx + sd * s * 0.12, hy + s * 0.12); ctx.quadraticCurveTo(sd * s * 0.55, -s * 0.15, sd * s * 0.2, -s * 0.2); ctx.closePath(); };
+      solid(ctx, sl, '#120e18', s, 'rgba(160,110,220,0.14)');
+      claws(ctx, hx, hy, sd > 0 ? -0.5 : Math.PI + 0.5, s * 0.36, 5, 1.5, '#2a2430', 1.3);
+    };
+    sleeve(-1, -s * 0.95, -s * 0.15 + Math.sin(t * 1.3) * s * 0.06);
+    // robe: tall, narrow at the shoulders, wide tattered hem, vertical folds
+    const robe = () => {
+      ctx.beginPath(); ctx.moveTo(-s * 0.3, -s * 0.55);
+      ctx.bezierCurveTo(-s * 0.45, -s * 0.1, -s * 0.7, s * 0.4, -s * 0.78, s * 0.92);
+      for (let i = 0; i <= 10; i++) { const x = -s * 0.78 + i * s * 0.156; ctx.lineTo(x, s * (0.92 + (i % 2 ? 0.1 : -0.02) + Math.sin(t * 2 + i) * 0.03)); }
+      ctx.bezierCurveTo(s * 0.7, s * 0.4, s * 0.45, -s * 0.1, s * 0.3, -s * 0.55); ctx.closePath();
+    };
+    solid(ctx, robe, '#16121c', s, 'rgba(170,120,230,0.18)');
+    ctx.save(); robe(); ctx.clip();
+    for (let i = 0; i < 7; i++) { const x = -s * 0.5 + i * s * 0.16; ctx.strokeStyle = i % 2 ? 'rgba(0,0,0,0.55)' : 'rgba(120,90,160,0.16)'; ctx.lineWidth = s * 0.05; ctx.beginPath(); ctx.moveTo(x * 0.4, -s * 0.5); ctx.quadraticCurveTo(x * 0.9, s * 0.2, x * 1.3, s * 1.0); ctx.stroke(); }
     ctx.restore();
-    // uraeus, and where the face should be: nothing
-    ctx.strokeStyle = '#c9a840'; ctx.lineWidth = 1.4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, -s * 0.95); ctx.quadraticCurveTo(s * 0.12, -s * 1.25, 0, -s * 1.38); ctx.stroke();
-    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, -s * 0.55, s * 0.3, s * 0.4, 0, 0, TAU); ctx.fill();
-    const vg = ctx.createRadialGradient(0, -s * 0.55, 0, 0, -s * 0.55, s * 0.3);
-    vg.addColorStop(0, `rgba(90,0,120,${0.3 + 0.2 * Math.sin(t * 2)})`); vg.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = vg; ctx.beginPath(); ctx.ellipse(0, -s * 0.55, s * 0.3, s * 0.4, 0, 0, TAU); ctx.fill();
-    eyes(ctx, [[-s * 0.11, -s * 0.6], [s * 0.11, -s * 0.6]], 1.4, '#ff1838', 9);
+    // dull gold trim and a heavy pectoral
+    ctx.strokeStyle = '#6a5a28'; ctx.lineWidth = s * 0.035;
+    ctx.beginPath(); ctx.moveTo(-s * 0.3, -s * 0.5); ctx.bezierCurveTo(-s * 0.1, -s * 0.2, s * 0.1, -s * 0.2, s * 0.3, -s * 0.5); ctx.stroke();
+    ctx.fillStyle = '#5a4a20'; ctx.beginPath(); ctx.moveTo(-s * 0.18, -s * 0.38); ctx.lineTo(s * 0.18, -s * 0.38); ctx.lineTo(0, -s * 0.12); ctx.closePath(); ctx.fill();
+    eyes(ctx, [[0, -s * 0.28]], s * 0.045, '#ff1838', 6);
+    sleeve(1, s * 1.0, -s * 0.3 + Math.sin(t * 1.3 + 1) * s * 0.06);
+    // headdress: tall, dull, its stripes worn
+    const nem = () => { ctx.beginPath(); ctx.moveTo(-s * 0.48, -s * 0.28); ctx.lineTo(-s * 0.36, -s * 1.02); ctx.quadraticCurveTo(0, -s * 1.3, s * 0.36, -s * 1.02); ctx.lineTo(s * 0.48, -s * 0.28); ctx.lineTo(s * 0.24, -s * 0.5); ctx.lineTo(-s * 0.24, -s * 0.5); ctx.closePath(); };
+    solid(ctx, nem, '#6e5c26', s, 'rgba(255,230,150,0.25)');
+    ctx.save(); nem(); ctx.clip(); ctx.strokeStyle = 'rgba(16,20,40,0.75)'; ctx.lineWidth = s * 0.06;
+    for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(-s * 0.7, -s * 0.3 - i * s * 0.15); ctx.quadraticCurveTo(0, -s * 0.2 - i * s * 0.15, s * 0.7, -s * 0.3 - i * s * 0.15); ctx.stroke(); }
+    ctx.restore();
+    ctx.strokeStyle = '#8a7430'; ctx.lineWidth = s * 0.05; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, -s * 1.02); ctx.quadraticCurveTo(s * 0.1, -s * 1.28, -s * 0.02, -s * 1.38); ctx.stroke();
+    // where the face should be: nothing at all
+    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, -s * 0.72, s * 0.2, s * 0.27, 0, 0, TAU); ctx.fill();
+    eyes(ctx, [[-s * 0.07, -s * 0.76], [s * 0.07, -s * 0.76]], 1.1, '#ff1838', 8);
+    ctx.restore();
   },
-  // ---------------------------------------------------------- GREAT CTHULHU
+  // ---------------------------------------------------------- THE DROWNED GOD (a colossus rising from the water)
   cthulhu(ctx, s, t) {
-    const flap = Math.sin(t * 1.2), hide = '#1d3a28', hideD = '#0e1e15';
-    batWing(ctx, -1, s * 2.1, flap, '#0a160e', 'rgba(80,150,105,0.4)', 'rgba(20,50,30,0.8)');
-    batWing(ctx, 1, s * 2.1, flap, '#0a160e', 'rgba(80,150,105,0.4)', 'rgba(20,50,30,0.8)');
-    // squat legs
-    for (const sd of [-1, 1]) { limb(ctx, sd * s * 0.4, s * 0.7, sd * s * 0.55, s * 1.25 + Math.sin(t * 1.5 + sd) * s * 0.04, sd * s * 0.2, s * 0.5, s * 0.4, hideD); claws(ctx, sd * s * 0.55, s * 1.28, Math.PI / 2, s * 0.22, 3, 1.4, '#8f927a', 1.4); }
-    // bloated body
-    const body = () => { ctx.beginPath(); ctx.moveTo(0, -s * 0.2); ctx.quadraticCurveTo(s * 1.1, -s * 0.2, s * 0.95, s * 0.6); ctx.quadraticCurveTo(s * 0.7, s * 1.25, 0, s * 1.2); ctx.quadraticCurveTo(-s * 0.7, s * 1.25, -s * 0.95, s * 0.6); ctx.quadraticCurveTo(-s * 1.1, -s * 0.2, 0, -s * 0.2); ctx.closePath(); };
-    solid(ctx, body, hide, s, 'rgba(160,240,190,0.16)');
-    ctx.save(); body(); ctx.clip(); ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 0.9;
-    for (let r = 0; r < 7; r++) for (let c = 0; c < 9; c++) { ctx.beginPath(); ctx.arc(-s * 0.95 + c * s * 0.24 + (r % 2) * s * 0.12, -s * 0.05 + r * s * 0.2, s * 0.12, 0.2, Math.PI - 0.2); ctx.stroke(); }
-    ctx.fillStyle = 'rgba(150,170,130,0.14)'; ctx.beginPath(); ctx.ellipse(0, s * 0.7, s * 0.5, s * 0.45, 0, 0, TAU); ctx.fill();
+    const breathe = Math.sin(t * 1.1) * s * 0.02, hide = '#1f3a2a';
+    const rng = hashRng(9);
+    // tattered wings raised high behind
+    ctx.save(); ctx.translate(0, -s * 0.45);
+    batWing(ctx, -1, s * 2.0, 0.4 + Math.sin(t * 0.9) * 0.25, '#08120c', 'rgba(70,130,95,0.32)', 'rgba(20,45,30,0.9)');
+    batWing(ctx, 1, s * 2.0, 0.4 + Math.sin(t * 0.9) * 0.25, '#08120c', 'rgba(70,130,95,0.32)', 'rgba(20,45,30,0.9)');
     ctx.restore();
-    // arms spread wide, talons flexing
+    ctx.save(); ctx.translate(0, breathe);
+    // torso: hunched shoulders, tapering down into the water
+    const trunk = () => { ctx.beginPath(); ctx.moveTo(-s * 0.38, s * 0.75); ctx.bezierCurveTo(-s * 0.5, s * 0.25, -s * 0.95, 0, -s * 0.85, -s * 0.38); ctx.bezierCurveTo(-s * 0.7, -s * 0.72, -s * 0.3, -s * 0.62, 0, -s * 0.5); ctx.bezierCurveTo(s * 0.3, -s * 0.62, s * 0.7, -s * 0.72, s * 0.85, -s * 0.38); ctx.bezierCurveTo(s * 0.95, 0, s * 0.5, s * 0.25, s * 0.38, s * 0.75); ctx.closePath(); };
+    solid(ctx, trunk, hide, s, 'rgba(160,240,190,0.12)');
+    ctx.save(); trunk(); ctx.clip();
+    for (let i = 0; i < 70; i++) { const x = (rng() - 0.5) * s * 1.8, y = -s * 0.7 + rng() * s * 1.5, v = rng(); ctx.fillStyle = v < 0.18 ? '#7a7a62' : v < 0.6 ? 'rgba(0,0,0,0.28)' : 'rgba(150,210,170,0.1)'; ctx.beginPath(); ctx.ellipse(x, y, s * (0.015 + rng() * 0.04), s * (0.012 + rng() * 0.02), rng() * 3, 0, TAU); ctx.fill(); }
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = s * 0.025;
+    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(-s * (0.55 - i * 0.04), -s * 0.15 + i * s * 0.18); ctx.quadraticCurveTo(-s * 0.1, -s * 0.05 + i * s * 0.2 + rng() * s * 0.05, s * (0.5 - i * 0.05), -s * 0.18 + i * s * 0.17); ctx.stroke(); }
+    ctx.restore();
+    // the tentacle mass he rises from, coiling in front of the torso
+    for (let i = 0; i < 8; i++) { const k = i / 7 - 0.5; tentacle(ctx, k * s * 0.7, s * 0.6, Math.PI / 2 + k * 2.6, s * (0.5 + Math.abs(k) * 0.55), s * 0.17, t * 1.3 + i * 1.1, i % 2 ? '#1c3626' : '#17301f', 8, 0.55); }
+    // long arms, elbows out, talons reaching down
     for (const sd of [-1, 1]) {
-      const cx = sd * s * 1.35, cy = s * 0.35 + Math.sin(t * 1.5 + sd) * s * 0.2;
-      limb(ctx, sd * s * 0.75, s * 0.1, cx, cy, -sd * s * 0.4, s * 0.36, s * 0.26, hide);
-      claws(ctx, cx, cy, Math.PI / 2 - sd * 0.5, s * 0.42, 4, 1.3, '#a3a68c', 1.6);
+      const hx = sd * s * 1.22, hy = s * 0.5 + Math.sin(t * 1.2 + sd) * s * 0.08;
+      limb(ctx, sd * s * 0.74, -s * 0.42, hx, hy, -sd * s * 0.42, s * 0.32, s * 0.22, hide);
+      claws(ctx, hx, hy, Math.PI / 2 - sd * 0.35, s * 0.5, 4, 1.1, '#9a9c86', 1.5);
     }
-    // the face: a writhing mass of feelers
-    for (let i = 0; i < 13; i++) tentacle(ctx, (i - 6) * s * 0.065, -s * 0.12, Math.PI / 2 + (i - 6) * 0.1, s * (1.0 + (i % 3) * 0.22), 5.5, t * 1.8 + i * 0.7, i % 2 ? '#2e5a3d' : '#264a32', 11, 0.7);
-    const head = () => { ctx.beginPath(); ctx.moveTo(-s * 0.5, -s * 0.1); ctx.quadraticCurveTo(-s * 0.85, -s * 1.0, 0, -s * 1.2); ctx.quadraticCurveTo(s * 0.85, -s * 1.0, s * 0.5, -s * 0.1); ctx.quadraticCurveTo(0, s * 0.1, -s * 0.5, -s * 0.1); ctx.closePath(); };
-    solid(ctx, head, '#2b5239', s, 'rgba(160,240,190,0.25)');
-    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.1;
-    for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(0, -s * 1.05 + i * s * 0.14, s * (0.28 + i * 0.05), 0.55, Math.PI - 0.55); ctx.stroke(); }
-    // deep-set eyes under a heavy brow
-    for (const sd of [-1, 1]) {
-      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(sd * s * 0.27, -s * 0.36, s * 0.15, s * 0.08, sd * -0.35, 0, TAU); ctx.fill();
-      eyes(ctx, [[sd * s * 0.27, -s * 0.36]], s * 0.07, '#ff5a10', 14);
-      eyes(ctx, [[sd * s * 0.5, -s * 0.55], [sd * s * 0.42, -s * 0.2]], s * 0.03, '#ff5a10', 6);
-      ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(sd * s * 0.27, -s * 0.36, s * 0.015, s * 0.06, 0, 0, TAU); ctx.fill();
-      ctx.strokeStyle = '#173022'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(sd * s * 0.08, -s * 0.4); ctx.quadraticCurveTo(sd * s * 0.3, -s * 0.56, sd * s * 0.5, -s * 0.42); ctx.stroke();
-    }
+    // a beard of feelers hanging to the waist
+    for (let i = 0; i < 13; i++) { const k = (i - 6) / 6; tentacle(ctx, k * s * 0.28, -s * 0.55, Math.PI / 2 + k * 0.22, s * (0.75 + (1 - Math.abs(k)) * 0.5), s * 0.075, t * 1.6 + i * 0.7, i % 2 ? '#2c5238' : '#244630', 10, 0.55); }
+    // the head: a heavy, lopsided mantle bowed forward, sunk between the shoulders
+    const head = () => { ctx.beginPath(); ctx.moveTo(-s * 0.42, -s * 0.52); ctx.bezierCurveTo(-s * 0.66, -s * 0.85, -s * 0.5, -s * 1.38, -s * 0.12, -s * 1.5); ctx.bezierCurveTo(s * 0.18, -s * 1.58, s * 0.6, -s * 1.3, s * 0.58, -s * 0.9); ctx.bezierCurveTo(s * 0.56, -s * 0.66, s * 0.48, -s * 0.55, s * 0.4, -s * 0.5); ctx.quadraticCurveTo(0, -s * 0.4, -s * 0.42, -s * 0.52); ctx.closePath(); };
+    solid(ctx, head, '#294a35', s, 'rgba(170,240,200,0.2)');
+    ctx.save(); head(); ctx.clip();
+    for (let i = 0; i < 9; i++) { ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = s * (0.015 + rng() * 0.02); const y = -s * (0.85 + rng() * 0.6), x = -s * 0.45 + rng() * s * 0.6; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + s * 0.18, y - s * 0.06 + rng() * s * 0.1, x + s * (0.25 + rng() * 0.25), y + (rng() - 0.5) * s * 0.12); ctx.stroke(); }
+    for (let i = 0; i < 18; i++) { ctx.fillStyle = rng() < 0.5 ? 'rgba(0,0,0,0.25)' : 'rgba(170,230,190,0.1)'; ctx.beginPath(); ctx.ellipse(-s * 0.5 + rng() * s, -s * 1.45 + rng() * s * 0.9, s * 0.04, s * 0.025, rng() * 3, 0, TAU); ctx.fill(); }
+    ctx.restore();
+    // heavy brow, deep-set burning eyes, and lesser eyes scattered on the mantle
+    ctx.fillStyle = '#081209';
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sd * s * 0.17, -s * 0.68, s * 0.11, s * 0.045, sd * -0.4, 0, TAU); ctx.fill(); }
+    ctx.strokeStyle = '#13281a'; ctx.lineWidth = s * 0.08; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-s * 0.33, -s * 0.76); ctx.quadraticCurveTo(-s * 0.15, -s * 0.84, 0, -s * 0.74); ctx.quadraticCurveTo(s * 0.15, -s * 0.84, s * 0.33, -s * 0.78); ctx.stroke();
+    eyes(ctx, [[-s * 0.17, -s * 0.675], [s * 0.17, -s * 0.675]], s * 0.032, '#ff6a1a', 12);
+    eyes(ctx, [[-s * 0.33, -s * 1.02], [s * 0.36, -s * 1.08], [-s * 0.05, -s * 1.3]], s * 0.014, '#ff6a1a', 5);
+    ctx.restore();
   },
 };
 
