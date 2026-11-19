@@ -31,7 +31,7 @@
   <section id="classsel" class="screen">
     <div class="page wide">
       <header><button class="btn small" data-go="title">&larr; Back</button><h2>Choose Your Calling</h2></header>
-      <p class="dim center">The other three callings join you as companions. They act on their own: the Warden holds attention, the Physician keeps everyone alive.</p>
+      <p class="dim center">You play your calling's deck. The other three callings fight beside you on their own. Watch what they intend, and plan around them.</p>
       <div class="class-grid" id="class-grid"></div>
       <div class="center start-row">
         <label class="toggle" id="nm-wrap"><input type="checkbox" id="opt-nightmare"> Nightmare (horrors are far stronger, more Knowledge)</label>
@@ -63,13 +63,14 @@
     <div class="page">
       <header><button class="btn small" data-go="title">&larr; Back</button><h2>How to Play</h2></header>
       <div class="howto">
-        <p><b>Move</b> with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>. <b>Aim</b> with the mouse and <b>hold left click</b> to attack.</p>
-        <p><b>Abilities:</b> <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>. <b>Dodge roll:</b> <kbd>Space</kbd>, which makes you briefly untouchable. <b>Healing Draught:</b> <kbd>F</kbd>.</p>
-        <p><b>Interact / revive:</b> hold <kbd>E</kbd> next to a fallen ally, or press it at altars, chests, fires and the merchant.</p>
-        <p><b>The party.</b> Horrors attack whoever has drawn the most <i>threat</i>. The Warden generates lots of it and taunts horrors off the others. Hit too hard, too early, and they'll come for you instead. Healing draws a little attention too.</p>
-        <p><b>Red ground is about to hurt.</b> Watch for circles, cones and lines, and get out before they fill. Bosses cast with a bar you can read at the top of the screen.</p>
-        <p><b>The run.</b> Clear a room, then pick the next door: Combat, Elite (relic), Shrine (boon), Rest, Merchant or Treasure. Each floor ends in a boss. Level-ups let you pick boons. If the whole party falls, the expedition is over, but you keep the Forbidden Knowledge you earned.</p>
-        <p><b>On a phone:</b> drag on the left side to move. You'll aim and attack the nearest horror automatically. Tap the buttons for abilities.</p>
+        <p><b>The map.</b> Each floor is a branching map. Pick your path: <b>Combat</b>, <b>Elite</b> (harder, drops a relic), <b>Unknown</b> events, <b>Rest</b> sites, the <b>Antiquarian</b>'s shop, and <b>Treasure</b>. The boss waits at the top.</p>
+        <p><b>Your turn.</b> You get 3 energy and draw 5 cards. Click a card to play it. If it needs a target, click a horror or an ally. Unspent cards are discarded when you click <b>End Turn</b>.</p>
+        <p><b>Intents.</b> Every horror shows what it will do next. A sword with a number means an attack, and hovering a horror draws a line to whoever it is aiming at. Each hero shows the total damage coming their way, after their Block.</p>
+        <p><b>Your companions</b> act after you, on their own. Their intent is shown over their heads: the Warden taunts horrors onto himself, the Physician heals and revives, and the Hunter and Occultist strike. Plan around them.</p>
+        <p><b>Ranks.</b> Your party stands in four ranks: Warden, Hunter, Occultist, Physician. Melee horrors can only reach the front two. Cards marked <i>front</i> can only hit the two nearest horrors.</p>
+        <p><b>Block</b> absorbs damage and fades at the start of its owner's turn. <b>Taunt</b> forces single-target attacks onto the taunter. <b>Vulnerable</b> takes 50% more, <b>Weak</b> deals 25% less, and <b>Bleed</b> hurts every turn.</p>
+        <p><b>If you fall, the expedition ends.</b> Fallen companions can be revived by the Physician, at rest sites, or with salts.</p>
+        <p class="dim"><kbd>1</kbd>–<kbd>9</kbd> select a card · <kbd>E</kbd> end turn · <kbd>Esc</kbd> cancel / pause · right-click cancels a selection</p>
       </div>
     </div>
   </section>
@@ -77,31 +78,26 @@
   <!-- GAME -->
   <section id="game" class="screen">
     <div id="topbar">
-      <div id="party"></div>
-      <div id="runinfo">
-        <div class="ri-row"><span id="ri-floor"></span></div>
-        <div class="ri-row"><span class="gold" id="ri-gold"></span><span class="draught" id="ri-draught" title="Healing Draughts (F)"></span></div>
-        <div class="ri-row"><span id="ri-level"></span><div class="xpbar"><div id="ri-xp"></div></div></div>
-        <div id="relics"></div>
-      </div>
+      <div class="tb-left"><span id="tb-class"></span><span id="tb-floor"></span></div>
+      <div id="potions"></div>
+      <div id="relics"></div>
+      <div class="tb-right"><span class="gold" id="tb-gold"></span><button class="btn small" id="btn-deck">Deck <span id="deck-n"></span></button><button class="btn small" id="btn-menu">☰</button></div>
     </div>
     <div id="stagewrap">
       <div id="stage">
         <canvas id="cv"></canvas>
-        <div id="bossframe" class="hidden"><div class="bf-name" id="bf-name"></div><div class="bf-bar"><div id="bf-hp"></div></div><div class="bf-cast hidden" id="bf-cast"><div id="bf-castfill"></div><span id="bf-castname"></span></div></div>
         <div id="banner" class="hidden"></div>
-        <div id="prompt" class="hidden"></div>
-        <div id="touch" class="hidden">
-          <div id="joy"><div id="joy-knob"></div></div>
-          <div id="tbtns"></div>
-        </div>
+        <div id="tip" class="hidden"></div>
+        <div id="hint" class="hidden"></div>
         <div id="modal" class="hidden"><div class="mbox" id="mbox"></div></div>
       </div>
     </div>
-    <div id="bottombar">
-      <div id="chat"></div>
-      <div id="actionbar"></div>
-      <div id="hint"><kbd>E</kbd> interact / revive · <kbd>Esc</kbd> pause</div>
+    <div id="combatbar" class="hidden">
+      <div class="pile" id="pile-draw" title="Draw pile"><span class="pl">Draw</span><span id="n-draw">0</span></div>
+      <div id="energy"><span id="en-n">3</span><small id="en-max">/3</small></div>
+      <div id="hand"></div>
+      <div class="pile" id="pile-disc" title="Discard pile"><span class="pl">Discard</span><span id="n-disc">0</span></div>
+      <button class="btn big" id="btn-end">End Turn</button>
     </div>
   </section>
 </div>
