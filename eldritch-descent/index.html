@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Eldritch Descent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Silkscreen&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- TITLE -->
+  <section id="title" class="screen active">
+    <div class="title-wrap">
+      <canvas id="title-art" width="240" height="90"></canvas>
+      <h1>Eldritch Descent</h1>
+      <p class="tagline">Choose your calling. Gather your party. Go down into the dark, and come back up before it follows you.</p>
+      <div class="menu">
+        <button class="btn big" data-go="classsel">New Expedition</button>
+        <button class="btn" data-go="rites">Forbidden Rites <span class="badge" id="rites-badge"></span></button>
+        <button class="btn" data-go="bestiary">Bestiary</button>
+        <button class="btn" data-go="howto">How to Play</button>
+      </div>
+      <div class="foot"><span id="meta-line"></span> · <label class="toggle"><input type="checkbox" id="opt-sound" checked> Sound</label> · <button class="link" id="reset-save">Erase progress</button></div>
+    </div>
+  </section>
+
+  <!-- CLASS SELECT -->
+  <section id="classsel" class="screen">
+    <div class="page wide">
+      <header><button class="btn small" data-go="title">&larr; Back</button><h2>Choose Your Calling</h2></header>
+      <p class="dim center">The other three callings join you as companions. They act on their own: the Warden holds attention, the Physician keeps everyone alive.</p>
+      <div class="class-grid" id="class-grid"></div>
+      <div class="center start-row">
+        <label class="toggle" id="nm-wrap"><input type="checkbox" id="opt-nightmare"> Nightmare (horrors are far stronger, more Knowledge)</label>
+        <button class="btn big" id="btn-start" disabled>Descend</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- RITES -->
+  <section id="rites" class="screen">
+    <div class="page">
+      <header><button class="btn small" data-go="title">&larr; Back</button><h2>Forbidden Rites</h2><div class="kn" id="rites-kn"></div></header>
+      <p class="dim center">Spend Forbidden Knowledge earned on expeditions. Rites are permanent. Refund any time.</p>
+      <div class="list" id="rites-list"></div>
+      <div class="center"><button class="btn small" id="rites-refund">Refund all</button></div>
+    </div>
+  </section>
+
+  <!-- BESTIARY -->
+  <section id="bestiary" class="screen">
+    <div class="page wide">
+      <header><button class="btn small" data-go="title">&larr; Back</button><h2>Bestiary</h2></header>
+      <div class="beast-grid" id="beast-grid"></div>
+    </div>
+  </section>
+
+  <!-- HOW TO -->
+  <section id="howto" class="screen">
+    <div class="page">
+      <header><button class="btn small" data-go="title">&larr; Back</button><h2>How to Play</h2></header>
+      <div class="howto">
+        <p><b>Move</b> with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>. <b>Aim</b> with the mouse and <b>hold left click</b> to attack.</p>
+        <p><b>Abilities:</b> <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>. <b>Dodge roll:</b> <kbd>Space</kbd>, which makes you briefly untouchable. <b>Healing Draught:</b> <kbd>F</kbd>.</p>
+        <p><b>Interact / revive:</b> hold <kbd>E</kbd> next to a fallen ally, or press it at altars, chests, fires and the merchant.</p>
+        <p><b>The party.</b> Horrors attack whoever has drawn the most <i>threat</i>. The Warden generates lots of it and taunts horrors off the others. Hit too hard, too early, and they'll come for you instead. Healing draws a little attention too.</p>
+        <p><b>Red ground is about to hurt.</b> Watch for circles, cones and lines, and get out before they fill. Bosses cast with a bar you can read at the top of the screen.</p>
+        <p><b>The run.</b> Clear a room, then pick the next door: Combat, Elite (relic), Shrine (boon), Rest, Merchant or Treasure. Each floor ends in a boss. Level-ups let you pick boons. If the whole party falls, the expedition is over, but you keep the Forbidden Knowledge you earned.</p>
+        <p><b>On a phone:</b> drag on the left side to move. You'll aim and attack the nearest horror automatically. Tap the buttons for abilities.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="screen">
+    <div id="topbar">
+      <div id="party"></div>
+      <div id="runinfo">
+        <div class="ri-row"><span id="ri-floor"></span></div>
+        <div class="ri-row"><span class="gold" id="ri-gold"></span><span class="draught" id="ri-draught" title="Healing Draughts (F)"></span></div>
+        <div class="ri-row"><span id="ri-level"></span><div class="xpbar"><div id="ri-xp"></div></div></div>
+        <div id="relics"></div>
+      </div>
+    </div>
+    <div id="stagewrap">
+      <div id="stage">
+        <canvas id="cv"></canvas>
+        <div id="bossframe" class="hidden"><div class="bf-name" id="bf-name"></div><div class="bf-bar"><div id="bf-hp"></div></div><div class="bf-cast hidden" id="bf-cast"><div id="bf-castfill"></div><span id="bf-castname"></span></div></div>
+        <div id="banner" class="hidden"></div>
+        <div id="prompt" class="hidden"></div>
+        <div id="touch" class="hidden">
+          <div id="joy"><div id="joy-knob"></div></div>
+          <div id="tbtns"></div>
+        </div>
+        <div id="modal" class="hidden"><div class="mbox" id="mbox"></div></div>
+      </div>
+    </div>
+    <div id="bottombar">
+      <div id="chat"></div>
+      <div id="actionbar"></div>
+      <div id="hint"><kbd>E</kbd> interact / revive · <kbd>Esc</kbd> pause</div>
+    </div>
+  </section>
+</div>
+
+<script src="js/pixel.js"></script>
+<script src="js/art.js"></script>
+<script src="js/heroes.js"></script>
+<script src="js/data.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
