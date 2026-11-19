@@ -119,6 +119,78 @@ function fangs(ctx, x0, y0, x1, y1, n, len, color = '#b8ae8c') {
   }
 }
 
+// An anatomical hand: palm block, knuckle line, three-jointed fingers that taper,
+// a separate thumb, bulging joints and pointed nails. Fingers are stretched past
+// natural length (the palm is ~38% of the hand) because exaggerated-but-structured
+// anatomy reads as wrong in a way stick fingers never do.
+// (x, y) is the wrist; ang points from wrist to fingertips; len is wrist-to-tip.
+// o: skin, nail, curl (bend per joint, rad), curlDir (±1), spread, side (±1: which
+//    edge the thumb is on), n (fingers), thumb, web (membrane colour), bone (thin and
+//    knobbly), wide (palm width factor), nailLen, seed
+function gHand(ctx, x, y, ang, len, o = {}) {
+  const skin = o.skin || '#9a9e90', nail = o.nail || '#24221c', n = o.n ?? 4, side = o.side ?? 1, cd = o.curlDir ?? 1;
+  const curl = o.curl ?? 0.35, spread = o.spread ?? 0.6, bone = !!o.bone, seed = o.seed ?? 1;
+  const P = len * (bone ? 0.32 : 0.38), F = len - P, hw = len * 0.19 * (o.wide ?? 1);
+  const fw = Math.max(1.6, hw * (bone ? 0.36 : 0.56)), lens = [0.94, 1.05, 0.97, 0.78], segs = [0.45, 0.33, 0.22];
+  const hsh = i => Math.abs(Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453 % 1);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  // build every finger as a chain of joints
+  const chains = [];
+  for (let i = 0; i < n; i++) {
+    const k = n > 1 ? i / (n - 1) : 0.5, fy = side * (k - 0.5) * 2 * hw * 0.82;
+    const fx = P * (1 - 0.14 * Math.abs(k - 0.35) * 2), L = F * lens[Math.round(k * 3)] * (0.94 + 0.12 * hsh(i));
+    let a = side * (k - 0.5) * spread, px = fx, py = fy;
+    const c = curl * (0.7 + 0.6 * hsh(i + 7)), pts = [[px, py]];
+    for (let j = 0; j < 3; j++) { px += Math.cos(a) * L * segs[j]; py += Math.sin(a) * L * segs[j]; pts.push([px, py]); a += cd * c; }
+    chains.push({ pts, a: a - cd * c, w: fw * (i === n - 1 ? 0.85 : 1), L });
+  }
+  if (o.thumb !== false) {
+    const tx = P * 0.22, ty = -side * hw * 0.85, TL = F * 0.62;
+    let a = -side * 0.85, px = tx, py = ty; const pts = [[px, py]];
+    for (let j = 0; j < 2; j++) { px += Math.cos(a) * TL * (j ? 0.42 : 0.58); py += Math.sin(a) * TL * (j ? 0.42 : 0.58); pts.push([px, py]); a += side * 0.55 + cd * curl * 0.5; }
+    chains.push({ pts, a: a - side * 0.55 - cd * curl * 0.5, w: fw * 1.1, L: TL, thumb: true });
+  }
+  const finger = (ch, extra, col) => {
+    ctx.strokeStyle = col;
+    for (let j = 0; j < ch.pts.length - 1; j++) {
+      const t0 = j / (ch.pts.length - 1);
+      ctx.lineWidth = ch.w * (1 - 0.4 * t0) + extra;
+      ctx.beginPath(); ctx.moveTo(...ch.pts[j]); ctx.lineTo(...ch.pts[j + 1]); ctx.stroke();
+    }
+  };
+  // membrane between the fingers, out to the second joint
+  if (o.web) {
+    ctx.fillStyle = o.web; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(P * 0.5, 0);
+    const fs = chains.filter(c => !c.thumb);
+    fs.forEach((c, i) => { const p = c.pts[2]; if (i) { const q = fs[i - 1].pts[2]; ctx.quadraticCurveTo((p[0] + q[0]) / 2 - fw * 0.8, (p[1] + q[1]) / 2, p[0], p[1]); } else ctx.lineTo(p[0], p[1]); });
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  const palm = () => { ctx.beginPath(); ctx.moveTo(-len * 0.04, -hw * 0.62); ctx.quadraticCurveTo(P * 0.5, -hw * 1.08, P, -hw * 0.92); ctx.quadraticCurveTo(P * 1.08, 0, P, hw * 0.92); ctx.quadraticCurveTo(P * 0.5, hw * 1.08, -len * 0.04, hw * 0.62); ctx.closePath(); };
+  // outline pass for everything, then flesh
+  for (const ch of chains) finger(ch, 1.5, '#000');
+  palm(); ctx.lineWidth = 1.5; ctx.strokeStyle = '#000'; ctx.stroke();
+  palm(); ctx.fillStyle = skin; ctx.fill();
+  for (const ch of chains) finger(ch, 0, skin);
+  // tendons fanning from the wrist to each knuckle
+  ctx.strokeStyle = 'rgba(0,0,0,0.32)'; ctx.lineWidth = Math.max(0.5, fw * 0.25);
+  for (const ch of chains) if (!ch.thumb) { ctx.beginPath(); ctx.moveTo(P * 0.08, ch.pts[0][1] * 0.45); ctx.lineTo(ch.pts[0][0] * 0.92, ch.pts[0][1]); ctx.stroke(); }
+  // joints that bulge against the skin, lit from above
+  ctx.fillStyle = 'rgba(210,225,215,0.13)';
+  for (const ch of chains) for (let j = 0; j < ch.pts.length - 1; j++) { const r = ch.w * (bone ? 0.75 : 0.55) * (1 - 0.25 * j); ctx.beginPath(); ctx.arc(ch.pts[j][0], ch.pts[j][1] - r * 0.25, r, 0, TAU); ctx.fill(); }
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 0.5;
+  for (const ch of chains) for (let j = 1; j < ch.pts.length - 1; j++) { const [jx, jy] = ch.pts[j]; ctx.beginPath(); ctx.arc(jx, jy, ch.w * 0.45, ang * 0, Math.PI); ctx.stroke(); }
+  // nails: long, pointed, dark
+  for (const ch of chains) {
+    const [ex, ey] = ch.pts[ch.pts.length - 1], nl = ch.L * (o.nailLen ?? 0.2) * (ch.thumb ? 0.7 : 1), w = ch.w * 0.55, a = ch.a + cd * curl * 0.4;
+    const nx = Math.cos(a), ny = Math.sin(a);
+    ctx.fillStyle = '#000'; ctx.beginPath(); ctx.moveTo(ex - ny * (w + 0.5), ey + nx * (w + 0.5)); ctx.lineTo(ex + nx * (nl + 0.8), ey + ny * (nl + 0.8)); ctx.lineTo(ex + ny * (w + 0.5), ey - nx * (w + 0.5)); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = nail; ctx.beginPath(); ctx.moveTo(ex - ny * w, ey + nx * w); ctx.lineTo(ex + nx * nl, ey + ny * nl); ctx.lineTo(ex + ny * w, ey - nx * w); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
 // ---------------- enemy art (ground creatures face +x) ----------------
 const EnemyArt = {
   // ---------------------------------------------------------- CULTIST
@@ -295,8 +367,8 @@ const EnemyArt = {
     // near arm reaching, webbed talons spread
     const hx = s * 1.05 + sway * s * 0.1, hy = s * 0.12 - Math.abs(sway) * s * 0.1;
     limb(ctx, s * 0.12, -s * 0.25, hx, hy, s * 0.22, s * 0.26, s * 0.18, hide);
-    ctx.fillStyle = 'rgba(60,110,90,0.55)'; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + s * 0.3, hy - s * 0.26); ctx.lineTo(hx + s * 0.38, hy + s * 0.02); ctx.lineTo(hx + s * 0.26, hy + s * 0.26); ctx.closePath(); ctx.fill();
-    claws(ctx, hx, hy, -0.2, s * 0.36, 4, 1.5, '#c2c4a4');
+    gHand(ctx, hx - s * 0.04, hy, -0.2, s * 0.72, { n: 3, skin: '#2f4b40', web: 'rgba(60,110,90,0.75)', curl: 0.3, spread: 1.2, side: -1, nail: '#c2c4a4', nailLen: 0.3, seed: 2 });
+
     ctx.restore();
   },
   // ---------------------------------------------------------- NIGHTGAUNT (top-down)
@@ -619,7 +691,7 @@ const EnemyArt = {
     // far limbs: thick short leg, long arm dragging knuckles
     limb(ctx, -s * 0.3, s * 0.35, -s * 0.48 - w * s * 0.1, s * 0.98, s * 0.16, s * 0.4, s * 0.3, hideD);
     limb(ctx, s * 0.1, -s * 0.55, s * 0.62 + w * s * 0.08, s * 0.94, -s * 0.28, s * 0.28, s * 0.2, hideD);
-    claws(ctx, s * 0.62 + w * s * 0.08, s * 0.94, 0.3, s * 0.26, 3, 1.0, '#6e6c5a', 1.1);
+    gHand(ctx, s * 0.62 + w * s * 0.08, s * 0.8, Math.PI / 2 - 0.2, s * 0.32, { skin: '#1c2620', curl: 0.9, spread: 0.4, side: 1, nail: '#6e6c5a', wide: 1.3, seed: 4 });
     // ragged fin-crest along the hump: torn membrane between uneven spines
     const crest = [[-0.86, 0.0, 0.3], [-0.78, -0.38, 0.42], [-0.6, -0.72, 0.5], [-0.36, -0.96, 0.46], [-0.08, -1.06, 0.36], [0.18, -1.0, 0.24]];
     ctx.fillStyle = 'rgba(44,56,46,0.92)'; ctx.strokeStyle = '#0c120e'; ctx.lineWidth = 0.8;
@@ -649,8 +721,8 @@ const EnemyArt = {
     const hx = s * 1.32 + w * s * 0.05, hy = s * 0.02 + Math.sin(t * 2.2 + 1) * s * 0.06;
     limb(ctx, s * 0.32, -s * 0.42, hx, hy, s * 0.26, s * 0.38, s * 0.27, hide);
     barnacles([[s * 0.62, -s * 0.12, 0.8], [s * 0.76, -s * 0.06, 0.6]], 0.08);
-    ctx.fillStyle = 'rgba(52,66,54,0.9)'; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + s * 0.22, hy - s * 0.32); ctx.lineTo(hx + s * 0.4, hy - s * 0.12); ctx.lineTo(hx + s * 0.36, hy + s * 0.14); ctx.closePath(); ctx.fill();
-    claws(ctx, hx, hy, -0.75, s * 0.42, 4, 1.4, '#b0ae98', 1.3);
+    gHand(ctx, hx, hy, -0.55, s * 0.62, { skin: '#34433a', web: 'rgba(52,66,54,0.9)', curl: 0.32, spread: 1.0, side: -1, wide: 1.35, nail: '#b0ae98', nailLen: 0.32, seed: 6 });
+
     tentacle(ctx, s * 0.85, -s * 0.0, Math.PI / 2, s * 0.42, 1.5, t * 2, kelp, 5, 0.3);
     // the face: a heavy fold of flesh slumped forward over it, feelers hanging below
     ctx.save(); ctx.translate(s * 0.76, -s * 0.5); ctx.rotate(Math.sin(t * 1.3) * 0.04);
@@ -677,8 +749,8 @@ const EnemyArt = {
     // far arm raised, long webbed fingers spread: calling the tide
     const rx = s * 0.05 + sway * s * 0.04, ry = -s * 1.72;
     limb(ctx, s * 0.05, -s * 0.85, rx, ry, -s * 0.16, s * 0.15, s * 0.11, skinD);
-    ctx.fillStyle = 'rgba(40,52,42,0.85)'; ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - s * 0.2, ry - s * 0.3); ctx.lineTo(rx + s * 0.05, ry - s * 0.38); ctx.lineTo(rx + s * 0.24, ry - s * 0.24); ctx.closePath(); ctx.fill();
-    claws(ctx, rx, ry, -Math.PI / 2 - 0.3, s * 0.36, 4, 1.4, '#8a8a74', 1.0);
+    gHand(ctx, rx, ry, -Math.PI / 2 - 0.15, s * 0.5, { skin: '#2c3329', web: 'rgba(40,52,42,0.85)', curl: 0.22, spread: 0.85, side: 1, nail: '#8a8a74', nailLen: 0.28, seed: 8 });
+
     // cape of rotting fishing nets, dragging on the ground behind him
     const cape = () => {
       ctx.beginPath(); ctx.moveTo(s * 0.1, -s * 1.0);
@@ -769,8 +841,8 @@ const EnemyArt = {
     prongs(); ctx.stroke(); ctx.strokeStyle = '#5a7466'; ctx.lineWidth = s * 0.045; prongs(); ctx.stroke();
     ctx.fillStyle = '#5a7466'; ctx.beginPath(); ctx.moveTo(hx - s * 0.04, hy - s * 0.42); ctx.lineTo(hx + s * 0.01, hy - s * 0.52); ctx.lineTo(hx + s * 0.06, hy - s * 0.42); ctx.closePath(); ctx.fill();
     limb(ctx, s * 0.4, -s * 0.72, sx + s * 0.05, -s * 0.5, s * 0.2, s * 0.16, s * 0.12, skin);
-    ctx.fillStyle = skin; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 0.7; ctx.beginPath(); ctx.ellipse(sx + s * 0.06, -s * 0.5, s * 0.08, s * 0.1, 0.2, 0, TAU); ctx.fill(); ctx.stroke();
-    claws(ctx, sx + s * 0.1, -s * 0.46, 0.4, s * 0.12, 3, 0.6, '#8a8a74', 0.8);
+    gHand(ctx, sx - s * 0.12, -s * 0.52, -0.1, s * 0.34, { skin: '#55604f', curl: 1.15, spread: 0.3, side: -1, nail: '#8a8a74', seed: 9 });
+
     ctx.restore();
   },
   // ---------------------------------------------------------- THE HAUNTER OF THE DARK (top-down)
@@ -841,17 +913,10 @@ const EnemyArt = {
       for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(sd * s * (0.3 + i * 0.12), -s * 0.6); ctx.lineTo(hx - sd * s * (0.25 - i * 0.08), hy + s * 0.05); ctx.stroke(); }
       ctx.restore();
     };
-    const boneHand = (x, y, ang, n, len) => {
-      ctx.lineCap = 'round';
-      for (let i = 0; i < n; i++) {
-        const a = ang + (i / (n - 1) - 0.5) * 1.0, l = len * (0.75 + 0.25 * Math.sin(i * 2.1));
-        const mx = x + Math.cos(a) * l * 0.55, my = y + Math.sin(a) * l * 0.55, ex = x + Math.cos(a + 0.35) * l, ey = y + Math.sin(a + 0.35) * l;
-        for (const [c, wd] of [['#000', 1.8], ['#c8c0aa', 0.8]]) { ctx.strokeStyle = c; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(mx, my); ctx.lineTo(ex, ey); ctx.stroke(); }
-      }
-    };
+    const boneHand = (x, y, ang, len, curl, seed) => gHand(ctx, x, y, ang, len, { skin: '#c8c0aa', bone: true, curl, spread: 0.8, side: -1, nail: '#2a2018', nailLen: 0.25, seed });
     const fx = -s * 0.95, fy = -s * 0.3 + Math.sin(t * 1.3) * s * 0.06;
     sleeve(-1, fx, fy, '#100c15');
-    boneHand(fx - s * 0.04, fy + s * 0.04, Math.PI + 0.1, 4, s * 0.42);
+    boneHand(fx - s * 0.04, fy + s * 0.04, Math.PI + 0.25, s * 0.48, 0.3, 3);
     // the robe: tall, narrow shoulders, wide frayed hem, deep folds
     const robe = () => {
       ctx.beginPath(); ctx.moveTo(-s * 0.28, -s * 0.7);
@@ -910,7 +975,7 @@ const EnemyArt = {
     ctx.fillStyle = '#c69cff'; ctx.beginPath(); ctx.moveTo(lx - s * 0.06, ly + s * 0.08); ctx.quadraticCurveTo(lx - s * 0.05, ly - s * 0.04, lx + Math.sin(t * 6) * s * 0.02, ly - s * 0.1); ctx.quadraticCurveTo(lx + s * 0.05, ly - s * 0.04, lx + s * 0.06, ly + s * 0.08); ctx.closePath(); ctx.fill();
     eyes(ctx, [[lx, ly + s * 0.02]], s * 0.035, '#e8d0ff', 6);
     ctx.strokeStyle = '#1e1a22'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(lx, ly - s * 0.15); ctx.lineTo(lx, ly + s * 0.12); ctx.stroke();
-    boneHand(nx + s * 0.04, ny + s * 0.06, 0.6, 4, s * 0.3);
+    boneHand(nx + s * 0.04, ny + s * 0.06, 0.9, s * 0.34, 0.9, 5);
     ctx.restore();
   },
   // ---------------------------------------------------------- HOLLOW MASK (one of the King's faces, drifting)
@@ -932,12 +997,8 @@ const EnemyArt = {
     // thin hands of bone, held up beside the face
     for (const sd of [-1, 1]) {
       const hx = sd * s * 0.7, hy = -s * 0.15 + Math.sin(t * 2 + sd) * s * 0.05;
-      ctx.lineCap = 'round';
-      for (let i = 0; i < 4; i++) {
-        const a = -Math.PI / 2 + sd * (0.1 + i * 0.22), l = s * (0.28 + (i === 1 ? 0.06 : 0));
-        for (const [c, wd] of [['#000', 1.6], ['#c8c0aa', 0.7]]) { ctx.strokeStyle = c; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.cos(a) * l * 0.55, hy + Math.sin(a) * l * 0.55); ctx.lineTo(hx + Math.cos(a - sd * 0.3) * l, hy + Math.sin(a - sd * 0.3) * l); ctx.stroke(); }
-      }
       for (const [c, wd] of [['#000', 1.8], ['#c8c0aa', 0.8]]) { ctx.strokeStyle = c; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(sd * s * 0.45, s * 0.2); ctx.stroke(); }
+      gHand(ctx, hx, hy, -Math.PI / 2 + sd * 0.25, s * 0.7, { n: 3, skin: '#c8c0aa', bone: true, curl: 0.3, curlDir: -sd, spread: 1.3, side: sd, nail: '#2a2018', seed: 4 + sd });
     }
     // the face
     ctx.save(); ctx.translate(s * 0.04, -s * 0.55); ctx.rotate(tilt);
@@ -962,14 +1023,7 @@ const EnemyArt = {
     const pale = '#7a8076', paleD = '#4a5048', shroud = '#262c2a', bronze = '#3e5a4a', glow = '#bfffe0';
     const rng = hashRng(21), sw = Math.sin(t * 1.3);
     // long pale fingers: two-jointed, spread
-    const hand = (x, y, ang, len, n = 4, spread = 1.1, col = '#a4a898') => {
-      ctx.lineCap = 'round';
-      for (let i = 0; i < n; i++) {
-        const a = ang + (i / (n - 1) - 0.5) * spread, l = len * (0.8 + 0.2 * Math.sin(i * 2.3));
-        const mx = x + Math.cos(a) * l * 0.55, my = y + Math.sin(a) * l * 0.55, ex = mx + Math.cos(a + 0.45) * l * 0.5, ey = my + Math.sin(a + 0.45) * l * 0.5;
-        for (const [c, wd] of [['#000', 2.2], [col, 1.1]]) { ctx.strokeStyle = c; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(mx, my); ctx.lineTo(ex, ey); ctx.stroke(); }
-      }
-    };
+    const hand = (x, y, ang, len, o) => gHand(ctx, x, y, ang, len, Object.assign({ skin: '#a4a898', nail: '#1e1c18', nailLen: 0.25 }, o));
     ctx.save(); ctx.translate(0, Math.sin(t * 0.9) * s * 0.015);
     // far arm: impossibly long, hanging down into the water
     limb(ctx, -s * 0.56, -s * 0.86, -s * 1.5, s * 0.6, s * 0.4, s * 0.14, s * 0.1, paleD);
@@ -1058,7 +1112,7 @@ const EnemyArt = {
     // near arm reaching for you, fingers far too long
     const ax = s * 1.72, ay = -s * 0.15 + Math.sin(t * 1.1) * s * 0.06;
     limb(ctx, s * 0.56, -s * 0.86, ax, ay, s * 0.34, s * 0.15, s * 0.11, pale);
-    hand(ax, ay, -0.25, s * 0.42, 4, 1.3);
+    hand(ax - s * 0.02, ay, -0.2, s * 0.58, { curl: 0.38, spread: 0.75, side: -1, seed: 11 });
     // water streaming off the shroud
     ctx.strokeStyle = 'rgba(150,180,175,0.4)'; ctx.lineWidth = 0.8;
     for (let i = 0; i < 5; i++) { const x = -s * 0.5 + rng() * s, y0 = -s * 0.8 + rng() * s * 0.9, p = (t * 0.6 + rng()) % 1; ctx.beginPath(); ctx.moveTo(x, y0 + p * s * 0.3); ctx.lineTo(x, y0 + p * s * 0.3 + s * 0.16); ctx.stroke(); }
@@ -1073,11 +1127,11 @@ const EnemyArt = {
     ctx.globalAlpha = 1;
     ctx.restore();
     ctx.strokeStyle = 'rgba(150,180,180,0.45)'; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.moveTo(-s * 0.75, wy - s * 0.02); ctx.quadraticCurveTo(0, wy - s * 0.08, s * 0.75, wy - s * 0.02); ctx.stroke();
-    hand(-s * 1.5, wy, Math.PI / 2 + 0.5, s * 0.3, 4, 1.0, '#8a8e80');
+    hand(-s * 1.5, wy - s * 0.04, Math.PI - 0.15, s * 0.42, { skin: '#8a8e80', curl: 0.55, curlDir: -1, spread: 0.6, side: -1, seed: 12 });
     for (const [x, h, a, ph] of [[-1.95, 0.45, -1.4, 0], [-1.05, 0.3, -1.8, 1.3], [1.0, 0.38, -1.3, 2.1], [1.45, 0.55, -1.6, 0.7], [1.9, 0.3, -1.9, 2.8]]) {
       const x0 = s * x, y0 = wy + s * 0.05, ex = x0 + Math.cos(a) * s * h + Math.sin(t * 1.5 + ph) * s * 0.04, ey = y0 + Math.sin(a) * s * h;
       limb(ctx, x0, y0, ex, ey, s * 0.06, s * 0.09, s * 0.07, '#5e645a');
-      hand(ex, ey, a, s * 0.2, 4, 1.2, '#8a8e80');
+      hand(ex, ey, a, s * 0.28, { skin: '#8a8e80', curl: 0.25 + 0.5 * Math.abs(Math.sin(t * 1.2 + ph)), spread: 0.8, side: x < 0 ? 1 : -1, n: 3, seed: x * 10 });
     }
   },
 };
