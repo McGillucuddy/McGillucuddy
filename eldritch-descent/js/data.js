@@ -191,7 +191,7 @@ const FOES = {
   hound:      { name: 'Rift Hound', size: 12, hp: [34, 38], desc: 'Ignores rank and hunts the weakest. Taunt it off them.',
                 moves: { lunge: { kind: 'attack', name: 'Angled Lunge', dmg: 10, tgt: 'lowest', bleed: 2 }, stalk: { kind: 'buff', name: 'Stalk', str: 2, block: 6 } }, pattern: ['lunge', 'lunge', 'stalk'] },
   proto:      { name: 'Mawling', size: 10, hp: [12, 15], desc: 'A torn-off scrap of a Mawmass, still hungry.', moves: { engulf: { kind: 'attack', name: 'Engulf', dmg: 5, tgt: 'melee' } }, pattern: ['engulf'] },
-  mask:       { name: 'Hollow Mask', art: 'nyarlathotep', size: 14, hp: [20, 24], desc: 'One of the King\'s hundred faces. Shields its master.',
+  mask:       { name: 'Hollow Mask', art: 'mask', size: 14, hp: [20, 24], desc: 'One of the King\'s hundred faces. Shields its master.',
                 moves: { mock: { kind: 'attack', name: 'Mock', dmg: 4, tgt: 'random' }, veil: { kind: 'block', name: 'Veil the Master', block: 8, toBoss: true } }, pattern: ['veil', 'mock'] },
   // ---- elites ----
   shoggoth:   { name: 'Mawmass', size: 19, hp: [120, 130], elite: true, desc: 'ELITE. A heaving mass of eyes and mouths. Crushes the front rank, reforms its flesh, and splits apart when it dies.',
@@ -202,7 +202,7 @@ const FOES = {
                 pattern: ['presence', 'crush', 'sweep'] },
   // ---- bosses ----
   dagon:      { name: 'The Tide Patriarch', size: 27, hp: [280, 280], boss: true, desc: 'Crowned lord of the Fathomkin. Sweeps the whole party, crushes one of you with the tide, and calls his children.' },
-  nyarlathotep:{ name: 'The Hollow King', size: 25, hp: [360, 360], boss: true, desc: 'A faceless pharaoh behind a hundred masks. Hides behind them, whispers madness, and strikes from anywhere.' },
+  nyarlathotep:{ name: 'The Hollow King', size: 25, hp: [360, 360], boss: true, desc: 'An empty robe behind a hundred porcelain faces. Hides behind them, whispers madness, and strikes from anywhere.' },
   cthulhu:    { name: 'The Drowned God', size: 36, hp: [520, 520], boss: true, desc: 'When he begins to dream, count the turns. When the Dreaming breaks, only Block will save you.' },
 };
 
